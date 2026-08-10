@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { appointmentService, encounterService } from "@/lib/services";
 import type { Appointment, ClinicalEncounter } from "@/types";
-import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, LoadingState, SectionCard } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -116,27 +117,24 @@ export function PatientAppointmentDetail() {
   const channelIcon = appt.consultationChannel === "video" ? Video : appt.consultationChannel === "audio" ? Phone : appt.consultationChannel === "chat" ? MessageSquare : Building2;
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title={`Appointment ${appt.id}`}
+        title={`Appointment`}
         description={`Booked on ${formatDate(appt.date)} at ${formatTime(appt.time)}`}
-        breadcrumbs={[
-          { label: "Appointments", onClick: () => navigate("patient", "appointments") },
-          { label: appt.id },
-        ]}
+        back
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {isUpcoming && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setRescheduleOpen(true)}>
-                  <RotateCcw className="h-4 w-4 mr-1" /> Reschedule
+                  <RotateCcw className="h-4 w-4" /> Reschedule
                 </Button>
                 <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700" onClick={() => setCancelling(true)}>
-                  <XCircle className="h-4 w-4 mr-1" /> Cancel
+                  <XCircle className="h-4 w-4" /> Cancel
                 </Button>
                 {appt.consultationChannel === "video" && (
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate("patient", "consultation", { id: appt.id })}>
-                    <Video className="h-4 w-4 mr-1" /> Join consultation
+                  <Button size="sm" onClick={() => navigate("patient", "consultation", { id: appt.id })}>
+                    <Video className="h-4 w-4" /> Join
                   </Button>
                 )}
               </>
@@ -148,146 +146,126 @@ export function PatientAppointmentDetail() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           {/* Provider + status */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start gap-4">
-                <Avatar className="h-14 w-14">
-                  <AvatarFallback className="bg-emerald-100 text-emerald-700 font-semibold">
-                    {provider ? initials(`${provider.firstName} ${provider.lastName}`) : "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold">{provider ? fullName(provider) : "Provider"}</p>
-                      <p className="text-sm text-muted-foreground">{provider?.specialty}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{provider?.professionalTitle}</p>
-                    </div>
-                    <StatusBadge status={appt.status} />
+          <SectionCard title="Provider" icon={Building2}>
+            <div className="flex items-start gap-3">
+              <Avatar className="h-14 w-14 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {provider ? initials(`${provider.firstName} ${provider.lastName}`) : "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold leading-tight">{provider ? fullName(provider) : "Provider"}</p>
+                    <p className="text-sm text-muted-foreground">{provider?.specialty}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{provider?.professionalTitle}</p>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <CalendarClock className="h-4 w-4" /> {relativeDay(appt.date)} · {formatDate(appt.date)} · {formatTime(appt.time)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground capitalize">
-                      {(() => { const Icon = channelIcon; return <Icon className="h-4 w-4" />; })()}
-                      {" "}{appt.consultationChannel.replace("_", " ")}
-                    </span>
-                  </div>
+                  <StatusBadge status={appt.status} size="sm" />
+                </div>
+                <Separator className="my-3" />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <CalendarClock className="h-4 w-4" /> {relativeDay(appt.date)} · {formatDate(appt.date)} · {formatTime(appt.time)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-muted-foreground capitalize">
+                    {(() => { const Icon = channelIcon; return <Icon className="h-4 w-4" />; })()}
+                    {appt.consultationChannel.replace("_", " ")}
+                  </span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Intake form */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Pre-consultation intake
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Reason for consultation</p>
-                <p className="text-sm">{(intake.reason as string) || "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Symptoms</p>
-                <p className="text-sm whitespace-pre-wrap">{(intake.symptoms as string) || "—"}</p>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="outline" className={intake.consent ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}>
-                  {intake.consent ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+          <SectionCard title="Pre-consultation intake" icon={FileText}>
+            <div className="space-y-3">
+              <Field label="Reason for consultation" value={(intake.reason as string) || "—"} />
+              <Field label="Symptoms" value={(intake.symptoms as string) || "—"} multiline />
+              <div className="flex items-center gap-2 text-sm pt-2">
+                <Badge variant="outline" className={intake.consent ? "bg-emerald-50 text-emerald-700 border-emerald-200 gap-1" : "gap-1"}>
+                  {intake.consent ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                   Consent {intake.consent ? "granted" : "not granted"}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Encounter / preparation notes */}
           {isCompleted && encounter ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Clinical encounter</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <SectionCard title="Clinical encounter" icon={FileText}>
+              <div className="space-y-3">
                 <Field label="Encounter" value={`${encounter.encounterNumber} · ${formatDate(encounter.createdAt)}`} />
-                <Field label="Chief complaint" value={encounter.documentation?.chiefComplaint} />
-                <Field label="Diagnosis" value={encounter.documentation?.diagnosis} />
-                <Field label="Treatment plan" value={encounter.documentation?.treatmentPlan} />
-                <Field label="Patient instructions" value={encounter.documentation?.patientInstructions} />
-                <Field label="Follow-up" value={encounter.documentation?.followUp} />
+                <Field label="Chief complaint" value={encounter.documentation?.chiefComplaint} multiline />
+                <Field label="Diagnosis" value={encounter.documentation?.diagnosis} multiline />
+                <Field label="Treatment plan" value={encounter.documentation?.treatmentPlan} multiline />
+                <Field label="Patient instructions" value={encounter.documentation?.patientInstructions} multiline />
+                <Field label="Follow-up" value={encounter.documentation?.followUp} multiline />
                 <div className="pt-2">
                   <Button variant="outline" size="sm" onClick={() => navigate("patient", "records")}>
                     View full record <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           ) : (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Preparation notes</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground space-y-2">
-                <p>• Test your camera & microphone 10 minutes before the appointment.</p>
-                <p>• Find a quiet, well-lit space for the consultation.</p>
-                <p>• Have a list of your current medications and any recent test results ready.</p>
-                {provider?.specialty?.toLowerCase().includes("cardiolog") && <p>• Take your blood pressure before the consultation if you have a home monitor.</p>}
-              </CardContent>
-            </Card>
+            <SectionCard title="Preparation notes" icon={CheckCircle2}>
+              <ul className="text-sm text-muted-foreground space-y-2 leading-relaxed">
+                <li>• Test your camera & microphone 10 minutes before the appointment.</li>
+                <li>• Find a quiet, well-lit space for the consultation.</li>
+                <li>• Have a list of your current medications and any recent test results ready.</li>
+                {provider?.specialty?.toLowerCase().includes("cardiolog") && <li>• Take your blood pressure before the consultation if you have a home monitor.</li>}
+              </ul>
+            </SectionCard>
           )}
         </div>
 
-        {/* Right column: payment */}
+        {/* Right column: payment + patient */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Payment</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Consultation fee</span>
-                <span className="font-medium">{formatCurrency(appt.price)}</span>
+          <SectionCard title="Payment" icon={FileText}>
+            <dl className="text-sm space-y-2.5">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Consultation fee</dt>
+                <dd className="font-medium">{formatCurrency(appt.price)}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Method</span>
-                <span className="capitalize">{appt.payment?.method ?? "card"}</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Method</dt>
+                <dd className="capitalize">{appt.payment?.method ?? "card"}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 capitalize">{appt.paymentStatus}</Badge>
+              <div className="flex justify-between gap-3 items-center">
+                <dt className="text-muted-foreground">Status</dt>
+                <dd><Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 capitalize">{appt.paymentStatus}</Badge></dd>
               </div>
               {appt.payment?.reference && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Reference</span>
-                  <span className="font-mono text-xs">{appt.payment.reference}</span>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Reference</dt>
+                  <dd className="font-mono text-xs">{appt.payment.reference}</dd>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
           {profile && (
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Patient</CardTitle></CardHeader>
-              <CardContent className="text-sm space-y-1">
+            <SectionCard title="Patient" icon={Building2}>
+              <div className="text-sm space-y-1.5">
                 <p className="font-medium">{profile.firstName} {profile.lastName}</p>
-                <p className="text-muted-foreground">{profile.patientNumber}</p>
+                <p className="text-muted-foreground font-mono text-xs">{profile.patientNumber}</p>
                 <p className="text-muted-foreground">{profile.city}, {profile.state}</p>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           )}
         </div>
       </div>
 
       {/* Reschedule modal */}
       <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Reschedule appointment</DialogTitle>
             <DialogDescription>
               Pick a new date and time slot. The provider will be notified automatically.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">New date</p>
               <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
@@ -295,8 +273,8 @@ export function PatientAppointmentDetail() {
                   <button
                     key={d.value}
                     onClick={() => setNewDate(d.value)}
-                    className={`rounded-lg border p-2 text-center transition-all ${
-                      newDate === d.value ? "border-emerald-500 bg-emerald-50" : "border-border hover:border-emerald-300"
+                    className={`rounded-lg border p-2 text-center transition-all tap-highlight-none ${
+                      newDate === d.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
                     }`}
                   >
                     <p className="text-[9px] text-muted-foreground uppercase">{d.sub}</p>
@@ -313,8 +291,8 @@ export function PatientAppointmentDetail() {
                     <button
                       key={t}
                       onClick={() => setNewTime(t)}
-                      className={`rounded-lg border px-2 py-1.5 text-xs transition-all ${
-                        newTime === t ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-medium" : "border-border hover:border-emerald-300"
+                      className={`rounded-lg border px-2 py-1.5 text-xs transition-all tap-highlight-none ${
+                        newTime === t ? "border-primary bg-primary/5 text-primary font-medium" : "border-border hover:border-primary/30"
                       }`}
                     >
                       {t}
@@ -326,7 +304,7 @@ export function PatientAppointmentDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRescheduleOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={!newDate || !newTime || busy} onClick={confirmReschedule}>
+            <Button disabled={!newDate || !newTime || busy} onClick={confirmReschedule}>
               {busy ? "Saving…" : "Confirm reschedule"}
             </Button>
           </DialogFooter>
@@ -358,11 +336,11 @@ export function PatientAppointmentDetail() {
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, multiline }: { label: string; value?: string | null; multiline?: boolean }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm whitespace-pre-wrap">{value || "—"}</p>
+      <p className={`text-sm mt-0.5 ${multiline ? "whitespace-pre-wrap leading-relaxed" : ""}`}>{value || "—"}</p>
     </div>
   );
 }

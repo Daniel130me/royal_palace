@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import { serviceService, pricingService, adminService } from "@/lib/services";
 import type { Service, ServicePrice } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,17 +11,20 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import {
+  PageHeader, SectionCard, LoadingState, ErrorState, EmptyState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import {
   Tag, Stethoscope, Smile, FlaskConical, Home, HeartPulse, Activity, Truck,
   Pencil, History, ArrowDownRight, ArrowUpRight, Calendar, Wallet, TrendingUp,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const ADMIN_ACTOR_ID = "ADM-001";
 
-const CATEGORIES: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const CATEGORIES: { key: string; label: string; icon: LucideIcon }[] = [
   { key: "consultation", label: "Consultation", icon: Stethoscope },
   { key: "dental", label: "Dental", icon: Smile },
   { key: "laboratory", label: "Laboratory", icon: FlaskConical },
@@ -58,7 +60,6 @@ export function AdminPricing() {
     setError(null);
     Promise.all([serviceService.list(), pricingService.list()])
       .then(([svcs, prices]) => {
-        // attach prices to services (resource.list already includes prices, but ensure)
         const map = new Map(prices.map((p) => [p.id, p]));
         const merged = svcs.map((s) => {
           const attached = (s.prices ?? []).map((p) => map.get(p.id) ?? p);
@@ -112,18 +113,32 @@ export function AdminPricing() {
     }
   };
 
-  if (loading) return <LoadingState label="Loading pricing…" />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={3} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
+  const totalActiveServices = services.filter((s) => activePrice(s)).length;
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Platform Pricing"
         description="Manage patient prices, provider payouts and platform margins. Changes create a new active price and preserve full history."
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Pricing" }]}
+        actions={
+          <div className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{totalActiveServices}</span> active services
+          </div>
+        }
       />
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {CATEGORIES.map((cat) => {
           const items = services.filter((s) => s.category === cat.key);
           if (items.length === 0) return null;
@@ -132,62 +147,70 @@ export function AdminPricing() {
           const totalPayout = items.reduce((s, x) => s + (activePrice(x)?.providerPayout ?? 0), 0);
           const totalMargin = totalRevenue - totalPayout;
           return (
-            <Card key={cat.key}>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="rounded-md bg-primary/10 p-1.5">
-                    <Icon className="h-4 w-4 text-primary" />
-                  </div>
-                  {cat.label}
-                </CardTitle>
+            <SectionCard
+              key={cat.key}
+              title={cat.label}
+              icon={Icon}
+              action={
                 <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" /> Margin {formatCurrency(totalMargin)}</span>
                   <span className="flex items-center gap-1"><Wallet className="h-3.5 w-3.5" /> Payout {formatCurrency(totalPayout)}</span>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {items.map((svc) => {
-                    const active = activePrice(svc);
-                    const history = priceHistory(svc);
-                    return (
-                      <div key={svc.id} className="flex items-center gap-4 p-4">
+              }
+              dense
+            >
+              <ul className="divide-y divide-border/60">
+                {items.map((svc) => {
+                  const active = activePrice(svc);
+                  const history = priceHistory(svc);
+                  const inactiveHistory = history.filter((p) => p.status !== "active");
+                  return (
+                    <li key={svc.id} className="p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{svc.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{svc.id}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium truncate">{svc.name}</p>
+                            {active && (
+                              <StatusBadge status="active" size="sm" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate font-mono mt-0.5">{svc.id}</p>
+                          {inactiveHistory.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {inactiveHistory.length} previous price{inactiveHistory.length === 1 ? "" : "s"}
+                            </p>
+                          )}
                         </div>
-                        <div className="hidden md:block text-right">
-                          <p className="text-xs text-muted-foreground">Patient</p>
-                          <p className="font-semibold text-sm">{active ? formatCurrency(active.patientPrice) : "—"}</p>
-                        </div>
-                        <div className="hidden md:block text-right">
-                          <p className="text-xs text-muted-foreground">Payout</p>
-                          <p className="font-semibold text-sm">{active ? formatCurrency(active.providerPayout) : "—"}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Margin</p>
-                          <p className="font-semibold text-sm text-emerald-700">{active ? formatCurrency(active.platformMargin) : "—"}</p>
-                        </div>
-                        <div className="hidden lg:block text-right shrink-0 w-24">
-                          <p className="text-xs text-muted-foreground">Effective</p>
-                          <p className="text-xs">{active ? formatDate(active.effectiveFrom) : "—"}</p>
+                        <div className="grid grid-cols-3 gap-3 sm:flex sm:items-center sm:gap-6 sm:text-right">
+                          <div className="sm:text-right">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Patient</p>
+                            <p className="font-semibold text-sm">{active ? formatCurrency(active.patientPrice) : "—"}</p>
+                          </div>
+                          <div className="sm:text-right">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Payout</p>
+                            <p className="font-semibold text-sm">{active ? formatCurrency(active.providerPayout) : "—"}</p>
+                          </div>
+                          <div className="sm:text-right">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Margin</p>
+                            <p className="font-semibold text-sm text-emerald-700">{active ? formatCurrency(active.platformMargin) : "—"}</p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {history.length > 1 && (
-                            <Button variant="ghost" size="sm" onClick={() => setHistoryFor(svc)}>
+                            <Button variant="ghost" size="iconSm" onClick={() => setHistoryFor(svc)} aria-label="History">
                               <History className="h-4 w-4" />
                             </Button>
                           )}
                           <Button variant="outline" size="sm" onClick={() => openEdit(svc)}>
-                            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                            <Pencil className="h-3.5 w-3.5" /> Edit
                           </Button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            </SectionCard>
           );
         })}
 
@@ -218,22 +241,22 @@ export function AdminPricing() {
               <Label htmlFor="effectiveFrom">Effective from</Label>
               <Input id="effectiveFrom" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </div>
-            <div className="rounded-lg border bg-muted/40 p-3 grid grid-cols-2 gap-y-2">
+            <div className="rounded-xl border bg-muted/40 p-3 grid grid-cols-2 gap-y-2">
               <div>
-                <p className="text-xs text-muted-foreground">Platform margin</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Platform margin</p>
                 <p className={`text-sm font-semibold ${platformMargin == null ? "text-muted-foreground" : platformMargin < 0 ? "text-rose-600" : "text-emerald-700"}`}>
                   {platformMargin == null ? "—" : formatCurrency(platformMargin)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Margin %</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Margin %</p>
                 <p className="text-sm font-semibold">
                   {platformMargin == null || !parseFloat(patientPrice) ? "—" : `${((platformMargin / parseFloat(patientPrice)) * 100).toFixed(1)}%`}
                 </p>
               </div>
             </div>
             {editing && activePrice(editing) && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                 <div className="flex items-center gap-1 font-medium mb-1">
                   {parseFloat(patientPrice) > (activePrice(editing)?.patientPrice ?? 0) ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
                   Current: {formatCurrency(activePrice(editing)!.patientPrice)} patient / {formatCurrency(activePrice(editing)!.providerPayout)} payout
@@ -261,30 +284,30 @@ export function AdminPricing() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto -mx-2 px-2">
-            <div className="space-y-2">
+            <ul className="space-y-2">
               {historyFor && priceHistory(historyFor).map((p) => (
-                <div key={p.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <StatusBadge status={p.status} />
+                <li key={p.id} className="rounded-xl border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <StatusBadge status={p.status} size="sm" />
                     <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(p.effectiveFrom)}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div>
-                      <p className="text-muted-foreground">Patient</p>
-                      <p className="font-semibold">{formatCurrency(p.patientPrice)}</p>
+                      <p className="text-muted-foreground uppercase tracking-wider">Patient</p>
+                      <p className="font-semibold mt-0.5">{formatCurrency(p.patientPrice)}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Payout</p>
-                      <p className="font-semibold">{formatCurrency(p.providerPayout)}</p>
+                      <p className="text-muted-foreground uppercase tracking-wider">Payout</p>
+                      <p className="font-semibold mt-0.5">{formatCurrency(p.providerPayout)}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Margin</p>
-                      <p className="font-semibold text-emerald-700">{formatCurrency(p.platformMargin)}</p>
+                      <p className="text-muted-foreground uppercase tracking-wider">Margin</p>
+                      <p className="font-semibold text-emerald-700 mt-0.5">{formatCurrency(p.platformMargin)}</p>
                     </div>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setHistoryFor(null)}>Close</Button>

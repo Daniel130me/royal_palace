@@ -5,10 +5,11 @@ import { navigate, useNav } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
 import { labRequestService, serviceService } from "@/lib/services";
 import type { LaboratoryRequest, Service } from "@/types";
-import { PageHeader } from "@/components/healthcare/page-header";
-import { EmptyState, LoadingState, ErrorState } from "@/components/healthcare/states";
+import {
+  PageHeader, SectionCard, BottomActionBar, EmptyState, ErrorState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,10 +23,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { formatCurrency, formatDate, formatTime, nextLabStatuses, age } from "@/lib/format";
+import { formatCurrency, formatDate, formatTime, nextLabStatuses, age, fullName, initials } from "@/lib/format";
 import {
-  ArrowLeft, FlaskConical, CalendarClock, User, Stethoscope, FileText, Beaker,
-  ClipboardList, FileCheck2, Home, MapPin, Calendar, Clock, Microscope, ArrowRight,
+  FlaskConical, CalendarClock, Stethoscope, FileText, Beaker,
+  ClipboardList, FileCheck2, Home, MapPin, Calendar, Clock, ArrowRight, Lock, ShieldCheck,
 } from "lucide-react";
 
 interface BookingFormValues {
@@ -41,6 +42,18 @@ const TIME_SLOTS = [
   "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
   "11:00", "11:30", "12:00", "13:00", "14:00", "15:00", "16:00",
 ];
+
+const WORKFLOW_LABELS: Record<string, string> = {
+  booked: "Mark sample collected",
+  sample_collected: "Start processing",
+  processing: "Move to quality review",
+  quality_review: "Mark completed",
+  completed: "Completed",
+};
+
+function humanise(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function LabRequestDetail() {
   const { view } = useNav();
@@ -62,10 +75,7 @@ export function LabRequestDetail() {
     setLoading(true);
     labRequestService
       .get(requestId)
-      .then((r) => {
-        setRequest(r);
-        setError(null);
-      })
+      .then((r) => { setRequest(r); setError(null); })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load request."))
       .finally(() => setLoading(false));
   };
@@ -80,10 +90,7 @@ export function LabRequestDetail() {
   }, []);
 
   const booking = request?.booking ?? null;
-  const nextStatuses = useMemo(
-    () => (booking ? nextLabStatuses(booking.status) : []),
-    [booking]
-  );
+  const nextStatuses = useMemo(() => (booking ? nextLabStatuses(booking.status) : []), [booking]);
 
   const handleProgress = (next: string) => {
     if (!booking) return;
@@ -91,16 +98,25 @@ export function LabRequestDetail() {
     labRequestService
       .progress(booking.id, next, labId ?? "")
       .then(() => {
-        toast.success(`Booking advanced to ${next.replace(/_/g, " ")}.`);
+        toast.success(`Booking advanced to ${humanise(next)}.`);
         load();
       })
-      .catch((e: unknown) => {
-        toast.error(e instanceof Error ? e.message : "Failed to update booking.");
-      })
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update booking."))
       .finally(() => setProgressing(false));
   };
 
-  if (loading) return <LoadingState label="Loading laboratory request…" />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-9 w-56 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 h-64 bg-muted/40 animate-pulse rounded-2xl" />
+          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!request) return <ErrorState message="Request not found." />;
 
@@ -108,233 +124,221 @@ export function LabRequestDetail() {
   const provider = request.provider;
   const isPending = request.status === "pending_booking";
   const isBookedByThisLab = booking && booking.laboratoryId === labId;
+  const uploadable = booking && (booking.status === "quality_review" || booking.status === "completed") && !request.result;
 
   return (
-    <div>
+    <div className="pb-28 lg:pb-0 space-y-6">
       <PageHeader
         title={`Request ${request.requestNumber}`}
         description={`${request.tests.length} test(s) · ${request.priority} priority`}
-        breadcrumbs={[
-          { label: "Laboratory", onClick: () => navigate("laboratory", "dashboard") },
-          { label: "Requests", onClick: () => navigate("laboratory", "requests") },
-          { label: request.requestNumber },
-        ]}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate("laboratory", "requests")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
-          </Button>
-        }
+        back
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          {/* Tests + clinical info */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5"><FlaskConical className="h-4 w-4" /> Tests requested</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {request.tests.map((t) => (
-                  <Badge key={t} variant="secondary" className="text-sm">{t}</Badge>
-                ))}
-              </div>
-              <Detail icon={ClipboardList} label="Clinical indication" value={request.clinicalIndication} />
-              <Detail icon={Beaker} label="Sample type" value={request.sampleType} />
-              <Detail icon={ClipboardList} label="Preparation instructions" value={request.preparationInstructions} />
-              <div className="flex items-center gap-2 text-sm mt-3">
-                <span className="text-muted-foreground">Fasting required:</span>
-                <StatusBadge status={request.fastingRequired ? "active" : "draft"} />
-              </div>
-              {request.notes && <Detail icon={FileText} label="Notes" value={request.notes} />}
-            </CardContent>
-          </Card>
-
-          {/* Patient identity */}
-          {patient && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-1.5"><User className="h-4 w-4" /> Patient</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <InfoRow label="Name" value={`${patient.firstName} ${patient.lastName}`} />
-                  <InfoRow label="Patient number" value={patient.patientNumber} />
-                  <InfoRow label="Age" value={patient.dateOfBirth ? `${age(patient.dateOfBirth)} years` : "—"} />
-                  <InfoRow label="Gender" value={patient.gender} />
-                  <InfoRow label="Phone" value={patient.phone} />
-                  <InfoRow label="Location" value={`${patient.city}, ${patient.state}`} />
+          {/* Tests + clinical indication — primary focus */}
+          <SectionCard title="Tests requested" icon={FlaskConical}>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {request.tests.map((t) => (
+                <Badge key={t} variant="secondary" className="text-sm">{t}</Badge>
+              ))}
+            </div>
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5" /> Clinical indication
+              </p>
+              <p className="text-sm leading-relaxed">{request.clinicalIndication ?? "—"}</p>
+            </div>
+            {request.sampleType && (
+              <div className="mt-3 flex items-start gap-2 text-sm">
+                <Beaker className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Sample type</p>
+                  <p>{request.sampleType}</p>
                 </div>
-                <p className="mt-4 text-xs text-muted-foreground bg-muted/40 rounded-md p-2">
-                  Note: Per consent policy, the laboratory only sees identity + clinical indication necessary for testing. Diagnoses and full medical history are not shared.
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+            )}
+            {request.preparationInstructions && (
+              <div className="mt-2 flex items-start gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Preparation instructions</p>
+                  <p className="leading-relaxed">{request.preparationInstructions}</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-sm mt-3">
+              <span className="text-muted-foreground">Fasting required:</span>
+              <StatusBadge status={request.fastingRequired ? "active" : "draft"} size="sm" />
+            </div>
+            {request.notes && (
+              <div className="mt-2 flex items-start gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Notes</p>
+                  <p className="leading-relaxed">{request.notes}</p>
+                </div>
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Patient — only identity fields per consent policy */}
+          {patient && (
+            <SectionCard title="Patient" icon={Stethoscope}>
+              <div className="flex items-center gap-3 mb-4">
+                <Avatar className="h-12 w-12 shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    {initials(fullName(patient))}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{fullName(patient)}</p>
+                  <p className="text-xs text-muted-foreground">{patient.patientNumber}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                <InfoRow label="Age" value={patient.dateOfBirth ? `${age(patient.dateOfBirth)} years` : "—"} />
+                <InfoRow label="Gender" value={patient.gender} />
+                <InfoRow label="Phone" value={patient.phone} />
+                <InfoRow label="Location" value={`${patient.city}, ${patient.state}`} />
+              </div>
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground leading-relaxed">
+                <Lock className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                <span>
+                  Per consent policy, the laboratory sees only identity + clinical indication necessary for testing — full medical history is withheld.
+                </span>
+              </div>
+            </SectionCard>
           )}
 
           {/* Referring provider */}
           {provider && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-1.5"><Stethoscope className="h-4 w-4" /> Referring provider</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <InfoRow label="Name" value={`${provider.title} ${provider.firstName} ${provider.lastName}`} />
-                  <InfoRow label="Specialty" value={provider.specialty} />
-                  <InfoRow label="Provider number" value={provider.providerNumber} />
-                  <InfoRow label="Location" value={`${provider.city}, ${provider.state}`} />
-                </div>
-              </CardContent>
-            </Card>
+            <SectionCard title="Referring provider" icon={Stethoscope}>
+              <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+                <InfoRow label="Name" value={`${provider.title} ${provider.firstName} ${provider.lastName}`} />
+                <InfoRow label="Specialty" value={provider.specialty} />
+                <InfoRow label="Provider number" value={provider.providerNumber} />
+                <InfoRow label="Location" value={`${provider.city}, ${provider.state}`} />
+              </dl>
+            </SectionCard>
           )}
         </div>
 
-        {/* Right column — actions / status */}
+        {/* Right column */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <SectionCard title="Status">
+            <dl className="space-y-2.5 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Request</span>
-                <StatusBadge status={request.status} />
+                <dt className="text-muted-foreground">Request</dt>
+                <StatusBadge status={request.status} size="sm" />
               </div>
               {booking && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Booking</span>
-                  <StatusBadge status={booking.status} />
+                  <dt className="text-muted-foreground">Booking</dt>
+                  <StatusBadge status={booking.status} size="sm" />
                 </div>
               )}
               {booking?.laboratory && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Laboratory</span>
-                  <span className="text-sm font-medium">{booking.laboratory.name}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-muted-foreground">Laboratory</dt>
+                  <dd className="text-sm font-medium truncate">{booking.laboratory.name}</dd>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          {/* Action card */}
           {isPending && (
-            <Card className="border-emerald-200 bg-emerald-50/40">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Accept this request</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Accept and book a slot for this patient. You will collect the sample and process the test.
-                </p>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => setBookingOpen(true)}>
-                  <CalendarClock className="h-4 w-4 mr-1" /> Accept &amp; Book
-                </Button>
-              </CardContent>
-            </Card>
+            <SectionCard title="Accept this request" icon={CalendarClock} className="border-primary/30 bg-primary/5">
+              <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                Accept and book a slot for this patient. You will collect the sample and process the test.
+              </p>
+              <Button className="w-full" onClick={() => setBookingOpen(true)}>
+                <CalendarClock className="h-4 w-4" /> Accept &amp; Book
+              </Button>
+            </SectionCard>
           )}
 
           {isBookedByThisLab && booking && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Booking details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <SectionCard title="Booking details">
+              <dl className="space-y-2.5 text-sm">
                 <DetailRow icon={Calendar} label="Date" value={formatDate(booking.date)} />
                 <DetailRow icon={Clock} label="Time" value={formatTime(booking.time)} />
-                <DetailRow
-                  icon={Home}
-                  label="Collection"
-                  value={booking.collectionMode === "home" ? "Home collection" : "Facility"}
-                />
+                <DetailRow icon={Home} label="Collection" value={booking.collectionMode === "home" ? "Home collection" : "Facility"} />
                 {booking.collectionMode === "home" && booking.homeAddress && (
                   <DetailRow icon={MapPin} label="Address" value={booking.homeAddress} />
                 )}
                 <DetailRow icon={FileText} label="Price" value={formatCurrency(booking.price)} />
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Workflow</p>
-                  {nextStatuses.length > 0 && (
-                    <div className="space-y-2">
-                      {nextStatuses.map((s) => (
-                        <Button
-                          key={s}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700"
-                          disabled={progressing}
-                          onClick={() => handleProgress(s)}
-                        >
-                          {humanise(s)}
-                          <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  {booking.status === "quality_review" && (
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => navigate("laboratory", "result-new", {
-                        bookingId: booking.id,
-                        requestId: booking.requestId,
-                      })}
-                    >
-                      <FileCheck2 className="h-4 w-4 mr-1" /> Upload result
-                    </Button>
-                  )}
-                  {booking.status === "completed" && (
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => navigate("laboratory", "result-new", {
-                        bookingId: booking.id,
-                        requestId: booking.requestId,
-                      })}
-                    >
-                      <FileCheck2 className="h-4 w-4 mr-1" /> Upload result
-                    </Button>
-                  )}
-                  {(booking.status === "result_published" || nextStatuses.length === 0) && booking.status !== "quality_review" && booking.status !== "completed" && (
-                    <p className="text-xs text-muted-foreground">
-                      No further workflow action required for this booking.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              </dl>
+              <Separator className="my-4" />
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Workflow</p>
+                {nextStatuses.length > 0 && (
+                  <div className="space-y-2">
+                    {nextStatuses.map((s) => (
+                      <Button key={s} className="w-full justify-between" disabled={progressing} onClick={() => handleProgress(s)}>
+                        <span className="flex items-center gap-1.5">
+                          <ArrowRight className="h-3.5 w-3.5" />
+                          {WORKFLOW_LABELS[s] ?? humanise(s)}
+                        </span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                {uploadable && (
+                  <Button className="w-full" onClick={() => navigate("laboratory", "result-new", { bookingId: booking.id, requestId: booking.requestId })}>
+                    <FileCheck2 className="h-4 w-4" /> Upload result
+                  </Button>
+                )}
+                {(booking.status === "result_published" || (nextStatuses.length === 0 && !uploadable)) && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-center">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
+                    <p className="text-xs font-medium text-emerald-700">Workflow complete</p>
+                    <p className="text-xs text-emerald-700/80 mt-0.5">No further action required.</p>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
           )}
 
           {request.result && (
-            <Card className="border-emerald-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-1.5"><FileCheck2 className="h-4 w-4" /> Result published</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-2">
+            <SectionCard title="Result published" icon={FileCheck2}>
+              <dl className="space-y-2.5 text-sm">
                 <InfoRow label="Test" value={request.result.test} />
                 <InfoRow label="Value" value={`${request.result.value} ${request.result.unit ?? ""}`} />
                 {request.result.abnormalIndicator && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Indicator</span>
-                    <StatusBadge status={request.result.abnormalIndicator} />
+                    <StatusBadge status={request.result.abnormalIndicator} size="sm" />
                   </div>
                 )}
                 <InfoRow label="Reported" value={formatDate(request.result.resultDate)} />
-                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => navigate("laboratory", "results")}>
-                  View all results
-                </Button>
-              </CardContent>
-            </Card>
+              </dl>
+              <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => navigate("laboratory", "results")}>
+                View all results
+              </Button>
+            </SectionCard>
           )}
 
           {booking && !isBookedByThisLab && (
-            <Card className="border-amber-200 bg-amber-50/40">
-              <CardContent className="p-4">
-                <p className="text-sm text-amber-700">
-                  This request is already booked by another laboratory.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm text-amber-700">
+                This request is already booked by another laboratory.
+              </p>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Booking dialog */}
+      {/* Mobile bottom action bar for accept */}
+      {isPending && (
+        <BottomActionBar>
+          <Button className="w-full" onClick={() => setBookingOpen(true)}>
+            <CalendarClock className="h-4 w-4" /> Accept &amp; Book
+          </Button>
+        </BottomActionBar>
+      )}
+
       <BookingDialog
         open={bookingOpen}
         onOpenChange={setBookingOpen}
@@ -365,23 +369,6 @@ export function LabRequestDetail() {
           }
         }}
       />
-    </div>
-  );
-}
-
-function humanise(s: string): string {
-  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function Detail({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-start gap-2 text-sm mt-2">
-      <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-sm">{value}</p>
-      </div>
     </div>
   );
 }
@@ -537,8 +524,8 @@ function BookingDialog({ open, onOpenChange, services, defaultPrice, onSubmit }:
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={submitting} onClick={submit}>
-            <Microscope className="h-4 w-4 mr-1" /> Confirm booking
+          <Button disabled={submitting} onClick={submit}>
+            Confirm booking
           </Button>
         </DialogFooter>
       </DialogContent>

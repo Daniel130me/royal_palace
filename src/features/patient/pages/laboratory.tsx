@@ -4,22 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import { labRequestService, laboratoryService } from "@/lib/services";
 import type { LaboratoryRequest, Laboratory } from "@/types";
-import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, LoadingState, SectionCard, BottomActionBar } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from "@/components/ui/sheet";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  FlaskConical, ChevronRight, ChevronDown, ChevronUp, Clock, Building2, Home,
-  Lock, CalendarDays, AlertCircle, FileText,
+  FlaskConical, ChevronDown, ChevronUp, Clock, Building2, Home,
+  Lock, CalendarDays, AlertCircle, FileText, Minus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency, formatDate, formatTime, fullName } from "@/lib/format";
@@ -54,19 +53,22 @@ export function PatientLaboratory() {
 
   useEffect(() => {
     if (!profile) return;
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       labRequestService.list({ patientId: profile.id }),
       laboratoryService.list(),
     ]).then(([reqs, l]) => {
+      if (cancelled) return;
       setRequests(reqs.sort((a, b) => {
         const ta = new Date(createdAt(b) ?? b.requestNumber).getTime();
         const tb = new Date(createdAt(a) ?? a.requestNumber).getTime();
         return ta - tb;
       }));
       setLabs(l);
-    }).catch((e) => setError(e instanceof Error ? e.message : "Failed to load laboratory data"))
-      .finally(() => setLoading(false));
+    }).catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load laboratory data"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [profile?.id]);
 
   const sections = useMemo(() => {
@@ -81,146 +83,141 @@ export function PatientLaboratory() {
   if (error) return <EmptyState title="Could not load laboratory" description={error} />;
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Laboratory"
         description="Book tests, track samples and view results."
       />
 
       <div className="space-y-6">
-        {/* Pending requests */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-amber-600" /> Pending test requests ({sections.pending.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sections.pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending test requests. Your doctor can request tests during a consultation.</p>
-            ) : sections.pending.map((r) => (
-              <div key={r.id} className="rounded-lg border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-sm">{r.tests.join(", ")}</p>
-                    <p className="text-xs text-muted-foreground">{r.requestNumber} · requested by {r.provider ? fullName(r.provider) : "Provider"}</p>
-                    {r.fastingRequired && (
-                      <Badge variant="outline" className="mt-1 bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
-                        <AlertCircle className="h-3 w-3 mr-1" /> Fasting required
-                      </Badge>
+        {/* Pending requests — prominent */}
+        {sections.pending.length > 0 ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-1">
+            <SectionCard
+              title={`Pending test requests (${sections.pending.length})`}
+              icon={Clock}
+            >
+              <ul className="space-y-3">
+                {sections.pending.map((r) => (
+                  <li key={r.id} className="rounded-xl border border-amber-200/60 bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{r.tests.join(", ")}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {r.requestNumber} · requested by {r.provider ? fullName(r.provider) : "Provider"}
+                        </p>
+                        {r.fastingRequired && (
+                          <Badge variant="outline" className="mt-2 bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-5 px-1.5 gap-0.5">
+                            <AlertCircle className="h-3 w-3" /> Fasting required
+                          </Badge>
+                        )}
+                      </div>
+                      <Button size="sm" onClick={() => setBookingFor(r)}>Book test</Button>
+                    </div>
+                    {r.preparationInstructions && (
+                      <p className="mt-2 text-xs text-muted-foreground bg-muted/40 rounded-md p-2 leading-relaxed">
+                        {r.preparationInstructions}
+                      </p>
                     )}
-                  </div>
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setBookingFor(r)}>
-                    Book test
-                  </Button>
-                </div>
-                {r.preparationInstructions && (
-                  <p className="mt-2 text-xs text-muted-foreground bg-muted/40 rounded p-2">
-                    {r.preparationInstructions}
-                  </p>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          </div>
+        ) : (
+          <SectionCard title="Pending test requests (0)" icon={Clock}>
+            <p className="text-sm text-muted-foreground">No pending test requests. Your doctor can request tests during a consultation.</p>
+          </SectionCard>
+        )}
 
         {/* Upcoming bookings */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-sky-600" /> Upcoming bookings ({sections.upcoming.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sections.upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No upcoming laboratory bookings.</p>
-            ) : sections.upcoming.map(({ req, booking }) => (
-              <div key={req.id} className="rounded-lg border p-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">{req.tests.join(", ")}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {booking?.laboratory?.name ?? "Laboratory"} · {formatDate(booking?.date)} · {formatTime(booking?.time)}
-                  </p>
-                  <p className="text-xs text-muted-foreground capitalize">{booking?.collectionMode} collection</p>
-                </div>
-                <StatusBadge status={req.status} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <SectionCard title={`Upcoming bookings (${sections.upcoming.length})`} icon={CalendarDays} dense>
+          {sections.upcoming.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No upcoming laboratory bookings.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {sections.upcoming.map(({ req, booking }) => (
+                <li key={req.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{req.tests.join(", ")}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {booking?.laboratory?.name ?? "Laboratory"} · {formatDate(booking?.date)} · {formatTime(booking?.time)}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{booking?.collectionMode} collection</p>
+                  </div>
+                  <StatusBadge status={req.status} size="sm" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
 
         {/* In progress */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-violet-600" /> Tests in progress ({sections.inProgress.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sections.inProgress.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tests currently in progress.</p>
-            ) : sections.inProgress.map((r) => (
-              <div key={r.id} className="rounded-lg border p-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">{r.tests.join(", ")}</p>
-                  <p className="text-xs text-muted-foreground">{r.requestNumber}</p>
-                </div>
-                <StatusBadge status={r.status} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <SectionCard title={`Tests in progress (${sections.inProgress.length})`} icon={FlaskConical} dense>
+          {sections.inProgress.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No tests currently in progress.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {sections.inProgress.map((r) => (
+                <li key={r.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{r.tests.join(", ")}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{r.requestNumber}</p>
+                  </div>
+                  <StatusBadge status={r.status} size="sm" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
 
         {/* Results */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4 text-emerald-600" /> Results ({sections.results.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sections.results.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No results available yet.</p>
-            ) : sections.results.map((r) => (
-              <div key={r.id} className="rounded-lg border">
-                <button
-                  className="w-full p-3 flex items-center justify-between text-left"
-                  onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                >
-                  <div>
-                    <p className="font-medium text-sm">{r.result?.test}</p>
-                    <p className="text-xs text-muted-foreground">{r.result?.laboratory?.name} · {formatDate(r.result?.resultDate)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {r.result?.abnormalIndicator && r.result.abnormalIndicator !== "normal" && (
-                      <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] capitalize">
-                        {r.result.abnormalIndicator}
-                      </Badge>
-                    )}
-                    {expanded === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </div>
-                </button>
-                {expanded === r.id && r.result && (
-                  <div className="border-t p-3 space-y-2 text-sm">
-                    <Row label="Value" value={`${r.result.value}${r.result.unit ? ` ${r.result.unit}` : ""}`} />
-                    <Row label="Reference range" value={r.result.referenceRange ?? "—"} />
-                    <Row label="Indicator" value={<span className="capitalize">{r.result.abnormalIndicator ?? "normal"}</span>} />
-                    <Row label="Sample collected" value={formatDate(r.result.sampleCollectionDate)} />
-                    <Row label="Result published" value={formatDate(r.result.resultDate)} />
-                    <Row label="Reviewer" value={r.result.reviewer ?? "—"} />
-                    {r.result.interpretation && (
-                      <div className="rounded bg-muted/40 p-2 text-xs text-muted-foreground">{r.result.interpretation}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <SectionCard title={`Results (${sections.results.length})`} icon={FileText} dense>
+          {sections.results.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No results available yet.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {sections.results.map((r) => (
+                <li key={r.id}>
+                  <button
+                    className="w-full px-4 sm:px-5 py-3 flex items-center justify-between text-left tap-highlight-none hover:bg-accent/30 transition-colors"
+                    onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{r.result?.test}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{r.result?.laboratory?.name} · {formatDate(r.result?.resultDate)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.result?.abnormalIndicator && r.result.abnormalIndicator !== "normal" && (
+                        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] capitalize h-5 px-1.5">
+                          {r.result.abnormalIndicator}
+                        </Badge>
+                      )}
+                      {expanded === r.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </div>
+                  </button>
+                  {expanded === r.id && r.result && (
+                    <div className="border-t border-border/60 px-4 sm:px-5 py-3 space-y-2 text-sm bg-muted/20">
+                      <Row label="Value" value={`${r.result.value}${r.result.unit ? ` ${r.result.unit}` : ""}`} />
+                      <Row label="Reference range" value={r.result.referenceRange ?? "—"} />
+                      <Row label="Indicator" value={<span className="capitalize">{r.result.abnormalIndicator ?? "normal"}</span>} />
+                      <Row label="Sample collected" value={formatDate(r.result.sampleCollectionDate)} />
+                      <Row label="Result published" value={formatDate(r.result.resultDate)} />
+                      <Row label="Reviewer" value={r.result.reviewer ?? "—"} />
+                      {r.result.interpretation && (
+                        <div className="rounded-md bg-background border border-border/60 p-2 text-xs text-muted-foreground leading-relaxed">{r.result.interpretation}</div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       </div>
 
-      {/* Booking modal */}
-      <LabBookingDialog
+      {/* Booking bottom sheet */}
+      <LabBookingSheet
         request={bookingFor}
         labs={labs}
         onClose={() => setBookingFor(null)}
@@ -232,14 +229,14 @@ export function PatientLaboratory() {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-medium text-right">{value}</span>
     </div>
   );
 }
 
-function LabBookingDialog({
+function LabBookingSheet({
   request, labs, onClose, patientId,
 }: {
   request: LaboratoryRequest | null; labs: Laboratory[]; onClose: () => void; patientId: string;
@@ -252,7 +249,6 @@ function LabBookingDialog({
   const [busy, setBusy] = useState(false);
   const days = nextDays(14);
 
-  // Reset when opening for a new request
   useEffect(() => {
     if (request) {
       setLabId(labs[0]?.id ?? "");
@@ -263,7 +259,9 @@ function LabBookingDialog({
     }
   }, [request?.id]);
 
-  const price = 8000; // base price for booking (tests already paid for via prescription? Not for this prototype)
+  const price = 8000;
+
+  const canConfirm = !!request && !!labId && !!date && !!time && (mode === "facility" || !!homeAddress.trim());
 
   async function confirm() {
     if (!request || !labId || !date || !time) {
@@ -296,19 +294,19 @@ function LabBookingDialog({
   }
 
   return (
-    <Dialog open={!!request} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Book laboratory test</DialogTitle>
-          <DialogDescription>
+    <Sheet open={!!request} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent side="bottom" className="max-h-[92vh] flex flex-col rounded-t-3xl sm:max-w-md sm:mx-auto sm:rounded-2xl">
+        <SheetHeader className="px-5 pt-5 pb-3 border-b border-border/60 shrink-0">
+          <SheetTitle className="text-left text-base">Book laboratory test</SheetTitle>
+          <p className="text-xs text-muted-foreground text-left">
             {request ? `${request.tests.join(", ")} · ${request.requestNumber}` : ""}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          </p>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div>
-            <Label className="text-xs">Choose laboratory</Label>
+            <Label className="text-xs text-muted-foreground">Choose laboratory</Label>
             <Select value={labId} onValueChange={setLabId}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Select a lab" /></SelectTrigger>
+              <SelectTrigger className="w-full mt-1.5"><SelectValue placeholder="Select a lab" /></SelectTrigger>
               <SelectContent>
                 {labs.map((l) => <SelectItem key={l.id} value={l.id}>{l.name} · {l.city}</SelectItem>)}
               </SelectContent>
@@ -316,42 +314,42 @@ function LabBookingDialog({
           </div>
 
           <div>
-            <Label className="text-xs">Collection mode</Label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
+            <Label className="text-xs text-muted-foreground">Collection mode</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1.5">
               <button
                 onClick={() => setMode("facility")}
-                className={`rounded-lg border p-3 text-left text-sm ${mode === "facility" ? "border-emerald-500 bg-emerald-50" : "border-border"}`}
+                className={`rounded-xl border p-3 text-left text-sm transition-all tap-highlight-none ${mode === "facility" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
               >
-                <Building2 className="h-4 w-4 mb-1" />
+                <Building2 className={`h-4 w-4 mb-1 ${mode === "facility" ? "text-primary" : "text-muted-foreground"}`} />
                 <p className="font-medium">Facility visit</p>
                 <p className="text-xs text-muted-foreground">Visit the lab</p>
               </button>
               <button
                 onClick={() => setMode("home")}
-                className={`rounded-lg border p-3 text-left text-sm ${mode === "home" ? "border-emerald-500 bg-emerald-50" : "border-border"}`}
+                className={`rounded-xl border p-3 text-left text-sm transition-all tap-highlight-none ${mode === "home" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
               >
-                <Home className="h-4 w-4 mb-1" />
+                <Home className={`h-4 w-4 mb-1 ${mode === "home" ? "text-primary" : "text-muted-foreground"}`} />
                 <p className="font-medium">Home collection</p>
-                <p className="text-xs text-muted-foreground">Sample collected at home</p>
+                <p className="text-xs text-muted-foreground">Sample at home</p>
               </button>
             </div>
           </div>
 
           {mode === "home" && (
             <div>
-              <Label className="text-xs">Home address</Label>
-              <Textarea value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} rows={2} placeholder="House number, street, area, city" />
+              <Label className="text-xs text-muted-foreground">Home address</Label>
+              <Textarea value={homeAddress} onChange={(e) => setHomeAddress(e.target.value)} rows={2} placeholder="House number, street, area, city" className="mt-1.5" />
             </div>
           )}
 
           <div>
-            <Label className="text-xs">Date</Label>
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-1">
+            <Label className="text-xs text-muted-foreground">Date</Label>
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-1.5">
               {days.map((d) => (
                 <button
                   key={d.value}
                   onClick={() => setDate(d.value)}
-                  className={`rounded-lg border p-2 text-center text-xs ${date === d.value ? "border-emerald-500 bg-emerald-50" : "border-border"}`}
+                  className={`rounded-lg border p-2 text-center text-xs transition-all tap-highlight-none ${date === d.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
                 >
                   <p className="text-[9px] text-muted-foreground uppercase">{d.sub}</p>
                   <p className="font-semibold">{d.label}</p>
@@ -362,13 +360,13 @@ function LabBookingDialog({
 
           {date && (
             <div>
-              <Label className="text-xs">Time slot</Label>
-              <div className="grid grid-cols-4 gap-2 mt-1">
+              <Label className="text-xs text-muted-foreground">Time slot</Label>
+              <div className="grid grid-cols-4 gap-2 mt-1.5">
                 {TIME_SLOTS.map((t) => (
                   <button
                     key={t}
                     onClick={() => setTime(t)}
-                    className={`rounded-lg border px-2 py-1.5 text-xs ${time === t ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-medium" : "border-border"}`}
+                    className={`rounded-lg border px-2 py-1.5 text-xs transition-all tap-highlight-none ${time === t ? "border-primary bg-primary/5 text-primary font-medium" : "border-border hover:border-primary/30"}`}
                   >
                     {t}
                   </button>
@@ -377,21 +375,23 @@ function LabBookingDialog({
             </div>
           )}
 
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Test booking fee</span><span>{formatCurrency(price)}</span></div>
-            <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span className="text-emerald-700">{formatCurrency(price)}</span></div>
+          <div className="rounded-xl border bg-muted/30 p-4 space-y-1.5 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Test booking fee</span><span className="font-medium">{formatCurrency(price)}</span></div>
+            <div className="flex justify-between border-t border-border/80 pt-2 mt-1"><span className="font-semibold">Total</span><span className="font-bold text-base text-primary">{formatCurrency(price)}</span></div>
           </div>
-          <div className="rounded-lg bg-amber-50 border border-amber-100 p-2 text-[11px] text-amber-700 flex items-center gap-1">
-            <Lock className="h-3 w-3" /> Prototype — no real payment is processed.
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-700 flex items-center gap-1.5">
+            <Lock className="h-3 w-3 shrink-0" /> Prototype — no real payment is processed.
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={busy} onClick={confirm}>
-            {busy ? "Booking…" : `Pay ${formatCurrency(price)} & confirm`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <SheetFooter className="p-4 border-t border-border/60 shrink-0">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+            <Button disabled={busy || !canConfirm} onClick={confirm} className="flex-1">
+              {busy ? "Booking…" : `Pay ${formatCurrency(price)}`}
+            </Button>
+          </div>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

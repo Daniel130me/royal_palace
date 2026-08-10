@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { prescriptionService, pharmacyService, pharmacyOrderService, patientService } from "@/lib/services";
 import type { Prescription, PharmacyProduct, Patient } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -13,11 +15,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, LoadingState, ErrorState } from "@/components/healthcare/page-header";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { formatCurrency, formatDate, initials } from "@/lib/format";
 import {
-  AlertCircle, ArrowLeft, CheckCircle2, Pill, ShieldAlert, Clock,
-  PackageCheck, FileText, Ban,
+  AlertCircle, CheckCircle2, Pill, ShieldAlert, Clock,
+  PackageCheck, FileText, Ban, User, Stethoscope, CalendarClock,
+  Pill as PillIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -81,8 +84,6 @@ export function PharmacyPrescriptionDetail() {
     return () => { cancelled = true; };
   }, [id, pharmacyId]);
 
-  // Match each prescription item to a product in this pharmacy's catalogue.
-  // Match by medicine name (case-insensitive) or generic name.
   const itemMatches = useMemo(() => {
     if (!rx?.items) return [];
     return rx.items.map((it) => {
@@ -102,7 +103,6 @@ export function PharmacyPrescriptionDetail() {
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!rx) return <ErrorState message="Prescription not found." />;
 
-  // ---- Actions ----
   const handleAccept = async () => {
     if (!pharmacyId) return;
     if (!rx.patientId) {
@@ -111,9 +111,6 @@ export function PharmacyPrescriptionDetail() {
     }
     setBusy(true);
     try {
-      // Build order items from the matched products. If any item is unmatched,
-      // we skip it from the order (the pharmacy will need clarification or a
-      // partial fulfilment).
       const items = itemMatches
         .filter((m) => m.product)
         .map((m) => ({
@@ -138,7 +135,6 @@ export function PharmacyPrescriptionDetail() {
         actorId: pharmacyId,
       });
 
-      // Mark prescription as awaiting pharmacy (now in fulfilment flow).
       await prescriptionService.list({ id: rx.id });
       toast.success("Prescription accepted. Order created — review it in Orders.");
       navigate("pharmacy", "orders");
@@ -158,11 +154,8 @@ export function PharmacyPrescriptionDetail() {
   const handleReject = async () => {
     setBusy(true);
     try {
-      // Use the generic REST update — no dedicated prescription-reject action exists.
       await prescriptionService.list({ id: rx.id });
-      toast.success("Prescription rejected.", {
-        description: "The patient and prescriber have been notified.",
-      });
+      toast.success("Prescription rejected.", { description: "The patient and prescriber have been notified." });
       navigate("pharmacy", "prescriptions");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to reject prescription");
@@ -175,23 +168,40 @@ export function PharmacyPrescriptionDetail() {
   const activeAllergies = patient?.allergies?.filter((a) => a.status === "active") ?? [];
 
   return (
-    <div>
+    <div className="pb-28 lg:pb-0">
       <PageHeader
         title={rx.prescriptionNumber}
         description={`Issued ${formatDate(rx.validityStartDate)} · Expires ${formatDate(rx.expiryDate)}`}
-        breadcrumbs={[
-          { label: "Pharmacy" },
-          { label: "Prescriptions", onClick: () => navigate("pharmacy", "prescriptions") },
-          { label: rx.prescriptionNumber },
-        ]}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate("pharmacy", "prescriptions")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
-          </Button>
-        }
+        back
       />
 
-      {/* Privacy notice — pharmacy scope */}
+      {/* Allergy warning — prominent rose banner */}
+      {activeAllergies.length > 0 && (
+        <div className="mb-4 rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 shadow-soft">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-rose-100 p-2 shrink-0">
+              <AlertCircle className="h-5 w-5 text-rose-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-rose-900 uppercase tracking-wide">
+                Allergy warning — review before dispensing
+              </p>
+              <p className="text-xs text-rose-700 mt-1 leading-relaxed">
+                This patient has {activeAllergies.length} active allerg{activeAllergies.length === 1 ? "y" : "ies"}. Cross-check each prescribed item before dispensing.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {activeAllergies.map((a, i) => (
+                  <span key={i} className="rounded-md bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
+                    {a.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy notice */}
       <Alert className="mb-4 border-sky-200 bg-sky-50">
         <ShieldAlert className="h-4 w-4 text-sky-600" />
         <AlertTitle className="text-sky-800">Dispensing view</AlertTitle>
@@ -201,188 +211,165 @@ export function PharmacyPrescriptionDetail() {
         </AlertDescription>
       </Alert>
 
-      {/* Allergy warning — prominently displayed */}
-      {activeAllergies.length > 0 && (
-        <Alert className="mb-4 border-rose-200 bg-rose-50">
-          <AlertCircle className="h-4 w-4 text-rose-600" />
-          <AlertTitle className="text-rose-800">Allergy warning — review before dispensing</AlertTitle>
-          <AlertDescription className="text-rose-700">
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {activeAllergies.map((a, i) => (
-                <span key={i} className="rounded bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800">
-                  {a.name}
-                </span>
-              ))}
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left: prescription items */}
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        {/* Items + prescriber note */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Pill className="h-4 w-4 text-emerald-500" /> Prescribed items
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <SectionCard
+            title="Prescribed items"
+            icon={Pill}
+            description={`${itemMatches.length} medicine(s)`}
+          >
+            <ul className="space-y-3">
               {itemMatches.map(({ item, product }) => (
-                <div key={item.id} className="rounded-lg border p-4">
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                <li key={item.id} className="rounded-xl border border-border/60 bg-card p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
-                      <p className="font-semibold">{item.medicine} {item.strength} {item.dosageForm}</p>
+                      <p className="font-semibold leading-tight">{item.medicine} {item.strength} {item.dosageForm}</p>
                       {item.genericName && (
-                        <p className="text-xs text-muted-foreground">Generic: {item.genericName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Generic: {item.genericName}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs rounded bg-muted px-2 py-0.5">Qty: {item.quantity}</span>
-                      <span className="text-xs rounded bg-muted px-2 py-0.5">Refills: {item.refillAllowance}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                      <Badge variant="outline" className="text-[10px] h-5 bg-primary/5">Qty: {item.quantity}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5 bg-primary/5">Refills: {item.refillAllowance}</Badge>
                     </div>
                   </div>
-                  <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
-                    <div>
-                      <dt className="text-muted-foreground">Dose</dt>
-                      <dd className="font-medium">{item.dose}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Route</dt>
-                      <dd className="font-medium">{item.route}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Frequency</dt>
-                      <dd className="font-medium">{item.frequency}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Duration</dt>
-                      <dd className="font-medium">{item.duration}</dd>
-                    </div>
-                  </dl>
+
+                  {/* Dosage chips */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {item.dose && (
+                      <Badge variant="outline" className="text-[10px] h-5 gap-0.5 border-emerald-200 bg-emerald-50 text-emerald-700">
+                        <PillIcon className="h-2.5 w-2.5" /> Dose: {item.dose}
+                      </Badge>
+                    )}
+                    {item.route && (
+                      <Badge variant="outline" className="text-[10px] h-5 gap-0.5 border-sky-200 bg-sky-50 text-sky-700">
+                        Route: {item.route}
+                      </Badge>
+                    )}
+                    {item.frequency && (
+                      <Badge variant="outline" className="text-[10px] h-5 gap-0.5 border-violet-200 bg-violet-50 text-violet-700">
+                        <Clock className="h-2.5 w-2.5" /> {item.frequency}
+                      </Badge>
+                    )}
+                    {item.duration && (
+                      <Badge variant="outline" className="text-[10px] h-5 gap-0.5 border-amber-200 bg-amber-50 text-amber-700">
+                        <CalendarClock className="h-2.5 w-2.5" /> {item.duration}
+                      </Badge>
+                    )}
+                  </div>
+
                   {item.instructions && (
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-muted-foreground mt-2.5 leading-relaxed">
                       <span className="font-medium">Instructions:</span> {item.instructions}
                     </p>
                   )}
                   <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
                     <div className="text-xs">
                       <span className="font-medium">Substitution: </span>
-                      <span className={item.substitutionAllowed ? "text-emerald-700" : "text-rose-700"}>
+                      <span className={item.substitutionAllowed ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>
                         {item.substitutionAllowed ? "Allowed" : "Not allowed (Dispense as written)"}
                       </span>
                     </div>
                     {product ? (
-                      <span className="text-xs rounded bg-emerald-100 px-2 py-0.5 text-emerald-700 flex items-center gap-1">
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 gap-1">
                         <PackageCheck className="h-3 w-3" /> In stock · {formatCurrency(product.price)}
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="text-xs rounded bg-amber-100 px-2 py-0.5 text-amber-700 flex items-center gap-1">
+                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 gap-1">
                         <AlertCircle className="h-3 w-3" /> No matching product
-                      </span>
+                      </Badge>
                     )}
                   </div>
-                </div>
+                </li>
               ))}
-            </CardContent>
-          </Card>
+            </ul>
+          </SectionCard>
 
-          {/* Prescriber note (NOT clinical notes / diagnosis) */}
           {rx.notes && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-sky-500" /> Dispensing note from prescriber
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{rx.notes}</p>
-              </CardContent>
-            </Card>
+            <SectionCard title="Dispensing note from prescriber" icon={FileText}>
+              <p className="text-sm leading-relaxed">{rx.notes}</p>
+            </SectionCard>
           )}
         </div>
 
-        {/* Right: patient identity + validity + actions */}
+        {/* Right sidebar */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Patient identity</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Name</span>
-                <span className="font-medium">{rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"}</span>
+          <SectionCard title="Patient identity" icon={User}>
+            <div className="flex items-center gap-3 mb-3">
+              <Avatar className="h-11 w-11 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                  {rx.patient ? initials(`${rx.patient.firstName} ${rx.patient.lastName}`) : "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"}</p>
+                <p className="text-xs text-muted-foreground">{rx.patient?.patientNumber ?? "—"}</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Patient No.</span>
-                <span>{rx.patient?.patientNumber ?? "—"}</span>
+            </div>
+            <dl className="text-sm space-y-2.5">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Gender</dt>
+                <dd className="capitalize text-right">{rx.patient?.gender ?? "—"}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Gender</span>
-                <span className="capitalize">{rx.patient?.gender ?? "—"}</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Phone</dt>
+                <dd className="text-right">{patient?.phone ?? rx.patient?.phone ?? "—"}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Phone</span>
-                <span>{patient?.phone ?? rx.patient?.phone ?? "—"}</span>
-              </div>
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Prescriber</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Name</span>
-                <span className="font-medium">
+          <SectionCard title="Prescriber" icon={Stethoscope}>
+            <dl className="text-sm space-y-2.5">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Name</dt>
+                <dd className="font-medium text-right">
                   {rx.provider ? `${rx.provider.title} ${rx.provider.firstName} ${rx.provider.lastName}` : "—"}
-                </span>
+                </dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Specialty</span>
-                <span>{rx.provider?.specialty ?? "—"}</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Specialty</dt>
+                <dd className="text-right">{rx.provider?.specialty ?? "—"}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Reg. No.</span>
-                <span>{rx.provider?.registrationNumber ?? "—"}</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Reg. No.</dt>
+                <dd className="text-right font-mono text-xs">{rx.provider?.registrationNumber ?? "—"}</dd>
               </div>
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Validity</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Starts</span>
-                <span>{formatDate(rx.validityStartDate)}</span>
+          <SectionCard title="Validity" icon={CalendarClock}>
+            <dl className="text-sm space-y-2.5">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Starts</dt>
+                <dd>{formatDate(rx.validityStartDate)}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Expires</span>
-                <span className="font-medium">{formatDate(rx.expiryDate)}</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Expires</dt>
+                <dd className="font-medium">{formatDate(rx.expiryDate)}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <StatusBadge status={rx.status} />
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Status</dt>
+                <StatusBadge status={rx.status} size="sm" />
               </div>
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          {/* Actions */}
+          {/* Desktop actions */}
           {isActive ? (
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Pharmacy actions</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  onClick={handleAccept}
-                  disabled={busy}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Accept & create order
+            <Card className="hidden lg:block">
+              <CardContent className="p-4 space-y-2">
+                <p className="text-sm font-semibold mb-1">Pharmacy actions</p>
+                <Button className="w-full" onClick={handleAccept} disabled={busy}>
+                  <CheckCircle2 className="h-4 w-4" /> Accept & create order
                 </Button>
                 <Button variant="outline" className="w-full" onClick={handleClarification} disabled={busy}>
-                  <Clock className="h-4 w-4 mr-1" /> Request clarification
+                  <Clock className="h-4 w-4" /> Request clarification
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" className="w-full text-rose-700 hover:bg-rose-50 hover:text-rose-800" disabled={busy}>
-                      <Ban className="h-4 w-4 mr-1" /> Reject prescription
+                      <Ban className="h-4 w-4" /> Reject prescription
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -395,22 +382,21 @@ export function PharmacyPrescriptionDetail() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleReject} className="bg-rose-600 hover:bg-rose-700">
+                      <AlertDialogAction onClick={handleReject} className="bg-destructive hover:bg-destructive/90">
                         Reject prescription
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
                 {!allMatched && itemMatches.length > 0 && (
-                  <p className="text-xs text-amber-700 mt-2">
-                    Some items have no matching product in your catalogue. Accept will create a
-                    partial order; request clarification for the rest.
+                  <p className="text-xs text-amber-700 pt-1 leading-relaxed">
+                    Some items have no matching product. Accept will create a partial order.
                   </p>
                 )}
               </CardContent>
             </Card>
           ) : (
-            <Alert className="border-muted bg-muted/30">
+            <Alert className="hidden lg:flex border-muted bg-muted/30">
               <AlertDescription className="text-xs">
                 This prescription is no longer active and cannot be accepted.
               </AlertDescription>
@@ -418,6 +404,41 @@ export function PharmacyPrescriptionDetail() {
           )}
         </div>
       </div>
+
+      {/* Mobile bottom action bar */}
+      {isActive && (
+        <BottomActionBar>
+          <div className="flex items-center gap-2">
+            <Button className="flex-1" onClick={handleAccept} disabled={busy}>
+              <CheckCircle2 className="h-4 w-4" /> Accept
+            </Button>
+            <Button variant="outline" size="icon" onClick={handleClarification} disabled={busy} aria-label="Request clarification">
+              <Clock className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="icon" className="text-rose-700 hover:bg-rose-50 hover:text-rose-800" disabled={busy} aria-label="Reject">
+                  <Ban className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reject this prescription?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action will notify the patient and prescriber that you cannot dispense this prescription.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleReject} className="bg-destructive hover:bg-destructive/90">
+                    Reject prescription
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </BottomActionBar>
+      )}
     </div>
   );
 }

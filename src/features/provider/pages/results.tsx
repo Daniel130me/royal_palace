@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { PageHeader, EmptyState, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
 import { formatDate, relativeDay, fullName } from "@/lib/format";
 import { resource } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -65,7 +65,6 @@ export function ProviderResults() {
   async function markReviewed(resultId: string, patientName: string) {
     setMarkingId(resultId);
     try {
-      // Mark as reviewed by setting the reviewer field to the provider's name.
       const reviewerName = profile ? `${profile.title} ${profile.lastName} (reviewed)` : "Provider (reviewed)";
       await resource.update<LaboratoryResult>("laboratoryResult", resultId, {
         reviewer: reviewerName,
@@ -84,40 +83,40 @@ export function ProviderResults() {
     const reviewed = !!result.reviewer;
     const highlight = result.id === highlightId;
     return (
-      <Card className={`hover:shadow-sm transition-shadow ${highlight ? "ring-2 ring-emerald-400" : ""} ${abnormalFlag ? "border-rose-200" : ""}`}>
-        <CardContent className="p-4">
+      <Card className={`hover:shadow-soft-md transition-shadow ${highlight ? "ring-2 ring-emerald-400" : ""} ${abnormalFlag ? "border-rose-200" : ""}`}>
+        <CardContent className="p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-            <div className={`rounded-lg p-2 shrink-0 ${abnormalFlag ? "bg-rose-50" : "bg-muted"}`}>
+            <div className={`rounded-xl p-2 shrink-0 ${abnormalFlag ? "bg-rose-50" : "bg-muted"}`}>
               {abnormalFlag ? <AlertTriangle className="h-5 w-5 text-rose-600" /> : <FlaskConical className="h-5 w-5 text-violet-600" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-medium">{result.test}</p>
+                <p className="text-sm font-semibold">{result.test}</p>
                 {abnormalFlag ? (
-                  <Badge variant="outline" className="border-rose-200 text-rose-700 capitalize text-[10px]">{result.abnormalIndicator}</Badge>
+                  <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{result.abnormalIndicator}</Badge>
                 ) : (
-                  <Badge variant="outline" className="border-emerald-200 text-emerald-700 text-[10px]">normal</Badge>
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">normal</Badge>
                 )}
-                {reviewed && <Badge variant="outline" className="text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" /> reviewed</Badge>}
+                {reviewed && <Badge variant="outline" className="h-5 text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" /> reviewed</Badge>}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-1">
                 {request.patient ? fullName(request.patient) : "Patient"} · {request.requestNumber}
               </p>
               <p className="text-xs text-muted-foreground">Collected {formatDate(result.sampleCollectionDate)} · Reported {formatDate(result.resultDate)} · {relativeDay(result.resultDate)}</p>
 
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 text-sm">
-                <div className="rounded-md border p-2">
-                  <p className="text-[10px] text-muted-foreground uppercase">Value</p>
-                  <p className="font-medium">{result.value} {result.unit}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 text-sm">
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Value</p>
+                  <p className="font-semibold mt-0.5">{result.value} {result.unit}</p>
                 </div>
-                <div className="rounded-md border p-2">
-                  <p className="text-[10px] text-muted-foreground uppercase">Reference range</p>
-                  <p className="font-medium">{result.referenceRange ?? "—"}</p>
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Reference range</p>
+                  <p className="font-semibold mt-0.5">{result.referenceRange ?? "—"}</p>
                 </div>
               </div>
 
               {result.interpretation && (
-                <p className="text-xs text-muted-foreground mt-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground mt-2.5 border-t border-border/60 pt-2 leading-relaxed">
                   <span className="font-medium text-foreground">Interpretation:</span> {result.interpretation}
                 </p>
               )}
@@ -131,7 +130,7 @@ export function ProviderResults() {
                   {markingId === result.id ? "Marking…" : (<><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark reviewed</>)}
                 </Button>
               ) : (
-                <Badge variant="outline" className="text-emerald-700 border-emerald-200 self-end">
+                <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 self-end">
                   <CheckCircle2 className="h-3 w-3 mr-1" /> Acknowledged
                 </Badge>
               )}
@@ -145,7 +144,14 @@ export function ProviderResults() {
     );
   }
 
-  if (loading) return <LoadingState label="Loading lab results…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Lab results" description="Results for the tests you have ordered." />
+        <SkeletonGrid count={3} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
@@ -162,28 +168,30 @@ export function ProviderResults() {
       />
 
       <Tabs defaultValue="all">
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All ({filtered.length})</TabsTrigger>
-          <TabsTrigger value="unreviewed">
-            Pending review ({unreviewed.length})
-            {unreviewed.length > 0 && <Badge variant="outline" className="ml-1 text-[10px] border-amber-200 text-amber-700">!</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="abnormal">
-            Abnormal ({abnormal.length})
-            {abnormal.length > 0 && <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 text-rose-700">!</Badge>}
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-1 px-1 pb-1">
+          <TabsList className="mb-4">
+            <TabsTrigger value="all">All ({filtered.length})</TabsTrigger>
+            <TabsTrigger value="unreviewed">
+              Pending review ({unreviewed.length})
+              {unreviewed.length > 0 && <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-200 bg-amber-50 text-amber-700 h-4.5">!</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="abnormal">
+              Abnormal ({abnormal.length})
+              {abnormal.length > 0 && <Badge variant="outline" className="ml-1.5 text-[10px] border-rose-200 bg-rose-50 text-rose-700 h-4.5">!</Badge>}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="all" className="space-y-3">
-          {filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No results" description="Lab results will appear here once published." /> :
+          {filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No results" description="Lab results will appear here once published." compact /> :
             filtered.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
         </TabsContent>
         <TabsContent value="unreviewed" className="space-y-3">
-          {unreviewed.length === 0 ? <EmptyState icon={CheckCircle2} title="All caught up" description="No results pending your review." /> :
+          {unreviewed.length === 0 ? <EmptyState icon={CheckCircle2} title="All caught up" description="No results pending your review." compact /> :
             unreviewed.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
         </TabsContent>
         <TabsContent value="abnormal" className="space-y-3">
-          {abnormal.length === 0 ? <EmptyState icon={CheckCircle2} title="No abnormal results" description="All recent results are within normal range." /> :
+          {abnormal.length === 0 ? <EmptyState icon={CheckCircle2} title="No abnormal results" description="All recent results are within normal range." compact /> :
             abnormal.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
         </TabsContent>
       </Tabs>

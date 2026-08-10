@@ -10,15 +10,15 @@ import type {
   Appointment, ClinicalEncounter, Prescription, LaboratoryRequest, PharmacyOrder,
   Referral, CarePlan, Diagnosis, HealthRecordItem,
 } from "@/types";
-import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, LoadingState, SectionCard } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Stethoscope, Pill, FlaskConical, Package, ArrowRight, HeartPulse, AlertCircle,
-  Activity, FileText, ChevronRight, ShieldCheck, User, Building2, Calendar,
+  Activity, FileText, ChevronRight, ShieldCheck, User, Building2,
 } from "lucide-react";
 import { formatDate, formatDateTime, fullName } from "@/lib/format";
 import { createdAt } from "../lib/runtime-fields";
@@ -36,6 +36,15 @@ interface TimelineItem {
   onClick?: () => void;
 }
 
+const KIND_TONE: Record<TimelineKind, { bg: string; text: string; dot: string }> = {
+  consultation: { bg: "bg-emerald-50 ring-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
+  prescription: { bg: "bg-violet-50 ring-violet-100", text: "text-violet-700", dot: "bg-violet-500" },
+  laboratory: { bg: "bg-sky-50 ring-sky-100", text: "text-sky-700", dot: "bg-sky-500" },
+  referral: { bg: "bg-amber-50 ring-amber-100", text: "text-amber-700", dot: "bg-amber-500" },
+  order: { bg: "bg-rose-50 ring-rose-100", text: "text-rose-700", dot: "bg-rose-500" },
+  diagnosis: { bg: "bg-emerald-50 ring-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
+};
+
 export function PatientRecords() {
   const { profile } = usePatientContext();
   const [loading, setLoading] = useState(true);
@@ -50,6 +59,7 @@ export function PatientRecords() {
 
   useEffect(() => {
     if (!profile) return;
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       appointmentService.list({ patientId: profile.id }),
@@ -60,6 +70,7 @@ export function PatientRecords() {
       carePlanService.list(profile.id),
       diagnosisService.list(profile.id),
     ]).then(async ([appts, rx, labs, ords, refs, plans, dx]) => {
+      if (cancelled) return;
       setAppointments(appts);
       setPrescriptions(rx);
       setLabRequests(labs);
@@ -67,7 +78,6 @@ export function PatientRecords() {
       setReferrals(refs);
       setCarePlans(plans);
       setDiagnoses(dx);
-      // Resolve encounters from completed appointments
       const completed = appts.filter((a) => a.status === "completed");
       const encs: ClinicalEncounter[] = [];
       for (const a of completed) {
@@ -76,8 +86,9 @@ export function PatientRecords() {
           if (e) encs.push(e);
         } catch { /* skip */ }
       }
-      setEncounters(encs);
-    }).finally(() => setLoading(false));
+      if (!cancelled) setEncounters(encs);
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [profile?.id]);
 
   const timeline = useMemo<TimelineItem[]>(() => {
@@ -167,121 +178,126 @@ export function PatientRecords() {
   const activeCarePlans = carePlans.filter((c) => c.status === "active");
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Health Records"
         description="A unified timeline of your clinical journey."
         actions={<Button variant="outline" size="sm" onClick={() => navigate("patient", "consent")}>Manage access</Button>}
       />
 
-      {/* Health summary */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        <SummaryCard
-          title="Active conditions"
-          icon={Activity}
-          tone="amber"
-          items={activeConditions}
-          emptyText="No active conditions recorded"
-        />
-        <SummaryCard
-          title="Allergies"
-          icon={AlertCircle}
-          tone="rose"
-          items={activeAllergies}
-          emptyText="No allergies recorded"
-        />
-        <SummaryCard
-          title="Current medicines"
-          icon={Pill}
-          tone="sky"
-          items={activeMedications}
-          emptyText="No active medicines"
-        />
+      {/* Health summary — highlighted */}
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-1">
+        <SectionCard title="Health summary" icon={HeartPulse}>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <HealthColumn
+              label="Active conditions"
+              tone="amber"
+              icon={Activity}
+              items={activeConditions}
+              emptyText="No active conditions recorded"
+            />
+            <HealthColumn
+              label="Allergies"
+              tone="rose"
+              icon={AlertCircle}
+              items={activeAllergies}
+              emptyText="No allergies recorded"
+            />
+            <HealthColumn
+              label="Current medicines"
+              tone="sky"
+              icon={Pill}
+              items={activeMedications}
+              emptyText="No active medicines"
+            />
+          </div>
+        </SectionCard>
       </div>
 
       {/* Recent results, active referrals, care plans */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-1.5"><FlaskConical className="h-4 w-4" /> Recent results</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {recentResults.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No results yet.</p>
-            ) : recentResults.map((l) => (
-              <div key={l.id} className="rounded-lg border p-2 text-sm">
-                <p className="font-medium">{l.result?.test}</p>
-                <p className="text-xs text-muted-foreground">
-                  {l.result?.value}{l.result?.unit ? ` ${l.result.unit}` : ""} · {l.result?.abnormalIndicator ?? "normal"}
-                </p>
-                <p className="text-[10px] text-muted-foreground">{formatDate(l.result?.resultDate)}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-1.5"><ArrowRight className="h-4 w-4" /> Active referrals</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {activeReferrals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No active referrals.</p>
-            ) : activeReferrals.map((r) => (
-              <div key={r.id} className="rounded-lg border p-2 text-sm">
-                <p className="font-medium">{r.recipientSpecialty || r.recipient?.specialty || "Specialist"}</p>
-                <p className="text-xs text-muted-foreground truncate">{r.reason}</p>
-                <StatusBadge status={r.status} className="mt-1 text-[10px]" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-1.5"><HeartPulse className="h-4 w-4" /> Active care plans</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {activeCarePlans.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No active care plans.</p>
-            ) : activeCarePlans.map((c) => (
-              <div key={c.id} className="rounded-lg border p-2 text-sm">
-                <p className="font-medium">{c.title}</p>
-                <p className="text-xs text-muted-foreground">{c.description}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {formatDate(c.startDate)} → {c.endDate ? formatDate(c.endDate) : "Ongoing"}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SectionCard title="Recent results" icon={FlaskConical} dense>
+          {recentResults.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No results yet.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {recentResults.map((l) => (
+                <li key={l.id} className="px-4 sm:px-5 py-3">
+                  <p className="text-sm font-medium">{l.result?.test}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {l.result?.value}{l.result?.unit ? ` ${l.result.unit}` : ""} · {l.result?.abnormalIndicator ?? "normal"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(l.result?.resultDate)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Active referrals" icon={ArrowRight} dense>
+          {activeReferrals.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No active referrals.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {activeReferrals.map((r) => (
+                <li key={r.id} className="px-4 sm:px-5 py-3">
+                  <p className="text-sm font-medium">{r.recipientSpecialty || r.recipient?.specialty || "Specialist"}</p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{r.reason}</p>
+                  <div className="mt-1.5"><StatusBadge status={r.status} size="sm" /></div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Active care plans" icon={HeartPulse} dense>
+          {activeCarePlans.length === 0 ? (
+            <div className="p-5"><p className="text-sm text-muted-foreground">No active care plans.</p></div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {activeCarePlans.map((c) => (
+                <li key={c.id} className="px-4 sm:px-5 py-3">
+                  <p className="text-sm font-medium">{c.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {formatDate(c.startDate)} → {c.endDate ? formatDate(c.endDate) : "Ongoing"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline tabs */}
       <Tabs defaultValue="all">
-        <TabsList className="w-full overflow-x-auto">
-          <TabsTrigger value="all">All ({timeline.length})</TabsTrigger>
-          <TabsTrigger value="consultation">Consultations ({encounters.length})</TabsTrigger>
-          <TabsTrigger value="prescription">Prescriptions ({prescriptions.length})</TabsTrigger>
-          <TabsTrigger value="laboratory">Laboratory ({labRequests.length})</TabsTrigger>
-          <TabsTrigger value="referral">Referrals ({referrals.length})</TabsTrigger>
-          <TabsTrigger value="order">Orders ({orders.length})</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 bg-background/95 backdrop-blur-md">
+          <TabsList className="w-full overflow-x-auto">
+            <TabsTrigger value="all">All ({timeline.length})</TabsTrigger>
+            <TabsTrigger value="consultation">Consultations ({encounters.length})</TabsTrigger>
+            <TabsTrigger value="prescription">Prescriptions ({prescriptions.length})</TabsTrigger>
+            <TabsTrigger value="laboratory">Laboratory ({labRequests.length})</TabsTrigger>
+            <TabsTrigger value="referral">Referrals ({referrals.length})</TabsTrigger>
+            <TabsTrigger value="order">Orders ({orders.length})</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="all" className="mt-4">
+        <TabsContent value="all" className="mt-5">
           <Timeline items={timeline} />
         </TabsContent>
-        <TabsContent value="consultation" className="mt-4">
+        <TabsContent value="consultation" className="mt-5">
           <Timeline items={timeline.filter((t) => t.kind === "consultation" || t.kind === "diagnosis")} />
         </TabsContent>
-        <TabsContent value="prescription" className="mt-4">
+        <TabsContent value="prescription" className="mt-5">
           <Timeline items={timeline.filter((t) => t.kind === "prescription")} />
         </TabsContent>
-        <TabsContent value="laboratory" className="mt-4">
+        <TabsContent value="laboratory" className="mt-5">
           <Timeline items={timeline.filter((t) => t.kind === "laboratory")} />
         </TabsContent>
-        <TabsContent value="referral" className="mt-4">
+        <TabsContent value="referral" className="mt-5">
           <Timeline items={timeline.filter((t) => t.kind === "referral")} />
         </TabsContent>
-        <TabsContent value="order" className="mt-4">
+        <TabsContent value="order" className="mt-5">
           <Timeline items={timeline.filter((t) => t.kind === "order")} />
         </TabsContent>
       </Tabs>
@@ -289,53 +305,54 @@ export function PatientRecords() {
   );
 }
 
-function SummaryCard({ title, icon: Icon, tone, items, emptyText }: {
-  title: string; icon: React.ComponentType<{ className?: string }>; tone: "amber" | "rose" | "sky";
+function HealthColumn({ label, tone, icon: Icon, items, emptyText }: {
+  label: string; tone: "amber" | "rose" | "sky";
+  icon: React.ComponentType<{ className?: string }>;
   items: HealthRecordItem[]; emptyText: string;
 }) {
-  const toneClass = tone === "amber" ? "text-amber-600 bg-amber-50" : tone === "rose" ? "text-rose-600 bg-rose-50" : "text-sky-600 bg-sky-50";
+  const dotColor = tone === "amber" ? "bg-amber-500" : tone === "rose" ? "bg-rose-500" : "bg-sky-500";
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-1.5">
-          <Icon className="h-4 w-4" /> {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{emptyText}</p>
-        ) : items.map((it, i) => (
-          <div key={i} className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${tone === "amber" ? "bg-amber-500" : tone === "rose" ? "bg-rose-500" : "bg-sky-500"}`} />
-              {it.name}
-            </span>
-            <ProvenanceBadge source={it.source} />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <div>
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Icon className="h-3 w-3" /> {label}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{emptyText}</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((it, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className={`h-1.5 w-1.5 rounded-full ${dotColor} shrink-0`} />
+                <span className="truncate">{it.name}</span>
+              </span>
+              <ProvenanceBadge source={it.source} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
 function ProvenanceBadge({ source }: { source: HealthRecordItem["source"] }) {
   if (source === "provider-confirmed") {
     return (
-      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] gap-0.5">
+      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] gap-0.5 h-4 px-1">
         <ShieldCheck className="h-2.5 w-2.5" /> Confirmed
       </Badge>
     );
   }
   if (source === "imported") {
     return (
-      <Badge variant="outline" className="text-[9px] gap-0.5">
+      <Badge variant="outline" className="text-[9px] gap-0.5 h-4 px-1">
         <Building2 className="h-2.5 w-2.5" /> Imported
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-[9px] gap-0.5">
-      <User className="h-2.5 w-2.5" /> Self-reported
+    <Badge variant="outline" className="text-[9px] gap-0.5 h-4 px-1">
+      <User className="h-2.5 w-2.5" /> Self
     </Badge>
   );
 }
@@ -344,40 +361,47 @@ function Timeline({ items }: { items: TimelineItem[] }) {
   if (items.length === 0) {
     return <EmptyState icon={FileText} title="No records yet" description="Your clinical timeline will appear here as you consult with providers." />;
   }
-  const iconFor = (k: TimelineKind) =>
-    k === "consultation" ? Stethoscope :
+  return (
+    <ol className="relative space-y-3">
+      {/* Vertical line */}
+      <div className="absolute left-[18px] sm:left-[22px] top-2 bottom-2 w-px bg-border" aria-hidden />
+      {items.map((it) => {
+        const tone = KIND_TONE[it.kind];
+        const Icon = iconFor(it.kind);
+        return (
+          <li key={it.id} className="relative pl-12 sm:pl-14">
+            {/* Dot */}
+            <div className={`absolute left-0 top-3 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl ring-1 ${tone.bg}`}>
+              <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${tone.text}`} />
+            </div>
+            <button
+              onClick={it.onClick}
+              disabled={!it.onClick}
+              className={`block w-full text-left rounded-2xl border border-border/80 bg-card p-4 shadow-soft transition-all ${it.onClick ? "hover:shadow-soft-md hover:border-primary/30 cursor-pointer tap-highlight-none" : "cursor-default"}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm truncate">{it.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">{it.subtitle}</p>
+                </div>
+                <StatusBadge status={it.status} size="sm" />
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{formatDateTime(it.date)}</span>
+                {it.ref && <span>· {it.ref}</span>}
+              </div>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function iconFor(k: TimelineKind) {
+  return k === "consultation" ? Stethoscope :
     k === "prescription" ? Pill :
     k === "laboratory" ? FlaskConical :
     k === "referral" ? ArrowRight :
     k === "order" ? Package : Activity;
-  return (
-    <div className="space-y-3">
-      {items.map((it) => {
-        const Icon = iconFor(it.kind);
-        return (
-          <Card key={it.id} className={it.onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""} >
-            <CardContent className="p-4 flex items-start gap-3" onClick={it.onClick}>
-              <div className="rounded-lg bg-muted p-2 shrink-0">
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{it.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{it.subtitle}</p>
-                  </div>
-                  <StatusBadge status={it.status} className="text-[10px] shrink-0" />
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" /> {formatDateTime(it.date)}
-                  {it.ref && <span>· {it.ref}</span>}
-                </div>
-              </div>
-              {it.onClick && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
 }

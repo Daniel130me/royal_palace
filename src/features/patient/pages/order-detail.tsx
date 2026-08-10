@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { pharmacyOrderService } from "@/lib/services";
-import type { PharmacyOrder, Delivery } from "@/types";
-import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import type { PharmacyOrder } from "@/types";
+import { PageHeader, EmptyState, LoadingState, SectionCard } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Package, ChevronRight, MapPin, Truck, CheckCircle2, Building2, Receipt,
-  CircleDot, ChevronLeft,
+  CircleDot,
 } from "lucide-react";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { createdAt } from "../lib/runtime-fields";
-import { DELIVERY_STATUSES } from "@/lib/format";
 
 const DELIVERY_STEPS: { key: string; label: string }[] = [
   { key: "assigned", label: "Order placed" },
@@ -40,11 +40,13 @@ export function PatientOrderDetail() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     setLoading(true);
     pharmacyOrderService.get(id)
-      .then(setOrder)
-      .catch((e) => setError(e instanceof Error ? e.message : "Order not found"))
-      .finally(() => setLoading(false));
+      .then((o) => { if (!cancelled) setOrder(o); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Order not found"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [id]);
 
   if (loading) return <LoadingState label="Loading order…" />;
@@ -60,171 +62,153 @@ export function PatientOrderDetail() {
   const currentStep = ORDER_STEP_INDEX[order.status] ?? 0;
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title={order.orderNumber}
         description={`Placed ${formatDate(createdAt(order) ?? order.orderNumber)}`}
-        breadcrumbs={[
-          { label: "Orders", onClick: () => navigate("patient", "orders") },
-          { label: order.orderNumber },
-        ]}
+        back
+        actions={<StatusBadge status={order.status} />}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           {/* Items */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Items ({order.items?.length ?? 0})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {(order.items ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No items on this order.</p>
-              ) : order.items!.map((it) => (
-                <div key={it.id} className="rounded-lg border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-sm">{it.productName}</p>
-                      <p className="text-xs text-muted-foreground">Qty {it.quantity} · {formatCurrency(it.unitPrice)} each</p>
+          <SectionCard title={`Items (${order.items?.length ?? 0})`} icon={Package} dense>
+            {(order.items ?? []).length === 0 ? (
+              <div className="p-5"><p className="text-sm text-muted-foreground">No items on this order.</p></div>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {order.items!.map((it) => (
+                  <li key={it.id} className="px-4 sm:px-5 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{it.productName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Qty {it.quantity} · {formatCurrency(it.unitPrice)} each</p>
+                      </div>
+                      <p className="font-semibold text-sm shrink-0">{formatCurrency(it.gross)}</p>
                     </div>
-                    <p className="font-semibold text-sm">{formatCurrency(it.gross)}</p>
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
-                    <div className="rounded bg-muted/40 p-1.5">
-                      <p>Gross</p>
-                      <p className="text-foreground font-medium">{formatCurrency(it.gross)}</p>
+                    {/* Item-level commission breakdown — card on mobile */}
+                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
+                      <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                        <p className="text-muted-foreground">Gross</p>
+                        <p className="text-foreground font-medium mt-0.5">{formatCurrency(it.gross)}</p>
+                      </div>
+                      <div className="rounded-md bg-rose-50 px-2 py-1.5">
+                        <p className="text-rose-700">Commission ({it.commissionPct}%)</p>
+                        <p className="text-rose-700 font-medium mt-0.5">–{formatCurrency(it.commissionAmount)}</p>
+                      </div>
+                      <div className="rounded-md bg-emerald-50 px-2 py-1.5">
+                        <p className="text-emerald-700">Pharmacy net</p>
+                        <p className="text-emerald-700 font-medium mt-0.5">{formatCurrency(it.pharmacyNet)}</p>
+                      </div>
                     </div>
-                    <div className="rounded bg-muted/40 p-1.5">
-                      <p>Commission ({it.commissionPct}%)</p>
-                      <p className="text-rose-600 font-medium">–{formatCurrency(it.commissionAmount)}</p>
-                    </div>
-                    <div className="rounded bg-muted/40 p-1.5">
-                      <p>Pharmacy net</p>
-                      <p className="text-emerald-700 font-medium">{formatCurrency(it.pharmacyNet)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
 
-          {/* Delivery + tracking */}
+          {/* Delivery tracking — vertical timeline */}
           {delivery ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Truck className="h-4 w-4" /> Delivery tracking
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4 flex items-center justify-between text-sm">
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">From</p>
-                    <p className="font-medium">{delivery.pickupLocation}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex-1 text-right">
-                    <p className="text-xs text-muted-foreground">To</p>
-                    <p className="font-medium">{delivery.deliveryLocation}</p>
-                  </div>
+            <SectionCard title="Delivery tracking" icon={Truck}>
+              <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">From</p>
+                  <p className="font-medium">{delivery.pickupLocation}</p>
                 </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">To</p>
+                  <p className="font-medium">{delivery.deliveryLocation}</p>
+                </div>
+              </div>
 
-                <div className="relative">
-                  <div className="absolute top-4 left-4 right-4 h-0.5 bg-muted" />
-                  <div
-                    className="absolute top-4 left-4 h-0.5 bg-emerald-500 transition-all"
-                    style={{ width: `calc(${Math.max(0, currentStep) * 25}% - 2rem)` }}
-                  />
-                  <ol className="relative grid grid-cols-5">
-                    {DELIVERY_STEPS.map((s, i) => {
-                      const done = i <= currentStep;
-                      return (
-                        <li key={s.key} className="flex flex-col items-center">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 bg-background ${
-                            done ? "border-emerald-500 text-emerald-600" : "border-muted text-muted-foreground"
-                          }`}>
-                            {done ? <CheckCircle2 className="h-4 w-4" /> : <CircleDot className="h-3 w-3" />}
-                          </div>
-                          <p className={`mt-1 text-[10px] text-center ${done ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                            {s.label}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
+              {/* Vertical timeline */}
+              <ol className="relative space-y-4 pl-7">
+                <div className="absolute left-[13px] top-2 bottom-2 w-0.5 bg-border" aria-hidden />
+                {DELIVERY_STEPS.map((s, i) => {
+                  const done = i <= currentStep;
+                  return (
+                    <li key={s.key} className="relative">
+                      <span className={`absolute -left-7 top-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-card ${
+                        done ? "border-primary text-primary" : "border-border text-muted-foreground"
+                      }`}>
+                        {done ? <CheckCircle2 className="h-4 w-4" /> : <CircleDot className="h-3 w-3" />}
+                      </span>
+                      <div className={done ? "" : "opacity-60"}>
+                        <p className={`text-sm ${done ? "font-medium" : "text-muted-foreground"}`}>{s.label}</p>
+                        {i === currentStep && (
+                          <p className="text-xs text-primary mt-0.5">Current status</p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Driver</p>
-                    <p className="font-medium">{delivery.logisticsProvider?.name ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Verification code</p>
-                    <p className="font-mono font-medium">{delivery.verificationCode}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Recipient</p>
-                    <p className="font-medium">{delivery.recipientName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <StatusBadge status={delivery.status} />
-                  </div>
-                  {delivery.handlingInstruction && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground">Handling</p>
-                      <p className="text-sm">{delivery.handlingInstruction}</p>
-                    </div>
-                  )}
+              <Separator className="my-4" />
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Driver</p>
+                  <p className="font-medium">{delivery.logisticsProvider?.name ?? "—"}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-xs text-muted-foreground">Verification code</p>
+                  <p className="font-mono font-medium">{delivery.verificationCode}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Recipient</p>
+                  <p className="font-medium">{delivery.recipientName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <StatusBadge status={delivery.status} size="sm" />
+                </div>
+                {delivery.handlingInstruction && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Handling</p>
+                    <p className="text-sm">{delivery.handlingInstruction}</p>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
           ) : (
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <MapPin className="h-4 w-4" /> Delivery not yet arranged. The pharmacy will assign a driver once the order is accepted.
-                </p>
-              </CardContent>
-            </Card>
+            <SectionCard title="Delivery" icon={MapPin}>
+              <p className="text-sm text-muted-foreground">
+                Delivery not yet arranged. The pharmacy will assign a driver once the order is accepted.
+              </p>
+            </SectionCard>
           )}
         </div>
 
         {/* Right column */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Pharmacy</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
+          <SectionCard title="Pharmacy" icon={Building2}>
+            <dl className="text-sm space-y-2.5">
               <Row label="Pharmacy" value={order.pharmacy?.name ?? "—"} />
               <Row label="Address" value={order.pharmacy ? `${order.pharmacy.address}, ${order.pharmacy.city}` : "—"} />
               <Row label="Phone" value={order.pharmacy?.phone ?? "—"} />
-              <Row label="Status" value={<StatusBadge status={order.status} />} />
-            </CardContent>
-          </Card>
+              <Row label="Status" value={<StatusBadge status={order.status} size="sm" />} />
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Receipt className="h-4 w-4" /> Payment</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
+          <SectionCard title="Payment" icon={Receipt}>
+            <dl className="text-sm space-y-2.5">
               <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
               <Row label="Delivery fee" value={formatCurrency(order.deliveryFee)} />
               <Row label="Commission total" value={`–${formatCurrency(order.commissionTotal)}`} />
-              <div className="border-t pt-2">
-                <Row label="Total paid" value={<span className="font-bold text-emerald-700">{formatCurrency(order.total)}</span>} />
-              </div>
+              <Separator className="my-1" />
+              <Row label="Total paid" value={<span className="font-bold text-base text-primary">{formatCurrency(order.total)}</span>} />
               <Row label="Payment status" value={<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 capitalize">{order.paymentStatus}</Badge>} />
               {order.verificationCode && (
                 <Row label="Order code" value={<span className="font-mono">{order.verificationCode}</span>} />
               )}
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4" /> Delivery address</CardTitle></CardHeader>
-            <CardContent className="text-sm">
-              {order.deliveryAddress ? <p>{order.deliveryAddress}</p> : <p className="text-muted-foreground">Pickup at pharmacy</p>}
-            </CardContent>
-          </Card>
+          <SectionCard title="Delivery address" icon={MapPin}>
+            <p className="text-sm">{order.deliveryAddress ?? <span className="text-muted-foreground">Pickup at pharmacy</span>}</p>
+          </SectionCard>
         </div>
       </div>
     </div>
@@ -234,8 +218,8 @@ export function PatientOrderDetail() {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex justify-between items-start gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
+      <dt className="text-muted-foreground shrink-0">{label}</dt>
+      <dd className="font-medium text-right">{value}</dd>
     </div>
   );
 }

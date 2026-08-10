@@ -4,14 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import { auditService } from "@/lib/services";
 import type { AuditLog } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Collapsible, CollapsibleTrigger, CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import {
+  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid, SectionCard,
+} from "@/components/healthcare/page-header";
+import { MetricCard } from "@/components/healthcare/metric-card";
 import { formatDateTime } from "@/lib/format";
-import { ScrollText, Search, Filter, Clock, Download } from "lucide-react";
+import { ScrollText, Search, Filter, Clock, Download, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const ROLE_OPTIONS = ["all", "patient", "doctor", "dentist", "pharmacy", "laboratory", "logistics", "admin"];
@@ -23,6 +28,7 @@ export function AdminAudit() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -50,7 +56,14 @@ export function AdminAudit() {
     });
   }, [logs, search, roleFilter, actionFilter]);
 
-  if (loading) return <LoadingState label="Loading audit trail…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   const exportCsv = () => {
@@ -68,8 +81,10 @@ export function AdminAudit() {
     URL.revokeObjectURL(url);
   };
 
+  const activeFilterCount = (roleFilter !== "all" ? 1 : 0) + (actionFilter !== "all" ? 1 : 0);
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Audit Trail"
         description="Immutable record of every action across the platform — who did what, when, and on which entity. This is a key compliance view."
@@ -81,8 +96,69 @@ export function AdminAudit() {
         }
       />
 
-      <Card className="mb-4">
-        <CardContent className="p-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <MetricCard label="Total events" value={logs.length} icon={ScrollText} />
+        <MetricCard label="Filtered" value={filtered.length} icon={Filter} tone="info" />
+        <MetricCard label="Admin actions" value={logs.filter((l) => l.actorRole === "admin").length} icon={ScrollText} tone="success" />
+        <MetricCard label="Latest event" value={logs[0] ? formatDateTime(logs[0].timestamp).split(",")[0] : "—"} icon={Clock} tone="violet" />
+      </div>
+
+      {/* Search + mobile filter toggle */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Description, actor ID, entity…" className="pl-9" />
+        </div>
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="lg:hidden">
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="Filters" className="relative">
+              <SlidersHorizontal className="h-4 w-4" />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </CollapsibleTrigger>
+        </Collapsible>
+      </div>
+
+      {/* Mobile collapsible filters */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="lg:hidden">
+        <CollapsibleContent>
+          <SectionCard title="Filters" icon={SlidersHorizontal}>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><Filter className="h-3 w-3" /> Actor role</Label>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r} value={r}>{r === "all" ? "All roles" : r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><Filter className="h-3 w-3" /> Action</Label>
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger><SelectValue placeholder="All actions" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All actions</SelectItem>
+                    {actions.map((a) => (
+                      <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </SectionCard>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Desktop inline filters */}
+      <div className="hidden lg:block">
+        <SectionCard title="Filters" icon={SlidersHorizontal}>
           <div className="grid gap-3 sm:grid-cols-[1fr_180px_240px]">
             <div className="space-y-1.5">
               <Label className="text-xs flex items-center gap-1"><Search className="h-3 w-3" /> Search</Label>
@@ -112,56 +188,35 @@ export function AdminAudit() {
               </Select>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Total events</p>
-          <p className="text-2xl font-bold mt-1">{logs.length}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Filtered</p>
-          <p className="text-2xl font-bold mt-1">{filtered.length}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Admin actions</p>
-          <p className="text-2xl font-bold mt-1 text-emerald-700">{logs.filter((l) => l.actorRole === "admin").length}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Latest event</p>
-          <p className="text-sm font-medium mt-1">{logs[0] ? formatDateTime(logs[0].timestamp) : "—"}</p>
-        </CardContent></Card>
+        </SectionCard>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={ScrollText} title="No audit events" description="No events match your filters." />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="max-h-[60vh] overflow-y-auto divide-y">
-              {filtered.map((l) => (
-                <div key={l.id} className="flex items-start gap-3 p-4 hover:bg-accent/30">
-                  <div className="rounded-md bg-muted p-2 shrink-0">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{l.description}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                      <span>By <span className="font-medium text-foreground">{l.actorId}</span></span>
-                      <StatusBadge status={l.actorRole === "admin" ? "approved" : l.actorRole === "patient" ? "scheduled" : "in_progress"} />
-                      <span>Action: <span className="font-mono">{l.action}</span></span>
-                      <span>Entity: <span className="font-mono">{l.entityType}/{l.entityId}</span></span>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0 text-xs text-muted-foreground">
-                    {formatDateTime(l.timestamp)}
+        <SectionCard dense>
+          <ul className="divide-y divide-border/60 max-h-[60vh] overflow-y-auto">
+            {filtered.map((l) => (
+              <li key={l.id} className="flex items-start gap-3 p-4 hover:bg-accent/30 transition-colors">
+                <div className="rounded-md bg-muted p-2 shrink-0">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm">{l.description}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                    <span>By <span className="font-medium text-foreground">{l.actorId}</span></span>
+                    <StatusBadge status={l.actorRole === "admin" ? "approved" : l.actorRole === "patient" ? "scheduled" : "in_progress"} size="sm" />
+                    <span>Action: <span className="font-mono">{l.action}</span></span>
+                    <span>Entity: <span className="font-mono">{l.entityType}/{l.entityId}</span></span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="text-right shrink-0 text-xs text-muted-foreground">
+                  {formatDateTime(l.timestamp)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
     </div>
   );

@@ -5,8 +5,9 @@ import { navigate } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
 import { laboratoryService } from "@/lib/services";
 import type { LaboratoryResult } from "@/types";
-import { PageHeader } from "@/components/healthcare/page-header";
-import { EmptyState, LoadingState, ErrorState } from "@/components/healthcare/states";
+import {
+  PageHeader, EmptyState, ErrorState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/format";
+import { formatDate, fullName } from "@/lib/format";
 import {
   FileText, Search, ChevronDown, ChevronUp, FileCheck2, AlertTriangle,
 } from "lucide-react";
@@ -61,31 +62,41 @@ export function LabResults() {
     );
   }, [tab, query, results, critical, abnormal, normal]);
 
-  if (loading) return <LoadingState label="Loading results…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 bg-muted/40 animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Results"
         description="Laboratory results published by your lab."
         actions={
           <Button variant="outline" onClick={() => navigate("laboratory", "bookings")}>
-            <FileCheck2 className="h-4 w-4 mr-1" /> Upload new result
+            <FileCheck2 className="h-4 w-4" /> Upload new result
           </Button>
         }
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
-        <TabsList>
-          <TabsTrigger value="all">All ({results.length})</TabsTrigger>
-          <TabsTrigger value="critical">Critical ({critical.length})</TabsTrigger>
-          <TabsTrigger value="abnormal">Abnormal ({abnormal.length})</TabsTrigger>
-          <TabsTrigger value="normal">Normal ({normal.length})</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-2 bg-background/95 backdrop-blur-md">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+          <TabsList className="flex-wrap h-auto overflow-x-auto">
+            <TabsTrigger value="all">All ({results.length})</TabsTrigger>
+            <TabsTrigger value="critical">Critical ({critical.length})</TabsTrigger>
+            <TabsTrigger value="abnormal">Abnormal ({abnormal.length})</TabsTrigger>
+            <TabsTrigger value="normal">Normal ({normal.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-      <div className="mb-4 relative">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search by test, patient or result number…"
@@ -109,18 +120,18 @@ export function LabResults() {
             const isCritical = r.abnormalIndicator === "critical";
             return (
               <Collapsible key={r.id} open={isOpen} onOpenChange={(o) => setExpanded(o ? r.id : null)}>
-                <Card className={isCritical ? "border-rose-200" : "hover:shadow-md transition-shadow"}>
+                <Card className={isCritical ? "border-rose-200 bg-rose-50/30" : "hover:shadow-soft-md transition-shadow"}>
                   <CollapsibleTrigger asChild>
-                    <button className="w-full text-left">
+                    <button className="w-full text-left tap-highlight-none">
                       <CardContent className="p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <span className="font-semibold text-sm">{r.test}</span>
-                              {r.abnormalIndicator ? <StatusBadge status={r.abnormalIndicator} /> : <StatusBadge status="normal" />}
+                              {r.abnormalIndicator ? <StatusBadge status={r.abnormalIndicator} size="sm" /> : <StatusBadge status="normal" size="sm" />}
                               <span className="text-xs text-muted-foreground">· {r.resultNumber}</span>
                               {isCritical && (
-                                <span className="inline-flex items-center gap-1 text-xs bg-rose-100 text-rose-700 border border-rose-200 rounded-md px-2 py-0.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 rounded-md px-1.5 py-0.5">
                                   <AlertTriangle className="h-3 w-3" /> Notify provider
                                 </span>
                               )}
@@ -133,11 +144,11 @@ export function LabResults() {
                               )}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {r.patient ? `${r.patient.firstName} ${r.patient.lastName}` : "Patient"} · Reported {formatDate(r.resultDate)}
+                              {r.patient ? fullName(r.patient) : "Patient"} · Reported {formatDate(r.resultDate)}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span className="text-xs">View detail</span>
+                          <div className="flex items-center gap-2 text-muted-foreground shrink-0">
+                            <span className="text-xs hidden sm:inline">View detail</span>
                             {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </div>
                         </div>
@@ -159,8 +170,8 @@ export function LabResults() {
                       </div>
                       {r.interpretation && (
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Interpretation</p>
-                          <p className="text-sm bg-muted/40 rounded-md p-3">{r.interpretation}</p>
+                          <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Interpretation</p>
+                          <p className="text-sm bg-muted/40 rounded-lg p-3 leading-relaxed">{r.interpretation}</p>
                         </div>
                       )}
                       {isCritical && (
@@ -168,9 +179,9 @@ export function LabResults() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => toastNotifyProvider(r.patient ? `${r.patient.firstName} ${r.patient.lastName}` : "patient", r.test)}
+                            onClick={() => toastNotifyProvider(r.patient ? fullName(r.patient) : "patient", r.test)}
                           >
-                            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Notify provider
+                            <AlertTriangle className="h-3.5 w-3.5" /> Notify provider
                           </Button>
                         </div>
                       )}
@@ -189,15 +200,12 @@ export function LabResults() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium">{value}</p>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className="text-sm font-medium mt-0.5">{value}</p>
     </div>
   );
 }
 
 function toastNotifyProvider(patientName: string, test: string) {
-  // Mock notification — in production this would create a notification row.
-  // The publish-lab-result action already notifies the provider + patient.
-  // This is an additional explicit "escalation" CTA for critical results.
   toast.success(`Referring provider notified about critical ${test} result for ${patientName}.`);
 }

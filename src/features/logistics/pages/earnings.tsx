@@ -5,12 +5,13 @@ import { useNav, navigate } from "@/lib/nav";
 import { useLogisticsContext } from "../use-logistics-context";
 import { settlementService } from "@/lib/services";
 import type { Settlement } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { MetricCard } from "@/components/healthcare/metric-card";
-import { PageHeader, EmptyState, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
+import { PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
 import {
   formatCurrency, formatDate, formatDateTime,
   isDeliveredToday, isDeliveredThisWeek,
@@ -45,25 +46,14 @@ export function LogisticsEarnings() {
         setSettlements([]);
         setSettlementsLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [logisticsId]);
 
   const delivered = useMemo(() => completed.filter((d) => d.status === "delivered"), [completed]);
 
-  const lifetime = useMemo(
-    () => delivered.reduce((acc, d) => acc + (d.payout || 0), 0),
-    [delivered]
-  );
-  const thisWeek = useMemo(
-    () => delivered.filter(isDeliveredThisWeek).reduce((acc, d) => acc + (d.payout || 0), 0),
-    [delivered]
-  );
-  const today = useMemo(
-    () => delivered.filter(isDeliveredToday).reduce((acc, d) => acc + (d.payout || 0), 0),
-    [delivered]
-  );
+  const lifetime = useMemo(() => delivered.reduce((acc, d) => acc + (d.payout || 0), 0), [delivered]);
+  const thisWeek = useMemo(() => delivered.filter(isDeliveredThisWeek).reduce((acc, d) => acc + (d.payout || 0), 0), [delivered]);
+  const today = useMemo(() => delivered.filter(isDeliveredToday).reduce((acc, d) => acc + (d.payout || 0), 0), [delivered]);
   const pendingSettlements = settlements.filter((s) => s.status === "pending");
   const pendingNet = pendingSettlements.reduce((acc, s) => acc + (s.netAmount || 0), 0);
   const paidNet = settlements.filter((s) => s.status === "paid").reduce((acc, s) => acc + (s.netAmount || 0), 0);
@@ -86,14 +76,21 @@ export function LogisticsEarnings() {
   }, [filteredDelivered]);
 
   if (loading && completed.length === 0 && !error) {
-    return <LoadingState label="Loading earnings…" />;
+    return (
+      <div className="space-y-6">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+      </div>
+    );
   }
   if (error) {
     return <ErrorState message={error} onRetry={() => refresh()} />;
   }
 
+  const filteredTotal = sortedDelivered.reduce((acc, d) => acc + (d.payout || 0), 0);
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Earnings"
         description={
@@ -103,65 +100,41 @@ export function LogisticsEarnings() {
         }
         actions={
           <Button variant="outline" onClick={() => navigate("logistics", "history")}>
-            View delivery history <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            View delivery history <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         }
       />
 
-      {/* Top metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard
-          label="Lifetime earnings"
-          value={formatCurrency(lifetime)}
-          icon={Wallet}
-          tone="success"
-          hint={`${delivered.length} deliveries completed`}
-        />
-        <MetricCard
-          label="This week"
-          value={formatCurrency(thisWeek)}
-          icon={TrendingUp}
-          tone="info"
-          hint={`${delivered.filter(isDeliveredThisWeek).length} delivered`}
-        />
-        <MetricCard
-          label="Today"
-          value={formatCurrency(today)}
-          icon={Banknote}
-          tone="success"
-          hint={`${delivered.filter(isDeliveredToday).length} delivered`}
-        />
-        <MetricCard
-          label="Pending settlement"
-          value={formatCurrency(pendingNet)}
-          icon={Clock}
-          tone="warning"
-          hint={`${pendingSettlements.length} period(s)`}
-        />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <MetricCard label="Lifetime earnings" value={formatCurrency(lifetime)} icon={Wallet} tone="success" hint={`${delivered.length} deliveries completed`} />
+        <MetricCard label="This week" value={formatCurrency(thisWeek)} icon={TrendingUp} tone="info" hint={`${delivered.filter(isDeliveredThisWeek).length} delivered`} />
+        <MetricCard label="Today" value={formatCurrency(today)} icon={Banknote} tone="success" hint={`${delivered.filter(isDeliveredToday).length} delivered`} />
+        <MetricCard label="Pending settlement" value={formatCurrency(pendingNet)} icon={Clock} tone="warning" hint={`${pendingSettlements.length} period(s)`} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Per-delivery breakdown */}
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        {/* Per-delivery payouts */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-emerald-600" /> Per-delivery payouts
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">{delivered.length} delivered</span>
-            </CardHeader>
-            <CardContent>
-              <div className="relative mb-3">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <SectionCard
+            title="Per-delivery payouts"
+            icon={Receipt}
+            action={<span className="text-xs text-muted-foreground">{delivered.length} delivered</span>}
+            dense
+          >
+            <div className="p-4 sm:p-5 pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by delivery number, recipient, location…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
+                  className="pl-9"
                 />
               </div>
+            </div>
 
-              {sortedDelivered.length === 0 ? (
+            {sortedDelivered.length === 0 ? (
+              <div className="p-5">
                 <EmptyState
                   icon={Wallet}
                   title="No delivered payouts yet"
@@ -177,30 +150,32 @@ export function LogisticsEarnings() {
                       </Button>
                     ) : undefined
                   }
+                  compact
                 />
-              ) : (
-                <div className="max-h-[28rem] overflow-y-auto -mx-2">
+              </div>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden md:block max-h-[28rem] overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="text-xs text-muted-foreground sticky top-0 bg-background">
+                    <thead className="text-xs text-muted-foreground sticky top-0 bg-card">
                       <tr>
-                        <th className="text-left font-medium px-2 py-2">Delivery</th>
+                        <th className="text-left font-medium px-4 py-2">Delivery</th>
                         <th className="text-left font-medium px-2 py-2 hidden sm:table-cell">Recipient</th>
                         <th className="text-left font-medium px-2 py-2 hidden md:table-cell">Date</th>
-                        <th className="text-right font-medium px-2 py-2">Payout</th>
+                        <th className="text-right font-medium px-4 py-2">Payout</th>
                       </tr>
                     </thead>
                     <tbody>
                       {sortedDelivered.map((d) => (
                         <tr
                           key={d.id}
-                          className="border-t hover:bg-accent/40 cursor-pointer"
+                          className="border-t border-border/60 hover:bg-accent/40 cursor-pointer"
                           onClick={() => navigate("logistics", "delivery", { id: d.id })}
                         >
-                          <td className="px-2 py-2.5">
+                          <td className="px-4 py-2.5">
                             <p className="font-medium">{d.deliveryNumber}</p>
-                            <p className="text-[11px] text-muted-foreground truncate max-w-[12rem]">
-                              {d.deliveryLocation}
-                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate max-w-[12rem]">{d.deliveryLocation}</p>
                           </td>
                           <td className="px-2 py-2.5 hidden sm:table-cell">
                             <span className="truncate">{d.recipientName}</span>
@@ -208,98 +183,122 @@ export function LogisticsEarnings() {
                           <td className="px-2 py-2.5 hidden md:table-cell text-muted-foreground">
                             {d.updatedAt ? formatDate(d.updatedAt) : "—"}
                           </td>
-                          <td className="px-2 py-2.5 text-right font-semibold text-emerald-700">
+                          <td className="px-4 py-2.5 text-right font-semibold text-emerald-700 tabular-nums">
                             {formatCurrency(d.payout)}
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t-2">
+                    <tfoot className="border-t-2 border-border/60 sticky bottom-0">
                       <tr className="bg-muted/40">
-                        <td className="px-2 py-2.5 font-medium" colSpan={3}>
+                        <td className="px-4 py-2.5 font-medium" colSpan={3}>
                           Total (filtered)
                         </td>
-                        <td className="px-2 py-2.5 text-right font-bold text-emerald-700">
-                          {formatCurrency(sortedDelivered.reduce((acc, d) => acc + (d.payout || 0), 0))}
+                        <td className="px-4 py-2.5 text-right font-bold text-emerald-700 tabular-nums">
+                          {formatCurrency(filteredTotal)}
                         </td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Mobile cards */}
+                <ul className="md:hidden max-h-[28rem] overflow-y-auto">
+                  {sortedDelivered.map((d) => (
+                    <li key={d.id} className="border-b border-border/60">
+                      <button
+                        onClick={() => navigate("logistics", "delivery", { id: d.id })}
+                        className="w-full text-left p-4 hover:bg-accent/40 transition-colors tap-highlight-none"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium">{d.deliveryNumber}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{d.recipientName} · {d.deliveryLocation}</p>
+                            {d.updatedAt && <p className="text-[11px] text-muted-foreground mt-0.5">{formatDate(d.updatedAt)}</p>}
+                          </div>
+                          <p className="font-bold text-emerald-700 shrink-0 tabular-nums">{formatCurrency(d.payout)}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                  <li className="bg-muted/40 p-3 flex items-center justify-between text-sm font-bold">
+                    <span>Total</span>
+                    <span className="text-emerald-700 tabular-nums">{formatCurrency(filteredTotal)}</span>
+                  </li>
+                </ul>
+              </>
+            )}
+          </SectionCard>
         </div>
 
         {/* Settlements */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <PiggyBank className="h-4 w-4 text-emerald-600" /> Settlement summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
-                <p className="text-xs text-muted-foreground">Total settled (paid)</p>
-                <p className="text-xl font-bold text-emerald-700">{formatCurrency(paidNet)}</p>
+          <SectionCard title="Settlement summary" icon={PiggyBank}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Settled (paid)</p>
+                <p className="text-lg font-bold text-emerald-700 mt-0.5 tabular-nums">{formatCurrency(paidNet)}</p>
               </div>
-              <div className="rounded-lg bg-amber-50 border border-amber-100 p-3">
-                <p className="text-xs text-muted-foreground">Pending settlement</p>
-                <p className="text-xl font-bold text-amber-700">{formatCurrency(pendingNet)}</p>
+              <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pending</p>
+                <p className="text-lg font-bold text-amber-700 mt-0.5 tabular-nums">{formatCurrency(pendingNet)}</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <MiniMetric label="Avg payout" value={formatCurrency(delivered.length ? Math.round(lifetime / delivered.length) : 0)} tone="info" />
+              <MiniMetric label="Periods" value={settlements.length} />
+            </div>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" /> Settlements
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">{settlements.length} total</span>
-            </CardHeader>
-            <CardContent>
-              {settlementsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-                </div>
-              ) : settlements.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
+          <SectionCard
+            title="Settlements"
+            icon={CalendarDays}
+            action={<span className="text-xs text-muted-foreground">{settlements.length} total</span>}
+            dense
+          >
+            {settlementsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+              </div>
+            ) : settlements.length === 0 ? (
+              <div className="p-5 text-center">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   No settlements recorded yet. Completed deliveries are batched into periodic settlements.
                 </p>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {settlements.map((s) => (
-                    <div key={s.id} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(s.periodStart)} – {formatDate(s.periodEnd)}
-                        </p>
-                        <StatusBadge status={s.status} />
+              </div>
+            ) : (
+              <ul className="divide-y divide-border/60 max-h-96 overflow-y-auto">
+                {settlements.map((s) => (
+                  <li key={s.id} className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(s.periodStart)} – {formatDate(s.periodEnd)}
+                      </p>
+                      <StatusBadge status={s.status} size="sm" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 font-mono">{s.settlementNumber}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                        <p className="text-sm font-medium tabular-nums">{formatCurrency(s.grossAmount)}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">{s.settlementNumber}</p>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <p className="text-muted-foreground">Gross</p>
-                          <p className="font-medium">{formatCurrency(s.grossAmount)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Commission</p>
-                          <p className="font-medium text-rose-700">–{formatCurrency(s.commissionAmount)}</p>
-                        </div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground">Net payout</span>
-                        <span className={`font-bold ${s.status === "paid" ? "text-emerald-700" : "text-amber-700"}`}>
-                          {formatCurrency(s.netAmount)}
-                        </span>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
+                        <p className="text-sm font-medium text-rose-700 tabular-nums">–{formatCurrency(s.commissionAmount)}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    <Separator className="my-2" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Net payout</span>
+                      <span className={`font-bold tabular-nums ${s.status === "paid" ? "text-emerald-700" : "text-amber-700"}`}>
+                        {formatCurrency(s.netAmount)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
         </div>
       </div>
     </div>

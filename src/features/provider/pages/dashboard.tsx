@@ -23,16 +23,24 @@ import type {
   Referral,
   Settlement,
 } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MetricCard } from "@/components/healthcare/metric-card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, EmptyState, LoadingState, ErrorState } from "@/components/healthcare/page-header";
-import { formatCurrency, formatDate, relativeDay, formatTime, fullName } from "@/lib/format";
+import {
+  PageHeader,
+  SectionCard,
+  EmptyState,
+  SkeletonGrid,
+  ErrorState,
+} from "@/components/healthcare/page-header";
+import { formatCurrency, formatDate, relativeDay, formatTime, fullName, initials } from "@/lib/format";
 import { toast } from "sonner";
 import {
   CalendarDays, Users, FileText, FlaskConical, Share2, Wallet,
   Stethoscope, Clock, AlertTriangle, ArrowRight, CheckCircle2, BadgeCheck,
+  Video, Phone, MessageSquare, User,
 } from "lucide-react";
 
 function daysUntil(dateStr: string): number {
@@ -58,6 +66,13 @@ export function intakeReason(a: Appointment): string {
     }
   }
   return "—";
+}
+
+function channelIcon(channel: string) {
+  if (channel === "video") return Video;
+  if (channel === "audio") return Phone;
+  if (channel === "chat") return MessageSquare;
+  return User;
 }
 
 export function ProviderDashboard() {
@@ -140,8 +155,6 @@ export function ProviderDashboard() {
   );
 
   const todayEarnings = useMemo(() => {
-    // Provider payout is roughly 73% of consultation price for GP tier.
-    // Real source of truth is the settlements table (shown below).
     const todaysCompleted = appointments.filter(
       (a) => a.date === today && a.status === "completed" && a.paymentStatus === "paid"
     );
@@ -177,11 +190,29 @@ export function ProviderDashboard() {
     }
   }
 
-  if (profileLoading || loading) return <LoadingState label="Loading your dashboard…" />;
+  if (profileLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-2 h-64 bg-muted/40 animate-pulse rounded-2xl" />
+          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!profile) return <ErrorState message="Provider profile not found." />;
 
   const firstName = profile.firstName || sessionName.split(" ")[0];
+
+  const quickActions = [
+    { label: "Waiting Room", icon: Users, page: "appointments", tone: "text-sky-600" as const },
+    { label: "Open Appointments", icon: CalendarDays, page: "appointments", tone: "text-emerald-600" as const },
+    { label: "Review Results", icon: FlaskConical, page: "results", tone: "text-violet-600" as const },
+    { label: "View Referrals", icon: Share2, page: "referrals", tone: "text-amber-600" as const },
+  ];
 
   return (
     <div>
@@ -189,7 +220,7 @@ export function ProviderDashboard() {
         title={`Welcome, ${profile.title} ${firstName}`}
         description={`${profile.specialty} · ${profile.city}, ${profile.state}`}
         actions={
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate("provider", "appointments")}>
+          <Button onClick={() => navigate("provider", "appointments")}>
             <CalendarDays className="h-4 w-4 mr-1" /> View appointments
           </Button>
         }
@@ -197,40 +228,37 @@ export function ProviderDashboard() {
 
       {/* Licence expiry notice */}
       {licenceDays !== null && licenceDays < 90 && (
-        <Card className="mb-6 border-amber-200 bg-amber-50">
-          <CardContent className="flex items-start gap-3 p-4">
-            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-800">
-                Medical licence expires {relativeDay(profile.licenceExpiry)}
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Your MDCN licence ({profile.licenceNumber}) expires on {formatDate(profile.licenceExpiry)}.
-                Please initiate revalidation to avoid account suspension.
-              </p>
-            </div>
-            <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigate("provider", "verification")}>
-              View verification
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="rounded-xl bg-amber-100 p-2 shrink-0">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              Medical licence expires {relativeDay(profile.licenceExpiry)}
+            </p>
+            <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+              Your MDCN licence ({profile.licenceNumber}) expires on {formatDate(profile.licenceExpiry)}.
+              Please initiate revalidation to avoid account suspension.
+            </p>
+          </div>
+          <Button size="sm" variant="outline" className="shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => navigate("provider", "verification")}>
+            View verification
+          </Button>
+        </div>
       )}
 
       {/* Quick actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: "Waiting Room", icon: Users, page: "appointments", tone: "text-sky-600" },
-          { label: "Open Appointments", icon: CalendarDays, page: "appointments", tone: "text-emerald-600" },
-          { label: "Review Results", icon: FlaskConical, page: "results", tone: "text-violet-600" },
-          { label: "View Referrals", icon: Share2, page: "referrals", tone: "text-amber-600" },
-        ].map((a) => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {quickActions.map((a) => (
           <button
             key={a.label}
             onClick={() => navigate("provider", a.page)}
-            className="rounded-lg border bg-background p-4 text-left hover:border-emerald-400 hover:shadow-sm transition-all"
+            className="group rounded-2xl border border-border/80 bg-card p-4 text-left shadow-soft hover:shadow-soft-md hover:border-primary/30 transition-all tap-highlight-none"
           >
-            <a.icon className={`h-5 w-5 mb-2 ${a.tone}`} />
-            <p className="text-sm font-medium">{a.label}</p>
+            <div className="rounded-xl bg-muted/60 p-2 w-fit group-hover:bg-primary/10 transition-colors">
+              <a.icon className={`h-5 w-5 ${a.tone}`} />
+            </div>
+            <p className="text-sm font-medium mt-2.5">{a.label}</p>
           </button>
         ))}
       </div>
@@ -239,93 +267,116 @@ export function ProviderDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Today's Appts" value={todaysAppointments.length} icon={CalendarDays} tone="info" onClick={() => navigate("provider", "appointments")} />
         <MetricCard label="Waiting Patients" value={waitingPatients.length} icon={Users} tone="warning" hint="Checked in / waiting" onClick={() => navigate("provider", "appointments")} />
-        <MetricCard label="Pending Docs" value={pendingDocumentation.length} icon={FileText} tone="warning" onClick={() => navigate("provider", "appointments")} />
+        <MetricCard label="Pending Docs" value={pendingDocumentation.length} icon={FileText} tone={pendingDocumentation.length > 0 ? "warning" : "success"} onClick={() => navigate("provider", "appointments")} />
         <MetricCard label="Lab Results to Review" value={labResultsToReview.length} icon={FlaskConical} tone={labResultsToReview.length > 0 ? "danger" : "success"} onClick={() => navigate("provider", "results")} />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <MetricCard label="Open Referrals" value={openReferrals.length} icon={Share2} tone="info" onClick={() => navigate("provider", "referrals")} />
-        <MetricCard label="Today's Earnings" value={formatCurrency(todayEarnings)} icon={Wallet} tone="success" hint="~73% of paid consultations" onClick={() => navigate("provider", "earnings")} />
-        <MetricCard label="Settled (all-time)" value={formatCurrency(settlementTotal)} icon={Wallet} tone="success" hint={`${settlements.length} settlement(s)`} onClick={() => navigate("provider", "earnings")} />
+
+      {/* MiniMetrics row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <MiniMetric label="Open Referrals" value={openReferrals.length} tone="info" />
+        <MiniMetric label="Today's Earnings" value={formatCurrency(todayEarnings)} tone="success" />
+        <MiniMetric label="Week Earnings" value={formatCurrency(weekEarnings)} tone="success" />
+        <MiniMetric label="Settled Total" value={formatCurrency(settlementTotal)} tone="violet" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Today's schedule */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <Stethoscope className="h-4 w-4" /> Today&apos;s schedule
-              </CardTitle>
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+        {/* Main column */}
+        <div className="lg:col-span-2 space-y-5">
+          <SectionCard
+            title="Today's schedule"
+            icon={Stethoscope}
+            action={
               <Button variant="ghost" size="sm" onClick={() => navigate("provider", "appointments")}>
-                View all
+                View all <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
+            }
+          >
+            <div className="space-y-2.5">
               {todaysAppointments.length === 0 ? (
                 <EmptyState
                   icon={CalendarDays}
                   title="No appointments today"
                   description="Your schedule is clear. Use this time for documentation or follow-ups."
+                  compact
                 />
               ) : (
-                todaysAppointments.slice(0, 6).map((a) => (
-                  <div key={a.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">
-                          {formatTime(a.time)} · {a.patient ? fullName(a.patient) : "Patient"}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {intakeReason(a)} · {a.consultationChannel.replace("_", " ")}
-                        </p>
+                todaysAppointments.slice(0, 6).map((a) => {
+                  const Icon = channelIcon(a.consultationChannel);
+                  return (
+                    <div key={a.id} className="rounded-xl border border-border/80 bg-card p-3.5 hover:shadow-soft transition-shadow">
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
+                            {a.patient ? initials(fullName(a.patient)) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">
+                                {formatTime(a.time)} · {a.patient ? fullName(a.patient) : "Patient"}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+                                <Icon className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{intakeReason(a)} · {a.consultationChannel.replace(/_/g, " ")}</span>
+                              </p>
+                            </div>
+                            <StatusBadge status={a.status} size="sm" />
+                          </div>
+                          <div className="mt-2.5 flex gap-2 flex-wrap">
+                            {(a.status === "scheduled" || a.status === "checked_in" || a.status === "waiting_for_provider") && (
+                              <Button
+                                size="sm"
+                                disabled={startingId === a.id}
+                                onClick={() => startConsultation(a)}
+                              >
+                                {startingId === a.id ? "Starting…" : "Start consultation"}
+                              </Button>
+                            )}
+                            {a.status === "in_progress" && a.encounter && (
+                              <Button size="sm" onClick={() => navigate("provider", "encounter", { id: a.encounter!.id })}>
+                                Continue documentation
+                              </Button>
+                            )}
+                            <Button size="sm" variant="outline" onClick={() => navigate("provider", "appointment", { id: a.id })}>
+                              Details
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <StatusBadge status={a.status} />
                     </div>
-                    <div className="mt-3 flex gap-2 flex-wrap">
-                      {(a.status === "scheduled" || a.status === "checked_in" || a.status === "waiting_for_provider") && (
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                          disabled={startingId === a.id}
-                          onClick={() => startConsultation(a)}
-                        >
-                          {startingId === a.id ? "Starting…" : "Start consultation"}
-                        </Button>
-                      )}
-                      {a.status === "in_progress" && a.encounter && (
-                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate("provider", "encounter", { id: a.encounter!.id })}>
-                          Continue documentation
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => navigate("provider", "appointment", { id: a.id })}>
-                        Details
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Pending documentation */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <FileText className="h-4 w-4" /> Pending documentation
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">{pendingDocumentation.length} open</span>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <SectionCard
+            title="Pending documentation"
+            icon={FileText}
+            description="Open encounters that need your SOAP notes"
+            action={
+              <Badge variant={pendingDocumentation.length > 0 ? "secondary" : "outline"} className="h-6">
+                {pendingDocumentation.length} open
+              </Badge>
+            }
+          >
+            <div className="space-y-2.5">
               {pendingDocumentation.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">All encounters are documented. 🎉</p>
+                <div className="py-6 text-center">
+                  <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-sm font-medium">All encounters are documented.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Nothing pending. Great work!</p>
+                </div>
               ) : (
                 pendingDocumentation.slice(0, 4).map((e) => (
-                  <div key={e.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-card p-3.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p className="text-sm font-semibold truncate">
                         {e.patient ? fullName(e.patient) : "Patient"} · {e.encounterNumber}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Started {formatDate(e.createdAt)}
                         {e.appointment ? ` · ${formatTime(e.appointment.time)} ${relativeDay(e.appointment.date)}` : ""}
                       </p>
@@ -336,29 +387,32 @@ export function ProviderDashboard() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Lab results to review */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <FlaskConical className="h-4 w-4" /> Lab results awaiting review
-              </CardTitle>
+          <SectionCard
+            title="Lab results awaiting review"
+            icon={FlaskConical}
+            action={
               <Button variant="ghost" size="sm" onClick={() => navigate("provider", "results")}>View all</Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
+            }
+          >
+            <div className="space-y-2.5">
               {labResultsToReview.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No results pending your review.</p>
+                <div className="py-6 text-center">
+                  <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-sm font-medium">No results pending your review.</p>
+                </div>
               ) : (
                 labResultsToReview.slice(0, 3).map((l) => (
-                  <div key={l.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={l.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-card p-3.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p className="text-sm font-semibold truncate">
                         {l.result?.test ?? l.tests.join(", ")} · {l.patient ? fullName(l.patient) : "Patient"}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Value {l.result?.value} {l.result?.unit} · {l.result?.abnormalIndicator ?? "normal"}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Value <span className="font-medium text-foreground">{l.result?.value} {l.result?.unit}</span> · {l.result?.abnormalIndicator ?? "normal"}
                       </p>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => navigate("provider", "results", { id: l.result?.id ?? "" })}>
@@ -367,60 +421,58 @@ export function ProviderDashboard() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         </div>
 
         {/* Right column */}
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Waiting room */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <Users className="h-4 w-4" /> Waiting room
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <SectionCard
+            title="Waiting room"
+            icon={Users}
+            action={waitingPatients.length > 0 ? <Badge variant="secondary" className="h-6 bg-amber-100 text-amber-700 border-amber-200">{waitingPatients.length}</Badge> : undefined}
+          >
+            <div className="space-y-2.5">
               {waitingPatients.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No patients waiting.</p>
               ) : (
                 waitingPatients.map((a) => (
-                  <div key={a.id} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between">
+                  <div key={a.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{a.patient ? fullName(a.patient) : "Patient"}</p>
-                        <p className="text-xs text-muted-foreground">{formatTime(a.time)} · {intakeReason(a)}</p>
+                        <p className="text-sm font-semibold truncate">{a.patient ? fullName(a.patient) : "Patient"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{formatTime(a.time)} · {intakeReason(a)}</p>
                       </div>
-                      <StatusBadge status={a.status} />
+                      <StatusBadge status={a.status} size="sm" />
                     </div>
-                    <Button size="sm" className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700" disabled={startingId === a.id} onClick={() => startConsultation(a)}>
+                    <Button size="sm" className="w-full mt-2.5" disabled={startingId === a.id} onClick={() => startConsultation(a)}>
                       {startingId === a.id ? "Starting…" : "Start consultation"}
                     </Button>
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Open referrals received */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <Share2 className="h-4 w-4" /> Incoming referrals
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <SectionCard
+            title="Incoming referrals"
+            icon={Share2}
+            action={openReferrals.length > 0 ? <Badge variant="secondary" className="h-6 bg-amber-100 text-amber-700 border-amber-200">{openReferrals.length}</Badge> : undefined}
+          >
+            <div className="space-y-2.5">
               {openReferrals.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No incoming referrals.</p>
               ) : (
                 openReferrals.slice(0, 3).map((r) => (
-                  <div key={r.id} className="rounded-lg border p-3">
-                    <p className="text-sm font-medium truncate">{r.reason}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div key={r.id} className="rounded-xl border border-border/80 bg-card p-3.5">
+                    <p className="text-sm font-semibold truncate">{r.reason}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       From {r.sender ? `${r.sender.title} ${r.sender.lastName}` : "Provider"} · {r.patient ? fullName(r.patient) : ""}
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <StatusBadge status={r.status} />
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <StatusBadge status={r.status} size="sm" />
                       <Button size="sm" variant="outline" onClick={() => navigate("provider", "referrals")}>
                         Open
                       </Button>
@@ -428,25 +480,20 @@ export function ProviderDashboard() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Follow-ups */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <Clock className="h-4 w-4" /> Upcoming follow-ups
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <SectionCard title="Upcoming follow-ups" icon={Clock}>
+            <div className="space-y-2.5">
               {followUps.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">No upcoming follow-ups.</p>
               ) : (
                 followUps.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card p-3.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{a.patient ? fullName(a.patient) : "Patient"}</p>
-                      <p className="text-xs text-muted-foreground">{relativeDay(a.date)} · {formatTime(a.time)}</p>
+                      <p className="text-sm font-semibold truncate">{a.patient ? fullName(a.patient) : "Patient"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{relativeDay(a.date)} · {formatTime(a.time)}</p>
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => navigate("provider", "appointment", { id: a.id })}>
                       View
@@ -454,28 +501,30 @@ export function ProviderDashboard() {
                   </div>
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           {/* Verification status mini-card */}
-          <Card className={profile.verificationStatus === "approved" ? "border-emerald-200 bg-emerald-50/40" : ""}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                {profile.verificationStatus === "approved" ? (
+          <div className={`rounded-2xl border p-4 shadow-soft ${profile.verificationStatus === "approved" ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}>
+            <div className="flex items-center gap-2.5">
+              {profile.verificationStatus === "approved" ? (
+                <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                ) : (
-                  <AlertTriangle className="h-5 w-5 text-amber-600" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium capitalize">Verification: {profile.verificationStatus.replace(/_/g, " ")}</p>
-                  <p className="text-xs text-muted-foreground">Provider No. {profile.providerNumber}</p>
                 </div>
+              ) : (
+                <div className="rounded-xl bg-amber-100 p-2 shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold capitalize">{profile.verificationStatus.replace(/_/g, " ")}</p>
+                <p className="text-xs text-muted-foreground">Provider No. {profile.providerNumber}</p>
               </div>
-              <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => navigate("provider", "verification")}>
-                <BadgeCheck className="h-4 w-4 mr-1" /> View verification record
-              </Button>
-            </CardContent>
-          </Card>
+            </div>
+            <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => navigate("provider", "verification")}>
+              <BadgeCheck className="h-4 w-4 mr-1" /> View verification record
+            </Button>
+          </div>
         </div>
       </div>
     </div>

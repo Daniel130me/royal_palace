@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { navigate } from "@/lib/nav";
 import { pharmacyService, adminService } from "@/lib/services";
 import type { Pharmacy } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import { MetricCard } from "@/components/healthcare/metric-card";
+import {
+  PageHeader, SectionCard, LoadingState, ErrorState, EmptyState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { toast } from "sonner";
 import { Pill, Pencil, MapPin, Phone, Star, Percent, Info } from "lucide-react";
 
@@ -69,70 +71,63 @@ export function AdminPharmacyCommissions() {
     ? pharmacies.reduce((s, p) => s + p.commissionPct, 0) / pharmacies.length
     : 0;
 
-  if (loading) return <LoadingState label="Loading pharmacies…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Pharmacy Commissions"
         description="Configure the platform commission percentage for each pharmacy. Changes apply to newly created orders."
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Pharmacy Commissions" }]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Pharmacies</p>
-          <p className="text-2xl font-bold mt-1">{pharmacies.length}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg commission</p>
-          <p className="text-2xl font-bold mt-1 text-emerald-700">{avgCommission.toFixed(2)}%</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Verified</p>
-          <p className="text-2xl font-bold mt-1">{pharmacies.filter((p) => p.verificationStatus === "approved").length}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Pending</p>
-          <p className="text-2xl font-bold mt-1 text-amber-700">{pharmacies.filter((p) => p.verificationStatus !== "approved").length}</p>
-        </CardContent></Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <MetricCard label="Pharmacies" value={pharmacies.length} icon={Pill} />
+        <MetricCard label="Avg commission" value={`${avgCommission.toFixed(2)}%`} icon={Percent} tone="success" />
+        <MetricCard label="Verified" value={pharmacies.filter((p) => p.verificationStatus === "approved").length} icon={Pill} tone="success" />
+        <MetricCard label="Pending" value={pharmacies.filter((p) => p.verificationStatus !== "approved").length} icon={Pill} tone="warning" />
       </div>
 
       {pharmacies.length === 0 ? (
         <EmptyState icon={Pill} title="No pharmacies" description="Pharmacies will appear here once they register." />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {pharmacies.map((p) => (
-                <div key={p.id} className="flex items-center gap-4 p-4">
-                  <div className="rounded-full bg-primary/10 p-2.5 shrink-0">
-                    <Pill className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold truncate">{p.name}</p>
-                      <StatusBadge status={p.verificationStatus} />
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.city}, {p.state}</span>
-                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {p.phone}</span>
-                      <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {p.rating.toFixed(1)}</span>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">Commission</p>
-                    <p className="text-xl font-bold text-emerald-700">{p.commissionPct}%</p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="shrink-0">
-                    <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                  </Button>
+        <SectionCard dense>
+          <ul className="divide-y divide-border/60">
+            {pharmacies.map((p) => (
+              <li key={p.id} className="p-4 flex items-center gap-3 sm:gap-4">
+                <div className="rounded-full bg-primary/10 p-2.5 shrink-0">
+                  <Pill className="h-5 w-5 text-primary" />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold truncate">{p.name}</p>
+                    <StatusBadge status={p.verificationStatus} size="sm" />
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.city}, {p.state}</span>
+                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {p.phone}</span>
+                    <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {p.rating.toFixed(1)}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
+                  <p className="text-xl font-bold text-emerald-700">{p.commissionPct}%</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="shrink-0">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
 
       {/* Edit dialog */}
@@ -153,14 +148,14 @@ export function AdminPharmacyCommissions() {
               <Label htmlFor="eff">Effective from</Label>
               <Input id="eff" type="date" value={effective} onChange={(e) => setEffective(e.target.value)} />
             </div>
-            <div className="rounded-lg border bg-muted/40 p-3 flex items-start gap-2">
+            <div className="rounded-xl border bg-muted/40 p-3 flex items-start gap-2">
               <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Affects newly created orders only. Existing orders retain the commission percentage set at the time of order.
               </p>
             </div>
             {editing && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                 Current commission: <span className="font-semibold">{editing.commissionPct}%</span>
               </div>
             )}

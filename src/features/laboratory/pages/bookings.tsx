@@ -5,23 +5,38 @@ import { navigate } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
 import { laboratoryService, labRequestService } from "@/lib/services";
 import type { LaboratoryBooking } from "@/types";
-import { PageHeader } from "@/components/healthcare/page-header";
-import { EmptyState, LoadingState, ErrorState } from "@/components/healthcare/states";
+import {
+  PageHeader, EmptyState, ErrorState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { formatCurrency, formatDate, formatTime, relativeDay, nextLabStatuses } from "@/lib/format";
+import { formatCurrency, formatTime, relativeDay, nextLabStatuses, fullName, initials } from "@/lib/format";
 import {
   CalendarClock, Search, ArrowRight, FileCheck2, MapPin, Home, Building2,
+  CheckCircle2, Circle,
 } from "lucide-react";
 
 type TabKey = "today" | "active" | "awaiting" | "completed" | "all";
 
 const COMPLETED_STATUSES = ["completed", "result_published"];
 const TERMINAL_STATUSES = [...COMPLETED_STATUSES, "cancelled"];
+
+const WORKFLOW_STEPS = [
+  { key: "booked", label: "Booked" },
+  { key: "sample_collected", label: "Sample collected" },
+  { key: "processing", label: "Processing" },
+  { key: "quality_review", label: "Quality review" },
+  { key: "completed", label: "Completed" },
+];
+
+function humanise(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function LabBookings() {
   const { labId, reload } = useLabContext();
@@ -53,10 +68,7 @@ export function LabBookings() {
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  const sorted = useMemo(
-    () => [...bookings].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)),
-    [bookings]
-  );
+  const sorted = useMemo(() => [...bookings].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)), [bookings]);
   const today = sorted.filter((b) => b.date === todayStr && !TERMINAL_STATUSES.includes(b.status));
   const active = sorted.filter((b) => !TERMINAL_STATUSES.includes(b.status));
   const awaiting = sorted.filter((b) => b.status === "quality_review" || (b.status === "completed" && !results.some((r) => r.bookingId === b.id)));
@@ -87,27 +99,37 @@ export function LabBookings() {
       .finally(() => setProgressing(null));
   };
 
-  if (loading) return <LoadingState label="Loading bookings…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 bg-muted/40 animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Bookings"
         description="Sample collections and tests in progress at your laboratory."
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
-        <TabsList>
-          <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
-          <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-          <TabsTrigger value="awaiting">Awaiting upload ({awaiting.length})</TabsTrigger>
-          <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
-          <TabsTrigger value="all">All ({sorted.length})</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-2 bg-background/95 backdrop-blur-md">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+          <TabsList className="flex-wrap h-auto overflow-x-auto">
+            <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
+            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+            <TabsTrigger value="awaiting">Awaiting upload ({awaiting.length})</TabsTrigger>
+            <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
+            <TabsTrigger value="all">All ({sorted.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-      <div className="mb-4 relative">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search by booking number, patient or test…"
@@ -128,82 +150,99 @@ export function LabBookings() {
           {visible.map((b) => {
             const nextStatuses = nextLabStatuses(b.status);
             const hasResult = results.some((r) => r.bookingId === b.id);
+            const currentStepIdx = WORKFLOW_STEPS.findIndex((s) => s.key === b.status);
+            const isTerminal = b.status === "result_published" || b.status === "cancelled";
             return (
-              <Card key={b.id} className="hover:shadow-md transition-shadow">
+              <Card key={b.id} className="overflow-hidden hover:shadow-soft-md transition-shadow">
                 <CardContent className="p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
                         <span className="font-semibold text-sm">{b.bookingNumber}</span>
-                        <StatusBadge status={b.status} />
+                        <StatusBadge status={b.status} size="sm" />
                         <span className="text-xs text-muted-foreground">· {relativeDay(b.date)} at {formatTime(b.time)}</span>
                         {b.collectionMode === "home" ? (
-                          <span className="inline-flex items-center gap-1 text-xs bg-violet-100 text-violet-700 border border-violet-200 rounded-md px-2 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200 rounded-md px-1.5 py-0.5">
                             <Home className="h-3 w-3" /> Home
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-xs bg-sky-100 text-sky-700 border border-sky-200 rounded-md px-2 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200 rounded-md px-1.5 py-0.5">
                             <Building2 className="h-3 w-3" /> Facility
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-medium truncate">
-                        {b.request?.tests?.join(", ") ?? "Laboratory tests"}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {b.patient ? `${b.patient.firstName} ${b.patient.lastName}` : "Patient"}
-                        {b.request ? ` · ${b.request.requestNumber}` : ""}
-                        {" · "}{formatCurrency(b.price)}
-                      </p>
-                      {b.collectionMode === "home" && b.homeAddress && (
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <MapPin className="h-3 w-3" /> {b.homeAddress}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-10 w-10 shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
+                            {b.patient ? initials(fullName(b.patient)) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{b.request?.tests?.join(", ") ?? "Laboratory tests"}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {b.patient ? fullName(b.patient) : "Patient"}
+                            {b.request ? ` · ${b.request.requestNumber}` : ""}
+                            {" · "}{formatCurrency(b.price)}
+                          </p>
+                          {b.collectionMode === "home" && b.homeAddress && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {b.homeAddress}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Vertical status timeline */}
+                      {!isTerminal && (
+                        <ol className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
+                          {WORKFLOW_STEPS.map((step, i) => {
+                            const done = i < currentStepIdx;
+                            const current = i === currentStepIdx;
+                            return (
+                              <li key={step.key} className="flex items-center gap-2 shrink-0">
+                                <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  done
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : current
+                                    ? "bg-primary text-primary-foreground shadow-soft"
+                                    : "bg-muted text-muted-foreground border border-border"
+                                }`}>
+                                  {done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                                  {step.label}
+                                </span>
+                                {i < WORKFLOW_STEPS.length - 1 && <span className="h-px w-4 bg-border" />}
+                              </li>
+                            );
+                          })}
+                        </ol>
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-2 shrink-0 sm:w-56">
-                      {b.status !== "result_published" && b.status !== "cancelled" && (
+                    <div className="flex flex-col gap-2 shrink-0 lg:w-56">
+                      {!isTerminal && (
                         <>
                           {nextStatuses.map((s) => (
                             <Button
                               key={s}
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700"
                               disabled={progressing === b.id}
                               onClick={() => handleProgress(b, s)}
                             >
-                              {humanise(s)}
-                              <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                              {humanise(s)} <ArrowRight className="h-3.5 w-3.5" />
                             </Button>
                           ))}
-                          {b.status === "quality_review" && (
+                          {(b.status === "quality_review" || (b.status === "completed" && !hasResult)) && (
                             <Button
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700"
-                              onClick={() => navigate("laboratory", "result-new", {
-                                bookingId: b.id,
-                                requestId: b.requestId,
-                              })}
+                              variant="outline"
+                              onClick={() => navigate("laboratory", "result-new", { bookingId: b.id, requestId: b.requestId })}
                             >
-                              <FileCheck2 className="h-3.5 w-3.5 mr-1" /> Upload result
-                            </Button>
-                          )}
-                          {b.status === "completed" && !hasResult && (
-                            <Button
-                              size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700"
-                              onClick={() => navigate("laboratory", "result-new", {
-                                bookingId: b.id,
-                                requestId: b.requestId,
-                              })}
-                            >
-                              <FileCheck2 className="h-3.5 w-3.5 mr-1" /> Upload result
+                              <FileCheck2 className="h-3.5 w-3.5" /> Upload result
                             </Button>
                           )}
                         </>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => navigate("laboratory", "request", { id: b.requestId })}>
+                      <Button size="sm" variant="ghost" onClick={() => navigate("laboratory", "request", { id: b.requestId })}>
                         View request
                       </Button>
                     </div>
@@ -216,8 +255,4 @@ export function LabBookings() {
       )}
     </div>
   );
-}
-
-function humanise(s: string): string {
-  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

@@ -3,22 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { consentService } from "@/lib/services";
 import type { RecordAccessGrant } from "@/types";
-import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, LoadingState, SectionCard } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  ShieldCheck, Building2, Calendar, FileText, ChevronRight, ShieldAlert, Lock,
+  ShieldCheck, Building2, ShieldAlert, Lock, Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/format";
+import { formatDate, initials } from "@/lib/format";
 import { usePatientContext } from "../use-patient-context";
 
 const PREFERENCES = [
@@ -42,11 +42,13 @@ export function PatientConsent() {
 
   useEffect(() => {
     if (!profile) return;
+    let cancelled = false;
     setLoading(true);
     consentService.grants(profile.id)
-      .then(setGrants)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load grants"))
-      .finally(() => setLoading(false));
+      .then((g) => { if (!cancelled) setGrants(g); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load grants"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [profile?.id]);
 
   const sections = useMemo(() => ({
@@ -61,7 +63,6 @@ export function PatientConsent() {
       await consentService.revoke(revokeTarget.id, profile.id);
       toast.success(`Access revoked for ${revokeTarget.granteeName}`);
       setRevokeTarget(null);
-      // Refresh grants
       consentService.grants(profile.id).then(setGrants);
       refresh();
     } catch (e) {
@@ -80,19 +81,21 @@ export function PatientConsent() {
   if (error) return <EmptyState title="Could not load" description={error} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Record Access Centre"
         description="Control who can see your health information and for how long."
       />
 
       <Tabs defaultValue="active">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="active">Active ({sections.active.length})</TabsTrigger>
-          <TabsTrigger value="previous">Previous ({sections.revoked.length})</TabsTrigger>
-          <TabsTrigger value="pending">Pending (0)</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 bg-background/95 backdrop-blur-md">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsTrigger value="active">Active ({sections.active.length})</TabsTrigger>
+            <TabsTrigger value="previous">Previous ({sections.revoked.length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending (0)</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="active" className="mt-4 space-y-3">
           {sections.active.length === 0 ? (
@@ -100,6 +103,7 @@ export function PatientConsent() {
               icon={ShieldCheck}
               title="No active access grants"
               description="When you book a consultation, your provider will be granted access to your records here."
+              compact
             />
           ) : sections.active.map((g) => (
             <GrantCard key={g.id} grant={g} onRevoke={() => setRevokeTarget(g)} />
@@ -108,7 +112,7 @@ export function PatientConsent() {
 
         <TabsContent value="previous" className="mt-4 space-y-3">
           {sections.revoked.length === 0 ? (
-            <EmptyState icon={ShieldCheck} title="No previous access" description="Revoked or expired grants will appear here." />
+            <EmptyState icon={ShieldCheck} title="No previous access" description="Revoked or expired grants will appear here." compact />
           ) : sections.revoked.map((g) => (
             <GrantCard key={g.id} grant={g} readOnly />
           ))}
@@ -119,31 +123,27 @@ export function PatientConsent() {
             icon={ShieldAlert}
             title="No pending access requests"
             description="Incoming requests for record access (e.g. from referrals) will appear here for your approval."
+            compact
           />
         </TabsContent>
 
         <TabsContent value="preferences" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Consent preferences
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <SectionCard title="Consent preferences" icon={ShieldCheck}>
+            <ul className="space-y-3">
               {PREFERENCES.map((p) => (
-                <div key={p.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
-                  <div>
+                <li key={p.id} className="flex items-start justify-between gap-3 rounded-xl border border-border/80 p-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">{p.label}</p>
-                    <p className="text-xs text-muted-foreground">{p.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{p.desc}</p>
                   </div>
                   <Switch
                     checked={preferences[p.id]}
                     onCheckedChange={(v) => togglePref(p.id, v)}
                   />
-                </div>
+                </li>
               ))}
-            </CardContent>
-          </Card>
+            </ul>
+          </SectionCard>
         </TabsContent>
       </Tabs>
 
@@ -176,37 +176,44 @@ function GrantCard({ grant: g, onRevoke, readOnly }: {
 }) {
   const infoShared = Array.isArray(g.informationShared) ? g.informationShared : [];
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold">{g.granteeName}</p>
-              <StatusBadge status={g.status} />
+    <SectionCard>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+              {initials(g.granteeName || "?")}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold leading-tight">{g.granteeName}</p>
+              <StatusBadge status={g.status} size="sm" />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
               <Building2 className="h-3 w-3" /> {g.organisation ?? "Independent provider"}
             </p>
-            <p className="text-sm mt-2">{g.reason}</p>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {infoShared.map((s) => (
-                <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>Granted: {formatDate(g.grantedAt)}</span>
+            <p className="text-sm mt-2 leading-relaxed">{g.reason}</p>
+            {infoShared.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {infoShared.map((s) => (
+                  <Badge key={s} variant="secondary" className="text-[10px] h-5 px-1.5">{s}</Badge>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-3 w-3" /> Granted {formatDate(g.grantedAt)}
+              </span>
               <span>Expires: {g.expiresAt ? formatDate(g.expiresAt) : "—"}</span>
-              {g.relatedEncounterId && <span>Encounter: {g.relatedEncounterId}</span>}
-              {g.relatedReferralId && <span>Referral: {g.relatedReferralId}</span>}
             </div>
           </div>
-          {!readOnly && (
-            <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700" onClick={onRevoke}>
-              <Lock className="h-3 w-3 mr-1" /> Revoke
-            </Button>
-          )}
         </div>
-      </CardContent>
-    </Card>
+        {!readOnly && (
+          <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700 shrink-0" onClick={onRevoke}>
+            <Lock className="h-3.5 w-3.5" /> Revoke
+          </Button>
+        )}
+      </div>
+    </SectionCard>
   );
 }

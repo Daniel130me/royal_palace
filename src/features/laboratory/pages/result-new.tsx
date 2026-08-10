@@ -5,9 +5,9 @@ import { navigate, useNav } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
 import { labRequestService } from "@/lib/services";
 import type { LaboratoryRequest } from "@/types";
-import { PageHeader } from "@/components/healthcare/page-header";
-import { LoadingState, ErrorState } from "@/components/healthcare/states";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState,
+} from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  ArrowLeft, FileCheck2, Paperclip, X, FlaskConical,
-  User, AlertTriangle,
+  FileCheck2, Paperclip, X, FlaskConical,
+  User, AlertTriangle, Check,
 } from "lucide-react";
 
 type AbnormalIndicator = "normal" | "high" | "low" | "critical";
@@ -35,6 +35,13 @@ const TEST_OPTIONS = [
   "Liver Function Test", "Renal Panel", "Thyroid Panel", "Urinalysis",
   "HbA1c", "Malaria Parasite", "COVID-19 PCR", "Typhoid (Widal)",
 ];
+
+const INDICATOR_META: Record<AbnormalIndicator, { label: string; chipBg: string; chipText: string; dot: string; ring: string }> = {
+  normal: { label: "Normal", chipBg: "bg-emerald-50", chipText: "text-emerald-700", dot: "bg-emerald-500", ring: "ring-emerald-200" },
+  high: { label: "High", chipBg: "bg-rose-50", chipText: "text-rose-700", dot: "bg-rose-500", ring: "ring-rose-200" },
+  low: { label: "Low", chipBg: "bg-amber-50", chipText: "text-amber-700", dot: "bg-amber-500", ring: "ring-amber-200" },
+  critical: { label: "Critical", chipBg: "bg-rose-50", chipText: "text-rose-700", dot: "bg-rose-500", ring: "ring-rose-200" },
+};
 
 export function LabResultNew() {
   const { view } = useNav();
@@ -71,7 +78,6 @@ export function LabResultNew() {
       .get(requestId)
       .then((r) => {
         setRequest(r);
-        // Pre-fill test with first requested test if available.
         if (!test && r.tests[0]) setTest(r.tests[0]);
         if (!reviewer && lab) setReviewer(`${lab.name} — Lab Director`);
         setError(null);
@@ -85,11 +91,10 @@ export function LabResultNew() {
   const pickAttachment = () => {
     const el = fileInputRef.current;
     if (!el) return;
-    el.value = ""; // reset so picking the same file twice still fires onchange
+    el.value = "";
     el.onchange = () => {
       const f = el.files?.[0];
       if (!f) return;
-      // We don't actually upload — we capture metadata only.
       setAttachment({
         id: `FILE-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         name: f.name,
@@ -140,192 +145,193 @@ export function LabResultNew() {
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!request) return <ErrorState message="Request not found." />;
 
+  const indMeta = INDICATOR_META[abnormal];
+
   return (
-    <div>
+    <div className="pb-28 lg:pb-0 space-y-6">
       <PageHeader
         title="Publish laboratory result"
         description={`For ${request.requestNumber} · ${request.tests.join(", ")}`}
-        breadcrumbs={[
-          { label: "Laboratory", onClick: () => navigate("laboratory", "dashboard") },
-          { label: "Results", onClick: () => navigate("laboratory", "results") },
-          { label: "New" },
-        ]}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate("laboratory", "bookings")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to bookings
-          </Button>
-        }
+        back
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column — patient + request summary */}
+        {/* Left column */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5"><User className="h-4 w-4" /> Patient</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
+          <SectionCard title="Patient" icon={User}>
+            <dl className="text-sm space-y-2.5">
               {request.patient && (
                 <>
-                  <InfoRow label="Name" value={`${request.patient.firstName} ${request.patient.lastName}`} />
-                  <InfoRow label="Patient number" value={request.patient.patientNumber} />
-                  <InfoRow label="Phone" value={request.patient.phone} />
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Name</dt><dd className="font-medium text-right">{request.patient.firstName} {request.patient.lastName}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Patient number</dt><dd className="font-medium">{request.patient.patientNumber}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Phone</dt><dd className="font-medium">{request.patient.phone}</dd></div>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </dl>
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5"><FlaskConical className="h-4 w-4" /> Request</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <InfoRow label="Request number" value={request.requestNumber} />
-              <InfoRow label="Sample type" value={request.sampleType ?? "—"} />
-              <InfoRow label="Priority" value={request.priority} />
-              {request.clinicalIndication && <InfoRow label="Indication" value={request.clinicalIndication} />}
-              {bookingId && <InfoRow label="Booking ID" value={bookingId} />}
-            </CardContent>
-          </Card>
+          <SectionCard title="Request" icon={FlaskConical}>
+            <dl className="text-sm space-y-2.5">
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Request number</dt><dd className="font-medium">{request.requestNumber}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Sample type</dt><dd className="font-medium">{request.sampleType ?? "—"}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Priority</dt><dd className="font-medium capitalize">{request.priority}</dd></div>
+              {request.clinicalIndication && <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Indication</dt><dd className="text-right text-xs leading-relaxed max-w-[60%]">{request.clinicalIndication}</dd></div>}
+              {bookingId && <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Booking ID</dt><dd className="font-mono text-xs">{bookingId}</dd></div>}
+            </dl>
+          </SectionCard>
 
           {abnormal === "critical" && (
-            <Card className="border-rose-200 bg-rose-50/50">
-              <CardContent className="p-4 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-                <p className="text-sm text-rose-700">
-                  On publish, the patient and referring provider will receive a notification flagging this critical result.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-2.5">
+              <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-rose-700 leading-relaxed">
+                On publish, the patient and referring provider will receive a notification flagging this critical result.
+              </p>
+            </div>
           )}
         </div>
 
-        {/* Main column — result form */}
+        {/* Main form */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1.5"><FileCheck2 className="h-4 w-4" /> Result details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Test *</Label>
-                  <Select value={test} onValueChange={setTest}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Pick a test" /></SelectTrigger>
-                    <SelectContent>
-                      {(TEST_OPTIONS.includes(test) ? [] : [test]).concat(TEST_OPTIONS).filter(Boolean).map((t) => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="f-unit">Unit</Label>
-                  <Input id="f-unit" placeholder="e.g. mmol/L, mg/dL, %" value={unit} onChange={(e) => setUnit(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="f-scd">Sample collection date</Label>
-                  <Input id="f-scd" type="date" value={sampleCollectionDate} onChange={(e) => setSampleCollectionDate(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="f-rd">Result date</Label>
-                  <Input id="f-rd" type="date" value={resultDate} onChange={(e) => setResultDate(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="f-value">Value *</Label>
-                  <Input id="f-value" placeholder="e.g. 6.2" value={value} onChange={(e) => setValue(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="f-rr">Reference range</Label>
-                  <Input id="f-rr" placeholder="e.g. < 5.0" value={referenceRange} onChange={(e) => setReferenceRange(e.target.value)} />
-                </div>
-              </div>
-
+          <SectionCard title="Result details" icon={FileCheck2}>
+            <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Abnormal indicator</Label>
-                <Select value={abnormal} onValueChange={(v) => setAbnormal(v as AbnormalIndicator)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <Label>Test *</Label>
+                <Select value={test} onValueChange={setTest}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Pick a test" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
+                    {(TEST_OPTIONS.includes(test) ? [] : [test]).concat(TEST_OPTIONS).filter(Boolean).map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
-                <Label htmlFor="f-int">Interpretation</Label>
-                <Textarea
-                  id="f-int"
-                  placeholder="Clinical interpretation of the result, recommended next steps…"
-                  rows={4}
-                  value={interpretation}
-                  onChange={(e) => setInterpretation(e.target.value)}
-                />
+                <Label htmlFor="f-unit">Unit</Label>
+                <Input id="f-unit" placeholder="e.g. mmol/L, mg/dL, %" value={unit} onChange={(e) => setUnit(e.target.value)} />
               </div>
+            </div>
 
+            <div className="grid sm:grid-cols-2 gap-3 mt-3">
               <div className="space-y-1.5">
-                <Label htmlFor="f-rev">Reviewer</Label>
-                <Input id="f-rev" placeholder="e.g. Dr. Funmi Okafor (Lab Director)" value={reviewer} onChange={(e) => setReviewer(e.target.value)} />
+                <Label htmlFor="f-scd">Sample collection date</Label>
+                <Input id="f-scd" type="date" value={sampleCollectionDate} onChange={(e) => setSampleCollectionDate(e.target.value)} />
               </div>
-
               <div className="space-y-1.5">
-                <Label>Report attachment</Label>
-                {attachment ? (
-                  <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{attachment.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(attachment.size / 1024).toFixed(1)} KB · {attachment.type || "file"}
-                        </p>
-                      </div>
+                <Label htmlFor="f-rd">Result date</Label>
+                <Input id="f-rd" type="date" value={resultDate} onChange={(e) => setResultDate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3 mt-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="f-value">Value *</Label>
+                <Input id="f-value" placeholder="e.g. 6.2" value={value} onChange={(e) => setValue(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="f-rr">Reference range</Label>
+                <Input id="f-rr" placeholder="e.g. < 5.0" value={referenceRange} onChange={(e) => setReferenceRange(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Abnormal indicator with color preview */}
+            <div className="space-y-1.5 mt-3">
+              <Label>Abnormal indicator</Label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {(Object.keys(INDICATOR_META) as AbnormalIndicator[]).map((k) => {
+                  const meta = INDICATOR_META[k];
+                  const active = abnormal === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setAbnormal(k)}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all tap-highlight-none ${
+                        active
+                          ? `${meta.chipBg} ${meta.chipText} border-current shadow-soft`
+                          : "border-border bg-card text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                      {meta.label}
+                      {active && <Check className="h-3 w-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className={`rounded-lg p-2.5 text-xs leading-relaxed ring-1 ${indMeta.chipBg} ${indMeta.chipText} ${indMeta.ring}`}>
+                Preview: <span className="font-semibold">{indMeta.label}</span> · this result will be flagged as <span className="font-semibold">{indMeta.label.toLowerCase()}</span> for the provider.
+              </div>
+            </div>
+
+            <div className="space-y-1.5 mt-3">
+              <Label htmlFor="f-int">Interpretation</Label>
+              <Textarea
+                id="f-int"
+                placeholder="Clinical interpretation of the result, recommended next steps…"
+                rows={4}
+                value={interpretation}
+                onChange={(e) => setInterpretation(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 mt-3">
+              <Label htmlFor="f-rev">Reviewer</Label>
+              <Input id="f-rev" placeholder="e.g. Dr. Funmi Okafor (Lab Director)" value={reviewer} onChange={(e) => setReviewer(e.target.value)} />
+            </div>
+
+            <div className="space-y-1.5 mt-3">
+              <Label>Report attachment</Label>
+              {attachment ? (
+                <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="rounded-md bg-primary/10 p-1.5 shrink-0">
+                      <Paperclip className="h-3.5 w-3.5 text-primary" />
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => setAttachment(null)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{attachment.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(attachment.size / 1024).toFixed(1)} KB · {attachment.type || "file"}
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <Button type="button" variant="outline" size="sm" onClick={pickAttachment}>
-                    <Paperclip className="h-4 w-4 mr-1" /> Attach report (metadata only)
-                  </Button>
-                )}
-                <p className="text-xs text-muted-foreground">Mock upload — stores file metadata only; no real file is uploaded in the prototype.</p>
-                <input ref={fileInputRef} type="file" className="hidden" aria-hidden="true" tabIndex={-1} />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Publishing this result will mark the request as <span className="font-medium">completed</span> and notify the patient + referring doctor.
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => navigate("laboratory", "bookings")} disabled={submitting}>Cancel</Button>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={submitting} onClick={submit}>
-                    <FileCheck2 className="h-4 w-4 mr-1" /> Publish result
+                  <Button size="sm" variant="ghost" onClick={() => setAttachment(null)}>
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={pickAttachment}>
+                  <Paperclip className="h-4 w-4" /> Attach report (metadata only)
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">Mock upload — stores file metadata only; no real file is uploaded in the prototype.</p>
+              <input ref={fileInputRef} type="file" className="hidden" aria-hidden="true" tabIndex={-1} />
+            </div>
+
+            {/* Desktop footer */}
+            <div className="hidden lg:flex items-center justify-between gap-2 pt-4 border-t border-border/60 mt-4">
+              <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
+                Publishing this result will mark the request as <span className="font-medium">completed</span> and notify the patient + referring doctor.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate("laboratory", "bookings")} disabled={submitting}>Cancel</Button>
+                <Button disabled={submitting} onClick={submit}>
+                  <FileCheck2 className="h-4 w-4" /> Publish result
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         </div>
       </div>
-    </div>
-  );
-}
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      <span className="text-sm font-medium text-right">{value}</span>
+      {/* Mobile bottom action bar */}
+      <BottomActionBar>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("laboratory", "bookings")} disabled={submitting}>Cancel</Button>
+          <Button className="flex-1" disabled={submitting} onClick={submit}>
+            <FileCheck2 className="h-4 w-4" /> {submitting ? "Publishing…" : "Publish result"}
+          </Button>
+        </div>
+      </BottomActionBar>
     </div>
   );
 }

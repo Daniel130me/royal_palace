@@ -1,0 +1,649 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+     4→import { useNav, navigate } from "@/lib/nav";
+     5→import {
+     6→  encounterService,
+     7→  patientService,
+     8→  appointmentService,
+     9→  prescriptionService,
+    10→  labRequestService,
+    11→} from "@/lib/services";
+    12→import {
+    13→  normalizeEncounter,
+    14→  normalizePatient,
+    15→  normalizeLabRequest,
+    16→} from "../normalize";
+    17→import type {
+    18→  ClinicalEncounter,
+    19→  Patient,
+    20→  Appointment,
+    21→  Prescription,
+    22→  LaboratoryRequest,
+    23→  EncounterDocumentation,
+    24→  FileMeta,
+    25→} from "@/types";
+    26→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    27→import { Button } from "@/components/ui/button";
+    28→import { Input } from "@/components/ui/input";
+    29→import { Label } from "@/components/ui/label";
+    30→import { Textarea } from "@/components/ui/textarea";
+    31→import { Badge } from "@/components/ui/badge";
+    32→import { Separator } from "@/components/ui/separator";
+    33→import { StatusBadge } from "@/components/healthcare/status-badge";
+    34→import { LoadingState, ErrorState } from "@/components/healthcare/page-header";
+    35→import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    36→import { toast } from "sonner";
+    37→import {
+    38→  Collapsible, CollapsibleTrigger, CollapsibleContent,
+    39→} from "@/components/ui/collapsible";
+    40→import {
+    41→  ArrowLeft, User, AlertCircle, Activity, Pill, FlaskConical, ChevronDown,
+    42→  CalendarClock, Stethoscope, Save, Lock, CheckCircle2, Send, Share2,
+    43→  FlaskConical as LabIcon, FileText, Plus, MessageSquare, Clock,
+    44→} from "lucide-react";
+    45→import { PrescriptionDialog } from "../prescription-dialog";
+    46→import { LabRequestDialog } from "../lab-request-dialog";
+    47→import { ReferralDialog } from "../referral-dialog";
+    48→import { formatCurrency, formatDate, formatTime, relativeDay, fullName, age } from "@/lib/format";
+    49→
+    50→const REQUIRED_FIELDS: { key: keyof EncounterDocumentation; label: string }[] = [
+    51→  { key: "consultationReason", label: "Consultation Reason" },
+    52→  { key: "relevantMedicalHistory", label: "Relevant Medical History" },
+    53→  { key: "allergyConfirmation", label: "Allergy Confirmation" },
+    54→  { key: "medicationHistory", label: "Medication History" },
+    55→  { key: "assessment", label: "Assessment" },
+    56→  { key: "diagnosis", label: "Diagnosis" },
+    57→  { key: "treatmentPlan", label: "Treatment Plan" },
+    58→  { key: "followUp", label: "Follow-Up" },
+    59→];
+    60→
+    61→const VITAL_KEYS: { key: string; label: string; placeholder: string }[] = [
+    62→  { key: "bp", label: "Blood Pressure", placeholder: "120/80" },
+    63→  { key: "pulse", label: "Pulse (bpm)", placeholder: "72" },
+    64→  { key: "temp", label: "Temp (°C)", placeholder: "36.8" },
+    65→  { key: "respRate", label: "Resp Rate (/min)", placeholder: "16" },
+    66→  { key: "weight", label: "Weight (kg)", placeholder: "68" },
+    67→  { key: "height", label: "Height (cm)", placeholder: "170" },
+    68→];
+    69→
+    70→// The action route accepts `diagnosisCode` as part of the documentation payload
+    71→// even though it is not part of the canonical EncounterDocumentation type.
+    72→// We extend it locally to type the autosave / complete payloads safely.
+    73→type DocWithCode = EncounterDocumentation & { diagnosisCode?: string };
+    74→
+    75→function Section({ title, icon: Icon, children, defaultOpen = true }: {
+    76→  title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode; defaultOpen?: boolean;
+    77→}) {
+    78→  const [open, setOpen] = useState(defaultOpen);
+    79→  return (
+    80→    <Collapsible open={open} onOpenChange={setOpen} className="border-b last:border-b-0">
+    81→      <CollapsibleTrigger asChild>
+    82→        <button className="flex w-full items-center justify-between py-2.5 text-left hover:bg-accent/40 px-3">
+    83→          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    84→            <Icon className="h-3.5 w-3.5" /> {title}
+    85→          </span>
+    86→          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+    87→        </button>
+    88→      </CollapsibleTrigger>
+    89→      <CollapsibleContent>
+    90→        <div className="px-3 pb-3">{children}</div>
+    91→      </CollapsibleContent>
+    92→    </Collapsible>
+    93→  );
+    94→}
+    95→
+    96→function SoapField({ label, value, onChange, disabled, placeholder, required }: {
+    97→  label: string; value: string | undefined; onChange: (v: string) => void; disabled: boolean; placeholder?: string; required?: boolean;
+    98→}) {
+    99→  return (
+   100→    <div>
+   101→      <Label className="text-xs font-medium">
+   102→        {label} {required && <span className="text-rose-500">*</span>}
+   103→      </Label>
+   104→      <Textarea
+   105→        rows={2}
+   106→        value={value ?? ""}
+   107→        onChange={(e) => onChange(e.target.value)}
+   108→        disabled={disabled}
+   109→        placeholder={placeholder}
+   110→        className="mt-1"
+   111→      />
+   112→    </div>
+   113→  );
+   114→}
+   115→
+   116→export function ProviderEncounter() {
+   117→  const { view } = useNav();
+   118→  const id = view.params.id;
+   119→  const [encounter, setEncounter] = useState<ClinicalEncounter | null>(null);
+   120→  const [patient, setPatient] = useState<Patient | null>(null);
+   121→  const [history, setHistory] = useState<Appointment[]>([]);
+   122→  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+   123→  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+   124→  const [loading, setLoading] = useState(true);
+   125→  const [error, setError] = useState<string | null>(null);
+   126→  const [doc, setDoc] = useState<EncounterDocumentation>({});
+   127→  const [diagnosisCode, setDiagnosisCode] = useState("");
+   128→  const [attachments, setAttachments] = useState<FileMeta[]>([]);
+   129→  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+   130→  const [completing, setCompleting] = useState(false);
+   131→  const [missingFields, setMissingFields] = useState<string[]>([]);
+   132→  const [rxOpen, setRxOpen] = useState(false);
+   133→  const [labOpen, setLabOpen] = useState(false);
+   134→  const [refOpen, setRefOpen] = useState(false);
+   135→
+   136→  // autosave bookkeeping
+   137→  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   138→  const lastSavedRef = useRef<string>("");
+   139→  const providerId = useNav((s) => s.session?.profileId ?? "");
+   140→
+   141→  const load = useCallback(async () => {
+   142→    if (!id) return;
+   143→    setLoading(true);
+   144→    setError(null);
+   145→    try {
+   146→      const enc = await encounterService.get(id);
+   147→      const norm = normalizeEncounter(enc);
+   148→      setEncounter(norm);
+   149→      const initialDoc = norm.documentation;
+   150→      setDoc(initialDoc);
+   151→      setDiagnosisCode(initialDoc.diagnosis ? (initialDoc as EncounterDocumentation & { diagnosisCode?: string }).diagnosisCode ?? "" : "");
+   152→      setAttachments(initialDoc.attachments ?? []);
+   153→      lastSavedRef.current = JSON.stringify(initialDoc);
+   154→
+   155→      if (norm.patientId) {
+   156→        const [p, appts, rxs, labs] = await Promise.all([
+   157→          patientService.get(norm.patientId),
+   158→          appointmentService.list({ patientId: norm.patientId }),
+   159→          prescriptionService.list({ patientId: norm.patientId }),
+   160→          labRequestService.list({ patientId: norm.patientId }),
+   161→        ]);
+   162→        setPatient(normalizePatient(p));
+   163→        setHistory(appts);
+   164→        setPrescriptions(rxs);
+   165→        setLabRequests(labs.map(normalizeLabRequest));
+   166→      }
+   167→    } catch (e) {
+   168→      setError((e as Error).message ?? "Failed to load encounter.");
+   169→    } finally {
+   170→      setLoading(false);
+   171→    }
+   172→  }, [id]);
+   173→
+   174→  useEffect(() => {
+   175→    load();
+   176→  }, [load]);
+   177→
+   178→  // Autosave: debounced 1.5s after last keystroke
+   179→  const docJson = JSON.stringify(doc);
+   180→  useEffect(() => {
+   181→    if (!encounter || encounter.locked) return;
+   182→    if (docJson === lastSavedRef.current) return;
+   183→    setSaving("saving");
+   184→    if (saveTimer.current) clearTimeout(saveTimer.current);
+   185→    saveTimer.current = setTimeout(async () => {
+   186→      try {
+   187→        const payload: DocWithCode = { ...doc, diagnosisCode, attachments };
+   188→        await encounterService.update(encounter.id, payload);
+   189→        lastSavedRef.current = JSON.stringify(doc);
+   190→        setSaving("saved");
+   191→        setTimeout(() => setSaving("idle"), 1500);
+   192→      } catch (e) {
+   193→        toast.error("Autosave failed: " + (e as Error).message);
+   194→        setSaving("idle");
+   195→      }
+   196→    }, 1500);
+   197→    return () => {
+   198→      if (saveTimer.current) clearTimeout(saveTimer.current);
+   199→    };
+   200→  }, [doc, diagnosisCode, attachments, encounter]);
+   201→
+   202→  function update<K extends keyof EncounterDocumentation>(key: K, value: EncounterDocumentation[K]) {
+   203→    setDoc((prev) => ({ ...prev, [key]: value }));
+   204→  }
+   205→  function updateVital(key: string, value: string) {
+   206→    setDoc((prev) => ({ ...prev, vitalSigns: { ...(prev.vitalSigns ?? {}), [key]: value } }));
+   207→  }
+   208→  function addMockAttachment() {
+   209→    const names = ["EKG.pdf", "Patient-Photo.jpg", "Wound.jpg", "Lab-Requisition.pdf"];
+   210→    const name = names[Math.floor(Math.random() * names.length)];
+   211→    setAttachments((prev) => [
+   212→      ...prev,
+   213→      { id: `ATT-${Date.now().toString(36)}`, name, type: name.endsWith(".pdf") ? "application/pdf" : "image/jpeg", size: 100_000 + Math.floor(Math.random() * 200_000), uploadedAt: new Date().toISOString() },
+   214→    ]);
+   215→  }
+   216→  function removeAttachment(idx: number) {
+   217→    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+   218→  }
+   219→
+   220→  async function complete() {
+   221→    if (!encounter) return;
+   222→    const missing = REQUIRED_FIELDS.filter((f) => !doc[f.key] || String(doc[f.key]).trim() === "").map((f) => f.label);
+   223→    if (missing.length > 0) {
+   224→      setMissingFields(missing);
+   225→      toast.error(`Cannot complete: ${missing.length} required field(s) missing.`);
+   226→      return;
+   227→    }
+   228→    setMissingFields([]);
+   229→    setCompleting(true);
+   230→    try {
+   231→      const payload: DocWithCode = { ...doc, diagnosisCode, attachments };
+   232→      await encounterService.complete(encounter.id, payload, providerId);
+   233→      toast.success("Consultation completed and clinical record signed.");
+   234→      await load();
+   235→    } catch (e) {
+   236→      toast.error("Could not complete encounter: " + (e as Error).message);
+   237→    } finally {
+   238→      setCompleting(false);
+   239→    }
+   240→  }
+   241→
+   242→  const locked = !!encounter?.locked;
+   243→  const recentEncounters = useMemo(
+   244→    () => history.filter((a) => a.encounter && a.encounter.id !== id).slice(0, 5),
+   245→    [history, id]
+   246→  );
+   247→  const recentLabs = useMemo(
+   248→    () => labRequests.filter((l) => l.result).slice(0, 5),
+   249→    [labRequests]
+   250→  );
+   251→  const activeRx = useMemo(
+   252→    () => prescriptions.filter((p) => ["issued", "awaiting_pharmacy", "partially_fulfilled"].includes(p.status)).slice(0, 5),
+   253→    [prescriptions]
+   254→  );
+   255→
+   256→  if (loading) return <LoadingState label="Loading encounter workspace…" />;
+   257→  if (error) return <ErrorState message={error} onRetry={load} />;
+   258→  if (!encounter) return <ErrorState message="Encounter not found." />;
+   259→  if (!patient) return <ErrorState message="Patient record missing." />;
+   260→
+   261→  return (
+   262→    <div>
+   263→      {/* Top header bar */}
+   264→      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   265→        <div className="flex items-center gap-3 min-w-0">
+   266→          <Button variant="ghost" size="icon" onClick={() => navigate("provider", "appointments")}>
+   267→            <ArrowLeft className="h-4 w-4" />
+   268→          </Button>
+   269→          <div className="min-w-0">
+   270→            <h1 className="text-lg font-bold truncate">
+   271→              Encounter {encounter.encounterNumber}
+   272→            </h1>
+   273→            <p className="text-xs text-muted-foreground">
+   274→              {patient.firstName} {patient.lastName} · {patient.patientNumber} · Started {formatDate(encounter.createdAt)}
+   275→            </p>
+   276→          </div>
+   277→        </div>
+   278→        <div className="flex items-center gap-2">
+   279→          <StatusBadge status={encounter.status} />
+   280→          {locked ? (
+   281→            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+   282→              <Lock className="h-3 w-3 mr-1" /> Signed
+   283→            </Badge>
+   284→          ) : (
+   285→            <Badge variant="outline" className={saving === "saving" ? "border-amber-200 bg-amber-50 text-amber-700" : saving === "saved" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : ""}>
+   286→              {saving === "saving" ? (<><Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…</>) :
+   287→               saving === "saved" ? (<><CheckCircle2 className="h-3 w-3 mr-1" /> Saved</>) :
+   288→               (<><Save className="h-3 w-3 mr-1" /> Autosave on</>)}
+   289→            </Badge>
+   290→          )}
+   291→        </div>
+   292→      </div>
+   293→
+   294→      {locked && (
+   295→        <Alert className="mb-4 border-rose-200 bg-rose-50">
+   296→          <Lock className="h-4 w-4 text-rose-600" />
+   297→          <AlertTitle className="text-rose-800">Signed clinical record — this consultation is locked.</AlertTitle>
+   298→          <AlertDescription className="text-rose-700">
+   299→            Signed on {encounter.signedAt ? formatDate(encounter.signedAt) : "—"} by {encounter.provider ? `${encounter.provider.title} ${encounter.provider.lastName}` : "the consulting provider"}. The documentation below is read-only.
+   300→          </AlertDescription>
+   301→        </Alert>
+   302→      )}
+   303→
+   304→      <div className="grid gap-4 lg:grid-cols-[280px_1fr_300px]">
+   305→        {/* LEFT: Patient summary */}
+   306→        <div>
+   307→          <Card className="lg:sticky lg:top-16">
+   308→            <CardContent className="p-0">
+   309→              <div className="p-3 border-b flex items-center gap-3">
+   310→                <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold shrink-0">
+   311→                  {patient.firstName[0]}{patient.lastName[0]}
+   312→                </div>
+   313→                <div className="min-w-0">
+   314→                  <p className="text-sm font-medium truncate">{patient.firstName} {patient.lastName}</p>
+   315→                  <p className="text-xs text-muted-foreground truncate">{patient.patientNumber}</p>
+   316→                  <p className="text-xs text-muted-foreground">{age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}</p>
+   317→                </div>
+   318→              </div>
+   319→
+   320→              {/* Allergies (always visible, prominent) */}
+   321→              {patient.allergies.length > 0 && (
+   322→                <div className="p-3 border-b bg-rose-50">
+   323→                  <p className="text-xs font-bold text-rose-700 uppercase mb-1 flex items-center gap-1">
+   324→                    <AlertCircle className="h-3.5 w-3.5" /> Allergies
+   325→                  </p>
+   326→                  <div className="space-y-1">
+   327→                    {patient.allergies.map((a, i) => (
+   328→                      <div key={i} className="text-xs">
+   329→                        <span className="font-medium text-rose-800">{a.name}</span>
+   330→                        <span className="text-rose-500 ml-1">· {a.source.replace("_", " ")}</span>
+   331→                        {a.status === "resolved" && <Badge variant="outline" className="ml-1 text-[10px]">resolved</Badge>}
+   332→                      </div>
+   333→                    ))}
+   334→                  </div>
+   335→                </div>
+   336→              )}
+   337→
+   338→              <Section title="Active conditions" icon={Activity}>
+   339→                {patient.conditions.filter((c) => c.status === "active").length === 0 ? (
+   340→                  <p className="text-xs text-muted-foreground">None recorded.</p>
+   341→                ) : (
+   342→                  <ul className="space-y-1">
+   343→                    {patient.conditions.filter((c) => c.status === "active").map((c, i) => (
+   344→                      <li key={i} className="text-xs">
+   345→                        <span className="font-medium">{c.name}</span>
+   346→                        <span className="text-muted-foreground ml-1">· {c.source.replace("_", " ")}</span>
+   347→                      </li>
+   348→                    ))}
+   349→                  </ul>
+   350→                )}
+   351→              </Section>
+   352→
+   353→              <Section title="Current medications" icon={Pill} defaultOpen={false}>
+   354→                {patient.medications.length === 0 ? (
+   355→                  <p className="text-xs text-muted-foreground">None on record.</p>
+   356→                ) : (
+   357→                  <ul className="space-y-1">
+   358→                    {patient.medications.map((m, i) => (
+   359→                      <li key={i} className="text-xs">{m.name}</li>
+   360→                    ))}
+   361→                  </ul>
+   362→                )}
+   363→              </Section>
+   364→
+   365→              <Section title="Recent consultations" icon={Stethoscope} defaultOpen={false}>
+   366→                {recentEncounters.length === 0 ? (
+   367→                  <p className="text-xs text-muted-foreground">No prior encounters.</p>
+   368→                ) : (
+   369→                  <ul className="space-y-1.5">
+   370→                    {recentEncounters.map((a) => (
+   371→                      <li key={a.id} className="text-xs">
+   372→                        <button className="text-left w-full hover:underline" onClick={() => a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })}>
+   373→                          <span className="font-medium">{formatDate(a.date)}</span> · {a.provider ? `${a.provider.lastName}` : ""}
+   374→                          {a.encounter?.documentation && typeof a.encounter.documentation === "object" && (
+   375→                            <span className="block text-muted-foreground truncate">
+   376→                              {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
+   377→                            </span>
+   378→                          )}
+   379→                        </button>
+   380→                      </li>
+   381→                    ))}
+   382→                  </ul>
+   383→                )}
+   384→              </Section>
+   385→
+   386→              <Section title="Recent lab results" icon={FlaskConical} defaultOpen={false}>
+   387→                {recentLabs.length === 0 ? (
+   388→                  <p className="text-xs text-muted-foreground">No results yet.</p>
+   389→                ) : (
+   390→                  <ul className="space-y-1.5">
+   391→                    {recentLabs.map((l) => (
+   392→                      <li key={l.id} className="text-xs">
+   393→                        <span className="font-medium">{l.result?.test}</span>
+   394→                        <span className="text-muted-foreground ml-1">{l.result?.value} {l.result?.unit}</span>
+   395→                        {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" && (
+   396→                          <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 text-rose-700">{l.result.abnormalIndicator}</Badge>
+   397→                        )}
+   398→                      </li>
+   399→                    ))}
+   400→                  </ul>
+   401→                )}
+   402→              </Section>
+   403→
+   404→              <Section title="Active prescriptions" icon={Pill} defaultOpen={false}>
+   405→                {activeRx.length === 0 ? (
+   406→                  <p className="text-xs text-muted-foreground">No active prescriptions.</p>
+   407→                ) : (
+   408→                  <ul className="space-y-1.5">
+   409→                    {activeRx.map((rx) => (
+   410→                      <li key={rx.id} className="text-xs">
+   411→                        <span className="font-medium">{rx.prescriptionNumber}</span>
+   412→                        <span className="text-muted-foreground block">Expires {formatDate(rx.expiryDate)}</span>
+   413→                      </li>
+   414→                    ))}
+   415→                  </ul>
+   416→                )}
+   417→              </Section>
+   418→            </CardContent>
+   419→          </Card>
+   420→        </div>
+   421→
+   422→        {/* CENTER: SOAP documentation */}
+   423→        <div>
+   424→          <Card>
+   425→            <CardHeader className="pb-3">
+   426→              <CardTitle className="text-base flex items-center gap-2">
+   427→                <FileText className="h-4 w-4" /> Clinical documentation
+   428→              </CardTitle>
+   429→            </CardHeader>
+   430→            <CardContent className="space-y-4">
+   431→              {missingFields.length > 0 && (
+   432→                <Alert className="border-rose-200 bg-rose-50">
+   433→                  <AlertCircle className="h-4 w-4 text-rose-600" />
+   434→                  <AlertTitle className="text-rose-800">Required fields missing</AlertTitle>
+   435→                  <AlertDescription className="text-rose-700">
+   436→                    <ul className="list-disc ml-4 text-xs">
+   437→                      {missingFields.map((m) => <li key={m}>{m}</li>)}
+   438→                    </ul>
+   439→                  </AlertDescription>
+   440→                </Alert>
+   441→              )}
+   442→
+   443→              <SoapField label="Consultation Reason" required value={doc.consultationReason} onChange={(v) => update("consultationReason", v)} disabled={locked} placeholder="Why the patient is being seen today." />
+   444→              <SoapField label="Chief Complaint" value={doc.chiefComplaint} onChange={(v) => update("chiefComplaint", v)} disabled={locked} placeholder="In the patient's own words." />
+   445→              <SoapField label="History of Present Illness" value={doc.historyPresentIllness} onChange={(v) => update("historyPresentIllness", v)} disabled={locked} placeholder="Onset, course, severity, modifying factors." />
+   446→              <SoapField label="Relevant Medical History" required value={doc.relevantMedicalHistory} onChange={(v) => update("relevantMedicalHistory", v)} disabled={locked} placeholder="Past conditions, hospitalisations, surgeries." />
+   447→              <SoapField label="Medication History" required value={doc.medicationHistory} onChange={(v) => update("medicationHistory", v)} disabled={locked} placeholder="Current and recent medications, adherence." />
+   448→              <SoapField label="Allergy Confirmation" required value={doc.allergyConfirmation} onChange={(v) => update("allergyConfirmation", v)} disabled={locked} placeholder="Confirm allergies reviewed with patient (or 'No known allergies')." />
+   449→              <div className="grid gap-3 sm:grid-cols-2">
+   450→                <SoapField label="Family History" value={doc.familyHistory} onChange={(v) => update("familyHistory", v)} disabled={locked} placeholder="Hereditary conditions." />
+   451→                <SoapField label="Social History" value={doc.socialHistory} onChange={(v) => update("socialHistory", v)} disabled={locked} placeholder="Occupation, smoking, alcohol, lifestyle." />
+   452→              </div>
+   453→
+   454→              <Separator />
+   455→
+   456→              {/* Vital signs grid */}
+   457→              <div>
+   458→                <Label className="text-xs font-medium">Vital Signs</Label>
+   459→                <div className="grid gap-3 sm:grid-cols-3 mt-1">
+   460→                  {VITAL_KEYS.map((v) => (
+   461→                    <div key={v.key}>
+   462→                      <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
+   463→                      <Input
+   464→                        value={(doc.vitalSigns ?? {})[v.key] ?? ""}
+   465→                        onChange={(e) => updateVital(v.key, e.target.value)}
+   466→                        disabled={locked}
+   467→                        placeholder={v.placeholder}
+   468→                      />
+   469→                    </div>
+   470→                  ))}
+   471→                </div>
+   472→              </div>
+   473→
+   474→              <SoapField label="Examination Findings" value={doc.examinationFindings} onChange={(v) => update("examinationFindings", v)} disabled={locked} placeholder="System-by-system examination." />
+   475→
+   476→              <Separator />
+   477→
+   478→              <SoapField label="Assessment" required value={doc.assessment} onChange={(v) => update("assessment", v)} disabled={locked} placeholder="Clinical impression and reasoning." />
+   479→              <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+   480→                <div>
+   481→                  <Label className="text-xs font-medium">Diagnosis {<span className="text-rose-500">*</span>}</Label>
+   482→                  <Input value={doc.diagnosis ?? ""} onChange={(e) => update("diagnosis", e.target.value)} disabled={locked} placeholder="e.g. Essential hypertension" />
+   483→                </div>
+   484→                <div>
+   485→                  <Label className="text-xs font-medium">Provisional code</Label>
+   486→                  <Input value={diagnosisCode} onChange={(e) => setDiagnosisCode(e.target.value)} disabled={locked} placeholder="e.g. I10 (ICD-10)" />
+   487→                </div>
+   488→              </div>
+   489→              <SoapField label="Differential Diagnosis" value={doc.differentialDiagnosis} onChange={(v) => update("differentialDiagnosis", v)} disabled={locked} placeholder="Alternative diagnoses considered." />
+   490→              <SoapField label="Treatment Plan" required value={doc.treatmentPlan} onChange={(v) => update("treatmentPlan", v)} disabled={locked} placeholder="Investigations, medications, interventions." />
+   491→              <SoapField label="Follow-Up" required value={doc.followUp} onChange={(v) => update("followUp", v)} disabled={locked} placeholder="When to review, what to monitor." />
+   492→              <SoapField label="Patient Instructions" value={doc.patientInstructions} onChange={(v) => update("patientInstructions", v)} disabled={locked} placeholder="Lifestyle, dosing, expected course." />
+   493→              <SoapField label="Safety-Netting" value={doc.safetyNetting} onChange={(v) => update("safetyNetting", v)} disabled={locked} placeholder="Red flags — when to return urgently." />
+   494→
+   495→              <Separator />
+   496→
+   497→              {/* Attachments (mock) */}
+   498→              <div>
+   499→                <Label className="text-xs font-medium">Attachments</Label>
+   500→                <div className="mt-2 space-y-2">
+   501→                  {attachments.length === 0 ? (
+   502→                    <p className="text-xs text-muted-foreground">No attachments.</p>
+   503→                  ) : (
+   504→                    attachments.map((f, i) => (
+   505→                      <div key={f.id} className="flex items-center justify-between rounded-md border p-2">
+   506→                        <div className="text-xs">
+   507→                          <span className="font-medium">{f.name}</span>
+   508→                          <span className="text-muted-foreground ml-2">{Math.round(f.size / 1024)} KB · {relativeDay(f.uploadedAt)}</span>
+   509→                        </div>
+   510→                        {!locked && (
+   511→                          <Button size="sm" variant="ghost" className="h-6 text-rose-600" onClick={() => removeAttachment(i)}>Remove</Button>
+   512→                        )}
+   513→                      </div>
+   514→                    ))
+   515→                  )}
+   516→                  {!locked && (
+   517→                    <Button size="sm" variant="outline" onClick={addMockAttachment}>
+   518→                      <Plus className="h-3.5 w-3.5 mr-1" /> Add mock attachment
+   519→                    </Button>
+   520→                  )}
+   521→                </div>
+   522→              </div>
+   523→            </CardContent>
+   524→          </Card>
+   525→        </div>
+   526→
+   527→        {/* RIGHT: Clinical actions */}
+   528→        <div>
+   529→          <Card className="lg:sticky lg:top-16">
+   530→            <CardHeader className="pb-3">
+   531→              <CardTitle className="text-base flex items-center gap-2">
+   532→                <Stethoscope className="h-4 w-4" /> Clinical actions
+   533→              </CardTitle>
+   534→            </CardHeader>
+   535→            <CardContent className="space-y-2">
+   536→              <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setRxOpen(true)}>
+   537→                <Pill className="h-4 w-4 mr-2" /> Create prescription
+   538→              </Button>
+   539→              <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setLabOpen(true)}>
+   540→                <LabIcon className="h-4 w-4 mr-2" /> Order laboratory test
+   541→              </Button>
+   542→              <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setRefOpen(true)}>
+   543→                <Share2 className="h-4 w-4 mr-2" /> Create referral
+   544→              </Button>
+   545→              <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => toast.success("Follow-up booked", { description: "A follow-up appointment slot has been reserved. The patient will be notified." })}>
+   546→                <CalendarClock className="h-4 w-4 mr-2" /> Book follow-up
+   547→              </Button>
+   548→              <Button variant="outline" className="w-full justify-start" disabled={locked || !doc.patientInstructions} onClick={() => toast.success("Patient instructions sent", { description: "Instructions have been delivered to the patient's inbox." })}>
+   549→                <Send className="h-4 w-4 mr-2" /> Send patient instructions
+   550→              </Button>
+   551→
+   552→              <Separator className="my-2" />
+   553→
+   554→              <div className="rounded-lg border bg-muted/30 p-3">
+   555→                <p className="text-xs font-medium mb-2">Linked records</p>
+   556→                <div className="space-y-1 text-xs">
+   557→                  <p className="flex items-center justify-between">
+   558→                    <span>Prescriptions</span>
+   559→                    <Badge variant="secondary">{encounter.prescriptions?.length ?? 0}</Badge>
+   560→                  </p>
+   561→                  <p className="flex items-center justify-between">
+   562→                    <span>Lab requests</span>
+   563→                    <Badge variant="secondary">{encounter.labRequests?.length ?? 0}</Badge>
+   564→                  </p>
+   565→                  <p className="flex items-center justify-between">
+   566→                    <span>Referrals</span>
+   567→                    <Badge variant="secondary">{encounter.referrals?.length ?? 0}</Badge>
+   568→                  </p>
+   569→                  <p className="flex items-center justify-between">
+   570→                    <span>Diagnoses</span>
+   571→                    <Badge variant="secondary">{encounter.diagnoses?.length ?? 0}</Badge>
+   572→                  </p>
+   573→                </div>
+   574→              </div>
+   575→
+   576→              <Separator className="my-2" />
+   577→
+   578→              {locked ? (
+   579→                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
+   580→                  <Lock className="h-5 w-5 text-rose-600 mx-auto mb-1" />
+   581→                  <p className="text-xs font-medium text-rose-800">Record signed</p>
+   582→                  <p className="text-[10px] text-rose-600 mt-0.5">This clinical record is locked and cannot be modified.</p>
+   583→                </div>
+   584→              ) : (
+   585→                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={completing} onClick={complete}>
+   586→                  <CheckCircle2 className="h-4 w-4 mr-1" />
+   587→                  {completing ? "Completing…" : "Complete consultation"}
+   588→                </Button>
+   589→              )}
+   590→              {!locked && (
+   591→                <p className="text-[10px] text-muted-foreground text-center">
+   592→                  Validates required SOAP fields, locks the record, and notifies the patient.
+   593→                </p>
+   594→              )}
+   595→
+   596→              <Separator className="my-2" />
+   597→
+   598→              <div className="text-xs space-y-1">
+   599→                <p className="text-muted-foreground">Consultation fee</p>
+   600→                <p className="font-medium">{encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}</p>
+   601→                <p className="text-[10px] text-muted-foreground">Patient-facing price · read only</p>
+   602→              </div>
+   603→            </CardContent>
+   604→          </Card>
+   605→        </div>
+   606→      </div>
+   607→
+   608→      {/* Dialogs */}
+   609→      <PrescriptionDialog
+   610→        open={rxOpen}
+   611→        onOpenChange={setRxOpen}
+   612→        patient={patient}
+   613→        encounterId={encounter.id}
+   614→        providerId={providerId}
+   615→        onIssued={() => {
+   616→          setRxOpen(false);
+   617→          toast.success("Prescription issued.", { description: "The patient has been notified." });
+   618→          load();
+   619→        }}
+   620→      />
+   621→      <LabRequestDialog
+   622→        open={labOpen}
+   623→        onOpenChange={setLabOpen}
+   624→        patient={patient}
+   625→        encounterId={encounter.id}
+   626→        providerId={providerId}
+   627→        onCreated={() => {
+   628→          setLabOpen(false);
+   629→          toast.success("Laboratory request created.", { description: "The patient can now book a lab appointment." });
+   630→          load();
+   631→        }}
+   632→      />
+   633→      <ReferralDialog
+   634→        open={refOpen}
+   635→        onOpenChange={setRefOpen}
+   636→        patient={patient}
+   637→        encounterId={encounter.id}
+   638→        providerId={providerId}
+   639→        prefillDiagnosis={doc.diagnosis}
+   640→        onCreated={() => {
+   641→          setRefOpen(false);
+   642→          toast.success("Referral sent.", { description: "Record access grant created for the recipient." });
+   643→          load();
+   644→        }}
+   645→      />
+   646→    </div>
+   647→  );
+   648→}
+   649→

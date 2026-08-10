@@ -25,7 +25,7 @@ const CATEGORIES: Category[] = [
     title: "Doctor Consultation",
     description: "Video, audio, in-person or chat consults with verified doctors across 30+ specialties.",
     icon: Stethoscope,
-    tone: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    tone: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     bullets: ["Video, audio, in-person or chat", "Verified GPs & specialists", "From ₦15,000"],
     cta: { label: "Find a doctor", page: "doctors" },
   },
@@ -34,7 +34,7 @@ const CATEGORIES: Category[] = [
     title: "Dental Care",
     description: "Dental consultations, scaling, fillings and oral health check-ups from trusted dentists.",
     icon: Smile,
-    tone: "bg-sky-50 text-sky-700 border-sky-100",
+    tone: "bg-sky-50 text-sky-700 ring-sky-100",
     bullets: ["Dental consultations", "Scaling & polishing", "From ₦20,000"],
     cta: { label: "Find dental care", page: "doctors", params: { specialty: "Dentist" } },
   },
@@ -43,7 +43,7 @@ const CATEGORIES: Category[] = [
     title: "Laboratory Tests",
     description: "Book lab tests, schedule home sample collection and review results online.",
     icon: FlaskConical,
-    tone: "bg-violet-50 text-violet-700 border-violet-100",
+    tone: "bg-violet-50 text-violet-700 ring-violet-100",
     bullets: ["200+ tests available", "Facility or home collection", "Results in 24–48 hrs"],
     cta: { label: "View lab tests", page: "laboratory" },
   },
@@ -52,7 +52,7 @@ const CATEGORIES: Category[] = [
     title: "Pharmacy",
     description: "Order prescription & OTC medicines from verified pharmacies with home delivery.",
     icon: Pill,
-    tone: "bg-amber-50 text-amber-700 border-amber-100",
+    tone: "bg-amber-50 text-amber-700 ring-amber-100",
     bullets: ["Order from your prescription", "Verified pharmacies", "Same-day delivery"],
     cta: { label: "View prescriptions", page: "prescriptions" },
   },
@@ -61,7 +61,7 @@ const CATEGORIES: Category[] = [
     title: "Chronic Care",
     description: "Structured care programmes for hypertension, diabetes, asthma & more.",
     icon: HeartPulse,
-    tone: "bg-rose-50 text-rose-700 border-rose-100",
+    tone: "bg-rose-50 text-rose-700 ring-rose-100",
     bullets: ["Monthly care programmes", "Care plan tracking", "From ₦30,000/mo"],
     cta: { label: "View care plans", page: "records" },
   },
@@ -70,7 +70,7 @@ const CATEGORIES: Category[] = [
     title: "Preventive Healthcare",
     description: "Wellness screenings and preventive health packages for individuals and families.",
     icon: ShieldPlus,
-    tone: "bg-teal-50 text-teal-700 border-teal-100",
+    tone: "bg-teal-50 text-teal-700 ring-teal-100",
     bullets: ["Wellness packages", "Annual check-ups", "From ₦60,000"],
     cta: { label: "View pricing", page: "doctors" },
   },
@@ -79,73 +79,84 @@ const CATEGORIES: Category[] = [
     title: "Home Healthcare",
     description: "Book a healthcare professional to visit you at home for assessments & care.",
     icon: Home,
-    tone: "bg-orange-50 text-orange-700 border-orange-100",
+    tone: "bg-orange-50 text-orange-700 ring-orange-100",
     bullets: ["Home visits", "Trained caregivers", "From ₦40,000"],
     cta: { label: "Book home visit", page: "doctors" },
   },
 ];
 
-const QUICK_LINKS: { icon: React.ComponentType<{ className?: string }>; label: string; page: string }[] = [
-  { icon: Video, label: "Video consult", page: "doctors" },
-  { icon: Phone, label: "Audio call", page: "doctors" },
-  { icon: Pill, label: "Refill medicine", page: "prescriptions" },
-  { icon: FileText, label: "Health records", page: "records" },
+const QUICK_LINKS: { icon: React.ComponentType<{ className?: string }>; label: string; sub: string; page: string }[] = [
+  { icon: Video, label: "Video consult", sub: "See a doctor now", page: "doctors" },
+  { icon: Phone, label: "Audio call", sub: "Talk on the phone", page: "doctors" },
+  { icon: Pill, label: "Refill medicine", sub: "From your prescription", page: "prescriptions" },
+  { icon: FileText, label: "Health records", sub: "View timeline", page: "records" },
 ];
 
 export function PatientServices() {
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Find Care"
         description="Browse our healthcare categories and connect with trusted providers."
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        {QUICK_LINKS.map((q) => (
-          <button
-            key={q.label}
-            onClick={() => navigate("patient", q.page)}
-            className="rounded-lg border bg-background p-4 text-left hover:border-emerald-400 hover:shadow-sm transition-all"
-          >
-            <q.icon className="h-5 w-5 text-emerald-600 mb-2" />
-            <p className="text-sm font-medium leading-tight">{q.label}</p>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CATEGORIES.map((cat) => {
-          const Icon = cat.icon;
+      {/* Quick links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {QUICK_LINKS.map((q) => {
+          const Icon = q.icon;
           return (
-            <Card key={cat.id} className="flex flex-col">
-              <CardContent className="p-5 flex flex-col h-full">
-                <div className={`inline-flex w-fit rounded-lg border p-2.5 ${cat.tone}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="mt-3 font-semibold">{cat.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{cat.description}</p>
-                <ul className="mt-3 space-y-1">
-                  {cat.bullets.map((b) => (
-                    <li key={b} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Sparkles className="h-3 w-3 text-emerald-500" /> {b}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-auto pt-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-between"
-                    onClick={() => navigate("patient", cat.cta.page, cat.cta.params)}
-                  >
-                    {cat.cta.label}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <button
+              key={q.label}
+              onClick={() => navigate("patient", q.page)}
+              className="group rounded-2xl border border-border/80 bg-card p-4 text-left shadow-soft transition-all hover:shadow-soft-md hover:border-primary/30 tap-highlight-none"
+            >
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </div>
+              <p className="mt-2.5 text-sm font-semibold leading-tight">{q.label}</p>
+              <p className="text-xs text-muted-foreground leading-tight mt-0.5">{q.sub}</p>
+            </button>
           );
         })}
+      </div>
+
+      {/* Service categories */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">All services</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            return (
+              <Card key={cat.id} className="flex flex-col hover:shadow-soft-md transition-shadow">
+                <CardContent className="p-5 flex flex-col h-full">
+                  <div className={`inline-flex w-fit rounded-xl p-2.5 ring-1 ${cat.tone}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-3 font-semibold tracking-tight">{cat.title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{cat.description}</p>
+                  <ul className="mt-3 space-y-1.5">
+                    {cat.bullets.map((b) => (
+                      <li key={b} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Sparkles className="h-3 w-3 text-primary shrink-0" /> {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-auto pt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-between"
+                      onClick={() => navigate("patient", cat.cta.page, cat.cta.params)}
+                    >
+                      {cat.cta.label}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

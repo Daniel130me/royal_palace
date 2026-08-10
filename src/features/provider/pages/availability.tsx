@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useProviderContext } from "../use-provider-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { PageHeader } from "@/components/healthcare/page-header";
+import { Separator } from "@/components/ui/separator";
+import {
+  PageHeader,
+  SectionCard,
+  BottomActionBar,
+} from "@/components/healthcare/page-header";
 import { toast } from "sonner";
 import { Clock, Video, Phone, MessageSquare, User, Save, Calendar } from "lucide-react";
 
@@ -23,11 +27,9 @@ const MODES = [
 export function ProviderAvailability() {
   const { profile } = useProviderContext();
   // Prototype state: an availability matrix (day x slot) of booleans.
-  // In production this would be persisted via a dedicated endpoint.
   const [grid, setGrid] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const d of DAYS) for (const s of SLOTS) {
-      // Default weekday business hours on
       initial[`${d}-${s}`] = !["Sat", "Sun"].includes(d) && parseInt(s.slice(0, 2), 10) >= 10 && parseInt(s.slice(0, 2), 10) <= 16;
     }
     return initial;
@@ -51,7 +53,6 @@ export function ProviderAvailability() {
 
   async function save() {
     setSaving(true);
-    // Prototype: just toast. Real implementation would call an availability service.
     setTimeout(() => {
       setSaving(false);
       toast.success("Availability saved.", { description: "Your weekly calendar has been updated." });
@@ -62,82 +63,116 @@ export function ProviderAvailability() {
   const enabledCount = Object.values(grid).filter(Boolean).length;
 
   return (
-    <div>
+    <div className="pb-28 lg:pb-0">
       <PageHeader
         title="Availability"
         description="Define your weekly consultation calendar and supported channels."
-        actions={
-          <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={saving} onClick={save}>
-            <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save schedule"}
-          </Button>
-        }
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><Calendar className="h-4 w-4" /> Weekly calendar</CardTitle>
-              <span className="text-xs text-muted-foreground">{enabledCount} slots enabled</span>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <div className="min-w-[640px]">
-                <div className="grid grid-cols-[64px_repeat(7,1fr)] gap-1 mb-2">
-                  <div className="text-[10px] text-muted-foreground" />
-                  {DAYS.map((d) => (
-                    <div key={d} className="text-center text-xs font-medium">{d}</div>
-                  ))}
+          <SectionCard
+            title="Weekly calendar"
+            icon={Calendar}
+            description="Tap slots to toggle availability"
+            action={<Badge variant="outline" className="h-6">{enabledCount} slots</Badge>}
+          >
+            {/* Desktop grid (table-style) */}
+            <div className="hidden sm:block">
+              <div className="grid grid-cols-[64px_repeat(7,1fr)] gap-1 mb-2">
+                <div />
+                {DAYS.map((d) => (
+                  <div key={d} className="text-center text-xs font-semibold">{d}</div>
+                ))}
+              </div>
+              {SLOTS.map((slot) => (
+                <div key={slot} className="grid grid-cols-[64px_repeat(7,1fr)] gap-1 mb-1">
+                  <div className="text-[10px] text-muted-foreground flex items-center justify-end pr-2 font-medium">{slot}</div>
+                  {DAYS.map((day) => {
+                    const key = `${day}-${slot}`;
+                    const on = grid[key];
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggle(day, slot)}
+                        className={`h-8 rounded-md text-[10px] font-medium transition-colors tap-highlight-none ${
+                          on ? "bg-primary text-primary-foreground shadow-soft hover:bg-primary/90" : "bg-muted text-muted-foreground hover:bg-muted/70"
+                        }`}
+                        aria-label={`${day} ${slot} ${on ? "available" : "unavailable"}`}
+                      >
+                        {on ? "●" : "—"}
+                      </button>
+                    );
+                  })}
                 </div>
-                {SLOTS.map((slot) => (
-                  <div key={slot} className="grid grid-cols-[64px_repeat(7,1fr)] gap-1 mb-1">
-                    <div className="text-[10px] text-muted-foreground flex items-center justify-end pr-2">{slot}</div>
-                    {DAYS.map((day) => {
-                      const key = `${day}-${slot}`;
-                      const on = grid[key];
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => toggle(day, slot)}
-                          className={`h-7 rounded-md text-[10px] font-medium transition-colors ${
-                            on ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-muted text-muted-foreground hover:bg-muted/70"
-                          }`}
-                          aria-label={`${day} ${slot} ${on ? "available" : "unavailable"}`}
-                        >
-                          {on ? "●" : "—"}
-                        </button>
-                      );
-                    })}
+              ))}
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {DAYS.map((d) => (
+                  <div key={d} className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => fillDay(d, true)}>Fill {d}</Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-600 px-2" onClick={() => fillDay(d, false)}>Clear</Button>
                   </div>
                 ))}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {DAYS.map((d) => (
-                    <div key={d} className="flex items-center gap-1">
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => fillDay(d, true)}>Fill {d}</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-600" onClick={() => fillDay(d, false)}>Clear</Button>
-                    </div>
-                  ))}
-                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* Mobile: stacked day rows */}
+            <div className="sm:hidden space-y-3">
+              {DAYS.map((day) => {
+                const daySlots = SLOTS.filter((s) => grid[`${day}-${s}`]);
+                return (
+                  <div key={day} className="rounded-xl border border-border/80 bg-muted/20 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold">{day}</p>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => fillDay(day, true)}>Fill</Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px] text-rose-600 px-2" onClick={() => fillDay(day, false)}>Clear</Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {SLOTS.map((slot) => {
+                        const key = `${day}-${slot}`;
+                        const on = grid[key];
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => toggle(day, slot)}
+                            className={`h-8 rounded-md text-[10px] font-medium transition-colors tap-highlight-none ${
+                              on ? "bg-primary text-primary-foreground shadow-soft" : "bg-muted text-muted-foreground"
+                            }`}
+                            aria-label={`${day} ${slot} ${on ? "available" : "unavailable"}`}
+                          >
+                            {slot.slice(0, 2)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {daySlots.length === 0 && <p className="text-[10px] text-muted-foreground mt-2">Unavailable</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </SectionCard>
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> Consultation modes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-muted-foreground">Channels patients can book with you. (Profile default: {consultationModes.join(", ") || "—"}.)</p>
+        <div className="space-y-5">
+          <SectionCard
+            title="Consultation modes"
+            icon={Clock}
+            description={`Profile default: ${consultationModes.join(", ") || "—"}`}
+          >
+            <div className="space-y-2.5">
               {MODES.map((m) => {
                 const Icon = m.icon;
                 const active = modes.includes(m.id);
                 return (
-                  <div key={m.id} className="flex items-center justify-between rounded-md border p-3">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
+                  <div key={m.id} className={`flex items-center justify-between rounded-xl border p-3 transition-colors ${active ? "border-primary/30 bg-primary/5" : "border-border/80"}`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`rounded-lg p-1.5 ${active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
                       <div>
-                        <Label className="text-sm">{m.label}</Label>
+                        <Label className="text-sm font-medium">{m.label}</Label>
                         <p className="text-[10px] text-muted-foreground">{m.id === "in_person" ? "Face-to-face at your practice" : `${m.label} consultation`}</p>
                       </div>
                     </div>
@@ -145,34 +180,45 @@ export function ProviderAvailability() {
                   </div>
                 );
               })}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
-          <Card className="bg-muted/30">
-            <CardContent className="p-4 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">How booking works</p>
-              Patients see your available slots in real time and can only book times you have enabled. Each consultation reserves a 30-minute slot. Booked slots are automatically removed from your availability.
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Slot summary</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
+          <SectionCard title="Slot summary" icon={Calendar}>
+            <div className="text-sm space-y-2.5">
               {DAYS.map((d) => {
                 const daySlots = SLOTS.filter((s) => grid[`${d}-${s}`]);
                 return (
-                  <div key={d} className="flex items-start justify-between">
-                    <span className="text-muted-foreground w-10">{d}</span>
+                  <div key={d} className="flex items-start justify-between gap-2">
+                    <span className="text-muted-foreground w-10 text-xs font-medium uppercase">{d}</span>
                     <div className="flex-1 flex flex-wrap gap-1 justify-end">
-                      {daySlots.length === 0 ? <span className="text-xs text-muted-foreground">Unavailable</span> :
-                        daySlots.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}
+                      {daySlots.length === 0 ? <span className="text-xs text-muted-foreground italic">Unavailable</span> :
+                        daySlots.map((s) => <Badge key={s} variant="secondary" className="text-[10px] h-5">{s}</Badge>)}
                     </div>
                   </div>
                 );
               })}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
+
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground leading-relaxed">
+            <p className="font-medium text-foreground mb-1.5">How booking works</p>
+            Patients see your available slots in real time and can only book times you have enabled. Each consultation reserves a 30-minute slot. Booked slots are automatically removed from your availability.
+          </div>
         </div>
+      </div>
+
+      {/* Mobile sticky save bar */}
+      <BottomActionBar>
+        <Button className="w-full" disabled={saving} onClick={save}>
+          <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save schedule"}
+        </Button>
+      </BottomActionBar>
+
+      {/* Desktop save button (in header position via PageHeader actions on mobile could not fit) */}
+      <div className="hidden lg:block fixed bottom-6 right-8 z-10">
+        <Button size="lg" disabled={saving} onClick={save} className="shadow-soft-lg">
+          <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save schedule"}
+        </Button>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -19,11 +20,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, EmptyState, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
 import { formatCurrency, formatDate, genId } from "@/lib/format";
-import { Pill, Plus, Search, Pencil, ArrowRight, Package } from "lucide-react";
+import { Pill, Plus, Search, Pencil, Package, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = [
@@ -89,6 +89,7 @@ export function PharmacyProducts() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -202,45 +203,87 @@ export function PharmacyProducts() {
     }
   };
 
-  if (loading) return <LoadingState label="Loading products…" />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-10 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={6} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
+  const activeFilters = (category !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Product catalogue"
         description="Manage your pharmacy catalogue, prices, stock and availability."
-        breadcrumbs={[{ label: "Pharmacy" }, { label: "Products" }]}
         actions={
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1" /> Add product
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Add product
           </Button>
         }
       />
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Search always visible */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name, generic or brand…"
-            className="pl-8"
+            className="pl-9"
           />
         </div>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Button
+          variant="outline"
+          size="default"
+          className="lg:hidden relative"
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {activeFilters > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+              {activeFilters}
+            </span>
+          )}
+        </Button>
+        <div className="hidden lg:block">
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      {/* Mobile collapsible filters */}
+      {filtersOpen && (
+        <Card className="lg:hidden">
+          <CardContent className="p-4 space-y-2">
+            <Label className="text-xs font-medium text-muted-foreground">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -248,15 +291,16 @@ export function PharmacyProducts() {
           title={query || category !== "all" ? "No matching products" : "No products yet"}
           description={query || category !== "all" ? "Try a different search or category." : "Add your first product to start receiving orders."}
           action={
-            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}>
-              <Plus className="h-4 w-4 mr-1" /> Add product
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Add product
             </Button>
           }
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
+        <>
+          {/* Desktop table */}
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -278,7 +322,7 @@ export function PharmacyProducts() {
                     const isExpiringSoon = days <= 90;
                     const isExpired = days < 0;
                     return (
-                      <TableRow key={p.id}>
+                      <TableRow key={p.id} className={isLow ? "bg-amber-50/40" : ""}>
                         <TableCell>
                           <button
                             className="text-left"
@@ -290,16 +334,16 @@ export function PharmacyProducts() {
                         </TableCell>
                         <TableCell className="text-xs">{p.category}</TableCell>
                         <TableCell className="text-xs">{p.strength} {p.dosageForm}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(p.price)}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
                         <TableCell className="text-right">
                           <span className={isLow ? "font-semibold text-amber-700" : ""}>
                             {p.stockQuantity}
                           </span>
                           {isLow && p.stockQuantity > 0 && (
-                            <Badge variant="outline" className="ml-1 text-[10px] border-amber-200 bg-amber-50 text-amber-700">Low</Badge>
+                            <Badge variant="outline" className="ml-1 text-[10px] h-5 border-amber-200 bg-amber-50 text-amber-700">Low</Badge>
                           )}
                           {p.stockQuantity === 0 && (
-                            <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 bg-rose-50 text-rose-700">Out</Badge>
+                            <Badge variant="outline" className="ml-1 text-[10px] h-5 border-rose-200 bg-rose-50 text-rose-700">Out</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-xs">
@@ -309,15 +353,15 @@ export function PharmacyProducts() {
                         </TableCell>
                         <TableCell>
                           {p.prescriptionRequired ? (
-                            <Badge variant="outline" className="text-[10px] border-sky-200 bg-sky-50 text-sky-700">Rx</Badge>
+                            <Badge variant="outline" className="text-[10px] h-5 border-sky-200 bg-sky-50 text-sky-700">Rx</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px] border-muted">OTC</Badge>
+                            <Badge variant="outline" className="text-[10px] h-5">OTC</Badge>
                           )}
                         </TableCell>
-                        <TableCell><StatusBadge status={p.status} /></TableCell>
+                        <TableCell><StatusBadge status={p.status} size="sm" /></TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" variant="outline" onClick={() => openEdit(p)}>
-                            <Pencil className="h-3 w-3 mr-1" /> Edit
+                            <Pencil className="h-3.5 w-3.5" /> Edit
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -325,9 +369,61 @@ export function PharmacyProducts() {
                   })}
                 </TableBody>
               </Table>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Mobile card grid */}
+          <div className="grid gap-3 md:hidden sm:grid-cols-2">
+            {filtered.map((p) => {
+              const days = daysUntil(p.expiryDate);
+              const isLow = p.stockQuantity < 10;
+              const isExpiringSoon = days <= 90;
+              const isExpired = days < 0;
+              return (
+                <Card key={p.id} className={isLow ? "border-amber-200 bg-amber-50/30" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <button className="text-left min-w-0 flex-1" onClick={() => navigate("pharmacy", "product", { id: p.id })}>
+                        <p className="font-semibold truncate">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">{p.strength} {p.dosageForm}</p>
+                      </button>
+                      <StatusBadge status={p.status} size="sm" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] h-5">{p.category}</Badge>
+                      {p.prescriptionRequired ? (
+                        <Badge variant="outline" className="text-[10px] h-5 border-sky-200 bg-sky-50 text-sky-700">Rx</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] h-5">OTC</Badge>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Price</p>
+                        <p className="font-bold tabular-nums">{formatCurrency(p.price)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stock</p>
+                        <p className={`font-bold tabular-nums ${p.stockQuantity === 0 ? "text-rose-700" : isLow ? "text-amber-700" : ""}`}>
+                          {p.stockQuantity}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Expiry</p>
+                        <p className={`text-sm ${isExpired ? "text-rose-700 font-medium" : isExpiringSoon ? "text-amber-700" : ""}`}>
+                          {formatDate(p.expiryDate)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => openEdit(p)}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Add / edit dialog */}
@@ -408,9 +504,9 @@ export function PharmacyProducts() {
             </div>
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor="storage">Storage requirements</Label>
-              <Input id="storage" value={form.storageRequirements} onChange={(e) => setForm({ ...form, storageRequirements: e.target.value })} placeholder="e.g. Store below 25°C" />
+              <Textarea id="storage" value={form.storageRequirements} onChange={(e) => setForm({ ...form, storageRequirements: e.target.value })} placeholder="e.g. Store below 25°C" rows={2} />
             </div>
-            <div className="sm:col-span-2 flex items-center gap-3 rounded-lg border p-3">
+            <div className="sm:col-span-2 flex items-center gap-3 rounded-xl border p-3">
               <Switch
                 id="prescriptionRequired"
                 checked={form.prescriptionRequired}
@@ -425,7 +521,7 @@ export function PharmacyProducts() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={saving} onClick={handleSave}>
+            <Button disabled={saving} onClick={handleSave}>
               {saving ? "Saving…" : form.id ? "Save changes" : "Add product"}
             </Button>
           </DialogFooter>

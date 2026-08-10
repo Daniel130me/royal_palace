@@ -5,8 +5,8 @@ import { navigate } from "@/lib/nav";
 import { appointmentService, providerService, settlementService, pharmacyOrderService } from "@/lib/services";
 import { resource } from "@/lib/api-client";
 import type { Appointment, Provider, Settlement, PharmacyOrder, Payment } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import { PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid, SectionCard } from "@/components/healthcare/page-header";
+import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -122,11 +122,22 @@ export function AdminReports() {
   const totalGMV = payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0);
   const avgTicket = payments.length ? totalGMV / payments.length : 0;
 
-  if (loading) return <LoadingState label="Loading reports…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={4} />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
+          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Reports & Insights"
         description="High-level platform trends derived from live data."
@@ -134,135 +145,116 @@ export function AdminReports() {
       />
 
       {/* Top stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Gross Txn Value</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(totalGMV)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Activity className="h-3 w-3" /> Platform Revenue</p>
-          <p className="text-2xl font-bold mt-1 text-emerald-700">{formatCurrency(totalRevenue)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Users className="h-3 w-3" /> Avg Ticket</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(avgTicket)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Top Provider Apps</p>
-          <p className="text-2xl font-bold mt-1">{topProviders[0]?.appointments ?? 0}</p>
-        </CardContent></Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <MetricCard label="Gross Txn Value" value={formatCurrency(totalGMV)} icon={TrendingUp} tone="success" />
+        <MetricCard label="Platform Revenue" value={formatCurrency(totalRevenue)} icon={Activity} tone="success" />
+        <MetricCard label="Avg Ticket" value={formatCurrency(avgTicket)} icon={Users} tone="info" />
+        <MetricCard label="Top Provider Apps" value={topProviders[0]?.appointments ?? 0} icon={Stethoscope} tone="violet" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-6">
+      {/* Mini metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MiniMetric label="Total appts" value={appts.length} tone="info" />
+        <MiniMetric label="Total orders" value={orders.length} tone="warning" />
+        <MiniMetric label="Total payments" value={payments.length} tone="success" />
+        <MiniMetric label="Providers" value={providers.length} tone="violet" />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
         {/* Consultations over time */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Consultations (last 14 days)</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={consultsOverTime} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#10b981" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        <SectionCard title="Consultations (last 14 days)" icon={BarChart3}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={consultsOverTime} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#10b981" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </SectionCard>
 
         {/* Cumulative payments */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Cumulative payments (14d)</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={paymentsTrend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                <Line type="monotone" dataKey="cumulative" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        <SectionCard title="Cumulative payments (14d)" icon={TrendingUp}>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={paymentsTrend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Line type="monotone" dataKey="cumulative" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </SectionCard>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-6">
+      <div className="grid gap-5 lg:grid-cols-2">
         {/* Revenue by entity type */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Commission revenue by entity</CardTitle></CardHeader>
-          <CardContent>
-            {revenueByType.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-12">No settlement data.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={revenueByType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(entry) => `${entry.name}`}>
-                    {revenueByType.map((_, i) => (
-                      <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+        <SectionCard title="Commission revenue by entity" icon={Activity}>
+          {revenueByType.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">No settlement data.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={revenueByType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(entry) => `${entry.name}`}>
+                  {revenueByType.map((_, i) => (
+                    <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
 
         {/* Appointment status distribution */}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Appointment status mix</CardTitle></CardHeader>
-          <CardContent>
-            {statusDistribution.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-12">No appointment data.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={statusDistribution} layout="vertical" margin={{ top: 5, right: 16, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+        <SectionCard title="Appointment status mix" icon={BarChart3}>
+          {statusDistribution.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">No appointment data.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={statusDistribution} layout="vertical" margin={{ top: 5, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
       </div>
 
       {/* Top providers */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Stethoscope className="h-4 w-4" /> Top providers</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          {topProviders.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No provider activity yet.</p>
-          ) : (
-            <div className="divide-y">
-              {topProviders.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-4 p-4">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
-                    {i + 1}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{p.specialty}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{p.appointments} appts</p>
-                    <p className="text-xs text-emerald-700">{formatCurrency(p.revenue)} paid</p>
-                  </div>
-                  <div className="hidden sm:block w-32">
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-emerald-500" style={{ width: `${(p.appointments / (topProviders[0]?.appointments || 1)) * 100}%` }} />
-                    </div>
+      <SectionCard title="Top providers" icon={Stethoscope} dense>
+        {topProviders.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No provider activity yet.</p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {topProviders.map((p, i) => (
+              <li key={p.id} className="flex items-center gap-4 p-4">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
+                  {i + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{p.specialty}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold">{p.appointments} appts</p>
+                  <p className="text-xs text-emerald-700">{formatCurrency(p.revenue)} paid</p>
+                </div>
+                <div className="hidden sm:block w-32 shrink-0">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-emerald-500" style={{ width: `${(p.appointments / (topProviders[0]?.appointments || 1)) * 100}%` }} />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
 
       {appts.length === 0 && orders.length === 0 && payments.length === 0 && (
         <div className="mt-6">

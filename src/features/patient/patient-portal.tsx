@@ -24,28 +24,32 @@ import {
   Package, Users, ShieldCheck, CreditCard, Bell, Settings,
 } from "lucide-react";
 import { AppShell } from "@/components/healthcare/app-shell";
+import { usePatientContext } from "./use-patient-context";
 
 export function PatientPortal() {
-  const { view, session, activePatientId } = useNav();
+  const { view } = useNav();
   const page = view.page;
+  const { unread } = usePatientContext();
 
+  // The first 4 items become the mobile bottom tab bar (Home / Find Care /
+  // Records / Orders). Everything else lives under "More".
   const navItems = [
-    { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
-    { label: "Find Care", page: "services", icon: Stethoscope },
+    { label: "Home", page: "dashboard", icon: LayoutDashboard, mobile: true },
+    { label: "Find Care", page: "services", icon: Stethoscope, mobile: true },
+    { label: "Records", page: "records", icon: FileText, mobile: true },
+    { label: "Orders", page: "orders", icon: Package, mobile: true },
     { label: "Appointments", page: "appointments", icon: CalendarDays },
-    { label: "Health Records", page: "records", icon: FileText },
     { label: "Prescriptions", page: "prescriptions", icon: Pill },
     { label: "Laboratory", page: "laboratory", icon: FlaskConical },
-    { label: "Pharmacy Orders", page: "orders", icon: Package },
     { label: "Family", page: "family", icon: Users },
     { label: "Consent & Access", page: "consent", icon: ShieldCheck },
     { label: "Payments", page: "payments", icon: CreditCard },
-    { label: "Notifications", page: "notifications", icon: Bell },
+    { label: "Notifications", page: "notifications", icon: Bell, badge: unread || undefined },
     { label: "Settings", page: "settings", icon: Settings },
   ];
 
   return (
-    <AppShell portal="patient" brand="Royal Palace" navItems={navItems} notifications={0}>
+    <AppShell portal="patient" brand="Royal Palace" navItems={navItems} notifications={unread}>
       {page === "dashboard" ? <PatientDashboard /> :
        page === "services" ? <PatientServices /> :
        page === "doctors" ? <PatientDoctors /> :

@@ -23,24 +23,30 @@ import type {
   EncounterDocumentation,
   FileMeta,
 } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import {
+  PageHeader,
+  SectionCard,
+  BottomActionBar,
+  LoadingState,
+  ErrorState,
+} from "@/components/healthcare/page-header";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Collapsible, CollapsibleTrigger, CollapsibleContent,
 } from "@/components/ui/collapsible";
 import {
-  ArrowLeft, User, AlertCircle, Activity, Pill, FlaskConical, ChevronDown,
+  User, AlertCircle, Activity, Pill, FlaskConical, ChevronDown,
   CalendarClock, Stethoscope, Save, Lock, CheckCircle2, Send, Share2,
-  FlaskConical as LabIcon, FileText, Plus, MessageSquare, Clock,
+  FlaskConical as LabIcon, FileText, Plus, ShieldCheck,
 } from "lucide-react";
 import { PrescriptionDialog } from "../prescription-dialog";
 import { LabRequestDialog } from "../lab-request-dialog";
@@ -67,38 +73,36 @@ const VITAL_KEYS: { key: string; label: string; placeholder: string }[] = [
   { key: "height", label: "Height (cm)", placeholder: "170" },
 ];
 
-// The action route accepts `diagnosisCode` as part of the documentation payload
-// even though it is not part of the canonical EncounterDocumentation type.
-// We extend it locally to type the autosave / complete payloads safely.
 type DocWithCode = EncounterDocumentation & { diagnosisCode?: string };
 
-function Section({ title, icon: Icon, children, defaultOpen = true }: {
+/** Collapsible summary section — used inside the patient summary panel. */
+function SummarySection({ title, icon: Icon, children, defaultOpen = true }: {
   title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-b last:border-b-0">
+    <Collapsible open={open} onOpenChange={setOpen} className="border-b border-border/60 last:border-b-0">
       <CollapsibleTrigger asChild>
-        <button className="flex w-full items-center justify-between py-2.5 text-left hover:bg-accent/40 px-3">
-          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <button className="flex w-full items-center justify-between py-2.5 text-left hover:bg-accent/40 px-4 tap-highlight-none">
+          <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Icon className="h-3.5 w-3.5" /> {title}
           </span>
           <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="px-3 pb-3">{children}</div>
+        <div className="px-4 pb-3 pt-1">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   );
 }
 
-function SoapField({ label, value, onChange, disabled, placeholder, required }: {
-  label: string; value: string | undefined; onChange: (v: string) => void; disabled: boolean; placeholder?: string; required?: boolean;
+function SoapField({ label, value, onChange, disabled, placeholder, required, error }: {
+  label: string; value: string | undefined; onChange: (v: string) => void; disabled: boolean; placeholder?: string; required?: boolean; error?: boolean;
 }) {
   return (
     <div>
-      <Label className="text-xs font-medium">
+      <Label className="text-xs font-medium text-muted-foreground">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
       <Textarea
@@ -107,8 +111,10 @@ function SoapField({ label, value, onChange, disabled, placeholder, required }: 
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="mt-1"
+        aria-invalid={error || undefined}
+        className={`mt-1 ${error ? "ring-2 ring-rose-400/60 border-rose-300" : ""}`}
       />
+      {error && <p className="mt-1 text-[11px] text-rose-600">This field is required.</p>}
     </div>
   );
 }
@@ -132,6 +138,8 @@ export function ProviderEncounter() {
   const [rxOpen, setRxOpen] = useState(false);
   const [labOpen, setLabOpen] = useState(false);
   const [refOpen, setRefOpen] = useState(false);
+  /** Mobile collapsible for patient summary */
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   // autosave bookkeeping
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -219,7 +227,9 @@ export function ProviderEncounter() {
 
   async function complete() {
     if (!encounter) return;
-    const missing = REQUIRED_FIELDS.filter((f) => !doc[f.key] || String(doc[f.key]).trim() === "").map((f) => f.label);
+    const missing = REQUIRED_FIELDS
+      .filter((f) => !doc[f.key] || String(doc[f.key]).trim() === "")
+      .map((f) => f.key as string);
     if (missing.length > 0) {
       setMissingFields(missing);
       toast.error(`Cannot complete: ${missing.length} required field(s) missing.`);
@@ -253,199 +263,154 @@ export function ProviderEncounter() {
     [prescriptions]
   );
 
+  const isMissing = (key: keyof EncounterDocumentation) => missingFields.includes(key as string);
+
   if (loading) return <LoadingState label="Loading encounter workspace…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!encounter) return <ErrorState message="Encounter not found." />;
   if (!patient) return <ErrorState message="Patient record missing." />;
 
   return (
-    <div>
-      {/* Top header bar */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button variant="ghost" size="icon" onClick={() => navigate("provider", "appointments")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold truncate">
-              Encounter {encounter.encounterNumber}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {patient.firstName} {patient.lastName} · {patient.patientNumber} · Started {formatDate(encounter.createdAt)}
-            </p>
+    <div className="pb-28 lg:pb-0">
+      <PageHeader
+        title={`Encounter ${encounter.encounterNumber}`}
+        description={`${patient.firstName} ${patient.lastName} · ${patient.patientNumber} · Started ${formatDate(encounter.createdAt)}`}
+        back
+        actions={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={encounter.status} />
+            {locked ? (
+              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-6">
+                <Lock className="h-3 w-3 mr-1" /> Signed
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className={`h-6 ${
+                  saving === "saving"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : saving === "saved"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : ""
+                }`}
+              >
+                {saving === "saving" ? (<><Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…</>) :
+                 saving === "saved" ? (<><CheckCircle2 className="h-3 w-3 mr-1" /> Saved</>) :
+                 (<><Save className="h-3 w-3 mr-1" /> Autosave on</>)}
+              </Badge>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={encounter.status} />
-          {locked ? (
-            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
-              <Lock className="h-3 w-3 mr-1" /> Signed
-            </Badge>
-          ) : (
-            <Badge variant="outline" className={saving === "saving" ? "border-amber-200 bg-amber-50 text-amber-700" : saving === "saved" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : ""}>
-              {saving === "saving" ? (<><Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…</>) :
-               saving === "saved" ? (<><CheckCircle2 className="h-3 w-3 mr-1" /> Saved</>) :
-               (<><Save className="h-3 w-3 mr-1" /> Autosave on</>)}
-            </Badge>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {locked && (
-        <Alert className="mb-4 border-rose-200 bg-rose-50">
-          <Lock className="h-4 w-4 text-rose-600" />
-          <AlertTitle className="text-rose-800">Signed clinical record — this consultation is locked.</AlertTitle>
-          <AlertDescription className="text-rose-700">
+        <Alert className="mb-5 border-emerald-200 bg-emerald-50">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <AlertTitle className="text-emerald-800">Signed Clinical Record — This consultation is locked.</AlertTitle>
+          <AlertDescription className="text-emerald-700">
             Signed on {encounter.signedAt ? formatDate(encounter.signedAt) : "—"} by {encounter.provider ? `${encounter.provider.title} ${encounter.provider.lastName}` : "the consulting provider"}. The documentation below is read-only.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr_300px]">
-        {/* LEFT: Patient summary */}
-        <div>
-          <Card className="lg:sticky lg:top-16">
-            <CardContent className="p-0">
-              <div className="p-3 border-b flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold shrink-0">
-                  {patient.firstName[0]}{patient.lastName[0]}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{patient.firstName} {patient.lastName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{patient.patientNumber}</p>
-                  <p className="text-xs text-muted-foreground">{age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}</p>
-                </div>
-              </div>
+      {/* Mobile: collapsible patient summary banner */}
+      <div className="lg:hidden mb-4">
+        <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+          <button
+            className="flex w-full items-center gap-3 rounded-2xl border border-border/80 bg-card p-3 shadow-soft tap-highlight-none"
+            onClick={() => setSummaryOpen((o) => !o)}
+          >
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                {patient.firstName[0]}{patient.lastName[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-sm font-semibold truncate">{patient.firstName} {patient.lastName}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}
+              </p>
+            </div>
+            {patient.allergies.filter((a) => a.status === "active").length > 0 && (
+              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 text-[10px]">
+                <AlertCircle className="h-3 w-3 mr-1" /> {patient.allergies.filter((a) => a.status === "active").length} allergy
+              </Badge>
+            )}
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${summaryOpen ? "rotate-180" : ""}`} />
+          </button>
+          <CollapsibleContent>
+            <div className="mt-2 rounded-2xl border border-border/80 bg-card shadow-soft overflow-hidden">
+              <PatientSummaryBody
+                patient={patient}
+                recentEncounters={recentEncounters}
+                recentLabs={recentLabs}
+                activeRx={activeRx}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
 
-              {/* Allergies (always visible, prominent) */}
-              {patient.allergies.length > 0 && (
-                <div className="p-3 border-b bg-rose-50">
-                  <p className="text-xs font-bold text-rose-700 uppercase mb-1 flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" /> Allergies
-                  </p>
-                  <div className="space-y-1">
-                    {patient.allergies.map((a, i) => (
-                      <div key={i} className="text-xs">
-                        <span className="font-medium text-rose-800">{a.name}</span>
-                        <span className="text-rose-500 ml-1">· {a.source.replace("_", " ")}</span>
-                        {a.status === "resolved" && <Badge variant="outline" className="ml-1 text-[10px]">resolved</Badge>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <Section title="Active conditions" icon={Activity}>
-                {patient.conditions.filter((c) => c.status === "active").length === 0 ? (
-                  <p className="text-xs text-muted-foreground">None recorded.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {patient.conditions.filter((c) => c.status === "active").map((c, i) => (
-                      <li key={i} className="text-xs">
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-muted-foreground ml-1">· {c.source.replace("_", " ")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-
-              <Section title="Current medications" icon={Pill} defaultOpen={false}>
-                {patient.medications.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">None on record.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {patient.medications.map((m, i) => (
-                      <li key={i} className="text-xs">{m.name}</li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-
-              <Section title="Recent consultations" icon={Stethoscope} defaultOpen={false}>
-                {recentEncounters.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No prior encounters.</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {recentEncounters.map((a) => (
-                      <li key={a.id} className="text-xs">
-                        <button className="text-left w-full hover:underline" onClick={() => a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })}>
-                          <span className="font-medium">{formatDate(a.date)}</span> · {a.provider ? `${a.provider.lastName}` : ""}
-                          {a.encounter?.documentation && typeof a.encounter.documentation === "object" && (
-                            <span className="block text-muted-foreground truncate">
-                              {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-
-              <Section title="Recent lab results" icon={FlaskConical} defaultOpen={false}>
-                {recentLabs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No results yet.</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {recentLabs.map((l) => (
-                      <li key={l.id} className="text-xs">
-                        <span className="font-medium">{l.result?.test}</span>
-                        <span className="text-muted-foreground ml-1">{l.result?.value} {l.result?.unit}</span>
-                        {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" && (
-                          <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 text-rose-700">{l.result.abnormalIndicator}</Badge>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-
-              <Section title="Active prescriptions" icon={Pill} defaultOpen={false}>
-                {activeRx.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No active prescriptions.</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {activeRx.map((rx) => (
-                      <li key={rx.id} className="text-xs">
-                        <span className="font-medium">{rx.prescriptionNumber}</span>
-                        <span className="text-muted-foreground block">Expires {formatDate(rx.expiryDate)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Section>
-            </CardContent>
-          </Card>
-        </div>
+      {/* 3-panel workspace on desktop, stacked on mobile */}
+      <div className="grid gap-5 lg:grid-cols-[280px_1fr_320px] lg:items-start">
+        {/* LEFT: Patient summary (desktop sticky, mobile collapsed above) */}
+        <aside className="hidden lg:block lg:sticky lg:top-20">
+          <SectionCard
+            title="Patient summary"
+            icon={User}
+            dense
+            contentClassName="p-0"
+          >
+            <PatientSummaryBody
+              patient={patient}
+              recentEncounters={recentEncounters}
+              recentLabs={recentLabs}
+              activeRx={activeRx}
+            />
+          </SectionCard>
+        </aside>
 
         {/* CENTER: SOAP documentation */}
-        <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Clinical documentation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <div className={locked ? "opacity-80" : ""}>
+          <SectionCard
+            title="Clinical documentation"
+            description="SOAP notes — autosaved as you type"
+            icon={FileText}
+            action={
+              !locked && (
+                <Badge
+                  variant="outline"
+                  className={`h-6 ${saving === "saving" ? "border-amber-200 bg-amber-50 text-amber-700" : saving === "saved" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : ""}`}
+                >
+                  {saving === "saving" ? (<><Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…</>) :
+                   saving === "saved" ? (<><CheckCircle2 className="h-3 w-3 mr-1" /> Saved</>) :
+                   (<><Save className="h-3 w-3 mr-1" /> Autosave on</>)}
+                </Badge>
+              )
+            }
+          >
+            <div className="space-y-4">
               {missingFields.length > 0 && (
                 <Alert className="border-rose-200 bg-rose-50">
                   <AlertCircle className="h-4 w-4 text-rose-600" />
                   <AlertTitle className="text-rose-800">Required fields missing</AlertTitle>
                   <AlertDescription className="text-rose-700">
-                    <ul className="list-disc ml-4 text-xs">
-                      {missingFields.map((m) => <li key={m}>{m}</li>)}
+                    <ul className="list-disc ml-4 text-xs space-y-0.5">
+                      {missingFields.map((m) => {
+                        const f = REQUIRED_FIELDS.find((r) => r.key === m);
+                        return <li key={m}>{f?.label ?? m}</li>;
+                      })}
                     </ul>
                   </AlertDescription>
                 </Alert>
               )}
 
-              <SoapField label="Consultation Reason" required value={doc.consultationReason} onChange={(v) => update("consultationReason", v)} disabled={locked} placeholder="Why the patient is being seen today." />
+              <SoapField label="Consultation Reason" required error={isMissing("consultationReason")} value={doc.consultationReason} onChange={(v) => update("consultationReason", v)} disabled={locked} placeholder="Why the patient is being seen today." />
               <SoapField label="Chief Complaint" value={doc.chiefComplaint} onChange={(v) => update("chiefComplaint", v)} disabled={locked} placeholder="In the patient's own words." />
               <SoapField label="History of Present Illness" value={doc.historyPresentIllness} onChange={(v) => update("historyPresentIllness", v)} disabled={locked} placeholder="Onset, course, severity, modifying factors." />
-              <SoapField label="Relevant Medical History" required value={doc.relevantMedicalHistory} onChange={(v) => update("relevantMedicalHistory", v)} disabled={locked} placeholder="Past conditions, hospitalisations, surgeries." />
-              <SoapField label="Medication History" required value={doc.medicationHistory} onChange={(v) => update("medicationHistory", v)} disabled={locked} placeholder="Current and recent medications, adherence." />
-              <SoapField label="Allergy Confirmation" required value={doc.allergyConfirmation} onChange={(v) => update("allergyConfirmation", v)} disabled={locked} placeholder="Confirm allergies reviewed with patient (or 'No known allergies')." />
+              <SoapField label="Relevant Medical History" required error={isMissing("relevantMedicalHistory")} value={doc.relevantMedicalHistory} onChange={(v) => update("relevantMedicalHistory", v)} disabled={locked} placeholder="Past conditions, hospitalisations, surgeries." />
+              <SoapField label="Medication History" required error={isMissing("medicationHistory")} value={doc.medicationHistory} onChange={(v) => update("medicationHistory", v)} disabled={locked} placeholder="Current and recent medications, adherence." />
+              <SoapField label="Allergy Confirmation" required error={isMissing("allergyConfirmation")} value={doc.allergyConfirmation} onChange={(v) => update("allergyConfirmation", v)} disabled={locked} placeholder="Confirm allergies reviewed with patient (or 'No known allergies')." />
               <div className="grid gap-3 sm:grid-cols-2">
                 <SoapField label="Family History" value={doc.familyHistory} onChange={(v) => update("familyHistory", v)} disabled={locked} placeholder="Hereditary conditions." />
                 <SoapField label="Social History" value={doc.socialHistory} onChange={(v) => update("socialHistory", v)} disabled={locked} placeholder="Occupation, smoking, alcohol, lifestyle." />
@@ -455,11 +420,11 @@ export function ProviderEncounter() {
 
               {/* Vital signs grid */}
               <div>
-                <Label className="text-xs font-medium">Vital Signs</Label>
-                <div className="grid gap-3 sm:grid-cols-3 mt-1">
+                <Label className="text-xs font-medium text-muted-foreground">Vital Signs</Label>
+                <div className="grid gap-3 sm:grid-cols-3 mt-1.5">
                   {VITAL_KEYS.map((v) => (
                     <div key={v.key}>
-                      <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
+                      <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">{v.label}</Label>
                       <Input
                         value={(doc.vitalSigns ?? {})[v.key] ?? ""}
                         onChange={(e) => updateVital(v.key, e.target.value)}
@@ -475,20 +440,30 @@ export function ProviderEncounter() {
 
               <Separator />
 
-              <SoapField label="Assessment" required value={doc.assessment} onChange={(v) => update("assessment", v)} disabled={locked} placeholder="Clinical impression and reasoning." />
+              <SoapField label="Assessment" required error={isMissing("assessment")} value={doc.assessment} onChange={(v) => update("assessment", v)} disabled={locked} placeholder="Clinical impression and reasoning." />
               <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
                 <div>
-                  <Label className="text-xs font-medium">Diagnosis {<span className="text-rose-500">*</span>}</Label>
-                  <Input value={doc.diagnosis ?? ""} onChange={(e) => update("diagnosis", e.target.value)} disabled={locked} placeholder="e.g. Essential hypertension" />
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Diagnosis <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    value={doc.diagnosis ?? ""}
+                    onChange={(e) => update("diagnosis", e.target.value)}
+                    disabled={locked}
+                    placeholder="e.g. Essential hypertension"
+                    aria-invalid={isMissing("diagnosis") || undefined}
+                    className={`mt-1 ${isMissing("diagnosis") ? "ring-2 ring-rose-400/60 border-rose-300" : ""}`}
+                  />
+                  {isMissing("diagnosis") && <p className="mt-1 text-[11px] text-rose-600">This field is required.</p>}
                 </div>
                 <div>
-                  <Label className="text-xs font-medium">Provisional code</Label>
-                  <Input value={diagnosisCode} onChange={(e) => setDiagnosisCode(e.target.value)} disabled={locked} placeholder="e.g. I10 (ICD-10)" />
+                  <Label className="text-xs font-medium text-muted-foreground">Provisional code</Label>
+                  <Input value={diagnosisCode} onChange={(e) => setDiagnosisCode(e.target.value)} disabled={locked} placeholder="e.g. I10 (ICD-10)" className="mt-1" />
                 </div>
               </div>
               <SoapField label="Differential Diagnosis" value={doc.differentialDiagnosis} onChange={(v) => update("differentialDiagnosis", v)} disabled={locked} placeholder="Alternative diagnoses considered." />
-              <SoapField label="Treatment Plan" required value={doc.treatmentPlan} onChange={(v) => update("treatmentPlan", v)} disabled={locked} placeholder="Investigations, medications, interventions." />
-              <SoapField label="Follow-Up" required value={doc.followUp} onChange={(v) => update("followUp", v)} disabled={locked} placeholder="When to review, what to monitor." />
+              <SoapField label="Treatment Plan" required error={isMissing("treatmentPlan")} value={doc.treatmentPlan} onChange={(v) => update("treatmentPlan", v)} disabled={locked} placeholder="Investigations, medications, interventions." />
+              <SoapField label="Follow-Up" required error={isMissing("followUp")} value={doc.followUp} onChange={(v) => update("followUp", v)} disabled={locked} placeholder="When to review, what to monitor." />
               <SoapField label="Patient Instructions" value={doc.patientInstructions} onChange={(v) => update("patientInstructions", v)} disabled={locked} placeholder="Lifestyle, dosing, expected course." />
               <SoapField label="Safety-Netting" value={doc.safetyNetting} onChange={(v) => update("safetyNetting", v)} disabled={locked} placeholder="Red flags — when to return urgently." />
 
@@ -496,19 +471,19 @@ export function ProviderEncounter() {
 
               {/* Attachments (mock) */}
               <div>
-                <Label className="text-xs font-medium">Attachments</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Attachments</Label>
                 <div className="mt-2 space-y-2">
                   {attachments.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No attachments.</p>
                   ) : (
                     attachments.map((f, i) => (
-                      <div key={f.id} className="flex items-center justify-between rounded-md border p-2">
-                        <div className="text-xs">
+                      <div key={f.id} className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/20 p-2.5">
+                        <div className="text-xs min-w-0">
                           <span className="font-medium">{f.name}</span>
                           <span className="text-muted-foreground ml-2">{Math.round(f.size / 1024)} KB · {relativeDay(f.uploadedAt)}</span>
                         </div>
                         {!locked && (
-                          <Button size="sm" variant="ghost" className="h-6 text-rose-600" onClick={() => removeAttachment(i)}>Remove</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-rose-600 hover:text-rose-700" onClick={() => removeAttachment(i)}>Remove</Button>
                         )}
                       </div>
                     ))
@@ -520,19 +495,14 @@ export function ProviderEncounter() {
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         </div>
 
-        {/* RIGHT: Clinical actions */}
-        <div>
-          <Card className="lg:sticky lg:top-16">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Stethoscope className="h-4 w-4" /> Clinical actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+        {/* RIGHT: Clinical actions (desktop) */}
+        <aside className="hidden lg:block lg:sticky lg:top-20">
+          <SectionCard title="Clinical actions" icon={Stethoscope}>
+            <div className="space-y-2">
               <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setRxOpen(true)}>
                 <Pill className="h-4 w-4 mr-2" /> Create prescription
               </Button>
@@ -549,61 +519,98 @@ export function ProviderEncounter() {
                 <Send className="h-4 w-4 mr-2" /> Send patient instructions
               </Button>
 
-              <Separator className="my-2" />
+              <Separator className="my-3" />
 
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs font-medium mb-2">Linked records</p>
-                <div className="space-y-1 text-xs">
+              <div className="rounded-xl border border-border/80 bg-muted/20 p-3">
+                <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Linked records</p>
+                <div className="space-y-1.5 text-xs">
                   <p className="flex items-center justify-between">
-                    <span>Prescriptions</span>
-                    <Badge variant="secondary">{encounter.prescriptions?.length ?? 0}</Badge>
+                    <span className="text-muted-foreground">Prescriptions</span>
+                    <Badge variant="secondary" className="h-5 text-[10px]">{encounter.prescriptions?.length ?? 0}</Badge>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span>Lab requests</span>
-                    <Badge variant="secondary">{encounter.labRequests?.length ?? 0}</Badge>
+                    <span className="text-muted-foreground">Lab requests</span>
+                    <Badge variant="secondary" className="h-5 text-[10px]">{encounter.labRequests?.length ?? 0}</Badge>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span>Referrals</span>
-                    <Badge variant="secondary">{encounter.referrals?.length ?? 0}</Badge>
+                    <span className="text-muted-foreground">Referrals</span>
+                    <Badge variant="secondary" className="h-5 text-[10px]">{encounter.referrals?.length ?? 0}</Badge>
                   </p>
                   <p className="flex items-center justify-between">
-                    <span>Diagnoses</span>
-                    <Badge variant="secondary">{encounter.diagnoses?.length ?? 0}</Badge>
+                    <span className="text-muted-foreground">Diagnoses</span>
+                    <Badge variant="secondary" className="h-5 text-[10px]">{encounter.diagnoses?.length ?? 0}</Badge>
                   </p>
                 </div>
               </div>
 
-              <Separator className="my-2" />
+              <Separator className="my-3" />
 
               {locked ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
-                  <Lock className="h-5 w-5 text-rose-600 mx-auto mb-1" />
-                  <p className="text-xs font-medium text-rose-800">Record signed</p>
-                  <p className="text-[10px] text-rose-600 mt-0.5">This clinical record is locked and cannot be modified.</p>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-emerald-800">Record signed</p>
+                  <p className="text-[10px] text-emerald-600 mt-0.5">This clinical record is locked and cannot be modified.</p>
                 </div>
               ) : (
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={completing} onClick={complete}>
+                <Button className="w-full" size="lg" disabled={completing} onClick={complete}>
                   <CheckCircle2 className="h-4 w-4 mr-1" />
                   {completing ? "Completing…" : "Complete consultation"}
                 </Button>
               )}
               {!locked && (
-                <p className="text-[10px] text-muted-foreground text-center">
+                <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
                   Validates required SOAP fields, locks the record, and notifies the patient.
                 </p>
               )}
 
-              <Separator className="my-2" />
+              <Separator className="my-3" />
 
               <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Consultation fee</p>
-                <p className="font-medium">{encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}</p>
+                <p className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Consultation fee</p>
+                <p className="font-semibold text-base text-foreground">{encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}</p>
                 <p className="text-[10px] text-muted-foreground">Patient-facing price · read only</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </SectionCard>
+        </aside>
       </div>
+
+      {/* Mobile: horizontally-scrollable chip row + prominent Complete button */}
+      <BottomActionBar>
+        <div className="flex items-center gap-2">
+          {!locked && (
+            <>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mb-1 flex-1 min-w-0 [&::-webkit-scrollbar]:hidden">
+                <Button size="sm" variant="outline" className="shrink-0" onClick={() => setRxOpen(true)}>
+                  <Pill className="h-3.5 w-3.5 mr-1" /> Rx
+                </Button>
+                <Button size="sm" variant="outline" className="shrink-0" onClick={() => setLabOpen(true)}>
+                  <LabIcon className="h-3.5 w-3.5 mr-1" /> Lab
+                </Button>
+                <Button size="sm" variant="outline" className="shrink-0" onClick={() => setRefOpen(true)}>
+                  <Share2 className="h-3.5 w-3.5 mr-1" /> Refer
+                </Button>
+                <Button size="sm" variant="outline" className="shrink-0" onClick={() => toast.success("Follow-up booked", { description: "A follow-up appointment slot has been reserved." })}>
+                  <CalendarClock className="h-3.5 w-3.5 mr-1" /> Follow-up
+                </Button>
+              </div>
+              <Button size="sm" disabled={completing} onClick={complete} className="shrink-0">
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                {completing ? "…" : "Complete"}
+              </Button>
+            </>
+          )}
+          {locked && (
+            <div className="flex items-center gap-2 w-full">
+              <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+              <div className="text-xs flex-1 min-w-0">
+                <p className="font-semibold text-emerald-800">Signed clinical record</p>
+                <p className="text-emerald-700 text-[10px] truncate">Read-only — consultation locked</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </BottomActionBar>
 
       {/* Dialogs */}
       <PrescriptionDialog
@@ -643,6 +650,143 @@ export function ProviderEncounter() {
           load();
         }}
       />
+    </div>
+  );
+}
+
+/** Patient summary body — shared between mobile collapsible and desktop sidebar. */
+function PatientSummaryBody({
+  patient,
+  recentEncounters,
+  recentLabs,
+  activeRx,
+}: {
+  patient: Patient;
+  recentEncounters: Appointment[];
+  recentLabs: LaboratoryRequest[];
+  activeRx: Prescription[];
+}) {
+  const activeAllergies = patient.allergies.filter((a) => a.status === "active");
+
+  return (
+    <div>
+      {/* Demographic header */}
+      <div className="p-4 border-b border-border/60 flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+            {patient.firstName[0]}{patient.lastName[0]}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{patient.firstName} {patient.lastName}</p>
+          <p className="text-xs text-muted-foreground truncate">{patient.patientNumber}</p>
+          <p className="text-xs text-muted-foreground">{age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}</p>
+        </div>
+      </div>
+
+      {/* Allergy warning banner — always at top */}
+      {activeAllergies.length > 0 ? (
+        <div className="p-3 border-b border-rose-200 bg-rose-50">
+          <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5" /> Allergy alert
+          </p>
+          <div className="space-y-1.5">
+            {activeAllergies.map((a, i) => (
+              <div key={i} className="text-xs flex items-start gap-1.5">
+                <span className="font-semibold text-rose-800">{a.name}</span>
+                <span className="text-rose-500 text-[10px] uppercase tracking-wider">{a.source.replace(/_/g, " ")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="p-3 border-b border-border/60 bg-emerald-50/40">
+          <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" /> No known active allergies
+          </p>
+        </div>
+      )}
+
+      <SummarySection title="Active conditions" icon={Activity}>
+        {patient.conditions.filter((c) => c.status === "active").length === 0 ? (
+          <p className="text-xs text-muted-foreground">None recorded.</p>
+        ) : (
+          <ul className="space-y-1">
+            {patient.conditions.filter((c) => c.status === "active").map((c, i) => (
+              <li key={i} className="text-xs">
+                <span className="font-medium">{c.name}</span>
+                <span className="text-muted-foreground ml-1 text-[10px] uppercase tracking-wider">· {c.source.replace(/_/g, " ")}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SummarySection>
+
+      <SummarySection title="Current medications" icon={Pill} defaultOpen={false}>
+        {patient.medications.length === 0 ? (
+          <p className="text-xs text-muted-foreground">None on record.</p>
+        ) : (
+          <ul className="space-y-1">
+            {patient.medications.map((m, i) => (
+              <li key={i} className="text-xs">{m.name}</li>
+            ))}
+          </ul>
+        )}
+      </SummarySection>
+
+      <SummarySection title="Recent consultations" icon={Stethoscope} defaultOpen={false}>
+        {recentEncounters.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No prior encounters.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {recentEncounters.map((a) => (
+              <li key={a.id} className="text-xs">
+                <button className="text-left w-full hover:underline tap-highlight-none" onClick={() => a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })}>
+                  <span className="font-medium">{formatDate(a.date)}</span> · {a.provider ? `${a.provider.lastName}` : ""}
+                  {a.encounter?.documentation && typeof a.encounter.documentation === "object" && (
+                    <span className="block text-muted-foreground truncate">
+                      {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SummarySection>
+
+      <SummarySection title="Recent lab results" icon={FlaskConical} defaultOpen={false}>
+        {recentLabs.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No results yet.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {recentLabs.map((l) => (
+              <li key={l.id} className="text-xs">
+                <span className="font-medium">{l.result?.test}</span>
+                <span className="text-muted-foreground ml-1">{l.result?.value} {l.result?.unit}</span>
+                {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" && (
+                  <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 text-rose-700 h-5">{l.result.abnormalIndicator}</Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SummarySection>
+
+      <SummarySection title="Active prescriptions" icon={Pill} defaultOpen={false}>
+        {activeRx.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No active prescriptions.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {activeRx.map((rx) => (
+              <li key={rx.id} className="text-xs">
+                <span className="font-medium">{rx.prescriptionNumber}</span>
+                <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Expires {formatDate(rx.expiryDate)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SummarySection>
     </div>
   );
 }

@@ -5,14 +5,15 @@ import { navigate } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
 import { laboratoryService } from "@/lib/services";
 import type { LaboratoryResult } from "@/types";
-import { PageHeader } from "@/components/healthcare/page-header";
-import { EmptyState, LoadingState, ErrorState } from "@/components/healthcare/states";
+import {
+  PageHeader, EmptyState, ErrorState, SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { formatDate, formatDateTime } from "@/lib/format";
-import { AlertTriangle, Phone, Stethoscope } from "lucide-react";
+import { formatDate, formatDateTime, fullName } from "@/lib/format";
+import { AlertTriangle, Phone, Stethoscope, ShieldCheck } from "lucide-react";
 
 export function LabCriticalResults() {
   const { labId, reload } = useLabContext();
@@ -41,23 +42,27 @@ export function LabCriticalResults() {
 
   const notifyProvider = (r: LaboratoryResult) => {
     setNotifying(r.id);
-    // The publish-lab-result action already notifies the provider + patient on
-    // publish. This is an explicit escalation action that re-sends a
-    // notification — mocked here as a toast for the prototype.
     setTimeout(() => {
       toast.success(
-        `Referring provider and patient notified about critical ${r.test} result for ${r.patient ? `${r.patient.firstName} ${r.patient.lastName}` : "patient"}.`,
+        `Referring provider and patient notified about critical ${r.test} result for ${r.patient ? fullName(r.patient) : "patient"}.`,
         { description: `Result ${r.resultNumber} · flagged for immediate review.` }
       );
       setNotifying(null);
     }, 600);
   };
 
-  if (loading) return <LoadingState label="Loading critical results…" />;
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <SkeletonGrid count={3} />
+      </div>
+    );
+  }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Critical results"
         description="Results flagged as critical and requiring immediate provider attention."
@@ -68,27 +73,43 @@ export function LabCriticalResults() {
         }
       />
 
+      {/* Protocol notice */}
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+        <div className="rounded-xl bg-amber-100 p-2 shrink-0">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-800">Royal Palace protocol</p>
+          <p className="text-sm text-amber-700 mt-0.5 leading-relaxed">
+            Critical results must be communicated to the referring provider within 1 hour of publication.
+            The patient also receives an automated notification when the result is published.
+          </p>
+        </div>
+      </div>
+
       {results.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={ShieldCheck}
           title="No critical results"
           description="Results with an abnormal indicator of 'critical' will appear here for follow-up."
         />
       ) : (
         <div className="space-y-3">
           {results.map((r) => (
-            <Card key={r.id} className="border-rose-200 bg-rose-50/30">
+            <Card key={r.id} className="border-rose-200 bg-rose-50/30 overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-rose-600" />
+                      <div className="rounded-md bg-rose-100 p-1.5 shrink-0">
+                        <AlertTriangle className="h-4 w-4 text-rose-600" />
+                      </div>
                       <span className="font-semibold text-sm">{r.test}</span>
-                      <StatusBadge status="critical" />
+                      <StatusBadge status="critical" size="sm" />
                       <span className="text-xs text-muted-foreground">· {r.resultNumber}</span>
                     </div>
                     <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                      <Field label="Patient" value={r.patient ? `${r.patient.firstName} ${r.patient.lastName}` : "—"} />
+                      <Field label="Patient" value={r.patient ? fullName(r.patient) : "—"} />
                       <Field label="Value" value={`${r.value} ${r.unit ?? ""}`} />
                       <Field label="Reference range" value={r.referenceRange ?? "—"} />
                       <Field label="Reported" value={formatDate(r.resultDate)} />
@@ -97,8 +118,8 @@ export function LabCriticalResults() {
                     </div>
                     {r.interpretation && (
                       <div className="mt-3">
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Interpretation</p>
-                        <p className="text-sm bg-rose-50 border border-rose-200 rounded-md p-3">{r.interpretation}</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Interpretation</p>
+                        <p className="text-sm bg-rose-50 border border-rose-200 rounded-lg p-3 leading-relaxed">{r.interpretation}</p>
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground mt-2">
@@ -107,15 +128,15 @@ export function LabCriticalResults() {
                   </div>
                   <div className="flex flex-col gap-2 shrink-0 sm:w-52">
                     <Button
-                      className="bg-rose-600 hover:bg-rose-700"
+                      variant="destructive"
                       disabled={notifying === r.id}
                       onClick={() => notifyProvider(r)}
                     >
-                      <Phone className="h-4 w-4 mr-1" />
+                      <Phone className="h-4 w-4" />
                       {notifying === r.id ? "Notifying…" : "Notify provider"}
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => navigate("laboratory", "results")}>
-                      <Stethoscope className="h-3.5 w-3.5 mr-1" /> View result
+                      <Stethoscope className="h-3.5 w-3.5" /> View result
                     </Button>
                   </div>
                 </div>
@@ -124,16 +145,6 @@ export function LabCriticalResults() {
           ))}
         </div>
       )}
-
-      <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
-        <p className="text-sm text-amber-800 flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <span>
-            Royal Palace protocol: critical results must be communicated to the referring provider within 1 hour of publication.
-            The patient also receives an automated notification when the result is published.
-          </span>
-        </p>
-      </div>
     </div>
   );
 }
@@ -141,8 +152,8 @@ export function LabCriticalResults() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium">{value}</p>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className="text-sm font-medium mt-0.5">{value}</p>
     </div>
   );
 }
