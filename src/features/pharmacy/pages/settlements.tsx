@@ -4,22 +4,29 @@ import { useEffect, useMemo, useState } from "react";
 import { usePharmacyContext } from "../use-pharmacy-context";
 import { settlementService, pharmacyOrderService } from "@/lib/services";
 import type { Settlement, PharmacyOrder } from "@/types";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { MetricCard } from "@/components/healthcare/metric-card";
-import { PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { StatTile, ExpandableCard } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Receipt, Wallet, Clock, CheckCircle2, Info } from "lucide-react";
+import { Receipt, Wallet, Clock, CheckCircle2, Info, CalendarDays } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+type Filter = "all" | "pending" | "paid";
+
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "paid", label: "Paid" },
+];
 
 export function PharmacySettlements() {
   const { profile, pharmacyId, loading, error, refresh } = usePharmacyContext();
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [orders, setOrders] = useState<PharmacyOrder[]>([]);
   const [localLoading, setLocalLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
     if (!pharmacyId) return;
@@ -49,30 +56,37 @@ export function PharmacySettlements() {
     return orders.filter((o) => o.status === "delivered");
   }, [orders]);
 
+  const filtered = useMemo(() => {
+    const sorted = settlements.slice().sort((a, b) => b.periodStart.localeCompare(a.periodStart));
+    if (filter === "pending") return sorted.filter((s) => s.status === "pending");
+    if (filter === "paid") return sorted.filter((s) => s.status === "paid");
+    return sorted;
+  }, [settlements, filter]);
+
   if (loading || localLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={4} />
       </div>
     );
   }
   if (error) return <ErrorState message={error} onRetry={refresh} />;
 
-  const sorted = settlements.slice().sort((a, b) => b.periodStart.localeCompare(a.periodStart));
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Settlements"
         description="Royalty payouts from Royal Palace. Track pending and paid settlement periods."
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Pending net" value={formatCurrency(totalPendingNet)} icon={Clock} tone="warning" hint={`${pending.length} period(s)`} />
-        <MetricCard label="Paid net" value={formatCurrency(totalPaidNet)} icon={CheckCircle2} tone="success" hint={`${paid.length} period(s)`} />
-        <MetricCard label="Commission paid" value={formatCurrency(totalCommission)} icon={Receipt} tone="info" hint={`${profile?.commissionPct ?? 0}% rate`} />
-        <MetricCard label="Delivered orders" value={deliveredOrdersWithoutSettlement.length} icon={Wallet} hint="Eligible for settlement" />
+      {/* StatTiles row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Pending net" value={formatCurrency(totalPendingNet)} icon={Clock} tone="warning" />
+        <StatTile label="Paid net" value={formatCurrency(totalPaidNet)} icon={CheckCircle2} tone="success" />
+        <StatTile label="Commission" value={formatCurrency(totalCommission)} icon={Receipt} tone="info" />
+        <StatTile label="Delivered orders" value={deliveredOrdersWithoutSettlement.length} icon={Wallet} tone="default" />
       </div>
 
       {profile && (
@@ -86,101 +100,98 @@ export function PharmacySettlements() {
         </Alert>
       )}
 
-      <SectionCard
-        title="Settlement periods"
-        description={`${settlements.length} total · ${formatCurrency(totalGross)} gross`}
-        dense
-      >
-        {settlements.length === 0 ? (
-          <div className="p-5">
-            <EmptyState
-              icon={Receipt}
-              title="No settlements yet"
-              description="Your settlement periods will appear here once the first cycle completes."
-              compact
-            />
-          </div>
-        ) : (
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Settlement No.</TableHead>
-                    <TableHead className="text-right">Gross</TableHead>
-                    <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Net to pharmacy</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sorted.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell>
-                        <p className="font-medium">{formatDate(s.periodStart)} → {formatDate(s.periodEnd)}</p>
-                        <p className="text-xs text-muted-foreground">{s.entityName}</p>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{s.settlementNumber}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(s.grossAmount)}</TableCell>
-                      <TableCell className="text-right text-rose-700 tabular-nums">{formatCurrency(s.commissionAmount)}</TableCell>
-                      <TableCell className="text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</TableCell>
-                      <TableCell><StatusBadge status={s.status} size="sm" /></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Settlement periods · {settlements.length} total · {formatCurrency(totalGross)} gross
+        </p>
+      </div>
 
-            {/* Mobile cards */}
-            <ul className="md:hidden divide-y divide-border/60">
-              {sorted.map((s) => (
-                <li key={s.id} className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{formatDate(s.periodStart)} → {formatDate(s.periodEnd)}</p>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{s.settlementNumber}</p>
-                    </div>
+      {/* Filter */}
+      <SegmentedControl
+        options={FILTERS.map((f) => ({ value: f.value, label: f.label, badge: f.value === "pending" ? pending.length : f.value === "paid" ? paid.length : settlements.length }))}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title={filter === "all" ? "No settlements yet" : `No ${filter} settlements`}
+          description="Your settlement periods will appear here once the first cycle completes."
+          compact
+        />
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((s) => {
+            const isPaid = s.status === "paid";
+            return (
+              <ExpandableCard
+                key={s.id}
+                leading={
+                  <div className={`rounded-lg p-2 ring-1 ${isPaid ? "bg-emerald-50 ring-emerald-100" : "bg-amber-50 ring-amber-100"}`}>
+                    {isPaid ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
+                  </div>
+                }
+                title={s.settlementNumber}
+                subtitle={`${formatDate(s.periodStart)} → ${formatDate(s.periodEnd)} · ${s.entityName ?? "Pharmacy"}`}
+                trailing={
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`text-sm font-bold tabular-nums ${isPaid ? "text-emerald-700" : "text-amber-700"}`}>
+                      {formatCurrency(s.netAmount)}
+                    </span>
                     <StatusBadge status={s.status} size="sm" />
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
+                }
+              >
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-lg bg-muted/40 p-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Wallet className="h-3 w-3" /> Gross
+                      </p>
                       <p className="text-sm font-semibold tabular-nums">{formatCurrency(s.grossAmount)}</p>
                     </div>
                     <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                      <p className="text-[10px] text-rose-700 uppercase tracking-wider">Commission</p>
-                      <p className="text-sm font-semibold text-rose-700 tabular-nums">{formatCurrency(s.commissionAmount)}</p>
+                      <p className="text-[10px] text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                        <Receipt className="h-3 w-3" /> Comm
+                      </p>
+                      <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(s.commissionAmount)}</p>
                     </div>
                     <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
-                      <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
-                      <p className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</p>
+                      <p className="text-[10px] text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                        <CalendarDays className="h-3 w-3" /> Net
+                      </p>
+                      <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</p>
                     </div>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/40">
+                    <span>Period</span>
+                    <span className="font-medium">{formatDate(s.periodStart)} → {formatDate(s.periodEnd)}</span>
+                  </div>
+                </div>
+              </ExpandableCard>
+            );
+          })}
 
-            {/* Totals */}
-            <div className="border-t border-border/60 px-4 sm:px-5 py-4 bg-muted/20 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total gross</span>
-                <span className="font-medium tabular-nums">{formatCurrency(totalGross)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total commission</span>
-                <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(totalCommission)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">Total net paid</span>
-                <span className="font-bold text-lg text-emerald-700 tabular-nums">{formatCurrency(totalPaidNet)}</span>
-              </div>
+          {/* Totals card */}
+          <div className="rounded-xl border border-border/60 bg-card p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total gross</span>
+              <span className="font-medium tabular-nums">{formatCurrency(totalGross)}</span>
             </div>
-          </>
-        )}
-      </SectionCard>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total commission</span>
+              <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(totalCommission)}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Total net paid</span>
+              <span className="font-bold text-lg text-emerald-700 tabular-nums">{formatCurrency(totalPaidNet)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
 import { labRequestService, laboratoryService } from "@/lib/services";
 import type { LaboratoryRequest, Laboratory } from "@/types";
-import { PageHeader, EmptyState, LoadingState, SectionCard, BottomActionBar } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem, ExpandableCard } from "@/components/healthcare/compact-list";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
 } from "@/components/ui/sheet";
@@ -17,9 +18,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  FlaskConical, ChevronDown, ChevronUp, Clock, Building2, Home,
-  Lock, CalendarDays, AlertCircle, FileText, Minus,
+  FlaskConical, Clock, Building2, Home,
+  Lock, CalendarDays, AlertCircle, FileText, CheckCircle2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatCurrency, formatDate, formatTime, fullName } from "@/lib/format";
 import { createdAt } from "../lib/runtime-fields";
@@ -42,6 +44,10 @@ function nextDays(count: number): { value: string; label: string; sub: string }[
 
 const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
 
+const IN_PROGRESS_STATUSES = ["sample_collected", "processing", "quality_review"];
+
+type LabTab = "pending" | "bookings" | "results";
+
 export function PatientLaboratory() {
   const { profile } = usePatientContext();
   const [requests, setRequests] = useState<LaboratoryRequest[]>([]);
@@ -49,7 +55,7 @@ export function PatientLaboratory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingFor, setBookingFor] = useState<LaboratoryRequest | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [tab, setTab] = useState<LabTab>("pending");
 
   useEffect(() => {
     if (!profile) return;
@@ -73,150 +79,148 @@ export function PatientLaboratory() {
 
   const sections = useMemo(() => {
     const pending = requests.filter((r) => r.status === "pending_booking");
-    const upcoming = requests.filter((r) => r.status === "booked").map((r) => ({ req: r, booking: r.booking }));
-    const inProgress = requests.filter((r) => ["sample_collected", "processing", "quality_review"].includes(r.status));
+    const bookings = requests.filter((r) => r.status === "booked" || IN_PROGRESS_STATUSES.includes(r.status));
     const results = requests.filter((r) => r.status === "completed" && r.result);
-    return { pending, upcoming, inProgress, results };
+    return { pending, bookings, results };
   }, [requests]);
 
   if (loading) return <LoadingState label="Loading laboratory…" />;
   if (error) return <EmptyState title="Could not load laboratory" description={error} />;
 
+  const activeCount = sections.pending.length || undefined;
+  const bookingsCount = sections.bookings.length || undefined;
+  const resultsCount = sections.results.length || undefined;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title="Laboratory"
         description="Book tests, track samples and view results."
       />
 
-      <div className="space-y-6">
-        {/* Pending requests — prominent */}
-        {sections.pending.length > 0 ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-1">
-            <SectionCard
-              title={`Pending test requests (${sections.pending.length})`}
-              icon={Clock}
-            >
-              <ul className="space-y-3">
-                {sections.pending.map((r) => (
-                  <li key={r.id} className="rounded-xl border border-amber-200/60 bg-card p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm">{r.tests.join(", ")}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {r.requestNumber} · requested by {r.provider ? fullName(r.provider) : "Provider"}
-                        </p>
-                        {r.fastingRequired && (
-                          <Badge variant="outline" className="mt-2 bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-5 px-1.5 gap-0.5">
-                            <AlertCircle className="h-3 w-3" /> Fasting required
-                          </Badge>
-                        )}
-                      </div>
-                      <Button size="sm" onClick={() => setBookingFor(r)}>Book test</Button>
-                    </div>
-                    {r.preparationInstructions && (
-                      <p className="mt-2 text-xs text-muted-foreground bg-muted/40 rounded-md p-2 leading-relaxed">
-                        {r.preparationInstructions}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </SectionCard>
-          </div>
+      <SegmentedControl<LabTab>
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "pending", label: "Pending", badge: activeCount },
+          { value: "bookings", label: "Bookings", badge: bookingsCount },
+          { value: "results", label: "Results", badge: resultsCount },
+        ]}
+      />
+
+      {tab === "pending" && (
+        sections.pending.length === 0 ? (
+          <EmptyState
+            icon={Clock}
+            title="No pending tests"
+            description="Your doctor can request lab tests during a consultation."
+            compact
+          />
         ) : (
-          <SectionCard title="Pending test requests (0)" icon={Clock}>
-            <p className="text-sm text-muted-foreground">No pending test requests. Your doctor can request tests during a consultation.</p>
-          </SectionCard>
-        )}
-
-        {/* Upcoming bookings */}
-        <SectionCard title={`Upcoming bookings (${sections.upcoming.length})`} icon={CalendarDays} dense>
-          {sections.upcoming.length === 0 ? (
-            <div className="p-5"><p className="text-sm text-muted-foreground">No upcoming laboratory bookings.</p></div>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {sections.upcoming.map(({ req, booking }) => (
-                <li key={req.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{req.tests.join(", ")}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {booking?.laboratory?.name ?? "Laboratory"} · {formatDate(booking?.date)} · {formatTime(booking?.time)}
-                    </p>
-                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{booking?.collectionMode} collection</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden divide-y divide-amber-100">
+            {sections.pending.map((r) => (
+              <CompactListItem
+                key={r.id}
+                leading={
+                  <div className="rounded-lg bg-amber-100 p-2 ring-1 ring-amber-200">
+                    <FlaskConical className="h-4 w-4 text-amber-700" />
                   </div>
-                  <StatusBadge status={req.status} size="sm" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-
-        {/* In progress */}
-        <SectionCard title={`Tests in progress (${sections.inProgress.length})`} icon={FlaskConical} dense>
-          {sections.inProgress.length === 0 ? (
-            <div className="p-5"><p className="text-sm text-muted-foreground">No tests currently in progress.</p></div>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {sections.inProgress.map((r) => (
-                <li key={r.id} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{r.tests.join(", ")}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{r.requestNumber}</p>
+                }
+                title={r.tests.join(", ")}
+                subtitle={`${r.requestNumber} · requested by ${r.provider ? fullName(r.provider) : "Provider"}`}
+                trailing={
+                  <div className="flex flex-col items-end gap-1.5">
+                    <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => setBookingFor(r)}>Book</Button>
+                    {r.fastingRequired && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-4 px-1 gap-0.5">
+                        <AlertCircle className="h-2.5 w-2.5" /> Fasting
+                      </Badge>
+                    )}
                   </div>
-                  <StatusBadge status={r.status} size="sm" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
+                }
+                onClick={r.preparationInstructions ? () => setBookingFor(r) : undefined}
+                chevron={!!r.preparationInstructions}
+              />
+            ))}
+          </div>
+        )
+      )}
 
-        {/* Results */}
-        <SectionCard title={`Results (${sections.results.length})`} icon={FileText} dense>
-          {sections.results.length === 0 ? (
-            <div className="p-5"><p className="text-sm text-muted-foreground">No results available yet.</p></div>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {sections.results.map((r) => (
-                <li key={r.id}>
-                  <button
-                    className="w-full px-4 sm:px-5 py-3 flex items-center justify-between text-left tap-highlight-none hover:bg-accent/30 transition-colors"
-                    onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{r.result?.test}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{r.result?.laboratory?.name} · {formatDate(r.result?.resultDate)}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {r.result?.abnormalIndicator && r.result.abnormalIndicator !== "normal" && (
-                        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] capitalize h-5 px-1.5">
-                          {r.result.abnormalIndicator}
-                        </Badge>
-                      )}
-                      {expanded === r.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-                  {expanded === r.id && r.result && (
-                    <div className="border-t border-border/60 px-4 sm:px-5 py-3 space-y-2 text-sm bg-muted/20">
-                      <Row label="Value" value={`${r.result.value}${r.result.unit ? ` ${r.result.unit}` : ""}`} />
-                      <Row label="Reference range" value={r.result.referenceRange ?? "—"} />
-                      <Row label="Indicator" value={<span className="capitalize">{r.result.abnormalIndicator ?? "normal"}</span>} />
-                      <Row label="Sample collected" value={formatDate(r.result.sampleCollectionDate)} />
-                      <Row label="Result published" value={formatDate(r.result.resultDate)} />
-                      <Row label="Reviewer" value={r.result.reviewer ?? "—"} />
-                      {r.result.interpretation && (
-                        <div className="rounded-md bg-background border border-border/60 p-2 text-xs text-muted-foreground leading-relaxed">{r.result.interpretation}</div>
-                      )}
+      {tab === "bookings" && (
+        sections.bookings.length === 0 ? (
+          <EmptyState
+            icon={CalendarDays}
+            title="No bookings"
+            description="Upcoming lab appointments will appear here once you book a test."
+            compact
+          />
+        ) : (
+          <div className="space-y-2">
+            {sections.bookings.map((r) => (
+              <BookingRow key={r.id} request={r} />
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === "results" && (
+        sections.results.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="No results yet"
+            description="Completed lab results will appear here."
+            compact
+          />
+        ) : (
+          <div className="space-y-2">
+            {sections.results.map((r) => (
+              <ExpandableCard
+                key={r.id}
+                leading={
+                  <div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100">
+                    <FlaskConical className="h-4 w-4 text-sky-700" />
+                  </div>
+                }
+                title={r.result?.test ?? r.tests[0]}
+                subtitle={`${r.result?.laboratory?.name ?? "Lab"} · ${formatDate(r.result?.resultDate)}`}
+                trailing={
+                  <div className="flex flex-col items-end gap-1.5">
+                    {r.result?.value && (
+                      <span className="text-sm font-semibold">
+                        {r.result.value}{r.result.unit ? ` ${r.result.unit}` : ""}
+                      </span>
+                    )}
+                    {r.result?.abnormalIndicator && r.result.abnormalIndicator !== "normal" ? (
+                      <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] capitalize h-5 px-1.5">
+                        {r.result.abnormalIndicator}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 gap-0.5">
+                        <CheckCircle2 className="h-3 w-3" /> Normal
+                      </Badge>
+                    )}
+                  </div>
+                }
+              >
+                <div className="space-y-2">
+                  <Row label="Value" value={`${r.result!.value}${r.result!.unit ? ` ${r.result!.unit}` : ""}`} />
+                  <Row label="Reference range" value={r.result!.referenceRange ?? "—"} />
+                  <Row label="Indicator" value={<span className="capitalize">{r.result!.abnormalIndicator ?? "normal"}</span>} />
+                  <Row label="Sample collected" value={formatDate(r.result!.sampleCollectionDate)} />
+                  <Row label="Result published" value={formatDate(r.result!.resultDate)} />
+                  <Row label="Reviewer" value={r.result!.reviewer ?? "—"} />
+                  {r.result!.interpretation && (
+                    <div className="rounded-md bg-muted/40 border border-border/60 p-2 text-xs text-muted-foreground leading-relaxed">
+                      {r.result!.interpretation}
                     </div>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-      </div>
+                </div>
+              </ExpandableCard>
+            ))}
+          </div>
+        )
+      )}
 
-      {/* Booking bottom sheet */}
       <LabBookingSheet
         request={bookingFor}
         labs={labs}
@@ -227,9 +231,55 @@ export function PatientLaboratory() {
   );
 }
 
+function BookingRow({ request: r }: { request: LaboratoryRequest }) {
+  const booking = r.booking;
+  const isInProgress = IN_PROGRESS_STATUSES.includes(r.status);
+  const milestones = [
+    { key: "booked", label: "Booked", done: true },
+    { key: "sample_collected", label: "Sample", done: ["sample_collected", "processing", "quality_review"].includes(r.status) },
+    { key: "completed", label: "Result", done: r.status === "completed" },
+  ];
+  return (
+    <div className="rounded-xl border border-border/60 bg-card p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-sm truncate">{r.tests.join(", ")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {booking?.laboratory?.name ?? "Laboratory"} · {formatDate(booking?.date)} · {formatTime(booking?.time)}
+          </p>
+          <p className="text-[11px] text-muted-foreground capitalize mt-0.5">{booking?.collectionMode ?? "facility"} collection</p>
+        </div>
+        <StatusBadge status={r.status} size="sm" />
+      </div>
+      {/* Mini status timeline */}
+      <div className="mt-3 flex items-center gap-1.5">
+        {milestones.map((m, i) => (
+          <div key={m.key} className="flex items-center gap-1.5 flex-1">
+            <div className={cn(
+              "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium",
+              m.done ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-muted text-muted-foreground ring-1 ring-border/60"
+            )}>
+              {m.done ? <CheckCircle2 className="h-2.5 w-2.5" /> : <Clock className="h-2.5 w-2.5" />}
+              <span>{m.label}</span>
+            </div>
+            {i < milestones.length - 1 && (
+              <div className={cn("h-px flex-1 min-w-2", m.done && milestones[i + 1].done ? "bg-emerald-300" : "bg-border/60")} />
+            )}
+          </div>
+        ))}
+      </div>
+      {isInProgress && (
+        <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
+          <Clock className="h-3 w-3" /> Test in progress — results will be available shortly.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-right">{value}</span>
     </div>

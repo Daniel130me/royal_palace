@@ -6,8 +6,8 @@ import { appointmentService, providerService, settlementService, pharmacyOrderSe
 import { resource } from "@/lib/api-client";
 import type { Appointment, Provider, Settlement, PharmacyOrder, Payment } from "@/types";
 import { PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid, SectionCard } from "@/components/healthcare/page-header";
-import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
+import { formatCurrency } from "@/lib/format";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
@@ -144,26 +144,19 @@ export function AdminReports() {
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Reports" }]}
       />
 
-      {/* Top stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Gross Txn Value" value={formatCurrency(totalGMV)} icon={TrendingUp} tone="success" />
-        <MetricCard label="Platform Revenue" value={formatCurrency(totalRevenue)} icon={Activity} tone="success" />
-        <MetricCard label="Avg Ticket" value={formatCurrency(avgTicket)} icon={Users} tone="info" />
-        <MetricCard label="Top Provider Apps" value={topProviders[0]?.appointments ?? 0} icon={Stethoscope} tone="violet" />
+      {/* Top stats — StatTiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Gross Txn Value" value={formatCurrency(totalGMV)} icon={TrendingUp} tone="success" />
+        <StatTile label="Platform Revenue" value={formatCurrency(totalRevenue)} icon={Activity} tone="success" />
+        <StatTile label="Avg Ticket" value={formatCurrency(avgTicket)} icon={Users} tone="info" />
+        <StatTile label="Top Provider Apps" value={topProviders[0]?.appointments ?? 0} icon={Stethoscope} tone="violet" />
       </div>
 
-      {/* Mini metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MiniMetric label="Total appts" value={appts.length} tone="info" />
-        <MiniMetric label="Total orders" value={orders.length} tone="warning" />
-        <MiniMetric label="Total payments" value={payments.length} tone="success" />
-        <MiniMetric label="Providers" value={providers.length} tone="violet" />
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-2">
+      {/* Charts grid — stacks on mobile */}
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Consultations over time */}
         <SectionCard title="Consultations (last 14 days)" icon={BarChart3}>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={consultsOverTime} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
@@ -176,7 +169,7 @@ export function AdminReports() {
 
         {/* Cumulative payments */}
         <SectionCard title="Cumulative payments (14d)" icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={220}>
             <LineChart data={paymentsTrend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
@@ -188,15 +181,15 @@ export function AdminReports() {
         </SectionCard>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Revenue by entity type */}
         <SectionCard title="Commission revenue by entity" icon={Activity}>
           {revenueByType.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">No settlement data.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={revenueByType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(entry) => `${entry.name}`}>
+                <Pie data={revenueByType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(entry) => `${entry.name}`}>
                   {revenueByType.map((_, i) => (
                     <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
                   ))}
@@ -213,7 +206,7 @@ export function AdminReports() {
           {statusDistribution.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">No appointment data.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={statusDistribution} layout="vertical" margin={{ top: 5, right: 16, left: 8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -226,33 +219,32 @@ export function AdminReports() {
         </SectionCard>
       </div>
 
-      {/* Top providers */}
+      {/* Top providers as CompactListItem list */}
       <SectionCard title="Top providers" icon={Stethoscope} dense>
         {topProviders.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">No provider activity yet.</p>
         ) : (
-          <ul className="divide-y divide-border/60">
+          <div className="divide-y divide-border/40">
             {topProviders.map((p, i) => (
-              <li key={p.id} className="flex items-center gap-4 p-4">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
-                  {i + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{p.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{p.specialty}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold">{p.appointments} appts</p>
-                  <p className="text-xs text-emerald-700">{formatCurrency(p.revenue)} paid</p>
-                </div>
-                <div className="hidden sm:block w-32 shrink-0">
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-emerald-500" style={{ width: `${(p.appointments / (topProviders[0]?.appointments || 1)) * 100}%` }} />
+              <CompactListItem
+                key={p.id}
+                leading={
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
+                    {i + 1}
                   </div>
-                </div>
-              </li>
+                }
+                title={p.name}
+                subtitle={p.specialty}
+                trailing={
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-sm font-semibold">{p.appointments} appts</span>
+                    <span className="text-xs text-emerald-700">{formatCurrency(p.revenue)} paid</span>
+                  </div>
+                }
+                onClick={undefined}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </SectionCard>
 

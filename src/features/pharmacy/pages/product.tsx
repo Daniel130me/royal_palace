@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Save, Package, ShoppingBag, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -197,22 +198,22 @@ export function PharmacyProductDetail() {
                 <p className="text-sm text-muted-foreground">No sales recorded yet.</p>
               </div>
             ) : (
-              <ul className="divide-y divide-border/60">
+              <div className="divide-y divide-border/60">
                 {orderItems.slice(0, 8).map((it) => (
-                  <li key={it.id} className="flex items-center justify-between py-3 px-4 sm:px-5 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{it.productName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Qty {it.quantity} · {formatCurrency(it.unitPrice)} each
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-medium tabular-nums">{formatCurrency(it.gross)}</p>
-                      <p className="text-xs text-emerald-700 tabular-nums">Net {formatCurrency(it.pharmacyNet)}</p>
-                    </div>
-                  </li>
+                  <CompactListItem
+                    key={it.id}
+                    leading={<div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100"><ShoppingBag className="h-4 w-4 text-emerald-600" /></div>}
+                    title={it.productName}
+                    subtitle={`Qty ${it.quantity} · ${formatCurrency(it.unitPrice)} each`}
+                    trailing={
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-sm font-semibold tabular-nums">{formatCurrency(it.gross)}</span>
+                        <span className="text-[10px] text-emerald-700 tabular-nums">Net {formatCurrency(it.pharmacyNet)}</span>
+                      </div>
+                    }
+                  />
                 ))}
-              </ul>
+              </div>
             )}
           </SectionCard>
         </div>

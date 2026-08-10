@@ -6,15 +6,22 @@ import { useProviderContext } from "../use-provider-context";
 import { prescriptionService } from "@/lib/services";
 import { WithTimestamps } from "../normalize";
 import type { Prescription } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
-import { formatDate, relativeDay, fullName, initials } from "@/lib/format";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
+import { formatDate, relativeDay, fullName } from "@/lib/format";
 import { Search, Pill, ArrowRight } from "lucide-react";
+
+type Tab = "all" | "active" | "fulfilled" | "expired";
+
+const ACTIVE_STATUSES = ["issued", "awaiting_pharmacy", "partially_fulfilled"];
+const FULFILLED_STATUSES = ["fulfilled"];
+const EXPIRED_STATUSES = ["expired", "cancelled"];
 
 export function ProviderPrescriptions() {
   const { providerId } = useProviderContext();
@@ -22,6 +29,7 @@ export function ProviderPrescriptions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("all");
 
   const load = useCallback(async () => {
     if (!providerId) return;
@@ -41,14 +49,25 @@ export function ProviderPrescriptions() {
     load();
   }, [load]);
 
+  const sorted = useMemo(
+    () => [...prescriptions].sort((a, b) => ((b as WithTimestamps<Prescription>).createdAt ?? "").localeCompare((a as WithTimestamps<Prescription>).createdAt ?? "")),
+    [prescriptions]
+  );
+
   const filtered = useMemo(() => {
-    const sorted = [...prescriptions].sort((a, b) => ((b as WithTimestamps<Prescription>).createdAt ?? "").localeCompare((a as WithTimestamps<Prescription>).createdAt ?? ""));
     const term = q.trim().toLowerCase();
-    if (!term) return sorted;
-    return sorted.filter((rx) =>
-      `${rx.prescriptionNumber} ${rx.patient ? fullName(rx.patient) : ""} ${rx.items?.map((i) => i.medicine).join(" ")}`.toLowerCase().includes(term)
-    );
-  }, [prescriptions, q]);
+    const matches = (rx: Prescription) => {
+      if (!term) return true;
+      return `${rx.prescriptionNumber} ${rx.patient ? fullName(rx.patient) : ""} ${rx.items?.map((i) => i.medicine).join(" ")}`.toLowerCase().includes(term);
+    };
+    return sorted.filter(matches);
+  }, [sorted, q]);
+
+  const active = filtered.filter((rx) => ACTIVE_STATUSES.includes(rx.status));
+  const fulfilled = filtered.filter((rx) => FULFILLED_STATUSES.includes(rx.status));
+  const expired = filtered.filter((rx) => EXPIRED_STATUSES.includes(rx.status));
+
+  const current = tab === "all" ? filtered : tab === "active" ? active : tab === "fulfilled" ? fulfilled : expired;
 
   if (loading) {
     return (
@@ -73,48 +92,63 @@ export function ProviderPrescriptions() {
         }
       />
 
-      {filtered.length === 0 ? (
-        <EmptyState icon={Pill} title="No prescriptions" description="Prescriptions you issue during encounters will appear here." />
+      <div className="sticky top-14 lg:top-16 z-20 bg-background/95 backdrop-blur-md pb-3 mb-2">
+        <SegmentedControl
+          value={tab}
+          onChange={(v) => setTab(v as Tab)}
+          options={[
+            { value: "all", label: "All", badge: filtered.length },
+            { value: "active", label: "Active", badge: active.length },
+            { value: "fulfilled", label: "Filled", badge: fulfilled.length },
+            { value: "expired", label: "Expired", badge: expired.length },
+          ]}
+        />
+      </div>
+
+      {current.length === 0 ? (
+        <EmptyState
+          icon={Pill}
+          title={
+            tab === "all" ? "No prescriptions" :
+            tab === "active" ? "No active prescriptions" :
+            tab === "fulfilled" ? "No fulfilled prescriptions" :
+            "No expired prescriptions"
+          }
+          description="Prescriptions you issue during encounters will appear here."
+          compact
+        />
       ) : (
-        <div className="space-y-3">
-          {filtered.map((rx) => (
-            <Card key={rx.id} className="hover:shadow-soft-md transition-shadow">
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      <Pill className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold">{rx.prescriptionNumber}</p>
-                      <StatusBadge status={rx.status} size="sm" />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {rx.patient ? fullName(rx.patient) : "Patient"} · Issued {formatDate((rx as WithTimestamps<Prescription>).createdAt)} · {relativeDay((rx as WithTimestamps<Prescription>).createdAt)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Valid: {formatDate(rx.validityStartDate)} → {formatDate(rx.expiryDate)}
-                    </p>
-                    {rx.items && rx.items.length > 0 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {rx.items.slice(0, 4).map((it) => (
-                          <Badge key={it.id} variant="secondary" className="text-[10px] h-5">{it.medicine} {it.strength}</Badge>
-                        ))}
-                        {rx.items.length > 4 && <Badge variant="outline" className="text-[10px] h-5">+{rx.items.length - 4}</Badge>}
-                      </div>
-                    )}
-                  </div>
-                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigate("provider", "patient", { id: rx.patientId })}>
-                    Open patient <ArrowRight className="h-3 w-3 ml-1" />
-                  </Button>
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {current.map((rx) => (
+            <CompactListItem
+              key={rx.id}
+              leading={
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    <Pill className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+              }
+              title={rx.prescriptionNumber}
+              subtitle={`${rx.patient ? fullName(rx.patient) : "Patient"} · ${formatDate((rx as WithTimestamps<Prescription>).createdAt)} · ${relativeDay((rx as WithTimestamps<Prescription>).createdAt)} · valid until ${formatDate(rx.expiryDate)}`}
+              onClick={() => navigate("provider", "patient", { id: rx.patientId })}
+              trailing={
+                <div className="flex items-center gap-1.5">
+                  <StatusBadge status={rx.status} size="sm" />
                 </div>
-              </CardContent>
-            </Card>
+              }
+              chevron
+            />
           ))}
         </div>
       )}
+
+      <div className="mt-4 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{current.length} prescription(s)</p>
+        <Button size="sm" variant="ghost" onClick={() => navigate("provider", "appointments")}>
+          New from encounter <ArrowRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
     </div>
   );
 }

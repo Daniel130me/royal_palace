@@ -6,24 +6,25 @@ import { usePharmacyContext } from "../use-pharmacy-context";
 import { pharmacyOrderService } from "@/lib/services";
 import type { PharmacyOrder } from "@/types";
 import { Button } from "@/components/ui/button";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
 import { PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { StatTile, ExpandableCard } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Wallet, Receipt, TrendingUp, Building2, Info, ArrowRight } from "lucide-react";
+import {
+  Wallet, Receipt, TrendingUp, Building2, Info, ArrowRight, Package, Hash,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 type PeriodKey = "all" | "today" | "week" | "month";
 
-const PERIODS: { key: PeriodKey; label: string; days: number }[] = [
-  { key: "all", label: "All time", days: 0 },
-  { key: "today", label: "Today", days: 1 },
-  { key: "week", label: "Last 7 days", days: 7 },
-  { key: "month", label: "Last 30 days", days: 30 },
+const PERIODS: { value: PeriodKey; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "today", label: "Today" },
+  { value: "week", label: "Last 7 days" },
+  { value: "month", label: "Last 30 days" },
 ];
 
 export function PharmacyCommissions() {
@@ -46,8 +47,7 @@ export function PharmacyCommissions() {
 
   const filteredOrders = useMemo(() => {
     if (period === "all") return orders;
-    const days = PERIODS.find((p) => p.key === period)?.days ?? 0;
-    if (days === 0) return orders;
+    const days = period === "today" ? 1 : period === "week" ? 7 : 30;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -62,8 +62,9 @@ export function PharmacyCommissions() {
 
   if (loading || localLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={4} />
       </div>
     );
@@ -71,7 +72,7 @@ export function PharmacyCommissions() {
   if (error) return <ErrorState message={error} onRetry={refresh} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Commission reports"
         description="Track commission earned from each order. Platform rate is set centrally by Royal Palace."
@@ -90,128 +91,103 @@ export function PharmacyCommissions() {
       )}
 
       {/* Period filter */}
-      <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 bg-background/90 backdrop-blur-md">
-        <div className="inline-flex rounded-lg border bg-card p-1 overflow-x-auto">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                period === p.key ? "bg-primary text-primary-foreground shadow-soft" : "text-muted-foreground hover:bg-accent"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+      <SegmentedControl
+        options={PERIODS.map((p) => ({ value: p.value, label: p.label }))}
+        value={period}
+        onChange={setPeriod}
+        size="sm"
+      />
+
+      {/* StatTiles row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Gross sales" value={formatCurrency(totalSales)} icon={Wallet} tone="info" />
+        <StatTile label="Earned" value={formatCurrency(earnedCommission)} icon={Receipt} tone="success" />
+        <StatTile label="Pending" value={formatCurrency(pendingCommission)} icon={TrendingUp} tone="warning" />
+        <StatTile label="Net to pharmacy" value={formatCurrency(totalNet)} icon={Wallet} tone="success" />
+      </div>
+
+      {/* Per-order commission list as ExpandableCards */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Orders · {filteredOrders.length} total
+          </p>
+          <span className="text-xs text-muted-foreground">
+            Avg order {formatCurrency(filteredOrders.length ? Math.round(totalSales / filteredOrders.length) : 0)}
+          </span>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Gross sales" value={formatCurrency(totalSales)} icon={Wallet} tone="info" />
-        <MetricCard label="Commission earned" value={formatCurrency(earnedCommission)} icon={Receipt} tone="success" hint={`${profile?.commissionPct ?? 0}% rate`} />
-        <MetricCard label="Pending commission" value={formatCurrency(pendingCommission)} icon={TrendingUp} tone="warning" hint="Not yet delivered" />
-        <MetricCard label="Net to pharmacy" value={formatCurrency(totalNet)} icon={Wallet} tone="success" hint="After commission" />
-      </div>
-
-      {/* MiniMetric row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MiniMetric label="Orders" value={filteredOrders.length} tone="info" />
-        <MiniMetric label="Avg order" value={formatCurrency(filteredOrders.length ? Math.round(totalSales / filteredOrders.length) : 0)} />
-        <MiniMetric label="Avg commission" value={formatCurrency(filteredOrders.length ? Math.round(totalCommission / filteredOrders.length) : 0)} tone="warning" />
-        <MiniMetric label="Avg net" value={formatCurrency(filteredOrders.length ? Math.round(totalNet / filteredOrders.length) : 0)} tone="success" />
-      </div>
-
-      <SectionCard
-        title="Orders & commission per item"
-        description={`${filteredOrders.length} order(s)`}
-        dense
-      >
         {filteredOrders.length === 0 ? (
-          <div className="p-5">
-            <EmptyState
-              icon={Wallet}
-              title="No orders in this period"
-              description="Once orders are placed at your pharmacy, you will see the commission breakdown here."
-              compact
-            />
-          </div>
+          <EmptyState
+            icon={Wallet}
+            title="No orders in this period"
+            description="Once orders are placed at your pharmacy, you will see the commission breakdown here."
+            compact
+          />
         ) : (
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead className="text-right">Gross</TableHead>
-                    <TableHead className="text-right">Comm. %</TableHead>
-                    <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Pharmacy net</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell>
-                        <button
-                          className="text-left font-medium text-primary hover:underline"
-                          onClick={() => navigate("pharmacy", "order", { id: o.id })}
-                        >
-                          {o.orderNumber}
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-xs">{formatDate(o.createdAt)}</TableCell>
-                      <TableCell className="text-xs">{o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(o.subtotal)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{o.pharmacy?.commissionPct ?? profile?.commissionPct ?? "—"}%</TableCell>
-                      <TableCell className="text-right text-rose-700 tabular-nums">{formatCurrency(o.commissionTotal)}</TableCell>
-                      <TableCell className="text-right font-medium text-emerald-700 tabular-nums">{formatCurrency(o.subtotal - o.commissionTotal)}</TableCell>
-                      <TableCell><StatusBadge status={o.status} size="sm" /></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile cards */}
-            <ul className="md:hidden divide-y divide-border/60">
-              {filteredOrders.map((o) => (
-                <li key={o.id} className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      className="text-left font-medium text-primary hover:underline"
-                      onClick={() => navigate("pharmacy", "order", { id: o.id })}
-                    >
-                      {o.orderNumber}
-                    </button>
-                    <StatusBadge status={o.status} size="sm" />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · {formatDate(o.createdAt)}
-                  </p>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="rounded-lg bg-muted/40 p-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
-                      <p className="text-sm font-semibold tabular-nums">{formatCurrency(o.subtotal)}</p>
+          <div className="space-y-2">
+            {filteredOrders.map((o) => {
+              const commPct = o.pharmacy?.commissionPct ?? profile?.commissionPct ?? 0;
+              const net = o.subtotal - o.commissionTotal;
+              const isEarned = earnedStatuses.includes(o.status);
+              return (
+                <ExpandableCard
+                  key={o.id}
+                  leading={
+                    <div className={`rounded-lg p-2 ring-1 ${isEarned ? "bg-emerald-50 ring-emerald-100" : "bg-amber-50 ring-amber-100"}`}>
+                      <Package className={`h-4 w-4 ${isEarned ? "text-emerald-600" : "text-amber-600"}`} />
                     </div>
-                    <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                      <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({o.pharmacy?.commissionPct ?? profile?.commissionPct ?? "—"}%)</p>
-                      <p className="text-sm font-semibold text-rose-700 tabular-nums">{formatCurrency(o.commissionTotal)}</p>
+                  }
+                  title={o.orderNumber}
+                  subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · ${formatDate(o.createdAt)} · ${commPct}%`}
+                  trailing={
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(net)}</span>
+                      <StatusBadge status={o.status} size="sm" />
                     </div>
-                    <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
-                      <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
-                      <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(o.subtotal - o.commissionTotal)}</p>
+                  }
+                >
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg bg-muted/40 p-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                        <p className="text-sm font-semibold tabular-nums">{formatCurrency(o.subtotal)}</p>
+                      </div>
+                      <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
+                        <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({commPct}%)</p>
+                        <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(o.commissionTotal)}</p>
+                      </div>
+                      <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
+                        <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
+                        <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(net)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40">
+                      {o.prescriptionId && (
+                        <Badge variant="outline" className="text-[10px] h-5 gap-0.5">
+                          <Hash className="h-2.5 w-2.5" /> Rx
+                        </Badge>
+                      )}
+                      {!isEarned && (
+                        <Badge variant="outline" className="text-[10px] h-5 border-amber-200 bg-amber-50 text-amber-700">
+                          Earns on delivery
+                        </Badge>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-7 px-2 text-xs"
+                        onClick={() => navigate("pharmacy", "order", { id: o.id })}
+                      >
+                        View order <ArrowRight className="h-3 w-3 ml-1" />
+                      </Button>
                     </div>
                   </div>
-                </li>
-              ))}
-            </ul>
+                </ExpandableCard>
+              );
+            })}
 
-            {/* Totals */}
-            <div className="border-t border-border/60 px-4 sm:px-5 py-4 bg-muted/20 space-y-2 text-sm">
+            {/* Totals card */}
+            <div className="rounded-xl border border-border/60 bg-card p-3 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total gross sales</span>
                 <span className="font-medium tabular-nums">{formatCurrency(totalSales)}</span>
@@ -226,9 +202,9 @@ export function PharmacyCommissions() {
                 <span className="font-bold text-lg text-emerald-700 tabular-nums">{formatCurrency(totalNet)}</span>
               </div>
             </div>
-          </>
+          </div>
         )}
-      </SectionCard>
+      </div>
 
       <Alert className="border-muted bg-muted/30">
         <Info className="h-4 w-4" />

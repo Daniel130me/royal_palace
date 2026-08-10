@@ -20,6 +20,7 @@ import {
   FileCheck2, Paperclip, X, FlaskConical,
   User, AlertTriangle, Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type AbnormalIndicator = "normal" | "high" | "low" | "critical";
 
@@ -148,180 +149,176 @@ export function LabResultNew() {
   const indMeta = INDICATOR_META[abnormal];
 
   return (
-    <div className="pb-28 lg:pb-0 space-y-6">
+    <div className="pb-28 lg:pb-0 space-y-4">
       <PageHeader
-        title="Publish laboratory result"
+        title="Publish result"
         description={`For ${request.requestNumber} · ${request.tests.join(", ")}`}
         back
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column */}
-        <div className="space-y-6">
-          <SectionCard title="Patient" icon={User}>
-            <dl className="text-sm space-y-2.5">
-              {request.patient && (
-                <>
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Name</dt><dd className="font-medium text-right">{request.patient.firstName} {request.patient.lastName}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Patient number</dt><dd className="font-medium">{request.patient.patientNumber}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Phone</dt><dd className="font-medium">{request.patient.phone}</dd></div>
-                </>
-              )}
-            </dl>
-          </SectionCard>
+      {/* Compact context card */}
+      <SectionCard title="Patient & request" icon={User}>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Patient</p>
+            <p className="font-medium truncate">
+              {request.patient ? `${request.patient.firstName} ${request.patient.lastName}` : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Request</p>
+            <p className="font-medium font-mono text-xs truncate">{request.requestNumber}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sample type</p>
+            <p className="font-medium">{request.sampleType ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Priority</p>
+            <p className="font-medium capitalize">{request.priority}</p>
+          </div>
+        </div>
+      </SectionCard>
 
-          <SectionCard title="Request" icon={FlaskConical}>
-            <dl className="text-sm space-y-2.5">
-              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Request number</dt><dd className="font-medium">{request.requestNumber}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Sample type</dt><dd className="font-medium">{request.sampleType ?? "—"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Priority</dt><dd className="font-medium capitalize">{request.priority}</dd></div>
-              {request.clinicalIndication && <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Indication</dt><dd className="text-right text-xs leading-relaxed max-w-[60%]">{request.clinicalIndication}</dd></div>}
-              {bookingId && <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Booking ID</dt><dd className="font-mono text-xs">{bookingId}</dd></div>}
-            </dl>
-          </SectionCard>
+      {abnormal === "critical" && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-rose-700 leading-relaxed">
+            On publish, the patient and referring provider will receive a critical-result notification.
+          </p>
+        </div>
+      )}
 
-          {abnormal === "critical" && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-rose-700 leading-relaxed">
-                On publish, the patient and referring provider will receive a notification flagging this critical result.
-              </p>
-            </div>
-          )}
+      {/* Focused result form */}
+      <SectionCard title="Result details" icon={FileCheck2}>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Test *</Label>
+            <Select value={test} onValueChange={setTest}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pick a test" /></SelectTrigger>
+              <SelectContent>
+                {(TEST_OPTIONS.includes(test) ? [] : [test]).concat(TEST_OPTIONS).filter(Boolean).map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="f-unit">Unit</Label>
+            <Input id="f-unit" placeholder="e.g. mmol/L, mg/dL, %" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          </div>
         </div>
 
-        {/* Main form */}
-        <div className="lg:col-span-2">
-          <SectionCard title="Result details" icon={FileCheck2}>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Test *</Label>
-                <Select value={test} onValueChange={setTest}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Pick a test" /></SelectTrigger>
-                  <SelectContent>
-                    {(TEST_OPTIONS.includes(test) ? [] : [test]).concat(TEST_OPTIONS).filter(Boolean).map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="f-unit">Unit</Label>
-                <Input id="f-unit" placeholder="e.g. mmol/L, mg/dL, %" value={unit} onChange={(e) => setUnit(e.target.value)} />
-              </div>
-            </div>
+        <div className="grid sm:grid-cols-2 gap-3 mt-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="f-value">Value *</Label>
+            <Input id="f-value" placeholder="e.g. 6.2" value={value} onChange={(e) => setValue(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="f-rr">Reference range</Label>
+            <Input id="f-rr" placeholder="e.g. < 5.0" value={referenceRange} onChange={(e) => setReferenceRange(e.target.value)} />
+          </div>
+        </div>
 
-            <div className="grid sm:grid-cols-2 gap-3 mt-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="f-scd">Sample collection date</Label>
-                <Input id="f-scd" type="date" value={sampleCollectionDate} onChange={(e) => setSampleCollectionDate(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="f-rd">Result date</Label>
-                <Input id="f-rd" type="date" value={resultDate} onChange={(e) => setResultDate(e.target.value)} />
-              </div>
-            </div>
+        <div className="grid sm:grid-cols-2 gap-3 mt-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="f-scd">Sample collected</Label>
+            <Input id="f-scd" type="date" value={sampleCollectionDate} onChange={(e) => setSampleCollectionDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="f-rd">Result date</Label>
+            <Input id="f-rd" type="date" value={resultDate} onChange={(e) => setResultDate(e.target.value)} />
+          </div>
+        </div>
 
-            <div className="grid sm:grid-cols-2 gap-3 mt-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="f-value">Value *</Label>
-                <Input id="f-value" placeholder="e.g. 6.2" value={value} onChange={(e) => setValue(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="f-rr">Reference range</Label>
-                <Input id="f-rr" placeholder="e.g. < 5.0" value={referenceRange} onChange={(e) => setReferenceRange(e.target.value)} />
-              </div>
-            </div>
+        {/* Abnormal indicator chips */}
+        <div className="space-y-1.5 mt-3">
+          <Label>Abnormal indicator</Label>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(Object.keys(INDICATOR_META) as AbnormalIndicator[]).map((k) => {
+              const meta = INDICATOR_META[k];
+              const active = abnormal === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setAbnormal(k)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all tap-highlight-none",
+                    active
+                      ? `${meta.chipBg} ${meta.chipText} border-current shadow-soft`
+                      : "border-border bg-card text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+                  {meta.label}
+                  {active && <Check className="h-3 w-3" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className={cn("rounded-lg p-2.5 text-xs leading-relaxed ring-1", indMeta.chipBg, indMeta.chipText, indMeta.ring)}>
+            Preview: this result will be flagged as <span className="font-semibold">{indMeta.label.toLowerCase()}</span>.
+          </div>
+        </div>
 
-            {/* Abnormal indicator with color preview */}
-            <div className="space-y-1.5 mt-3">
-              <Label>Abnormal indicator</Label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {(Object.keys(INDICATOR_META) as AbnormalIndicator[]).map((k) => {
-                  const meta = INDICATOR_META[k];
-                  const active = abnormal === k;
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setAbnormal(k)}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all tap-highlight-none ${
-                        active
-                          ? `${meta.chipBg} ${meta.chipText} border-current shadow-soft`
-                          : "border-border bg-card text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-                      {meta.label}
-                      {active && <Check className="h-3 w-3" />}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className={`rounded-lg p-2.5 text-xs leading-relaxed ring-1 ${indMeta.chipBg} ${indMeta.chipText} ${indMeta.ring}`}>
-                Preview: <span className="font-semibold">{indMeta.label}</span> · this result will be flagged as <span className="font-semibold">{indMeta.label.toLowerCase()}</span> for the provider.
-              </div>
-            </div>
+        <div className="space-y-1.5 mt-3">
+          <Label htmlFor="f-int">Interpretation</Label>
+          <Textarea
+            id="f-int"
+            placeholder="Clinical interpretation of the result, recommended next steps…"
+            rows={3}
+            value={interpretation}
+            onChange={(e) => setInterpretation(e.target.value)}
+          />
+        </div>
 
-            <div className="space-y-1.5 mt-3">
-              <Label htmlFor="f-int">Interpretation</Label>
-              <Textarea
-                id="f-int"
-                placeholder="Clinical interpretation of the result, recommended next steps…"
-                rows={4}
-                value={interpretation}
-                onChange={(e) => setInterpretation(e.target.value)}
-              />
-            </div>
+        <div className="space-y-1.5 mt-3">
+          <Label htmlFor="f-rev">Reviewer</Label>
+          <Input id="f-rev" placeholder="e.g. Dr. Funmi Okafor (Lab Director)" value={reviewer} onChange={(e) => setReviewer(e.target.value)} />
+        </div>
 
-            <div className="space-y-1.5 mt-3">
-              <Label htmlFor="f-rev">Reviewer</Label>
-              <Input id="f-rev" placeholder="e.g. Dr. Funmi Okafor (Lab Director)" value={reviewer} onChange={(e) => setReviewer(e.target.value)} />
-            </div>
-
-            <div className="space-y-1.5 mt-3">
-              <Label>Report attachment</Label>
-              {attachment ? (
-                <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="rounded-md bg-primary/10 p-1.5 shrink-0">
-                      <Paperclip className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{attachment.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(attachment.size / 1024).toFixed(1)} KB · {attachment.type || "file"}
-                      </p>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => setAttachment(null)}>
-                    <X className="h-4 w-4" />
-                  </Button>
+        <div className="space-y-1.5 mt-3">
+          <Label>Report attachment</Label>
+          {attachment ? (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="rounded-md bg-primary/10 p-1.5 shrink-0">
+                  <Paperclip className="h-3.5 w-3.5 text-primary" />
                 </div>
-              ) : (
-                <Button type="button" variant="outline" size="sm" onClick={pickAttachment}>
-                  <Paperclip className="h-4 w-4" /> Attach report (metadata only)
-                </Button>
-              )}
-              <p className="text-xs text-muted-foreground">Mock upload — stores file metadata only; no real file is uploaded in the prototype.</p>
-              <input ref={fileInputRef} type="file" className="hidden" aria-hidden="true" tabIndex={-1} />
-            </div>
-
-            {/* Desktop footer */}
-            <div className="hidden lg:flex items-center justify-between gap-2 pt-4 border-t border-border/60 mt-4">
-              <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
-                Publishing this result will mark the request as <span className="font-medium">completed</span> and notify the patient + referring doctor.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate("laboratory", "bookings")} disabled={submitting}>Cancel</Button>
-                <Button disabled={submitting} onClick={submit}>
-                  <FileCheck2 className="h-4 w-4" /> Publish result
-                </Button>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{attachment.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(attachment.size / 1024).toFixed(1)} KB · {attachment.type || "file"}
+                  </p>
+                </div>
               </div>
+              <Button size="sm" variant="ghost" onClick={() => setAttachment(null)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-          </SectionCard>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={pickAttachment}>
+              <Paperclip className="h-4 w-4" /> Attach report (metadata only)
+            </Button>
+          )}
+          <p className="text-xs text-muted-foreground">Mock upload — stores file metadata only; no real file is uploaded in the prototype.</p>
+          <input ref={fileInputRef} type="file" className="hidden" aria-hidden="true" tabIndex={-1} />
         </div>
-      </div>
+
+        {/* Desktop footer */}
+        <div className="hidden lg:flex items-center justify-between gap-2 pt-4 border-t border-border/60 mt-4">
+          <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
+            Publishing this result will mark the request as <span className="font-medium">completed</span> and notify the patient + referring doctor.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("laboratory", "bookings")} disabled={submitting}>Cancel</Button>
+            <Button disabled={submitting} onClick={submit}>
+              <FileCheck2 className="h-4 w-4" /> Publish result
+            </Button>
+          </div>
+        </div>
+      </SectionCard>
 
       {/* Mobile bottom action bar */}
       <BottomActionBar>

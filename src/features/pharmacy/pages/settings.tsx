@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } from "@/components/healthcare/page-header";
-import { MiniMetric } from "@/components/healthcare/metric-card";
+import { StatTile } from "@/components/healthcare/compact-list";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { initials } from "@/lib/format";
-import { Building2, MapPin, Phone, Mail, Star, ShieldAlert, LogOut, Receipt } from "lucide-react";
+import { Building2, MapPin, Phone, Mail, Star, ShieldAlert, LogOut, Receipt, FileText, Bell, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function PharmacySettings() {
@@ -114,11 +114,11 @@ export function PharmacySettings() {
           </Card>
 
           <SectionCard title="Account summary" icon={Building2}>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <MiniMetric label="Orders" value={orders.length} tone="info" />
-              <MiniMetric label="Prescriptions" value={prescriptions.length} tone="violet" />
-              <MiniMetric label="Unread" value={unread} tone={unread > 0 ? "warning" : "default"} />
-              <MiniMetric label="Rating" value={`★ ${profile.rating.toFixed(1)}`} tone="success" />
+            <div className="grid grid-cols-2 gap-2.5 mb-3">
+              <StatTile label="Orders" value={orders.length} icon={Receipt} tone="info" />
+              <StatTile label="Prescriptions" value={prescriptions.length} icon={FileText} tone="violet" />
+              <StatTile label="Unread" value={unread} icon={Bell} tone={unread > 0 ? "warning" : "default"} />
+              <StatTile label="Rating" value={`★ ${profile.rating.toFixed(1)}`} icon={CheckCircle2} tone="success" />
             </div>
             <Separator className="my-2" />
             <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("pharmacy", "dashboard")}>

@@ -5,16 +5,17 @@ import { useNav } from "@/lib/nav";
 import { usePharmacyContext } from "../use-pharmacy-context";
 import { notificationService } from "@/lib/services";
 import type { Notification } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatDateTime } from "@/lib/format";
 import {
   Bell, CheckCheck, ArrowRight, FileText, ShoppingCart, Truck, Package,
   Receipt, Wallet, Info,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const TYPE_ICON: Record<string, { icon: React.ComponentType<{ className?: string }>; tone: string }> = {
   prescription: { icon: FileText, tone: "bg-sky-50 text-sky-600 ring-sky-100" },
@@ -35,11 +36,14 @@ const TYPE_TARGET: Record<string, string> = {
   commission: "commissions",
 };
 
+type NotifTab = "unread" | "all";
+
 export function PharmacyNotifications() {
   const { pharmacyId, unread, refresh } = usePharmacyContext();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<NotifTab>("unread");
   const { navigate } = useNav();
 
   const load = () => {
@@ -100,11 +104,13 @@ export function PharmacyNotifications() {
   };
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+  const rows = tab === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={4} />
       </div>
     );
@@ -112,10 +118,10 @@ export function PharmacyNotifications() {
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Notifications"
-        description={`${unreadCount} unread notification(s).`}
+        description={unreadCount > 0 ? `${unreadCount} unread notification(s).` : "You're all caught up."}
         actions={
           unread > 0 && (
             <Button variant="outline" size="sm" onClick={handleMarkAll}>
@@ -125,55 +131,51 @@ export function PharmacyNotifications() {
         }
       />
 
-      {notifications.length === 0 ? (
+      <SegmentedControl<NotifTab>
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "unread", label: "Unread", badge: unreadCount || undefined },
+          { value: "all", label: "All", badge: notifications.length },
+        ]}
+        size="sm"
+      />
+
+      {rows.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="No notifications"
+          title={tab === "unread" ? "No unread notifications" : "No notifications"}
           description="Order updates, prescription alerts and system messages will appear here."
+          compact
         />
       ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => {
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {rows.map((n) => {
             const cfg = TYPE_ICON[n.type] ?? TYPE_ICON.system;
             const Icon = cfg.icon;
             const isUnread = !n.read;
             return (
-              <Card
+              <CompactListItem
                 key={n.id}
-                className={isUnread ? "border-primary/30 bg-primary/[0.03] shadow-soft" : "opacity-90"}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`rounded-xl p-2 ring-1 shrink-0 ${cfg.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold leading-tight">{n.title}</p>
-                        {isUnread && (
-                          <span className="flex items-center gap-1">
-                            <span className="h-2 w-2 rounded-full bg-primary" />
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/30 bg-primary/5 text-primary">NEW</Badge>
-                          </span>
-                        )}
-                        <span className="text-[10px] rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{n.type}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{n.body}</p>
-                      <p className="text-xs text-muted-foreground mt-1.5">{formatDateTime(n.createdAt)}</p>
-                    </div>
-                    <div className="flex flex-col gap-1.5 shrink-0">
-                      {isUnread && (
-                        <Button size="sm" variant="ghost" onClick={() => handleMarkOne(n.id)}>Mark read</Button>
-                      )}
-                      {n.relatedId && (
-                        <Button size="sm" variant="outline" onClick={() => handleNavigate(n)}>
-                          View <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                        </Button>
-                      )}
-                    </div>
+                leading={
+                  <div className={cn(
+                    "rounded-lg p-2 ring-1",
+                    isUnread ? cfg.tone : "bg-muted text-muted-foreground ring-border/60"
+                  )}>
+                    <Icon className="h-4 w-4" />
                   </div>
-                </CardContent>
-              </Card>
+                }
+                title={n.title}
+                subtitle={n.body}
+                trailing={
+                  <div className="flex flex-col items-end gap-1.5">
+                    {isUnread && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    <span className="text-[10px] text-muted-foreground">{formatDateTime(n.createdAt)}</span>
+                  </div>
+                }
+                onClick={() => handleNavigate(n)}
+                chevron
+              />
             );
           })}
         </div>

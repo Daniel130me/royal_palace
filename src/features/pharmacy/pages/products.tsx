@@ -22,8 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
+import { Fab } from "@/components/healthcare/fab";
 import { formatCurrency, formatDate, genId } from "@/lib/format";
-import { Pill, Plus, Search, Pencil, Package, SlidersHorizontal } from "lucide-react";
+import { Pill, Plus, Search, Pencil, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = [
@@ -81,6 +84,8 @@ function daysUntil(dateStr: string): number {
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 }
 
+type Filter = "all" | "low_stock" | "near_expiry" | "out_of_stock";
+
 export function PharmacyProducts() {
   const { session } = useNav();
   const pharmacyId = session?.profileId ?? null;
@@ -90,6 +95,7 @@ export function PharmacyProducts() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -115,9 +121,21 @@ export function PharmacyProducts() {
     return () => { cancelled = true; };
   }, [pharmacyId]);
 
+  const counts = useMemo(() => ({
+    all: products.length,
+    low_stock: products.filter((p) => p.stockQuantity > 0 && p.stockQuantity < 10 && p.status === "active").length,
+    near_expiry: products.filter((p) => p.status === "active" && daysUntil(p.expiryDate) <= 90).length,
+    out_of_stock: products.filter((p) => p.stockQuantity === 0 && p.status === "active").length,
+  }), [products]);
+
   const filtered = useMemo(() => {
     let list = products;
     if (category !== "all") list = list.filter((p) => p.category === category);
+    switch (filter) {
+      case "low_stock": list = list.filter((p) => p.stockQuantity > 0 && p.stockQuantity < 10 && p.status === "active"); break;
+      case "near_expiry": list = list.filter((p) => p.status === "active" && daysUntil(p.expiryDate) <= 90); break;
+      case "out_of_stock": list = list.filter((p) => p.stockQuantity === 0 && p.status === "active"); break;
+    }
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -128,7 +146,7 @@ export function PharmacyProducts() {
       );
     }
     return list;
-  }, [products, category, query]);
+  }, [products, category, query, filter]);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
@@ -205,7 +223,7 @@ export function PharmacyProducts() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
         <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={6} />
@@ -217,18 +235,18 @@ export function PharmacyProducts() {
   const activeFilters = (category !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 pb-28 lg:pb-0">
       <PageHeader
         title="Product catalogue"
-        description="Manage your pharmacy catalogue, prices, stock and availability."
+        description="Manage prices, stock and availability."
         actions={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} className="hidden lg:inline-flex">
             <Plus className="h-4 w-4" /> Add product
           </Button>
         }
       />
 
-      {/* Search always visible */}
+      {/* Search + category filter */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -285,6 +303,19 @@ export function PharmacyProducts() {
         </Card>
       )}
 
+      {/* Segmented control for status filter */}
+      <SegmentedControl
+        options={[
+          { value: "all" as Filter, label: "All", badge: counts.all },
+          { value: "low_stock" as Filter, label: "Low stock", badge: counts.low_stock },
+          { value: "near_expiry" as Filter, label: "Near expiry", badge: counts.near_expiry },
+          { value: "out_of_stock" as Filter, label: "Out of stock", badge: counts.out_of_stock },
+        ]}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
       {filtered.length === 0 ? (
         <EmptyState
           icon={Pill}
@@ -295,6 +326,7 @@ export function PharmacyProducts() {
               <Plus className="h-4 w-4" /> Add product
             </Button>
           }
+          compact
         />
       ) : (
         <>
@@ -306,7 +338,6 @@ export function PharmacyProducts() {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Strength</TableHead>
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                     <TableHead>Expiry</TableHead>
@@ -333,7 +364,6 @@ export function PharmacyProducts() {
                           </button>
                         </TableCell>
                         <TableCell className="text-xs">{p.category}</TableCell>
-                        <TableCell className="text-xs">{p.strength} {p.dosageForm}</TableCell>
                         <TableCell className="text-right font-medium tabular-nums">{formatCurrency(p.price)}</TableCell>
                         <TableCell className="text-right">
                           <span className={isLow ? "font-semibold text-amber-700" : ""}>
@@ -372,59 +402,47 @@ export function PharmacyProducts() {
             </CardContent>
           </Card>
 
-          {/* Mobile card grid */}
-          <div className="grid gap-3 md:hidden sm:grid-cols-2">
+          {/* Mobile: CompactListItem list */}
+          <div className="md:hidden rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
             {filtered.map((p) => {
               const days = daysUntil(p.expiryDate);
-              const isLow = p.stockQuantity < 10;
+              const isLow = p.stockQuantity > 0 && p.stockQuantity < 10;
+              const isOut = p.stockQuantity === 0;
               const isExpiringSoon = days <= 90;
               const isExpired = days < 0;
               return (
-                <Card key={p.id} className={isLow ? "border-amber-200 bg-amber-50/30" : ""}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <button className="text-left min-w-0 flex-1" onClick={() => navigate("pharmacy", "product", { id: p.id })}>
-                        <p className="font-semibold truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">{p.strength} {p.dosageForm}</p>
-                      </button>
-                      <StatusBadge status={p.status} size="sm" />
+                <CompactListItem
+                  key={p.id}
+                  leading={
+                    <div className={`rounded-lg p-2 ring-1 ${isOut ? "bg-rose-50 ring-rose-100" : isLow ? "bg-amber-50 ring-amber-100" : "bg-muted"}`}>
+                      <Pill className={`h-4 w-4 ${isOut ? "text-rose-600" : isLow ? "text-amber-600" : "text-muted-foreground"}`} />
                     </div>
-                    <div className="mt-3 flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-[10px] h-5">{p.category}</Badge>
-                      {p.prescriptionRequired ? (
-                        <Badge variant="outline" className="text-[10px] h-5 border-sky-200 bg-sky-50 text-sky-700">Rx</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] h-5">OTC</Badge>
+                  }
+                  title={`${p.name} ${p.strength} ${p.dosageForm}`}
+                  subtitle={`${formatCurrency(p.price)} · ${p.brand ?? p.genericName} · Exp ${formatDate(p.expiryDate)}`}
+                  trailing={
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-sm font-bold tabular-nums ${isOut ? "text-rose-700" : isLow ? "text-amber-700" : ""}`}>
+                        {p.stockQuantity}
+                      </span>
+                      {isExpiringSoon && (
+                        <span className={`text-[10px] ${isExpired ? "text-rose-700" : "text-amber-700"}`}>
+                          {isExpired ? "Expired" : "Soon exp"}
+                        </span>
                       )}
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Price</p>
-                        <p className="font-bold tabular-nums">{formatCurrency(p.price)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stock</p>
-                        <p className={`font-bold tabular-nums ${p.stockQuantity === 0 ? "text-rose-700" : isLow ? "text-amber-700" : ""}`}>
-                          {p.stockQuantity}
-                        </p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Expiry</p>
-                        <p className={`text-sm ${isExpired ? "text-rose-700 font-medium" : isExpiringSoon ? "text-amber-700" : ""}`}>
-                          {formatDate(p.expiryDate)}
-                        </p>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => openEdit(p)}>
-                      <Pencil className="h-3.5 w-3.5" /> Edit
-                    </Button>
-                  </CardContent>
-                </Card>
+                  }
+                  onClick={() => navigate("pharmacy", "product", { id: p.id })}
+                  chevron
+                />
               );
             })}
           </div>
         </>
       )}
+
+      {/* FAB (mobile) */}
+      <Fab icon={Plus} label="Add product" onClick={openCreate} className="lg:hidden" />
 
       {/* Add / edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

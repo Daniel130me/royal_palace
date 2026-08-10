@@ -5,25 +5,23 @@ import { useNav, navigate } from "@/lib/nav";
 import { usePharmacyContext } from "../use-pharmacy-context";
 import { prescriptionService } from "@/lib/services";
 import type { Prescription } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
-import { formatDate, initials } from "@/lib/format";
-import { FileText, Search, ArrowRight, ChevronRight } from "lucide-react";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
+import { FileText, Search } from "lucide-react";
 
 const ACTIVE_STATUSES = ["issued", "awaiting_pharmacy", "partially_fulfilled"];
-type TabKey = "active" | "all" | "history";
+type TabKey = "new" | "processing" | "done";
 
 export function PharmacyPrescriptions() {
   const { pharmacyId, loading, error, refresh } = usePharmacyContext();
   const { view } = useNav();
   const [all, setAll] = useState<Prescription[]>([]);
   const [localLoading, setLocalLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>("active");
+  const [tab, setTab] = useState<TabKey>("new");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -36,10 +34,14 @@ export function PharmacyPrescriptions() {
     return () => { cancelled = true; };
   }, [pharmacyId, view.params.refresh]);
 
+  const PROCESSING_STATUSES = ["accepted_by_pharmacy", "partially_fulfilled"];
+  const DONE_STATUSES = ["fulfilled", "rejected", "expired", "cancelled"];
+
   const filtered = useMemo(() => {
     let list = all;
-    if (tab === "active") list = list.filter((p) => ACTIVE_STATUSES.includes(p.status));
-    if (tab === "history") list = list.filter((p) => !ACTIVE_STATUSES.includes(p.status));
+    if (tab === "new") list = list.filter((p) => ACTIVE_STATUSES.includes(p.status));
+    if (tab === "processing") list = list.filter((p) => PROCESSING_STATUSES.includes(p.status));
+    if (tab === "done") list = list.filter((p) => DONE_STATUSES.includes(p.status) || !ACTIVE_STATUSES.includes(p.status));
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -55,16 +57,16 @@ export function PharmacyPrescriptions() {
 
   const counts = useMemo(
     () => ({
-      active: all.filter((p) => ACTIVE_STATUSES.includes(p.status)).length,
-      history: all.filter((p) => !ACTIVE_STATUSES.includes(p.status)).length,
-      all: all.length,
+      new: all.filter((p) => ACTIVE_STATUSES.includes(p.status)).length,
+      processing: all.filter((p) => PROCESSING_STATUSES.includes(p.status)).length,
+      done: all.filter((p) => DONE_STATUSES.includes(p.status) || !ACTIVE_STATUSES.includes(p.status)).length,
     }),
     [all]
   );
 
   if (loading || localLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
         <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={4} />
@@ -73,14 +75,8 @@ export function PharmacyPrescriptions() {
   }
   if (error) return <ErrorState message={error} onRetry={refresh} />;
 
-  const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: "active", label: "Active", count: counts.active },
-    { key: "all", label: "All", count: counts.all },
-    { key: "history", label: "History", count: counts.history },
-  ];
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Prescriptions"
         description="Review and dispense prescriptions sent to your pharmacy."
@@ -97,73 +93,48 @@ export function PharmacyPrescriptions() {
         />
       </div>
 
-      {/* Sticky tabs */}
-      <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 bg-background/90 backdrop-blur-md">
-        <div className="inline-flex rounded-lg border bg-card p-1 overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                tab === t.key ? "bg-primary text-primary-foreground shadow-soft" : "text-muted-foreground hover:bg-accent"
-              }`}
-            >
-              {t.label}
-              <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${tab === t.key ? "bg-primary-foreground/20" : "bg-muted"}`}>
-                {t.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Segmented control */}
+      <SegmentedControl
+        options={[
+          { value: "new" as TabKey, label: "New", badge: counts.new },
+          { value: "processing" as TabKey, label: "Processing", badge: counts.processing },
+          { value: "done" as TabKey, label: "Done", badge: counts.done },
+        ]}
+        value={tab}
+        onChange={setTab}
+        size="sm"
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title={query ? "No matching prescriptions" : "No prescriptions yet"}
-          description={query ? "Try a different search term." : "When a prescription is sent to your pharmacy it will appear here for review."}
+          title={query ? "No matching prescriptions" : "No prescriptions here yet"}
+          description={query ? "Try a different search term." : "Prescriptions in this status will appear here."}
+          compact
         />
       ) : (
-        <div className="space-y-3">
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
           {filtered.map((rx) => (
-            <Card key={rx.id} className="hover:shadow-soft-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold">{rx.prescriptionNumber}</p>
-                      <StatusBadge status={rx.status} size="sm" />
-                      {rx.items?.length ? (
-                        <Badge variant="outline" className="text-[10px] h-5">{rx.items.length} item(s)</Badge>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Avatar className="h-7 w-7 shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
-                          {rx.patient ? initials(`${rx.patient.firstName} ${rx.patient.lastName}`) : "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <p className="text-sm text-muted-foreground leading-relaxed min-w-0">
-                        <span className="font-medium text-foreground">
-                          {rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"}
-                        </span>
-                        {" · "}
-                        Prescriber:{" "}
-                        <span className="font-medium text-foreground">
-                          {rx.provider ? `${rx.provider.title} ${rx.provider.lastName}` : "—"}
-                        </span>
-                      </p>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Issued {formatDate(rx.validityStartDate)} · Expires {formatDate(rx.expiryDate)}
-                    </p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => navigate("pharmacy", "prescription", { id: rx.id })}>
-                    Review <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
+            <CompactListItem
+              key={rx.id}
+              leading={
+                <div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100">
+                  <FileText className="h-4 w-4 text-sky-600" />
                 </div>
-              </CardContent>
-            </Card>
+              }
+              title={rx.prescriptionNumber}
+              subtitle={`${rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"} · Dr. ${rx.provider?.lastName ?? "—"} · ${rx.items?.length ?? 0} item(s)`}
+              trailing={
+                <div className="flex items-center gap-1.5">
+                  {rx.items?.length ? (
+                    <Badge variant="outline" className="text-[10px] h-5">{rx.items.length}</Badge>
+                  ) : null}
+                  <StatusBadge status={rx.status} size="sm" />
+                </div>
+              }
+              onClick={() => navigate("pharmacy", "prescription", { id: rx.id })}
+              chevron
+            />
           ))}
         </div>
       )}

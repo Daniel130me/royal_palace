@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useNav, navigate } from "@/lib/nav";
+import { useEffect, useMemo, useState } from "react";
+import { navigate } from "@/lib/nav";
 import { notificationService } from "@/lib/services";
 import type { Notification } from "@/types";
-import { PageHeader, EmptyState, LoadingState, SkeletonGrid } from "@/components/healthcare/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, EmptyState, SkeletonGrid } from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
+import { cn } from "@/lib/utils";
 import {
   Bell, BellOff, CheckCheck, CalendarDays, Pill, FlaskConical, Package, Info,
 } from "lucide-react";
@@ -32,11 +34,14 @@ const TARGET_PAGE: Record<string, { page: string; paramKey?: string }> = {
   system: { page: "dashboard" },
 };
 
+type NotifTab = "unread" | "all";
+
 export function PatientNotifications() {
   const { profile, refresh } = usePatientContext();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<NotifTab>("unread");
 
   async function load() {
     if (!profile) return;
@@ -68,9 +73,9 @@ export function PatientNotifications() {
     }
   }
 
-  function goto(_n: Notification) {
-    // Navigate to the target page (any notification type → its list page)
-    // We don't have the exact ID, so just go to the list page.
+  function goto(n: Notification) {
+    const target = TARGET_PAGE[n.type] ?? { page: "dashboard" };
+    navigate("patient", target.page);
   }
 
   async function markAllRead() {
@@ -85,17 +90,18 @@ export function PatientNotifications() {
     }
   }
 
-  const unread = notifications.filter((n) => !n.read).length;
+  const unread = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
+  const rows = tab === "unread" ? unread : notifications;
 
   if (loading) return <SkeletonGrid count={4} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Notifications"
-        description={unread > 0 ? `You have ${unread} unread notification${unread === 1 ? "" : "s"}.` : "You're all caught up."}
+        description={unread.length > 0 ? `${unread.length} unread` : "You're all caught up."}
         actions={
-          unread > 0 && (
+          unread.length > 0 && (
             <Button variant="outline" size="sm" onClick={markAllRead}>
               <CheckCheck className="h-4 w-4" /> Mark all read
             </Button>
@@ -103,40 +109,50 @@ export function PatientNotifications() {
         }
       />
 
+      <SegmentedControl<NotifTab>
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "unread", label: "Unread", badge: unread.length || undefined },
+          { value: "all", label: "All" },
+        ]}
+      />
+
       {error ? (
         <EmptyState title="Could not load notifications" description={error} />
-      ) : notifications.length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={BellOff}
-          title="No notifications"
+          title={tab === "unread" ? "No unread notifications" : "No notifications"}
           description="You'll be notified about appointments, prescriptions, lab results and deliveries here."
         />
       ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => {
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {rows.map((n) => {
             const config = ICON_FOR_TYPE[n.type] ?? { icon: Bell, tone: "bg-muted text-muted-foreground ring-border/60" };
             const Icon = config.icon;
-            const target = TARGET_PAGE[n.type] ?? { page: "dashboard" };
             return (
-              <Card
+              <CompactListItem
                 key={n.id}
-                className={`cursor-pointer hover:shadow-soft-md transition-shadow ${!n.read ? "border-primary/30 bg-primary/[0.03]" : ""}`}
-                onClick={() => { markRead(n); navigate("patient", target.page); }}
-              >
-                <CardContent className="p-4 flex items-start gap-3">
-                  <div className={`rounded-xl p-2 shrink-0 ring-1 ${!n.read ? config.tone : "bg-muted text-muted-foreground ring-border/60"}`}>
+                leading={
+                  <div className={cn(
+                    "rounded-lg p-2 ring-1",
+                    !n.read ? config.tone : "bg-muted text-muted-foreground ring-border/60"
+                  )}>
                     <Icon className="h-4 w-4" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-sm leading-tight">{n.title}</p>
-                      {!n.read && <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{n.body}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1.5">{formatDateTime(n.createdAt)}</p>
+                }
+                title={n.title}
+                subtitle={n.body}
+                trailing={
+                  <div className="flex flex-col items-end gap-1.5">
+                    {!n.read && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    <span className="text-[10px] text-muted-foreground">{formatDateTime(n.createdAt)}</span>
                   </div>
-                </CardContent>
-              </Card>
+                }
+                onClick={() => markRead(n)}
+                chevron
+              />
             );
           })}
         </div>

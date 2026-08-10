@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import { pharmacyService, adminService } from "@/lib/services";
 import type { Pharmacy } from "@/types";
@@ -11,14 +11,17 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { MetricCard } from "@/components/healthcare/metric-card";
 import {
   PageHeader, SectionCard, LoadingState, ErrorState, EmptyState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
 import { toast } from "sonner";
-import { Pill, Pencil, MapPin, Phone, Star, Percent, Info } from "lucide-react";
+import { Pill, Pencil, MapPin, Phone, Star, Percent, Info, CheckCircle2, ShieldAlert } from "lucide-react";
 
 const ADMIN_ACTOR_ID = "ADM-001";
+
+type FilterKey = "all" | "verified" | "pending";
 
 export function AdminPharmacyCommissions() {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
@@ -29,6 +32,7 @@ export function AdminPharmacyCommissions() {
   const [pct, setPct] = useState("");
   const [effective, setEffective] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   const load = () => {
     setLoading(true);
@@ -67,9 +71,21 @@ export function AdminPharmacyCommissions() {
     }
   };
 
+  const counts = useMemo(() => ({
+    all: pharmacies.length,
+    verified: pharmacies.filter((p) => p.verificationStatus === "approved").length,
+    pending: pharmacies.filter((p) => p.verificationStatus !== "approved").length,
+  }), [pharmacies]);
+
   const avgCommission = pharmacies.length
     ? pharmacies.reduce((s, p) => s + p.commissionPct, 0) / pharmacies.length
     : 0;
+
+  const visible = useMemo(() => {
+    if (filter === "verified") return pharmacies.filter((p) => p.verificationStatus === "approved");
+    if (filter === "pending") return pharmacies.filter((p) => p.verificationStatus !== "approved");
+    return pharmacies;
+  }, [pharmacies, filter]);
 
   if (loading) {
     return (
@@ -82,52 +98,63 @@ export function AdminPharmacyCommissions() {
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Pharmacy Commissions"
-        description="Configure the platform commission percentage for each pharmacy. Changes apply to newly created orders."
+        description="Configure the platform commission percentage for each pharmacy."
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Pharmacy Commissions" }]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Pharmacies" value={pharmacies.length} icon={Pill} />
-        <MetricCard label="Avg commission" value={`${avgCommission.toFixed(2)}%`} icon={Percent} tone="success" />
-        <MetricCard label="Verified" value={pharmacies.filter((p) => p.verificationStatus === "approved").length} icon={Pill} tone="success" />
-        <MetricCard label="Pending" value={pharmacies.filter((p) => p.verificationStatus !== "approved").length} icon={Pill} tone="warning" />
+      {/* StatTiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Pharmacies" value={counts.all} icon={Pill} />
+        <StatTile label="Avg commission" value={`${avgCommission.toFixed(2)}%`} icon={Percent} tone="success" />
+        <StatTile label="Verified" value={counts.verified} icon={CheckCircle2} tone="success" />
+        <StatTile label="Pending" value={counts.pending} icon={ShieldAlert} tone="warning" />
       </div>
 
-      {pharmacies.length === 0 ? (
-        <EmptyState icon={Pill} title="No pharmacies" description="Pharmacies will appear here once they register." />
+      {/* SegmentedControl filter */}
+      <SegmentedControl
+        options={[
+          { value: "all" as FilterKey, label: "All", badge: counts.all },
+          { value: "verified" as FilterKey, label: "Verified", badge: counts.verified },
+          { value: "pending" as FilterKey, label: "Pending", badge: counts.pending },
+        ]}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
+      {visible.length === 0 ? (
+        <EmptyState icon={Pill} title="No pharmacies" description="No pharmacies match this filter." compact />
       ) : (
-        <SectionCard dense>
-          <ul className="divide-y divide-border/60">
-            {pharmacies.map((p) => (
-              <li key={p.id} className="p-4 flex items-center gap-3 sm:gap-4">
-                <div className="rounded-full bg-primary/10 p-2.5 shrink-0">
-                  <Pill className="h-5 w-5 text-primary" />
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {visible.map((p) => (
+            <CompactListItem
+              key={p.id}
+              leading={
+                <div className="rounded-lg bg-primary/10 p-2 ring-1 ring-primary/10">
+                  <Pill className="h-4 w-4 text-primary" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold truncate">{p.name}</p>
-                    <StatusBadge status={p.verificationStatus} size="sm" />
+              }
+              title={`${p.name} · ${p.city}, ${p.state}`}
+              subtitle={`${p.phone} · ★ ${p.rating.toFixed(1)}`}
+              trailing={
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</span>
+                    <span className="text-sm font-bold text-emerald-700 tabular-nums">{p.commissionPct}%</span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.city}, {p.state}</span>
-                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {p.phone}</span>
-                    <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {p.rating.toFixed(1)}</span>
-                  </div>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEdit(p); }}>
+                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                  </Button>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
-                  <p className="text-xl font-bold text-emerald-700">{p.commissionPct}%</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => openEdit(p)} className="shrink-0">
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
+              }
+              onClick={() => openEdit(p)}
+              chevron
+            />
+          ))}
+        </div>
       )}
 
       {/* Edit dialog */}

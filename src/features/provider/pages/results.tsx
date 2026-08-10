@@ -6,16 +6,18 @@ import { useProviderContext } from "../use-provider-context";
 import { labRequestService } from "@/lib/services";
 import { normalizeLabRequest } from "../normalize";
 import type { LaboratoryRequest, LaboratoryResult } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { formatDate, relativeDay, fullName } from "@/lib/format";
 import { resource } from "@/lib/api-client";
 import { toast } from "sonner";
 import { FlaskConical, ArrowRight, CheckCircle2, AlertTriangle, Search } from "lucide-react";
+
+type Tab = "pending" | "reviewed";
 
 export function ProviderResults() {
   const { view } = useNav();
@@ -26,6 +28,7 @@ export function ProviderResults() {
   const [error, setError] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("pending");
 
   const load = useCallback(async () => {
     if (!providerId) return;
@@ -59,8 +62,10 @@ export function ProviderResults() {
     );
   }, [results, q]);
 
-  const unreviewed = filtered.filter(({ result }) => !result.reviewer);
-  const abnormal = filtered.filter(({ result }) => result.abnormalIndicator && result.abnormalIndicator !== "normal");
+  const pending = filtered.filter(({ result }) => !result.reviewer);
+  const reviewed = filtered.filter(({ result }) => result.reviewer);
+
+  const current = tab === "pending" ? pending : reviewed;
 
   async function markReviewed(resultId: string, patientName: string) {
     setMarkingId(resultId);
@@ -76,72 +81,6 @@ export function ProviderResults() {
     } finally {
       setMarkingId(null);
     }
-  }
-
-  function ResultCard({ request, result }: { request: LaboratoryRequest; result: LaboratoryResult }) {
-    const abnormalFlag = result.abnormalIndicator && result.abnormalIndicator !== "normal";
-    const reviewed = !!result.reviewer;
-    const highlight = result.id === highlightId;
-    return (
-      <Card className={`hover:shadow-soft-md transition-shadow ${highlight ? "ring-2 ring-emerald-400" : ""} ${abnormalFlag ? "border-rose-200" : ""}`}>
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-            <div className={`rounded-xl p-2 shrink-0 ${abnormalFlag ? "bg-rose-50" : "bg-muted"}`}>
-              {abnormalFlag ? <AlertTriangle className="h-5 w-5 text-rose-600" /> : <FlaskConical className="h-5 w-5 text-violet-600" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-semibold">{result.test}</p>
-                {abnormalFlag ? (
-                  <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{result.abnormalIndicator}</Badge>
-                ) : (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">normal</Badge>
-                )}
-                {reviewed && <Badge variant="outline" className="h-5 text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" /> reviewed</Badge>}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {request.patient ? fullName(request.patient) : "Patient"} · {request.requestNumber}
-              </p>
-              <p className="text-xs text-muted-foreground">Collected {formatDate(result.sampleCollectionDate)} · Reported {formatDate(result.resultDate)} · {relativeDay(result.resultDate)}</p>
-
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 text-sm">
-                <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Value</p>
-                  <p className="font-semibold mt-0.5">{result.value} {result.unit}</p>
-                </div>
-                <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Reference range</p>
-                  <p className="font-semibold mt-0.5">{result.referenceRange ?? "—"}</p>
-                </div>
-              </div>
-
-              {result.interpretation && (
-                <p className="text-xs text-muted-foreground mt-2.5 border-t border-border/60 pt-2 leading-relaxed">
-                  <span className="font-medium text-foreground">Interpretation:</span> {result.interpretation}
-                </p>
-              )}
-              {result.reviewer && (
-                <p className="text-xs text-muted-foreground mt-1">Reviewed by: {result.reviewer}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2 shrink-0">
-              {!reviewed ? (
-                <Button size="sm" disabled={markingId === result.id} onClick={() => markReviewed(result.id, request.patient ? fullName(request.patient) : "patient")}>
-                  {markingId === result.id ? "Marking…" : (<><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark reviewed</>)}
-                </Button>
-              ) : (
-                <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 self-end">
-                  <CheckCircle2 className="h-3 w-3 mr-1" /> Acknowledged
-                </Badge>
-              )}
-              <Button size="sm" variant="outline" onClick={() => navigate("provider", "patient", { id: request.patientId })}>
-                Open patient <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
   }
 
   if (loading) {
@@ -167,34 +106,109 @@ export function ProviderResults() {
         }
       />
 
-      <Tabs defaultValue="all">
-        <div className="overflow-x-auto -mx-1 px-1 pb-1">
-          <TabsList className="mb-4">
-            <TabsTrigger value="all">All ({filtered.length})</TabsTrigger>
-            <TabsTrigger value="unreviewed">
-              Pending review ({unreviewed.length})
-              {unreviewed.length > 0 && <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-200 bg-amber-50 text-amber-700 h-4.5">!</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="abnormal">
-              Abnormal ({abnormal.length})
-              {abnormal.length > 0 && <Badge variant="outline" className="ml-1.5 text-[10px] border-rose-200 bg-rose-50 text-rose-700 h-4.5">!</Badge>}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <div className="sticky top-14 lg:top-16 z-20 bg-background/95 backdrop-blur-md pb-3 mb-3">
+        <SegmentedControl
+          value={tab}
+          onChange={(v) => setTab(v as Tab)}
+          options={[
+            { value: "pending", label: "Pending review", icon: AlertTriangle, badge: pending.length || undefined },
+            { value: "reviewed", label: "Reviewed", icon: CheckCircle2, badge: reviewed.length || undefined },
+          ]}
+        />
+      </div>
 
-        <TabsContent value="all" className="space-y-3">
-          {filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No results" description="Lab results will appear here once published." compact /> :
-            filtered.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
-        </TabsContent>
-        <TabsContent value="unreviewed" className="space-y-3">
-          {unreviewed.length === 0 ? <EmptyState icon={CheckCircle2} title="All caught up" description="No results pending your review." compact /> :
-            unreviewed.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
-        </TabsContent>
-        <TabsContent value="abnormal" className="space-y-3">
-          {abnormal.length === 0 ? <EmptyState icon={CheckCircle2} title="No abnormal results" description="All recent results are within normal range." compact /> :
-            abnormal.map(({ request, result }) => <ResultCard key={result.id} request={request} result={result} />)}
-        </TabsContent>
-      </Tabs>
+      {current.length === 0 ? (
+        <EmptyState
+          icon={tab === "pending" ? CheckCircle2 : FlaskConical}
+          title={tab === "pending" ? "All caught up" : "No reviewed results"}
+          description={
+            tab === "pending"
+              ? "No results pending your review."
+              : "Reviewed results will appear here once acknowledged."
+          }
+          compact
+        />
+      ) : (
+        <div className="space-y-2.5">
+          {current.map(({ request, result }) => {
+            const abnormalFlag = result.abnormalIndicator && result.abnormalIndicator !== "normal";
+            const isReviewed = !!result.reviewer;
+            const highlight = result.id === highlightId;
+            return (
+              <ExpandableCard
+                key={result.id}
+                className={highlight ? "ring-2 ring-emerald-400" : ""}
+                title={result.test}
+                subtitle={`${request.patient ? fullName(request.patient) : "Patient"} · ${request.requestNumber} · ${formatDate(result.resultDate)} · ${relativeDay(result.resultDate)}`}
+                leading={
+                  <div className={`rounded-xl p-2 ${abnormalFlag ? "bg-rose-50" : "bg-muted"}`}>
+                    {abnormalFlag
+                      ? <AlertTriangle className="h-4 w-4 text-rose-600" />
+                      : <FlaskConical className="h-4 w-4 text-violet-600" />}
+                  </div>
+                }
+                trailing={
+                  <div className="flex flex-col items-end gap-1">
+                    {abnormalFlag ? (
+                      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{result.abnormalIndicator}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">normal</Badge>
+                    )}
+                    {isReviewed && (
+                      <Badge variant="outline" className="h-5 text-[10px]">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> reviewed
+                      </Badge>
+                    )}
+                  </div>
+                }
+                defaultOpen={highlight}
+              >
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Value</p>
+                      <p className="font-semibold mt-0.5">{result.value} {result.unit}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Reference</p>
+                      <p className="font-semibold mt-0.5">{result.referenceRange ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {result.interpretation && (
+                    <p className="text-xs text-muted-foreground border-t border-border/60 pt-2 leading-relaxed">
+                      <span className="font-medium text-foreground">Interpretation:</span> {result.interpretation}
+                    </p>
+                  )}
+
+                  {result.reviewer && (
+                    <p className="text-xs text-muted-foreground">Reviewed by: {result.reviewer}</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    {!isReviewed ? (
+                      <Button size="sm" disabled={markingId === result.id} onClick={() => markReviewed(result.id, request.patient ? fullName(request.patient) : "patient")}>
+                        {markingId === result.id ? "Marking…" : (<><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark reviewed</>)}
+                      </Button>
+                    ) : (
+                      <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Acknowledged
+                      </Badge>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => navigate("provider", "patient", { id: request.patientId })}>
+                      Open patient <ArrowRight className="h-3 w-3 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              </ExpandableCard>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <p className="text-xs text-muted-foreground">{current.length} result(s)</p>
+      </div>
     </div>
   );
 }

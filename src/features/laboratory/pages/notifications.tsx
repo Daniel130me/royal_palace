@@ -5,15 +5,16 @@ import { notificationService } from "@/lib/services";
 import {
   PageHeader, EmptyState, LoadingState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatDateTime } from "@/lib/format";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Bell, CheckCheck, FlaskConical, CalendarClock, AlertTriangle, Package,
-  Info, Check,
+  Bell, CheckCheck, FlaskConical, CalendarClock, AlertTriangle, Package, Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { Notification } from "@/types";
 
 const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; tone: string }> = {
@@ -29,12 +30,23 @@ function metaFor(n: Notification) {
   return TYPE_META[key] ?? TYPE_META.default;
 }
 
+type FilterKey = "unread" | "all";
+
 export function LabNotifications() {
   const { labId, notifications, loading, reload } = useLabContext();
   const [marking, setMarking] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
-  const sorted = [...notifications].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const sorted = useMemo(
+    () => [...notifications].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [notifications]
+  );
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  const visible = useMemo(() => {
+    if (filter === "unread") return sorted.filter((n) => !n.read);
+    return sorted;
+  }, [sorted, filter]);
 
   const markAllRead = async () => {
     if (!labId) return;
@@ -69,7 +81,7 @@ export function LabNotifications() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Notifications"
         description="Booking requests, result escalations, and platform announcements."
@@ -82,6 +94,7 @@ export function LabNotifications() {
         }
       />
 
+      {/* Unread hero alert */}
       {unreadCount > 0 && (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
           <p className="text-sm font-medium flex items-center gap-2">
@@ -97,44 +110,50 @@ export function LabNotifications() {
         </div>
       )}
 
-      {sorted.length === 0 ? (
+      {/* SegmentedControl filter */}
+      <SegmentedControl
+        options={[
+          { value: "all" as FilterKey, label: "All", badge: notifications.length },
+          { value: "unread" as FilterKey, label: "Unread", badge: unreadCount },
+        ]}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
+      {visible.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="No notifications"
+          title={filter === "unread" ? "No unread notifications" : "No notifications"}
           description="Notifications about new bookings, critical results and platform updates will appear here."
+          compact
         />
       ) : (
-        <div className="space-y-2">
-          {sorted.map((n) => {
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {visible.map((n) => {
             const meta = metaFor(n);
             const Icon = meta.icon;
             return (
-              <Card key={n.id} className={n.read ? "" : "border-primary/30 bg-primary/5"}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`rounded-xl p-2 shrink-0 ring-1 ${n.read ? "bg-muted text-muted-foreground ring-border" : meta.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold leading-tight">{n.title}</p>
-                        {!n.read && (
-                          <span className="text-[10px] font-medium uppercase tracking-wider bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 shrink-0">
-                            New
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{n.body}</p>
-                      <p className="text-xs text-muted-foreground mt-1.5">{formatDateTime(n.createdAt)}</p>
-                    </div>
-                    {!n.read && (
-                      <Button size="iconSm" variant="ghost" onClick={() => markOne(n)} aria-label="Mark read">
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+              <CompactListItem
+                key={n.id}
+                leading={
+                  <div className={cn("rounded-lg p-2 ring-1", n.read ? "bg-muted text-muted-foreground ring-border" : meta.tone)}>
+                    <Icon className="h-4 w-4" />
                   </div>
-                </CardContent>
-              </Card>
+                }
+                title={n.title}
+                subtitle={`${n.body} · ${formatDateTime(n.createdAt)}`}
+                trailing={
+                  !n.read ? (
+                    <Button size="iconSm" variant="ghost" onClick={(e: React.MouseEvent) => { e.stopPropagation(); void markOne(n); }} aria-label="Mark read">
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Read</span>
+                  )
+                }
+                onClick={() => !n.read && markOne(n)}
+              />
             );
           })}
         </div>

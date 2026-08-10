@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { pharmacyOrderService } from "@/lib/services";
 import type { PharmacyOrder } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDateTime, nextOrderStatuses, initials } from "@/lib/format";
 import {
   Truck, MapPin, Package, CheckCircle2, Wallet,
@@ -107,7 +104,7 @@ export function PharmacyOrderDetail() {
   const primaryNext = nextSteps.find((s) => !["rejected", "cancelled", "clarification_required", "partially_available"].includes(s)) ?? null;
 
   return (
-    <div className="pb-28 lg:pb-0">
+    <div className="pb-28 lg:pb-0 space-y-5">
       <PageHeader
         title={order.orderNumber}
         description={`Placed ${formatDateTime(order.createdAt)}`}
@@ -115,8 +112,8 @@ export function PharmacyOrderDetail() {
         actions={<StatusBadge status={order.status} />}
       />
 
-      {/* Status banner */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {/* Status banner — compact */}
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs text-muted-foreground">
           Payment: <span className="font-medium capitalize">{order.paymentStatus}</span>
         </span>
@@ -128,276 +125,213 @@ export function PharmacyOrderDetail() {
       </div>
 
       {(order.status === "ready_for_pickup" || order.status === "picked_up" || order.status === "in_transit" || order.status === "delivered") && (
-        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3 flex items-start gap-2.5">
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex items-start gap-2.5">
           <Truck className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
           <div className="text-sm">
             <p className="font-medium text-sky-900">Logistics handles delivery</p>
             <p className="text-xs text-sky-700 mt-0.5 leading-relaxed">
-              From this point onward, the assigned logistics provider manages pickup, transit and delivery.
+              From here the assigned logistics provider manages pickup, transit and delivery.
             </p>
           </div>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
-        {/* Items + commission breakdown */}
-        <div className="lg:col-span-2 space-y-6">
-          <SectionCard
-            title="Order items & commission"
-            description="Per-item commission breakdown"
-            icon={Package}
-            dense
-          >
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Unit</TableHead>
-                    <TableHead className="text-right">Gross</TableHead>
-                    <TableHead className="text-right">Comm %</TableHead>
-                    <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Pharmacy net</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((it) => (
-                    <TableRow key={it.id}>
-                      <TableCell className="font-medium">{it.productName}</TableCell>
-                      <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(it.unitPrice)}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">{formatCurrency(it.gross)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{it.commissionPct}%</TableCell>
-                      <TableCell className="text-right text-rose-700 tabular-nums">-{formatCurrency(it.commissionAmount)}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.pharmacyNet)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {items.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
-                        No items in this order.
-                      </TableCell>
-                    </TableRow>
+      {/* Order items as ExpandableCards (commission breakdown on expand) */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          Order items · {items.length} item(s) · commission breakdown
+        </p>
+        <div className="space-y-2">
+          {items.map((it) => (
+            <ExpandableCard
+              key={it.id}
+              leading={<div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100"><Package className="h-4 w-4 text-sky-600" /></div>}
+              title={it.productName}
+              subtitle={`Qty ${it.quantity} · ${formatCurrency(it.unitPrice)} each · Net ${formatCurrency(it.pharmacyNet)}`}
+              trailing={<span className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.gross)}</span>}
+            >
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-muted/40 p-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                  <p className="text-sm font-semibold tabular-nums">{formatCurrency(it.gross)}</p>
+                </div>
+                <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
+                  <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({it.commissionPct}%)</p>
+                  <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(it.commissionAmount)}</p>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
+                  <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
+                  <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.pharmacyNet)}</p>
+                </div>
+              </div>
+            </ExpandableCard>
+          ))}
+          {items.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground py-6 rounded-xl border border-border/60 bg-card">
+              No items in this order.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Totals compact summary */}
+      <SectionCard title="Order total" icon={Wallet} dense>
+        <div className="px-4 sm:px-5 py-3 space-y-1.5 text-sm bg-muted/20">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal (gross)</span>
+            <span className="font-medium tabular-nums">{formatCurrency(subtotal || order.subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Platform commission ({order.pharmacy?.commissionPct ?? "—"}%)</span>
+            <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(commissionTotal || order.commissionTotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pharmacy net (before delivery fee)</span>
+            <span className="font-medium text-emerald-700 tabular-nums">{formatCurrency(pharmacyNet)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Delivery fee</span>
+            <span className="tabular-nums">{formatCurrency(order.deliveryFee)}</span>
+          </div>
+          <Separator className="my-2" />
+          <div className="flex justify-between items-center">
+            <span className="font-semibold">Order total</span>
+            <span className="font-bold text-lg tabular-nums">{formatCurrency(order.total)}</span>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Fulfilment timeline */}
+      <SectionCard title="Fulfilment workflow" icon={Clock}>
+        <ol className="relative border-l-2 border-border ml-2 space-y-4 mb-4">
+          {TIMELINE.map((step, idx) => {
+            const done = idx < currentIdx;
+            const current = idx === currentIdx;
+            return (
+              <li key={step.status} className="ml-4">
+                <span
+                  className={`absolute -left-[9px] flex h-4 w-4 items-center justify-center rounded-full border-2 ${
+                    done
+                      ? "bg-emerald-500 border-emerald-500"
+                      : current
+                      ? "bg-primary border-primary ring-4 ring-primary/20"
+                      : "bg-background border-border"
+                  }`}
+                >
+                  {done && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
+                  {current && <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className={`text-sm font-medium ${current || done ? "text-foreground" : "text-muted-foreground"}`}>
+                    {step.label}
+                  </p>
+                  {current && (
+                    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary text-[10px]">
+                      Current
+                    </Badge>
                   )}
-                </TableBody>
-              </Table>
-            </div>
+                  <Badge variant="outline" className={
+                    step.owner === "pharmacy"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]"
+                      : "border-sky-200 bg-sky-50 text-sky-700 text-[10px]"
+                  }>
+                    {step.owner}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{step.description}</p>
+              </li>
+            );
+          })}
+        </ol>
 
-            {/* Mobile per-item cards */}
-            <ul className="md:hidden divide-y divide-border/60">
-              {items.map((it) => (
-                <li key={it.id} className="p-4">
-                  <p className="text-sm font-semibold leading-tight">{it.productName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Qty {it.quantity} · {formatCurrency(it.unitPrice)} each</p>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="rounded-lg bg-muted/40 p-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
-                      <p className="text-sm font-semibold tabular-nums">{formatCurrency(it.gross)}</p>
-                    </div>
-                    <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                      <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({it.commissionPct}%)</p>
-                      <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(it.commissionAmount)}</p>
-                    </div>
-                    <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
-                      <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
-                      <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.pharmacyNet)}</p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-              {items.length === 0 && (
-                <li className="text-center text-sm text-muted-foreground py-6">No items in this order.</li>
-              )}
-            </ul>
-
-            {/* Totals */}
-            <div className="border-t border-border/60 px-4 sm:px-5 py-4 space-y-1.5 text-sm bg-muted/20">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal (gross)</span>
-                <span className="font-medium tabular-nums">{formatCurrency(subtotal || order.subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Platform commission ({order.pharmacy?.commissionPct ?? "—"}%)</span>
-                <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(commissionTotal || order.commissionTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Pharmacy net (before delivery fee)</span>
-                <span className="font-medium text-emerald-700 tabular-nums">{formatCurrency(pharmacyNet)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Delivery fee</span>
-                <span className="tabular-nums">{formatCurrency(order.deliveryFee)}</span>
-              </div>
-              <Separator className="my-2" />
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">Order total</span>
-                <span className="font-bold text-lg tabular-nums">{formatCurrency(order.total)}</span>
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Fulfilment timeline */}
-          <SectionCard title="Fulfilment workflow" icon={Clock}>
-            <ol className="relative border-l-2 border-border ml-2 space-y-5 mb-5">
-              {TIMELINE.map((step, idx) => {
-                const done = idx < currentIdx;
-                const current = idx === currentIdx;
+        {!isTerminal && nextSteps.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Available actions</p>
+            <div className="flex flex-wrap gap-2">
+              {nextSteps.map((s) => {
+                const isReject = s === "rejected" || s === "cancelled";
+                const isClarification = s === "clarification_required";
+                const isPartial = s === "partially_available";
                 return (
-                  <li key={step.status} className="ml-5">
-                    <span
-                      className={`absolute -left-[10px] flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        done
-                          ? "bg-emerald-500 border-emerald-500"
-                          : current
-                          ? "bg-primary border-primary ring-4 ring-primary/20"
-                          : "bg-background border-border"
-                      }`}
-                    >
-                      {done && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
-                      {current && <span className="h-2 w-2 rounded-full bg-primary-foreground" />}
-                    </span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`text-sm font-medium ${current || done ? "text-foreground" : "text-muted-foreground"}`}>
-                        {step.label}
-                      </p>
-                      {current && (
-                        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary text-[10px]">
-                          Current
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className={
-                        step.owner === "pharmacy"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]"
-                          : "border-sky-200 bg-sky-50 text-sky-700 text-[10px]"
-                      }>
-                        {step.owner}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{step.description}</p>
-                  </li>
+                  <Button
+                    key={s}
+                    variant={isReject || isClarification || isPartial ? "outline" : "default"}
+                    className={
+                      isReject ? "text-rose-700 hover:bg-rose-50 hover:text-rose-800 border-rose-200" :
+                      isClarification ? "text-amber-700 hover:bg-amber-50 hover:text-amber-800 border-amber-200" :
+                      isPartial ? "text-violet-700 hover:bg-violet-50 hover:text-violet-800 border-violet-200" : ""
+                    }
+                    disabled={busy}
+                    onClick={() => handleProgress(s)}
+                  >
+                    {humanise(s)}
+                  </Button>
                 );
               })}
-            </ol>
-
-            {!isTerminal && nextSteps.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Available actions</p>
-                <div className="flex flex-wrap gap-2">
-                  {nextSteps.map((s) => {
-                    const isReject = s === "rejected" || s === "cancelled";
-                    const isClarification = s === "clarification_required";
-                    const isPartial = s === "partially_available";
-                    return (
-                      <Button
-                        key={s}
-                        variant={isReject || isClarification || isPartial ? "outline" : "default"}
-                        className={
-                          isReject ? "text-rose-700 hover:bg-rose-50 hover:text-rose-800 border-rose-200" :
-                          isClarification ? "text-amber-700 hover:bg-amber-50 hover:text-amber-800 border-amber-200" :
-                          isPartial ? "text-violet-700 hover:bg-violet-50 hover:text-violet-800 border-violet-200" : ""
-                        }
-                        disabled={busy}
-                        onClick={() => handleProgress(s)}
-                      >
-                        {humanise(s)}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                This order has reached a terminal state and cannot be progressed further.
-              </p>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* Right: summary cards */}
-        <div className="space-y-6">
-          <SectionCard title="Patient" icon={User}>
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar className="h-11 w-11 shrink-0">
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                  {order.patient ? initials(`${order.patient.firstName} ${order.patient.lastName}`) : "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{order.patient ? `${order.patient.firstName} ${order.patient.lastName}` : "—"}</p>
-                <p className="text-xs text-muted-foreground">{order.patient?.patientNumber ?? "—"}</p>
-              </div>
             </div>
-            <dl className="text-sm space-y-2.5">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Phone</dt>
-                <dd className="text-right">{order.patient?.phone ?? "—"}</dd>
-              </div>
-            </dl>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            This order has reached a terminal state and cannot be progressed further.
+          </p>
+        )}
+      </SectionCard>
+
+      {/* Patient + delivery compact */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Patient" icon={User}>
+          <div className="flex items-center gap-3 mb-3">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                {order.patient ? initials(`${order.patient.firstName} ${order.patient.lastName}`) : "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{order.patient ? `${order.patient.firstName} ${order.patient.lastName}` : "—"}</p>
+              <p className="text-xs text-muted-foreground">{order.patient?.patientNumber ?? "—"} · {order.patient?.phone ?? "—"}</p>
+            </div>
+          </div>
+        </SectionCard>
+
+        {order.deliveryAddress && (
+          <SectionCard title="Delivery address" icon={MapPin}>
+            <p className="text-sm leading-relaxed">{order.deliveryAddress}</p>
           </SectionCard>
+        )}
 
-          {order.deliveryAddress && (
-            <SectionCard title="Delivery address" icon={MapPin}>
-              <p className="text-sm leading-relaxed">{order.deliveryAddress}</p>
-            </SectionCard>
-          )}
+        <SectionCard title="Pharmacy" icon={Building2}>
+          <dl className="text-sm space-y-1.5">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Branch</dt>
+              <dd className="text-right">{order.pharmacy ? `${order.pharmacy.city}, ${order.pharmacy.state}` : "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Phone</dt>
+              <dd className="text-right">{order.pharmacy?.phone ?? "—"}</dd>
+            </div>
+          </dl>
+        </SectionCard>
 
-          <SectionCard title="Pharmacy" icon={Building2}>
-            <dl className="text-sm space-y-2.5">
+        {order.prescription && (
+          <SectionCard title="Linked prescription" icon={ShieldCheck}>
+            <dl className="text-sm space-y-1.5">
               <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Pharmacy</dt>
-                <dd className="font-medium text-right">{order.pharmacy?.name ?? "—"}</dd>
+                <dt className="text-muted-foreground">Rx number</dt>
+                <dd className="font-medium font-mono text-xs">{order.prescription.prescriptionNumber}</dd>
               </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Branch</dt>
-                <dd className="text-right">{order.pharmacy ? `${order.pharmacy.city}, ${order.pharmacy.state}` : "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Phone</dt>
-                <dd className="text-right">{order.pharmacy?.phone ?? "—"}</dd>
-              </div>
-            </dl>
-          </SectionCard>
-
-          <SectionCard title="Payment" icon={Wallet}>
-            <dl className="text-sm space-y-2.5">
               <div className="flex justify-between gap-3">
                 <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-medium capitalize">{order.paymentStatus}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Order total</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(order.total)}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Pharmacy net</dt>
-                <dd className="font-medium text-emerald-700 tabular-nums">{formatCurrency(pharmacyNet)}</dd>
+                <StatusBadge status={order.prescription.status} size="sm" />
               </div>
             </dl>
           </SectionCard>
-
-          {order.prescription && (
-            <SectionCard title="Linked prescription" icon={ShieldCheck}>
-              <dl className="text-sm space-y-2.5">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Rx number</dt>
-                  <dd className="font-medium font-mono text-xs">{order.prescription.prescriptionNumber}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Status</dt>
-                  <StatusBadge status={order.prescription.status} size="sm" />
-                </div>
-              </dl>
-            </SectionCard>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Mobile bottom bar with primary action */}
       {!isTerminal && primaryNext && (
         <BottomActionBar>
-          <Button className="w-full" disabled={busy} onClick={() => handleProgress(primaryNext)}>
+          <Button className="flex-1" disabled={busy} onClick={() => handleProgress(primaryNext)}>
             <CheckCircle2 className="h-4 w-4" /> {humanise(primaryNext)}
           </Button>
         </BottomActionBar>

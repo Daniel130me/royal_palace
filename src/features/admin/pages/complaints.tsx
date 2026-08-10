@@ -10,25 +10,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Collapsible, CollapsibleTrigger, CollapsibleContent,
-} from "@/components/ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { MetricCard } from "@/components/healthcare/metric-card";
 import {
-  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid, SectionCard,
+  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import {
-  MessageSquareWarning, Search, Filter, ShieldAlert, CheckCircle2,
-  AlertTriangle, SlidersHorizontal,
+  MessageSquareWarning, Search, ShieldAlert, CheckCircle2, AlertTriangle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const STATUS_FLOW = ["open", "investigating", "resolved", "closed"];
+
+type FilterKey = "open" | "resolved" | "all";
 
 const PRIORITY_TONES: Record<string, string> = {
   low: "bg-muted text-muted-foreground border-border",
@@ -42,13 +44,12 @@ export function AdminComplaints() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [filter, setFilter] = useState<FilterKey>("open");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [selected, setSelected] = useState<Complaint | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -61,21 +62,26 @@ export function AdminComplaints() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(() => {
+  const counts = useMemo(() => ({
+    open: complaints.filter((c) => ["open", "investigating"].includes(c.status)).length,
+    resolved: complaints.filter((c) => ["resolved", "closed"].includes(c.status)).length,
+    all: complaints.length,
+  }), [complaints]);
+
+  const urgentCount = complaints.filter((c) => c.priority === "urgent").length;
+
+  const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return complaints
       .filter((c) => {
-        if (statusFilter !== "all" && c.status !== statusFilter) return false;
+        if (filter === "open" && !["open", "investigating"].includes(c.status)) return false;
+        if (filter === "resolved" && !["resolved", "closed"].includes(c.status)) return false;
         if (priorityFilter !== "all" && c.priority !== priorityFilter) return false;
         if (!q) return true;
         return `${c.subject} ${c.description} ${c.complainantId} ${c.complainantType}`.toLowerCase().includes(q);
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [complaints, search, statusFilter, priorityFilter]);
-
-  const openCount = complaints.filter((c) => ["open", "investigating"].includes(c.status)).length;
-  const resolvedCount = complaints.filter((c) => ["resolved", "closed"].includes(c.status)).length;
-  const urgentCount = complaints.filter((c) => c.priority === "urgent").length;
+  }, [complaints, search, filter, priorityFilter]);
 
   const openDetail = (c: Complaint) => {
     setSelected(c);
@@ -108,141 +114,88 @@ export function AdminComplaints() {
   }
   if (error) return <ErrorState message={error} onRetry={load} />;
 
-  const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (priorityFilter !== "all" ? 1 : 0);
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Complaints"
-        description="Triage and resolve complaints raised by patients and partners across the platform."
+        description="Triage and resolve complaints raised by patients and partners."
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Complaints" }]}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Open" value={openCount} icon={ShieldAlert} tone={openCount > 0 ? "warning" : "default"} />
-        <MetricCard label="Resolved / Closed" value={resolvedCount} icon={CheckCircle2} tone="success" />
-        <MetricCard label="Urgent" value={urgentCount} icon={AlertTriangle} tone={urgentCount > 0 ? "danger" : "default"} />
-        <MetricCard label="Total" value={complaints.length} icon={MessageSquareWarning} />
+      {/* StatTiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Open" value={counts.open} icon={ShieldAlert} tone="warning" />
+        <StatTile label="Resolved" value={counts.resolved} icon={CheckCircle2} tone="success" />
+        <StatTile label="Urgent" value={urgentCount} icon={AlertTriangle} tone={urgentCount > 0 ? "danger" : "default"} />
+        <StatTile label="Total" value={counts.all} icon={MessageSquareWarning} />
       </div>
 
-      {/* Search + mobile filter toggle */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Subject, description, complainant…" className="pl-9" />
-        </div>
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="lg:hidden">
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="Filters" className="relative">
-              <SlidersHorizontal className="h-4 w-4" />
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
-                  {activeFilterCount}
-                </span>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Subject, description, complainant…" className="pl-9" />
+      </div>
+
+      {/* SegmentedControl filter */}
+      <SegmentedControl
+        options={[
+          { value: "open" as FilterKey, label: "Open", badge: counts.open },
+          { value: "resolved" as FilterKey, label: "Resolved", badge: counts.resolved },
+          { value: "all" as FilterKey, label: "All", badge: counts.all },
+        ]}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
+      {/* Priority filter chips */}
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 lg:mx-0 lg:px-0">
+        {["all", "urgent", "high", "normal", "low"].map((p) => {
+          const active = priorityFilter === p;
+          const count = p === "all" ? complaints.length : complaints.filter((c) => c.priority === p).length;
+          return (
+            <button
+              key={p}
+              onClick={() => setPriorityFilter(p)}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all tap-highlight-none",
+                active ? "bg-primary text-primary-foreground shadow-soft" : "bg-card border border-border/60 text-muted-foreground hover:bg-accent"
               )}
-            </Button>
-          </CollapsibleTrigger>
-        </Collapsible>
+            >
+              {p === "all" ? "All priorities" : p}
+              <span className={cn("text-[10px] rounded-full px-1", active ? "bg-primary-foreground/20" : "bg-muted")}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Mobile collapsible filters */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="lg:hidden">
-        <CollapsibleContent>
-          <SectionCard title="Filters" icon={SlidersHorizontal}>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    {STATUS_FLOW.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Priority</Label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All priorities</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </SectionCard>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* Desktop inline filters */}
-      <div className="hidden lg:block">
-        <SectionCard title="Filters" icon={SlidersHorizontal}>
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px_180px]">
-            <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1"><Search className="h-3 w-3" /> Search</Label>
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Subject, description, complainant…" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1"><Filter className="h-3 w-3" /> Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {STATUS_FLOW.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1"><Filter className="h-3 w-3" /> Priority</Label>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </SectionCard>
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState icon={MessageSquareWarning} title="No complaints" description="No complaints match your filters." />
+      {visible.length === 0 ? (
+        <EmptyState icon={MessageSquareWarning} title="No complaints" description="No complaints match your filters." compact />
       ) : (
-        <SectionCard dense>
-          <ul className="divide-y divide-border/60">
-            {filtered.map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() => openDetail(c)}
-                  className="w-full text-left p-4 hover:bg-accent/40 flex items-start gap-3 tap-highlight-none transition-colors"
-                >
-                  <div className={`rounded-md p-2 shrink-0 ${PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal}`}>
-                    <MessageSquareWarning className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium truncate">{c.subject}</p>
-                      <StatusBadge status={c.status} size="sm" />
-                      <span className={`text-[10px] font-medium uppercase tracking-wider rounded-md px-1.5 py-0.5 border ${PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal}`}>{c.priority}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{c.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {c.complainantType} · {c.complainantId} · {formatDateTime(c.createdAt)}
-                    </p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {visible.map((c) => (
+            <CompactListItem
+              key={c.id}
+              leading={
+                <div className={cn("rounded-lg p-2 border", PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal)}>
+                  <MessageSquareWarning className="h-4 w-4" />
+                </div>
+              }
+              title={c.subject}
+              subtitle={`${c.complainantType} · ${c.complainantId} · ${formatDateTime(c.createdAt)}`}
+              trailing={
+                <div className="flex flex-col items-end gap-1">
+                  <StatusBadge status={c.status} size="sm" />
+                  <span className={cn("text-[10px] font-medium uppercase tracking-wider rounded-md px-1.5 py-0.5 border", PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal)}>
+                    {c.priority}
+                  </span>
+                </div>
+              }
+              onClick={() => openDetail(c)}
+              chevron
+            />
+          ))}
+        </div>
       )}
 
       {/* Detail / status update dialog */}
@@ -258,7 +211,7 @@ export function AdminComplaints() {
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               <div className="flex flex-wrap gap-2">
                 <StatusBadge status={selected.status} size="sm" />
-                <span className={`text-xs font-medium uppercase tracking-wider rounded-md px-2 py-0.5 border ${PRIORITY_TONES[selected.priority] ?? PRIORITY_TONES.normal}`}>
+                <span className={cn("text-xs font-medium uppercase tracking-wider rounded-md px-2 py-0.5 border", PRIORITY_TONES[selected.priority] ?? PRIORITY_TONES.normal)}>
                   Priority: {selected.priority}
                 </span>
               </div>
@@ -267,7 +220,7 @@ export function AdminComplaints() {
                 <p className="text-sm leading-relaxed">{selected.description}</p>
               </div>
               <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider"><Filter className="h-3 w-3" /> Update status</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Update status</p>
                 <div className="space-y-1.5">
                   <Label htmlFor="status" className="text-xs">New status</Label>
                   <Select value={newStatus} onValueChange={setNewStatus}>

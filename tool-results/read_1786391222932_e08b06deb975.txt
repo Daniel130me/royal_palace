@@ -1,0 +1,282 @@
+   500→Stage Summary:
+   501→- All 13 pharmacy + 5 logistics portal pages now use the new D1 design system consistently (emerald primary, warm off-white bg, white rounded-2xl shadow-soft cards, SectionCard / MiniMetric / SkeletonGrid / StatusBadge sm / EmptyState compact / PageHeader back / BottomActionBar).
+   502→- Pharmacy priorities met: dashboard has SkeletonGrid + MetricCards + amber alert cards for low stock/near expiry; prescription detail has prominent rose allergy banner + dosage chips + BottomActionBar; order detail has clear ITEM-LEVEL COMMISSION table (desktop real table / mobile 3-col card grid) + vertical status timeline + workflow buttons; products has search + category filter (collapsible on mobile) + card grid + Dialog add/edit; inventory has tabs + quick stock-update.
+   503→- Logistics priorities met: dashboard has spotlight card with quick Accept button (emerald) + available assignment highlighting (amber ring) + active delivery tracking; delivery has vertical 9-step status timeline + BottomActionBar with prominent inline verification code input when confirming delivery + masked code until delivered + only permitted fields shown (no clinical info); earnings has MetricCards + per-delivery payout table → cards on mobile.
+   504→- 0 lint errors. Dev server runs clean. All cross-portal journeys (patient → doctor → pharmacy → logistics) preserved.
+   505→
+   506→---
+   507→Task ID: D4b
+   508→Agent: frontend-styling-expert (laboratory + admin portal polish)
+   509→Task: Polish ALL laboratory (11) + admin (15) portal pages to match the D1–D3 design system (emerald primary, warm off-white bg, white rounded-2xl cards, SectionCard / MiniMetric / StatusBadge size="sm" / SkeletonGrid / PageHeader back / BottomActionBar / Avatar, mobile-first).
+   510→
+   511→Work Log:
+   512→Polished every file under `src/features/laboratory/pages/` and `src/features/admin/pages/`. Functionality, service calls, state machines, and types are unchanged — only presentation/markup. All `"use client"` headers preserved.
+   513→
+   514→LABORATORY PORTAL (11 files):
+   515→1. `dashboard.tsx` — SkeletonGrid loading (4 metric + 2 panel placeholders); prominent rose-tinted critical-results alert banner at top when populated; 8 MetricCards with tones (warning/info/danger/success/violet); MiniMetric row (today's bookings, home collections, settled total, pending payout); Avatar in today's booking rows; SectionCards for incoming requests / today's bookings / in-progress / home collections / critical results / recent results; CheckCircle2 affirmation when no critical results; consistent `divide-y` lists on dense SectionCards.
+   516→2. `requests.tsx` — SkeletonGrid loading; sticky tabs bar (top-14 lg:top-16 backdrop-blur); horizontal-scroll tab list; consistent StatusBadge size="sm"; Fasting pill in amber.
+   517→3. `request.tsx` — PageHeader with `back` prop; Avatar + patient identity card with consent-policy notice (Lock icon, primary-tinted); clinical indication as prominent muted-bg callout (NOT full patient history); Accept & Book SectionCard with primary-tinted border; Booking details SectionCard with vertical workflow; WORKFLOW_LABELS for next-status buttons ("Mark sample collected", "Start processing", etc.); emerald ShieldCheck "Workflow complete" affirmation when terminal; BottomActionBar for Accept on mobile; BookingDialog retained.
+   518→4. `bookings.tsx` — SkeletonGrid loading; sticky tabs; Avatar per booking; Home/Facility pill in violet/sky tones; HORIZONTAL status timeline (5 steps: Booked → Sample collected → Processing → Quality review → Completed) with CheckCircle2 for done steps + primary-coloured current step; Upload-result button when status allows; View request ghost button.
+   519→5. `results.tsx` — SkeletonGrid loading; sticky tabs (All/Critical/Abnormal/Normal); Collapsible cards with chevron; rose-tinted border for critical results; expanded view shows grid of fields with uppercase tracking labels; Notify provider button on critical results (toast confirmation).
+   520→6. `result-new.tsx` — PageHeader with `back`; SectionCards for Patient/Request/Result details; abnormal indicator chips with colored preview swatch (normal=emerald, high=rose, low=amber, critical=rose) + Check icon when active; preview description below chips shows what will be flagged; attachment chip with Paperclip icon (mock upload); reviewer field; rose-tinted alert when abnormal=critical; BottomActionBar with Cancel + Publish on mobile; desktop inline footer.
+   521→7. `critical-results.tsx` — SkeletonGrid loading; prominent amber protocol notice card at top; rose-tinted result cards with AlertTriangle icon; grid of fields with uppercase labels; Notify Provider destructive button with simulated latency; View result outline button.
+   522→8. `services.tsx` — SkeletonGrid loading; sky-tinted "pricing set by Royal Palace" callout with Lock icon; service cards with active/inactive badge, patient pays/payout/margin breakdown in muted-bg mini-box, effective-from date.
+   523→9. `settlements.tsx` — SkeletonGrid loading; 4 MetricCards (Total/Settled/Pending/Commission) + 4 MiniMetrics (Total gross/Total net/Settlements/Bookings); how-it-works SectionCard; settlement history SectionCard with desktop Table + mobile card list (3-col gross/commission/net breakdown).
+   524→10. `notifications.tsx` — SkeletonGrid loading; primary-tinted unread summary banner with animated ping dot; type-coloured icon chips (violet for lab_request, sky for booking, rose for critical_result, amber for order, emerald for default); unread cards use primary/5 bg + "NEW" badge; iconSm check button to mark read.
+   525→11. `settings.tsx` — SectionCards for Laboratory / Verification / Profile; Avatar-style icon header; verification status hero card tone-coloured by status (emerald when approved, amber when pending); proper uppercase tracking labels.
+   526→
+   527→ADMIN PORTAL (15 files):
+   528→1. `dashboard.tsx` — SkeletonGrid loading (8 metric + 2 panel placeholders); 12 MetricCards in 3 rows (Network/Activity/Finance) with tones; 4 MiniMetrics row (open complaints, expiring licences, audit events, avg ticket); Avatar in pending verifications list; pending verifications + recent audit SectionCards + open complaints + expiring licences (amber border when populated, AlertCircle icon tone-coloured by criticality).
+   529→2. `providers.tsx` — SkeletonGrid loading; mobile collapsible filter (SlidersHorizontal icon button with active-count badge); always-visible search input; SectionCard for filters on desktop; Avatar with initials per provider; StatusBadge size="sm"; license-expiry highlighted in rose/amber when <30d/<90d.
+   530→3. `provider.tsx` — SkeletonGrid loading; PageHeader with back; Avatar header in Personal & contact; 5 SectionCards (Personal & contact, Professional details, Registration & licence, Government ID & bank, Supporting documents); verification SectionCard with status-tone background (emerald/amber/rose); verification history as vertical timeline with primary-coloured dots; BottomActionBar on mobile with primary action (Approve/Suspend/Reactivate) + iconSm buttons for Request Info / Reject; notes dialog + confirmation AlertDialog retained.
+   531→4. `pricing.tsx` — SkeletonGrid loading; category SectionCards (7 categories, tone icons); each service row has 3-col price breakdown (patient/payout/margin) responsive (3-col on mobile, inline on desktop); inactive-history count shown; Edit dialog with live margin auto-calc + margin % + amber comparison banner; history dialog with 3-col breakdown per price record.
+   532→5. `pharmacy-commissions.tsx` — SkeletonGrid loading; 4 MetricCards; SectionCard dense list of pharmacies with tone-coloured Pill icon, commission % prominent in emerald, Edit dialog with current vs new comparison.
+   533→6. `payments.tsx` — SkeletonGrid loading; 7 MetricCards (4 + 3); mobile collapsible filter; desktop inline filter; SectionCard dense with desktop Table + mobile card list.
+   534→7. `settlements.tsx` — SkeletonGrid loading; 4 MetricCards; mobile/desktop filter SectionCards; SectionCard dense with desktop Table (totals footer) + mobile card list (3-col breakdown per settlement); Mark-as-paid button.
+   535→8. `audit.tsx` — SkeletonGrid loading; 4 MetricCards (Total/Filtered/Admin/Latest); mobile/desktop filter SectionCards; CSV export; SectionCard dense list with Clock icon chip per event, StatusBadge for role-based coloring.
+   536→9. `complaints.tsx` — SkeletonGrid loading; 4 MetricCards (Open/Resolved/Urgent/Total); mobile/desktop filter SectionCards (status + priority); SectionCard dense list with priority-tone-coloured MessageSquareWarning icon; Dialog (replaced ad-hoc modal) for detail + status update with Textarea note; default Button variant (no hardcoded emerald-600).
+   537→10. `appointments.tsx` — SkeletonGrid loading; 4 MetricCards (Total/Today/Upcoming/Completed); mobile/desktop filter SectionCards (status + channel); SectionCard dense with desktop Table + mobile card list; channel icons (Video/Phone/MapPin/MessageSquare).
+   538→11. `orders.tsx` — SkeletonGrid loading; 4 MetricCards (Total/GMV/Commission/Delivered); mobile/desktop filter SectionCards; SectionCard dense with desktop Table + mobile card list (2-col total/commission breakdown).
+   539→12. `deliveries.tsx` — SkeletonGrid loading; 4 MetricCards (Total/In Transit/Delivered/Payout); mobile/desktop filter SectionCards; SectionCard dense with desktop Table + mobile card list (recipient/payout/code breakdown).
+   540→13. `users.tsx` — SkeletonGrid loading; 4 MetricCards (Total/Active/Pending/Suspended); mobile/desktop filter SectionCards (role + status); SectionCard dense with desktop Table + mobile card list with full-width Change Status button; Status edit dialog retained.
+   541→14. `reports.tsx` — SkeletonGrid loading; 4 MetricCards (GTV/Platform Revenue/Avg Ticket/Top Provider); 4 MiniMetrics row; SectionCards wrap each chart (Consultations 14d bar chart, Cumulative payments 14d line chart, Commission revenue by entity pie chart, Appointment status mix horizontal bar chart); responsive 2-col on mobile via lg:grid-cols-2; top-providers dense SectionCard list with rank circles + progress bar.
+   542→15. `settings.tsx` — PageHeader with desktop inline Save + Reset actions; BottomActionBar for mobile Save; SectionCards for Localisation & support, Commission & margin defaults, Platform controls; maintenance-mode banner with amber tone; `accent-primary` checkbox.
+   543→
+   544→Cross-cutting patterns applied:
+   545→- All hardcoded `bg-emerald-600 hover:bg-emerald-700` button overrides replaced with default Button variant (primary token IS emerald).
+   546→- All `bg-emerald-100 text-emerald-700` avatar/header divs replaced with `<Avatar><AvatarFallback>` using `bg-primary/10 text-primary` tokens.
+   547→- Titled panels migrated from `Card + CardHeader + CardTitle` to `SectionCard` (icon + title + description + action + dense).
+   548→- `SkeletonGrid` loading states replace `LoadingState` spinners on all dashboards and list pages.
+   549→- `MiniMetric` used for compact sub-stats on dashboards.
+   550→- `StatusBadge size="sm"` in list rows.
+   551→- `EmptyState compact` for inline empties in dense lists.
+   552→- Tabs wrapped in `sticky top-14 lg:top-16 z-20 backdrop-blur-md` for horizontal scroll on mobile.
+   553→- `tracking-tight` headings, `leading-relaxed` body text, `uppercase tracking-wider` labels throughout.
+   554→- Mobile-first filter pattern: always-visible search input + SlidersHorizontal icon button (with active-count badge) that toggles a Collapsible SectionCard on mobile; SectionCard visible inline on desktop.
+   555→- All list pages: desktop Table + mobile card-list pattern (divide-y divide-border/60, p-4 per item).
+   556→- `pb-28 lg:pb-0` on pages with BottomActionBar (request.tsx, result-new.tsx, provider.tsx, settings.tsx) to clear the mobile bottom bar.
+   557→
+   558→Stage Summary:
+   559→- All 26 laboratory + admin portal pages now use the new D1 design system consistently (emerald primary, warm off-white background, white rounded-2xl cards with shadow-soft, SectionCard / MiniMetric / SkeletonGrid / Avatar / StatusBadge size="sm" / EmptyState compact / PageHeader back / BottomActionBar).
+   560→- `bun run lint` → 0 errors (1 harmless pre-existing warning in prisma/seed.ts).
+   561→- `bunx tsc --noEmit` → 0 NEW errors introduced in admin/ files (admin was previously clean, still clean). Laboratory type errors are pre-existing (LaboratoryBooking/LaboratoryResult include patient/request at runtime via API includes, but type declarations don't reflect it — same pattern as original code; per D2 worklog, pre-existing lab type errors are tolerated).
+   562→- `bun run build` → Compiled successfully in 19.2s. All 22 routes generated.
+   563→- No service calls, types, or functionality changed — only presentation. All existing flows preserved (request accept+book, result publish, workflow progression, provider verification with notes dialog + confirm, pricing edit with margin auto-calc, commission update, settlement mark-as-paid, complaint status update, user status update, settings save to localStorage).
+   564→- Work record: this task block.
+   565→
+   566→---
+   567→Task ID: A1
+   568→Agent: main (orchestrator)
+   569→Task: App-like UX overhaul — new app components + patient dashboard refactored to compact launchpad.
+   570→
+   571→Work Log:
+   572→- Created `src/components/healthcare/segmented-control.tsx` — iOS-style SegmentedControl (2-4 options, inline tabs, badge support). Saves vertical space vs. Tabs.
+   573→- Created `src/components/healthcare/fab.tsx` — Floating Action Button (sits above bottom tab bar on mobile, bottom-right on desktop).
+   574→- Created `src/components/healthcare/compact-list.tsx`:
+   575→  * `CompactListItem` — dense one-line list row (leading/title/subtitle/trailing/chevron).
+   576→  * `ExpandableCard` — list row that expands inline to reveal detail (saves a navigation).
+   577→  * `StatTile` — small tappable stat tile (denser than MetricCard, 2x2/4-col grids).
+   578→- Refactored `src/features/patient/pages/dashboard.tsx` from 403 lines → ~230 lines as a compact LAUNCHPAD:
+   579→  * Greeting + inline DependantSwitcher (popover, not a separate screen).
+   580→  * Hero card: next appointment (or gradient CTA if none) — ONE card, not a section.
+   581→  * Quick actions: 4-col icon grid (Consult/Lab/Pharmacy/Records).
+   582→  * Stats: 4 StatTiles in a row (Visits/Rx/Labs/Orders) — tappable to their pages.
+   583→  * "Action needed" section: max 1 of each pending type (lab/rx/order), compact rows.
+   584→  * "Recent updates": top 3 notifications as CompactListItems.
+   585→  * Removed: long health summary (moved to Records), care plan card (in Records), full notifications list, profile card (in Settings). Result: fits on one mobile screen with minimal scroll.
+   586→- Patterns established: SectionLabel, ActionRow, NextAppointmentCard, DependantSwitcher inline popover.
+   587→
+   588→Stage Summary:
+   589→- New app-like components available: SegmentedControl, Fab, CompactListItem, ExpandableCard, StatTile.
+   590→- Patient dashboard is now a true launchpad — minimal scroll, every card navigates to a dedicated screen.
+   591→- Next: refactor Records (407 lines) to use SegmentedControl tabs + ExpandableCard timeline + collapsed summary; refactor encounter workspace (792 lines) mobile to tabbed full-screen panels; refactor other long lists.
+   592→
+   593→---
+   594→Task ID: A2
+   595→Agent: frontend-styling-expert
+   596→Task: App-like UX refactor for 8 patient portal pages — SegmentedControl + CompactListItem + ExpandableCard + StatTile + Fab.
+   597→
+   598→Work Log:
+   599→Refactored all files under `src/features/patient/pages/` (no files outside that directory were touched).
+   600→
+   601→1. `records.tsx` (407 → 517 lines, but visually far more compact):
+   602→   - Replaced `Tabs` + sticky `TabsList` with `SegmentedControl` ("Summary" | "Timeline" | "Care Plan") at top — 3 options, not 6.
+   603→   - Removed giant health-summary-at-top-of-scroll (was always visible); now it's the **Summary tab**.
+   604→   - **Summary tab**: 4 `StatTile`s in a 2×2 / 4-col grid (Conditions/Allergies/Medicines/Referrals) — tappable to jump to Timeline. Plus 3 inline `HealthMiniList`s (capped at 4 items each) + "Recent activity" mini-list (top 3 timeline items) as `CompactListItem` rows.
+   605→   - **Timeline tab**: replaced the per-event full expanded cards with `ExpandableCard` per item — collapsed by default showing kind-icon + title + status + date; tap to expand inline details (e.g. lab result Value/Reference range/Indicator/Lab, prescription items list + dates). Plus a horizontal-scroll filter chips row (All/Consultations/Prescriptions/Lab/Referrals/Orders) with counts — denser than the old `TabsTrigger` row.
+   606→   - **Care Plan tab**: active care plan card with goals rendered as emerald checklist chips (`CheckCircle2` + text) — no longer buried in the side column.
+   607→   - All navigation + service calls preserved (appointment/prescription/lab/order/referral/carePlan/encounter/diagnosis).
+   608→
+   609→2. `appointments.tsx` (148 → 134 lines):
+   610→   - `SegmentedControl` ("Upcoming" | "Completed" | "Cancelled") with badge on Upcoming — replaces 3-col `TabsList`.
+   611→   - `CompactListItem` rows (Avatar + provider + specialty/date/time + StatusBadge + Join button for upcoming video + chevron) — denser than full Card with flex columns.
+   612→   - Empty state CTA preserved.
+   613→
+   614→3. `prescriptions.tsx` (142 → ~135 lines):
+   615→   - `SegmentedControl` ("Active" / "Fulfilled" / "All") with count badges — compresses 6 status TabsTriggers to 3 grouped options.
+   616→   - Sticky search bar (`top-14 lg:top-16`) above the SegmentedControl — preserves mobile sticky behavior.
+   617→   - `CompactListItem` rows (Pill icon + Rx number + provider/date/items + StatusBadge + Order button for active + chevron).
+   618→   - Search filter logic + sort + counts preserved.
+   619→
+   620→4. `orders.tsx` (124 → ~125 lines):
+   621→   - `SegmentedControl` ("Active" / "Delivered" / "All") with count badges — compresses 3-col `TabsList`.
+   622→   - `CompactListItem` rows (Package icon + order number + pharmacy/items/date + total price + StatusBadge + chevron).
+   623→   - Search + sort + counts + CTA preserved.
+   624→
+   625→5. `laboratory.tsx` (398 → ~470 lines incl. booking sheet):
+   626→   - `SegmentedControl` ("Pending" / "Bookings" / "Results") with count badges — replaces 4 stacked `SectionCard`s.
+   627→   - **Pending**: amber-tinted `CompactListItem` rows with "Book" trailing button + Fasting badge.
+   628→   - **Bookings**: compact card rows with mini status timeline (Booked → Sample → Result) using `CheckCircle2`/`Clock` chips + connecting line; StatusBadge; "in progress" hint.
+   629→   - **Results**: `ExpandableCard` per result — collapsed: test name + lab + date + value + Normal/Abnormal badge; expanded: full Value/Reference range/Indicator/Sample collected/Result published/Reviewer + interpretation block.
+   630→   - `LabBookingSheet` bottom sheet fully preserved (Select lab, facility/home mode, date grid, time slots, fee summary, prototype notice, confirm/cancel).
+   631→
+   632→6. `notifications.tsx` (147 → ~140 lines):
+   633→   - `SegmentedControl` ("Unread" | "All") with unread badge — replaces no-tabs flat list.
+   634→   - `CompactListItem` rows (type-colored icon chip + title + body + unread dot + timestamp + chevron).
+   635→   - "Mark all read" button in PageHeader actions (preserved).
+   636→
+   637→7. `family.tsx` (316 → ~290 lines):
+   638→   - Member grid: **2-col on mobile**, 3-col on desktop (was 3-col everywhere — too cramped on phone).
+   639→   - Selected member highlighted with `ring-primary/30` + shadow.
+   640→   - Member card tightened (avatar 11×11, h-8 buttons, smaller dl text).
+   641→   - Active-context banner compacted (single row, 3 elements).
+   642→   - "Add dependant" as a **dashed card** at the end of the grid AND a **`Fab`** floating bottom-right (primary emerald, with label "Add dependant").
+   643→   - `pb-24 lg:pb-0` to clear the Fab on mobile.
+   644→   - `AddDependantDialog` fully preserved (all fields, validation, toast, setActivePatient).
+   645→
+   646→8. `consent.tsx` (220 → ~210 lines):
+   647→   - `SegmentedControl` ("Active" / "Revoked" / "All") with count badges — replaces 4-tab Tabs (dropped the static "Pending" empty-state-only tab).
+   648→   - `ExpandableCard` per grant — collapsed: avatar + grantee + reason + StatusBadge; expanded: organisation + info-shared chips + granted/expires dates + Revoke button.
+   649→   - "Consent preferences" section moved out of tabs into a standalone `SectionCard` below the list — always visible, no extra tab needed.
+   650→   - `AlertDialog` revoke confirmation fully preserved.
+   651→
+   652→Cross-cutting patterns applied:
+   653→- All 8 patient pages now use `SegmentedControl` for 2-3 option screen-switching (vs. `Tabs`).
+   654→- `CompactListItem` for all list rows (denser than `Card`-based rows) — divide-y in a single bordered container.
+   655→- `ExpandableCard` for items with detail (timeline events, lab results, consent grants) — collapses detail by default, reducing scroll.
+   656→- `StatTile` for the records Summary tab.
+   657→- `Fab` on the family page for primary "Add dependant" CTA.
+   658→- All `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` imports removed from these 8 files.
+   659→- All existing service calls, navigation, validation, toasts, dialogs, bottom sheets preserved — only presentation/structure changed.
+   660→- Mobile-first 2-col grids where appropriate; horizontal-scroll filter chips with `overflow-x-auto` (scrollbar-visible thin style from existing globals.css).
+   661→- StatusBadge size="sm" everywhere in list rows.
+   662→
+   663→Stage Summary:
+   664→- All 8 patient portal list/timeline pages now app-like: phone-screen-fitting with minimal scroll, denser lists, inline-expandable details.
+   665→- `bunx eslint src/features/patient/pages/` → 0 errors, 0 warnings.
+   666→- `bunx tsc --noEmit` → 0 errors in `src/features/patient/pages/**` (pre-existing lab portal type errors tolerated per worklog).
+   667→- `bun run build` → Compiled successfully in 20.3s, all 22 routes generated.
+   668→- One pre-existing lint error remains in `src/features/provider/pages/dashboard.tsx` (HeroAppointmentCard creates a component during render via `channelIcon(...)`) — this is from a prior agent's work in the provider portal, NOT introduced by this task, and is outside this task's file scope (`src/features/patient/pages/` only).
+   669→- Next: same app-like treatment could be applied to detail pages (appointment-detail, prescription-detail, order-detail) and provider/pharmacy/lab portal list pages.
+   670→
+   671→---
+   672→Task ID: A3
+   673→Agent: frontend-styling-expert
+   674→Task: App-like UX refactor for Doctor Portal — SegmentedControl + CompactListItem + ExpandableCard + StatTile patterns applied to 10 provider pages, with mobile-first encounter workspace refactor.
+   675→
+   676→Work Log:
+   677→Refactored all 10 files under `src/features/provider/pages/`. No files outside that directory were touched. Functionality, service calls, state machines, dialogs, toasts, and types unchanged — only presentation/structure.
+   678→
+   679→1. `encounter.tsx` (792 → 1128 lines, but visually far more compact on mobile):
+   680→   - Replaced the long single-column mobile stack with a `SegmentedControl` (Patient | Notes | Actions) — each tab is a focused full-screen view. The previous mobile experience required scrolling through patient summary + SOAP form + clinical actions + bottom bar all stacked vertically (~3 screens of scroll). Now each tab fits in ≤1 screen.
+   681→   - **Patient tab**: PatientSummaryBody reworked to use `ExpandableCard` sections (Active conditions / Current medications / Recent consultations / Recent lab results / Active prescriptions). Allergies stay as a prominent rose banner at top (always visible). Demographics header at top with avatar + patientNumber + age/gender/bloodGroup.
+   682→   - **Notes tab**: SOAP form broken into 5 `ExpandableCard` sections (Subjective / Objective / Assessment / Plan / Follow-up & Attachments). Each card has a tone-coloured leading icon (sky / emerald / violet / amber / primary) and a rose "!" badge trailing when required fields in that section are missing. Autosave chip at top of the tab. Required-field validation visible inline (`ring-rose-400/60 border-rose-300` + "This field is required" message).
+   683→   - **Actions tab**: large tappable action cards (Create prescription / Order lab test / Create referral / Book follow-up / Send patient instructions) with tone-coloured icons + chevron. Linked records summary as a 4-tile grid (Rx / Labs / Refs / Dx counts). Consultation fee compact card. "Record signed" emerald card when locked. Each action opens its existing dialog (PrescriptionDialog / LabRequestDialog / ReferralDialog) or fires the existing toast.
+   684→   - **Desktop**: 3-panel layout (`lg:grid-cols-[280px_1fr_320px]`) preserved verbatim — left patient summary sticky, centre SOAP SectionCard with all fields laid out vertically, right clinical-actions sidebar with vertical buttons + linked records + complete CTA + fee.
+   685→   - **Locked encounter**: emerald "Signed Clinical Record" banner at top, all SoapField `disabled={true}`, all action buttons disabled, mobile BottomActionBar shows a signed-banner variant. Read-only mode preserved.
+   686→   - **Mobile BottomActionBar**: replaced the old chip-row + Complete pattern with a cleaner layout — left side shows "Complete consultation" label + (missing fields count or "Validates & signs the record"), right side shows the primary Complete button. When locked, shows a "Signed clinical record" banner with ShieldCheck icon. When complete() detects missing required fields, auto-switches mobile tab to "notes" so user sees the validation errors inline.
+   687→   - NotesPanel renders both desktop (`hidden lg:block` SectionCard) and mobile (`lg:hidden` ExpandableCards) layouts from the same props — textareas share state via `doc` prop, autosave fires on either.
+   688→   - ActionsPanel `variant="sidebar"` (desktop) vs `variant="cards"` (mobile) — both share the same action handlers.
+   689→   - All state (encounter, patient, history, prescriptions, labRequests, doc, diagnosisCode, attachments, saving, completing, missingFields, dialog open states), autosave logic, complete() validation, PrescriptionDialog/LabRequestDialog/ReferralDialog wiring preserved.
+   690→
+   691→2. `dashboard.tsx` (532 → 488 lines, far more compact):
+   692→   - Compact launchpad pattern matching patient dashboard.
+   693→   - Greeting header (title + specialty + city) with inline verification status pill (emerald when approved, amber otherwise).
+   694→   - Compact amber licence-expiry warning card (only when <90 days) — tappable to verification page.
+   695→   - **Hero card**: next today's appointment with Start CTA (or gradient CTA when none scheduled).
+   696→   - 4-tile quick-actions grid (Appointments / Patients / Lab results / Referrals) — tone-coloured icon tiles.
+   697→   - 4-tile `StatTile` row (Today / Pending docs / Lab review / Referrals) — tappable to respective pages.
+   698→   - 3-tile MiniMetric row (Today's earnings / Settled total / Follow-ups).
+   699→   - "Action needed" compact list — up to 4 items aggregated from waiting patients + pending documentation + unreviewed lab results (CompactListItem rows with tone-coloured leading icons + chevrons).
+   700→   - 2-col grid: Upcoming follow-ups + Incoming referrals (SectionCards with CompactListItem lists).
+   701→   - Verification mini-card at bottom.
+   702→   - All service calls (appointments/encounters/labRequests/referrals/settlements), startConsultation() flow, navigation, toasts preserved.
+   703→
+   704→3. `appointments.tsx` (215 → 207 lines):
+   705→   - `SegmentedControl` (Today | Upcoming | Done | All) with count badges — replaces horizontal-scroll `TabsList`.
+   706→   - Sticky above content (`top-14 lg:top-16 backdrop-blur`).
+   707→   - `CompactListItem` rows — Avatar + "time · patient name" title + "date · duration · reason · channel" subtitle + StatusBadge + Start/Continue button trailing + chevron.
+   708→   - `Row` sub-component kept inside `ProviderAppointments` body (avoids `react-hooks/static-components` lint rule that fires on top-level components with `const Icon = channelIcon(...)`).
+   709→   - All filtering, search, startConsultation() flow preserved.
+   710→
+   711→4. `patients.tsx` (144 → 133 lines):
+   712→   - Search input preserved.
+   713→   - Patient grid replaced with `CompactListItem` rows (denser) — Avatar + name + "patientNumber · age · gender · visit count · last visit date" subtitle + active-allergy badge trailing + chevron. Tap navigates to patient detail.
+   714→   - "View appointments" ghost button at bottom.
+   715→   - All patient-loading logic, search filter, lastVisitByPatient memo preserved.
+   716→
+   717→5. `patient.tsx` (385 → 530 lines — gained density via expandable sections):
+   718→   - Patient identity banner at top (avatar + name + age/gender/blood/genotype + allergy badge).
+   719→   - Upcoming appointment inline emerald card with Start encounter CTA in PageHeader actions.
+   720→   - `SegmentedControl` (Overview | Records | Activity) — replaces the lg:grid-cols-3 two-column layout and the inner Tabs (Encounters/Prescriptions/Labs/Referrals).
+   721→   - **Overview tab**: Demographics SectionCard (compact dl + 4-tile vitals grid + emergency contact when present); Allergy banner (rose when active, emerald when none); `ExpandableCard` for Conditions / Medications.
+   722→   - **Records tab**: 4 `ExpandableCard`s — Encounters (CompactListItem rows inside), Prescriptions (per-rx card with items list), Lab results (per-result card with value/reference/interpretation), Referrals (CompactListItem rows). Each ExpandableCard has a tone-coloured leading icon + count subtitle.
+   723→   - **Activity tab**: Upcoming + Past appointments as CompactListItem lists.
+   724→   - All service calls (patient/appointments/prescriptions/labRequests/referrals/encounters), startNewEncounter() flow, navigation preserved.
+   725→
+   726→6. `prescriptions.tsx` (120 → 154 lines):
+   727→   - `SegmentedControl` (All | Active | Filled | Expired) with count badges — added tabbed filtering where there was none before (was just a flat list).
+   728→   - `CompactListItem` rows — Pill icon + Rx number + "patient · issued date · relative · valid until" subtitle + StatusBadge trailing + chevron.
+   729→   - Search + sort + counts preserved.
+   730→
+   731→7. `laboratory-requests.tsx` (166 → 167 lines):
+   732→   - `SegmentedControl` (Pending | In progress | Completed | All) with count badges — replaces 4-tab TabsList.
+   733→   - `CompactListItem` rows — tone-coloured FlaskConical icon (violet when has result, amber when pending, muted otherwise) + request number + "patient · tests · date" subtitle + StatusBadge + priority + awaiting badge + chevron.
+   734→   - Tap navigates to result (when has result) or patient detail.
+   735→   - Search + sort + counts preserved.
+   736→
+   737→8. `referrals.tsx` (178 → 188 lines):
+   738→   - `SegmentedControl` (Received | Sent) with icons (Inbox/Send) + pending-action badge on Received — replaces 2-tab TabsList.
+   739→   - Pending-action inline panel (amber-tinted) at top of Received tab with Accept/Decline buttons for each pending referral — moved out of per-row actions to a dedicated action zone.
+   740→   - `CompactListItem` rows for both tabs — tone-coloured Inbox/Send icon (amber for received, sky for sent; rose ring when emergency + needs action) + referral number + "reason · from/to · patient · date" subtitle + StatusBadge + urgency badge trailing + chevron.
+   741→   - All actOnReferral() logic, accept/decline toasts, navigation preserved.
+   742→
+   743→9. `results.tsx` (200 → 214 lines):
+   744→   - `SegmentedControl` (Pending review | Reviewed) with count badges + icons (AlertTriangle / CheckCircle2) — replaces 3-tab TabsList (All/Pending/Abnormal → simplified to 2 tabs per task spec).
+   745→   - `ExpandableCard` per result — collapsed: tone-coloured icon (rose when abnormal, violet when normal) + test name + "patient · request · date" subtitle + Normal/Abnormal badge + reviewed badge. Expanded: Value + Reference range 2-col grid + interpretation + reviewer + Mark reviewed / Open patient action buttons.
+   746→   - Highlight ring preserved when navigating from notification (`?id=` URL param).
+   747→   - All markReviewed() logic, search filter, reviewer name format preserved.
+   748→
+   749→10. `earnings.tsx` (193 → 252 lines):
+   750→    - Replaced 4 MetricCards + 4 MiniMetrics with a 4-tile stat row (Today / This week / Settled / Pending payout) — denser inline stat tiles with icon + value + hint.
+   751→    - `SegmentedControl` (All | Paid | Pending) with count badges — added filtering to the settlement list.
+   752→    - `ExpandableCard` per settlement — collapsed: settlement number + period + relative day + StatusBadge; expanded: 3-col Gross / Platform fee (rose) / Net payout (emerald) breakdown.
+   753→    - Activity summary as a CompactListItem-based dense list (Total / Completed paid / Gross billed / Est. provider share).
+   754→    - Payout schedule SectionCard preserved (commission rate / payout share / contact info).
+   755→    - Export statement toast preserved.
+   756→
+   757→Cross-cutting patterns applied to all 10 provider pages:
+   758→- `SegmentedControl` for 2-4 option screen-switching (replaces `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent`).
+   759→- `CompactListItem` for dense list rows in divide-y bordered containers (replaces Card-based rows).
+   760→- `ExpandableCard` for items with detail (encounter SOAP sections, patient overview sections, lab results, settlements) — collapses detail by default.
+   761→- `StatTile` for dashboard quick-glance stats.
+   762→- All `Tabs` imports removed from these 10 files.
+   763→- Sticky SegmentedControl pattern: `sticky top-14 lg:top-16 z-20 bg-background/95 backdrop-blur-md pb-3 mb-2` — clears mobile/desktop AppShell headers.
+   764→- Mobile `pb-28 lg:pb-0` on encounter page to clear the BottomActionBar.
+   765→- All existing service calls, navigation, validation, toasts, dialogs (PrescriptionDialog / LabRequestDialog / ReferralDialog) preserved — only presentation/structure changed.
+   766→
+   767→Lint / type-check:
+   768→- `bun run lint` → 0 errors (1 harmless pre-existing warning in `prisma/seed.ts`).
+   769→- `bunx tsc --noEmit` → 0 NEW errors in `src/features/provider/**`. Pre-existing laboratory portal + admin/providers type errors tolerated per prior worklogs (the admin/providers error is from another agent's uncommitted work and outside this task's file scope).
+   770→- `bun run build` → Compiled successfully in 19.6s, all 22 routes generated.
+   771→- Note: the previously-noted "HeroAppointmentCard creates a component during render" lint error from prior agent's uncommitted work on `dashboard.tsx` was eliminated by this refactor — the icon lookup is now inlined as an IIFE inside the component body (avoiding the `react-hooks/static-components` rule that fires on top-level components with `const Icon = someFunction(...)` patterns).
+   772→
+   773→Stage Summary:
+   774→- All 10 provider portal pages now app-like: phone-screen-fitting with minimal scroll, denser lists, inline-expandable details.
+   775→- Encounter workspace: mobile is now 3 focused tabs (Patient/Notes/Actions) instead of a 3-screen vertical stack — each tab fits in ≤1 phone screen. Desktop 3-panel layout preserved verbatim.
+   776→- Doctor dashboard is a true launchpad — greeting, hero appointment CTA, 4 StatTiles, action-needed list — minimal scroll.
+   777→- All list pages use SegmentedControl + CompactListItem for ≤1-screen-of-scroll browsing.
+   778→- Detail page (patient) uses SegmentedControl tabs with ExpandableCard sections to consolidate 4-card grid + 4-tab tabs into one screen with 3 tabs.
+   779→- 0 lint errors. Build clean. All clinical workflows (start consultation → document SOAP → prescribe / order labs / refer → complete & sign) preserved.
+
+[showing lines 500-779 of 780; use offset=780 with limit to continue reading]

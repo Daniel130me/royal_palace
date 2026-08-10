@@ -4,22 +4,21 @@ import { useMemo, useState } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { useLogisticsContext } from "../use-logistics-context";
 import type { Delivery } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDateTime } from "../delivery-helpers";
 import {
   Package, MapPin, User, Search, ArrowRight, PackageCheck,
   Truck, Clock,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Filter = "available" | "active" | "completed";
-
-const COMPLETED_STATUSES = ["delivered", "failed", "returned", "cancelled"];
 
 export function LogisticsAssignments() {
   const { view } = useNav();
@@ -28,8 +27,7 @@ export function LogisticsAssignments() {
   const [search, setSearch] = useState("");
 
   const list = useMemo<Delivery[]>(() => {
-    const base =
-      filter === "available" ? available : filter === "active" ? active : completed;
+    const base = filter === "available" ? available : filter === "active" ? active : completed;
     if (!search.trim()) return base;
     const q = search.toLowerCase();
     return base.filter(
@@ -55,7 +53,7 @@ export function LogisticsAssignments() {
 
   if (loading && deliveries.length === 0 && !error) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
         <div className="h-10 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={6} />
@@ -67,41 +65,34 @@ export function LogisticsAssignments() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
-        title="My assignments"
-        description="Deliveries allocated to your logistics account. Filter by stage or search by delivery number, location, or recipient."
+        title="Assignments"
+        description="Pickups and deliveries allocated to you."
       />
 
-      {/* Search always visible */}
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by delivery number, pickup, recipient…"
+          placeholder="Search by delivery no., location, recipient…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      <Tabs
+      {/* Segmented control */}
+      <SegmentedControl
+        options={[
+          { value: "available" as Filter, label: "Available", badge: available.length },
+          { value: "active" as Filter, label: "Active", badge: active.length },
+          { value: "completed" as Filter, label: "Done", badge: completed.length },
+        ]}
         value={filter}
-        onValueChange={(v) => { navigate("logistics", "assignments", { tab: v }); }}
-      >
-        <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 bg-background/90 backdrop-blur-md">
-          <TabsList className="w-full sm:w-auto flex-wrap h-auto">
-            <TabsTrigger value="available" className="flex-1 sm:flex-initial">
-              Available ({available.length})
-            </TabsTrigger>
-            <TabsTrigger value="active" className="flex-1 sm:flex-initial">
-              Active ({active.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="flex-1 sm:flex-initial">
-              Completed ({completed.length})
-            </TabsTrigger>
-          </TabsList>
-        </div>
-      </Tabs>
+        onChange={(v) => navigate("logistics", "assignments", { tab: v })}
+        size="sm"
+      />
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -128,11 +119,12 @@ export function LogisticsAssignments() {
               ? "Accept an available assignment to begin a delivery."
               : "Completed, failed, and returned deliveries will appear here."
           }
+          compact
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
           {sorted.map((d) => (
-            <AssignmentCard key={d.id} delivery={d} />
+            <AssignmentRow key={d.id} delivery={d} />
           ))}
         </div>
       )}
@@ -140,83 +132,35 @@ export function LogisticsAssignments() {
   );
 }
 
-function AssignmentCard({ delivery }: { delivery: Delivery }) {
+function AssignmentRow({ delivery }: { delivery: Delivery }) {
   const isAvailable = delivery.status === "assigned";
-  const isCompleted = COMPLETED_STATUSES.includes(delivery.status);
   const isDelivered = delivery.status === "delivered";
 
+  const leadingBg = isAvailable
+    ? "bg-amber-50 ring-amber-100"
+    : isDelivered
+    ? "bg-emerald-50 ring-emerald-100"
+    : "bg-sky-50 ring-sky-100";
+
+  const leadingIconColor = isAvailable ? "text-amber-600" : isDelivered ? "text-emerald-600" : "text-sky-600";
+
   return (
-    <Card
-      className={`overflow-hidden transition-shadow hover:shadow-soft-md ${
-        isAvailable ? "border-amber-200 ring-1 ring-amber-100 bg-amber-50/20" :
-        isDelivered ? "border-emerald-200" : ""
-      }`}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-sm">{delivery.deliveryNumber}</p>
-              <StatusBadge status={delivery.status} size="sm" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-              {delivery.packageType.replace(/_/g, " ")} package
-            </p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Payout</p>
-            <p className="text-base font-bold text-emerald-700 tabular-nums">{formatCurrency(delivery.payout)}</p>
-          </div>
+    <CompactListItem
+      leading={
+        <div className={cn("rounded-lg p-2 ring-1", leadingBg)}>
+          {isAvailable ? <Package className={cn("h-4 w-4", leadingIconColor)} /> : isDelivered ? <PackageCheck className={cn("h-4 w-4", leadingIconColor)} /> : <Truck className={cn("h-4 w-4", leadingIconColor)} />}
         </div>
-
-        <div className="mt-3 space-y-2 text-sm">
-          <div className="flex items-start gap-2">
-            <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Pickup</p>
-              <p className="font-medium truncate">{delivery.pickupLocation}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <MapPin className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Drop-off</p>
-              <p className="font-medium truncate">{delivery.deliveryLocation}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Recipient</p>
-              <p className="font-medium truncate">{delivery.recipientName}</p>
-            </div>
-          </div>
+      }
+      title={delivery.deliveryNumber}
+      subtitle={`${delivery.pickupLocation} → ${delivery.deliveryLocation} · ${delivery.recipientName}`}
+      trailing={
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(delivery.payout)}</span>
+          <StatusBadge status={delivery.status} size="sm" />
         </div>
-
-        {(delivery.updatedAt || delivery.createdAt) && (
-          <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {isCompleted ? "Last updated" : "Created"}{" "}
-            {formatDateTime(delivery.updatedAt ?? delivery.createdAt)}
-          </p>
-        )}
-
-        {isAvailable && (
-          <Badge variant="outline" className="mt-3 border-amber-300 bg-amber-100 text-amber-800 text-[10px] h-5">
-            Accept to begin
-          </Badge>
-        )}
-
-        <Button
-          variant={isAvailable ? "default" : "outline"}
-          size="sm"
-          className={`w-full mt-3`}
-          onClick={() => navigate("logistics", "delivery", { id: delivery.id })}
-        >
-          {isAvailable ? "View & Accept" : isCompleted ? "View summary" : "View & progress"}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Button>
-      </CardContent>
-    </Card>
+      }
+      onClick={() => navigate("logistics", "delivery", { id: delivery.id })}
+      chevron
+    />
   );
 }

@@ -6,12 +6,12 @@ import { useProviderContext } from "../use-provider-context";
 import { appointmentService, patientService } from "@/lib/services";
 import { normalizePatient } from "../normalize";
 import type { Appointment, Patient } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatDate, fullName, age, initials } from "@/lib/format";
 import { Search, Users, ArrowRight } from "lucide-react";
 
@@ -88,57 +88,46 @@ export function ProviderPatients() {
       {filtered.length === 0 ? (
         <EmptyState icon={Users} title="No patients yet" description="Patients you consult will appear here." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
           {filtered.map((p) => {
             const lastAppt = lastVisitByPatient[p.id];
             const apptCount = appointments.filter((a) => a.patientId === p.id).length;
             const activeAllergies = p.allergies.filter((a) => a.status === "active");
             return (
-              <Card key={p.id} className="hover:shadow-soft-md transition-shadow cursor-pointer" onClick={() => navigate("provider", "patient", { id: p.id })}>
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-11 w-11 shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                        {initials(fullName(p))}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{fullName(p)}</p>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{p.patientNumber} · {age(p.dateOfBirth) ?? "—"}y · {p.gender}</p>
-                    </div>
+              <CompactListItem
+                key={p.id}
+                leading={
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                      {initials(fullName(p))}
+                    </AvatarFallback>
+                  </Avatar>
+                }
+                title={fullName(p)}
+                subtitle={`${p.patientNumber} · ${age(p.dateOfBirth) ?? "—"}y · ${p.gender} · ${apptCount} visit(s) · last ${lastAppt ? formatDate(lastAppt.date) : "—"}`}
+                onClick={() => navigate("provider", "patient", { id: p.id })}
+                trailing={
+                  <div className="flex items-center gap-1.5">
+                    {activeAllergies.length > 0 ? (
+                      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]">
+                        {activeAllergies.length} allergy{activeAllergies.length > 1 ? "ies" : ""}
+                      </Badge>
+                    ) : null}
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                    <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Visits</p>
-                      <p className="font-semibold text-base mt-0.5">{apptCount}</p>
-                    </div>
-                    <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-                      <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Last visit</p>
-                      <p className="font-semibold text-base mt-0.5">{lastAppt ? formatDate(lastAppt.date) : "—"}</p>
-                    </div>
-                  </div>
-                  {activeAllergies.length > 0 && (
-                    <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2">
-                      <p className="text-[10px] text-rose-600 uppercase font-semibold tracking-wider flex items-center gap-1">
-                        ⚠ Allergies
-                      </p>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {activeAllergies.slice(0, 3).map((a, i) => (
-                          <Badge key={i} variant="outline" className="text-[10px] border-rose-200 bg-white text-rose-700">{a.name}</Badge>
-                        ))}
-                        {activeAllergies.length > 3 && <Badge variant="outline" className="text-[10px]">+{activeAllergies.length - 3}</Badge>}
-                      </div>
-                    </div>
-                  )}
-                  <Button size="sm" variant="ghost" className="w-full mt-3" onClick={(e) => { e.stopPropagation(); navigate("provider", "patient", { id: p.id }); }}>
-                    Open record <ArrowRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </CardContent>
-              </Card>
+                }
+                chevron
+              />
             );
           })}
         </div>
       )}
+
+      <div className="mt-4 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{filtered.length} patient(s)</p>
+        <Button size="sm" variant="ghost" onClick={() => navigate("provider", "appointments")}>
+          View appointments <ArrowRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import {
-  PageHeader, SectionCard, LoadingState, ErrorState, EmptyState, SkeletonGrid,
+  PageHeader, SectionCard, ErrorState, EmptyState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import {
@@ -25,12 +27,12 @@ import type { LucideIcon } from "lucide-react";
 const ADMIN_ACTOR_ID = "ADM-001";
 
 const CATEGORIES: { key: string; label: string; icon: LucideIcon }[] = [
-  { key: "consultation", label: "Consultation", icon: Stethoscope },
+  { key: "consultation", label: "Consult", icon: Stethoscope },
   { key: "dental", label: "Dental", icon: Smile },
-  { key: "laboratory", label: "Laboratory", icon: FlaskConical },
-  { key: "home", label: "Home Services", icon: Home },
-  { key: "preventive", label: "Preventive Care", icon: HeartPulse },
-  { key: "chronic", label: "Chronic Care", icon: Activity },
+  { key: "laboratory", label: "Lab", icon: FlaskConical },
+  { key: "home", label: "Home", icon: Home },
+  { key: "preventive", label: "Prevent", icon: HeartPulse },
+  { key: "chronic", label: "Chronic", icon: Activity },
   { key: "logistics", label: "Logistics", icon: Truck },
 ];
 
@@ -49,6 +51,7 @@ export function AdminPricing() {
 
   const [editing, setEditing] = useState<Service | null>(null);
   const [historyFor, setHistoryFor] = useState<Service | null>(null);
+  const [category, setCategory] = useState<string>("all");
 
   const [patientPrice, setPatientPrice] = useState("");
   const [providerPayout, setProviderPayout] = useState("");
@@ -79,6 +82,19 @@ export function AdminPricing() {
     if (isNaN(p) || isNaN(v)) return null;
     return p - v;
   }, [patientPrice, providerPayout]);
+
+  const counts = useMemo(() => {
+    const map: Record<string, number> = { all: services.length };
+    for (const c of CATEGORIES) {
+      map[c.key] = services.filter((s) => s.category === c.key).length;
+    }
+    return map;
+  }, [services]);
+
+  const filtered = useMemo(() => {
+    if (category === "all") return services;
+    return services.filter((s) => s.category === category);
+  }, [services, category]);
 
   const openEdit = (svc: Service) => {
     const active = activePrice(svc);
@@ -115,7 +131,7 @@ export function AdminPricing() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={3} />
       </div>
@@ -124,100 +140,91 @@ export function AdminPricing() {
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   const totalActiveServices = services.filter((s) => activePrice(s)).length;
+  const totalRevenue = services.reduce((s, x) => s + (activePrice(x)?.patientPrice ?? 0), 0);
+  const totalPayout = services.reduce((s, x) => s + (activePrice(x)?.providerPayout ?? 0), 0);
+  const totalMargin = totalRevenue - totalPayout;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
-        title="Platform Pricing"
-        description="Manage patient prices, provider payouts and platform margins. Changes create a new active price and preserve full history."
+        title="Pricing"
+        description="Patient prices, payouts, margins. Changes preserve history."
         breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Pricing" }]}
         actions={
-          <div className="text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{totalActiveServices}</span> active services
+          <div className="text-xs text-muted-foreground hidden sm:block">
+            <span className="font-semibold text-foreground">{totalActiveServices}</span> active · Margin {formatCurrency(totalMargin)}
           </div>
         }
       />
 
-      <div className="space-y-5">
-        {CATEGORIES.map((cat) => {
-          const items = services.filter((s) => s.category === cat.key);
-          if (items.length === 0) return null;
-          const Icon = cat.icon;
-          const totalRevenue = items.reduce((s, x) => s + (activePrice(x)?.patientPrice ?? 0), 0);
-          const totalPayout = items.reduce((s, x) => s + (activePrice(x)?.providerPayout ?? 0), 0);
-          const totalMargin = totalRevenue - totalPayout;
+      {/* Category segmented control (4 most common + All) */}
+      <div className="overflow-x-auto -mx-4 px-4 pb-1">
+        <SegmentedControl
+          options={[
+            { value: "all", label: "All", badge: counts.all },
+            ...CATEGORIES.slice(0, 4).map((c) => ({ value: c.key, label: c.label, badge: counts[c.key] })),
+          ]}
+          value={category}
+          onChange={setCategory}
+          size="sm"
+          className="min-w-[28rem]"
+        />
+      </div>
+
+      {/* Hidden categories overflow (visible on scroll) */}
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 lg:hidden">
+        {CATEGORIES.slice(4).map((c) => {
+          const Icon = c.icon;
+          const active = category === c.key;
           return (
-            <SectionCard
-              key={cat.key}
-              title={cat.label}
-              icon={Icon}
-              action={
-                <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" /> Margin {formatCurrency(totalMargin)}</span>
-                  <span className="flex items-center gap-1"><Wallet className="h-3.5 w-3.5" /> Payout {formatCurrency(totalPayout)}</span>
-                </div>
-              }
-              dense
+            <button
+              key={c.key}
+              onClick={() => setCategory(c.key)}
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all tap-highlight-none ${
+                active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
             >
-              <ul className="divide-y divide-border/60">
-                {items.map((svc) => {
-                  const active = activePrice(svc);
-                  const history = priceHistory(svc);
-                  const inactiveHistory = history.filter((p) => p.status !== "active");
-                  return (
-                    <li key={svc.id} className="p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium truncate">{svc.name}</p>
-                            {active && (
-                              <StatusBadge status="active" size="sm" />
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate font-mono mt-0.5">{svc.id}</p>
-                          {inactiveHistory.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {inactiveHistory.length} previous price{inactiveHistory.length === 1 ? "" : "s"}
-                            </p>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 sm:flex sm:items-center sm:gap-6 sm:text-right">
-                          <div className="sm:text-right">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Patient</p>
-                            <p className="font-semibold text-sm">{active ? formatCurrency(active.patientPrice) : "—"}</p>
-                          </div>
-                          <div className="sm:text-right">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Payout</p>
-                            <p className="font-semibold text-sm">{active ? formatCurrency(active.providerPayout) : "—"}</p>
-                          </div>
-                          <div className="sm:text-right">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Margin</p>
-                            <p className="font-semibold text-sm text-emerald-700">{active ? formatCurrency(active.platformMargin) : "—"}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {history.length > 1 && (
-                            <Button variant="ghost" size="iconSm" onClick={() => setHistoryFor(svc)} aria-label="History">
-                              <History className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => openEdit(svc)}>
-                            <Pencil className="h-3.5 w-3.5" /> Edit
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </SectionCard>
+              <Icon className="h-3.5 w-3.5" /> {c.label}
+              <span className="text-[10px] rounded-full px-1 bg-primary-foreground/20">{counts[c.key]}</span>
+            </button>
           );
         })}
-
-        {services.length === 0 && (
-          <EmptyState icon={Tag} title="No services configured" description="Add services in the database to manage pricing here." />
-        )}
       </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={Tag} title="No services" description="No services in this category." compact />
+      ) : (
+        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+          {filtered.map((svc) => {
+            const active = activePrice(svc);
+            const history = priceHistory(svc);
+            const cat = CATEGORIES.find((c) => c.key === svc.category);
+            const Icon = cat?.icon ?? Tag;
+            return (
+              <CompactListItem
+                key={svc.id}
+                leading={<div className="rounded-lg bg-primary/10 p-2"><Icon className="h-4 w-4 text-primary" /></div>}
+                title={svc.name}
+                subtitle={`${active ? `${formatCurrency(active.patientPrice)} patient · ${formatCurrency(active.providerPayout)} payout` : "No active price"}${history.length > 1 ? ` · ${history.length} price records` : ""}`}
+                trailing={
+                  <div className="flex items-center gap-2">
+                    {active && <span className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(active.platformMargin)}</span>}
+                    {history.length > 1 && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setHistoryFor(svc); }} aria-label="History">
+                        <History className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={(e) => { e.stopPropagation(); openEdit(svc); }}>
+                      <Pencil className="h-3 w-3 mr-1" /> Edit
+                    </Button>
+                  </div>
+                }
+                onClick={() => openEdit(svc)}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
@@ -225,7 +232,7 @@ export function AdminPricing() {
           <DialogHeader>
             <DialogTitle>Edit pricing — {editing?.name}</DialogTitle>
             <DialogDescription>
-              The current active price will be deactivated and a new active price created with full history.
+              Current active price will be deactivated and a new active price created.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">

@@ -9,29 +9,29 @@ import {
   PageHeader, EmptyState, ErrorState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { toast } from "sonner";
-import { formatCurrency, formatTime, relativeDay, nextLabStatuses, fullName, initials } from "@/lib/format";
+import { formatCurrency, formatTime, relativeDay, nextLabStatuses, fullName } from "@/lib/format";
 import {
   CalendarClock, Search, ArrowRight, FileCheck2, MapPin, Home, Building2,
   CheckCircle2, Circle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type TabKey = "today" | "active" | "awaiting" | "completed" | "all";
+type TabKey = "scheduled" | "processing" | "ready" | "published";
 
 const COMPLETED_STATUSES = ["completed", "result_published"];
 const TERMINAL_STATUSES = [...COMPLETED_STATUSES, "cancelled"];
 
 const WORKFLOW_STEPS = [
   { key: "booked", label: "Booked" },
-  { key: "sample_collected", label: "Sample collected" },
+  { key: "sample_collected", label: "Sample" },
   { key: "processing", label: "Processing" },
-  { key: "quality_review", label: "Quality review" },
-  { key: "completed", label: "Completed" },
+  { key: "quality_review", label: "Review" },
+  { key: "completed", label: "Done" },
 ];
 
 function humanise(s: string): string {
@@ -44,7 +44,7 @@ export function LabBookings() {
   const [results, setResults] = useState<{ bookingId?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabKey>("active");
+  const [tab, setTab] = useState<TabKey>("scheduled");
   const [query, setQuery] = useState("");
   const [progressing, setProgressing] = useState<string | null>(null);
 
@@ -66,16 +66,14 @@ export function LabBookings() {
 
   useEffect(load, [labId]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-
   const sorted = useMemo(() => [...bookings].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)), [bookings]);
-  const today = sorted.filter((b) => b.date === todayStr && !TERMINAL_STATUSES.includes(b.status));
-  const active = sorted.filter((b) => !TERMINAL_STATUSES.includes(b.status));
-  const awaiting = sorted.filter((b) => b.status === "quality_review" || (b.status === "completed" && !results.some((r) => r.bookingId === b.id)));
-  const completed = sorted.filter((b) => TERMINAL_STATUSES.includes(b.status));
+  const scheduled = sorted.filter((b) => ["booked", "sample_collected"].includes(b.status));
+  const processing = sorted.filter((b) => ["processing", "quality_review"].includes(b.status));
+  const ready = sorted.filter((b) => b.status === "completed" && !results.some((r) => r.bookingId === b.id));
+  const published = sorted.filter((b) => TERMINAL_STATUSES.includes(b.status));
 
   const visible = useMemo(() => {
-    const base = tab === "today" ? today : tab === "active" ? active : tab === "awaiting" ? awaiting : tab === "completed" ? completed : sorted;
+    const base = tab === "scheduled" ? scheduled : tab === "processing" ? processing : tab === "ready" ? ready : published;
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter((b) =>
@@ -84,7 +82,7 @@ export function LabBookings() {
       (b.request?.tests?.join(" ").toLowerCase().includes(q)) ||
       (b.request?.requestNumber.toLowerCase().includes(q))
     );
-  }, [tab, query, sorted, today, active, awaiting, completed]);
+  }, [tab, query, scheduled, processing, ready, published]);
 
   const handleProgress = (booking: LaboratoryBooking, next: string) => {
     setProgressing(booking.id);
@@ -111,144 +109,122 @@ export function LabBookings() {
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Bookings"
-        description="Sample collections and tests in progress at your laboratory."
+        description="Sample collections and tests in progress."
       />
-
-      <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-2 bg-background/95 backdrop-blur-md">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList className="flex-wrap h-auto overflow-x-auto">
-            <TabsTrigger value="today">Today ({today.length})</TabsTrigger>
-            <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-            <TabsTrigger value="awaiting">Awaiting upload ({awaiting.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completed.length})</TabsTrigger>
-            <TabsTrigger value="all">All ({sorted.length})</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by booking number, patient or test…"
+          placeholder="Search by booking, patient or test…"
           className="pl-9"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
+      <SegmentedControl
+        options={[
+          { value: "scheduled" as TabKey, label: "Scheduled", badge: scheduled.length },
+          { value: "processing" as TabKey, label: "Processing", badge: processing.length },
+          { value: "ready" as TabKey, label: "Ready", badge: ready.length },
+          { value: "published" as TabKey, label: "Published", badge: published.length },
+        ]}
+        value={tab}
+        onChange={setTab}
+        size="sm"
+      />
+
       {visible.length === 0 ? (
         <EmptyState
           icon={CalendarClock}
           title="No bookings"
-          description={tab === "today" ? "No bookings scheduled for today." : "No bookings match this filter."}
+          description="No bookings match this filter."
+          compact
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {visible.map((b) => {
             const nextStatuses = nextLabStatuses(b.status);
             const hasResult = results.some((r) => r.bookingId === b.id);
             const currentStepIdx = WORKFLOW_STEPS.findIndex((s) => s.key === b.status);
             const isTerminal = b.status === "result_published" || b.status === "cancelled";
             return (
-              <Card key={b.id} className="overflow-hidden hover:shadow-soft-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span className="font-semibold text-sm">{b.bookingNumber}</span>
-                        <StatusBadge status={b.status} size="sm" />
-                        <span className="text-xs text-muted-foreground">· {relativeDay(b.date)} at {formatTime(b.time)}</span>
-                        {b.collectionMode === "home" ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200 rounded-md px-1.5 py-0.5">
-                            <Home className="h-3 w-3" /> Home
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200 rounded-md px-1.5 py-0.5">
-                            <Building2 className="h-3 w-3" /> Facility
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-10 w-10 shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
-                            {b.patient ? initials(fullName(b.patient)) : "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{b.request?.tests?.join(", ") ?? "Laboratory tests"}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {b.patient ? fullName(b.patient) : "Patient"}
-                            {b.request ? ` · ${b.request.requestNumber}` : ""}
-                            {" · "}{formatCurrency(b.price)}
-                          </p>
-                          {b.collectionMode === "home" && b.homeAddress && (
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              <MapPin className="h-3 w-3" /> {b.homeAddress}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Vertical status timeline */}
-                      {!isTerminal && (
-                        <ol className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
-                          {WORKFLOW_STEPS.map((step, i) => {
-                            const done = i < currentStepIdx;
-                            const current = i === currentStepIdx;
-                            return (
-                              <li key={step.key} className="flex items-center gap-2 shrink-0">
-                                <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                  done
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                    : current
-                                    ? "bg-primary text-primary-foreground shadow-soft"
-                                    : "bg-muted text-muted-foreground border border-border"
-                                }`}>
-                                  {done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                                  {step.label}
-                                </span>
-                                {i < WORKFLOW_STEPS.length - 1 && <span className="h-px w-4 bg-border" />}
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2 shrink-0 lg:w-56">
-                      {!isTerminal && (
-                        <>
-                          {nextStatuses.map((s) => (
-                            <Button
-                              key={s}
-                              size="sm"
-                              disabled={progressing === b.id}
-                              onClick={() => handleProgress(b, s)}
-                            >
-                              {humanise(s)} <ArrowRight className="h-3.5 w-3.5" />
-                            </Button>
-                          ))}
-                          {(b.status === "quality_review" || (b.status === "completed" && !hasResult)) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate("laboratory", "result-new", { bookingId: b.id, requestId: b.requestId })}
-                            >
-                              <FileCheck2 className="h-3.5 w-3.5" /> Upload result
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => navigate("laboratory", "request", { id: b.requestId })}>
-                        View request
-                      </Button>
-                    </div>
+              <ExpandableCard
+                key={b.id}
+                leading={
+                  <div className={cn("rounded-lg p-2 ring-1", b.collectionMode === "home" ? "bg-violet-50 ring-violet-100" : "bg-sky-50 ring-sky-100")}>
+                    {b.collectionMode === "home" ? <Home className="h-4 w-4 text-violet-600" /> : <Building2 className="h-4 w-4 text-sky-600" />}
                   </div>
-                </CardContent>
-              </Card>
+                }
+                title={`${b.bookingNumber} · ${b.request?.tests?.join(", ") ?? "Lab tests"}`}
+                subtitle={`${b.patient ? fullName(b.patient) : "Patient"} · ${relativeDay(b.date)} ${formatTime(b.time)} · ${formatCurrency(b.price)}`}
+                trailing={<StatusBadge status={b.status} size="sm" />}
+              >
+                <div className="space-y-3">
+                  {/* Mini horizontal status timeline */}
+                  <ol className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                    {WORKFLOW_STEPS.map((step, i) => {
+                      const done = i < currentStepIdx;
+                      const current = i === currentStepIdx;
+                      return (
+                        <li key={step.key} className="flex items-center gap-1.5 shrink-0">
+                          <span className={cn(
+                            "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                            done
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : current
+                              ? "bg-primary text-primary-foreground shadow-soft"
+                              : "bg-muted text-muted-foreground border border-border"
+                          )}>
+                            {done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                            {step.label}
+                          </span>
+                          {i < WORKFLOW_STEPS.length - 1 && <span className="h-px w-3 bg-border" />}
+                        </li>
+                      );
+                    })}
+                  </ol>
+
+                  {b.collectionMode === "home" && b.homeAddress && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> {b.homeAddress}
+                    </p>
+                  )}
+
+                  {!isTerminal && nextStatuses.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {nextStatuses.map((s) => (
+                        <Button
+                          key={s}
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={progressing === b.id}
+                          onClick={() => handleProgress(b, s)}
+                        >
+                          {humanise(s)} <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      ))}
+                      {(b.status === "quality_review" || (b.status === "completed" && !hasResult)) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => navigate("laboratory", "result-new", { bookingId: b.id, requestId: b.requestId })}
+                        >
+                          <FileCheck2 className="h-3 w-3 mr-1" /> Upload result
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => navigate("laboratory", "request", { id: b.requestId })}>
+                    View request →
+                  </Button>
+                </div>
+              </ExpandableCard>
             );
           })}
         </div>

@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import {
   PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState, EmptyState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
@@ -29,24 +30,12 @@ const ADMIN_ACTOR_ID = "ADM-001";
 type VerifyAction = "approve" | "reject" | "request_info" | "suspend" | "reactivate";
 
 const ACTION_META: Record<VerifyAction, { label: string; tone: "success" | "danger" | "warning" | "info"; needsNotes: boolean; description: string }> = {
-  approve: { label: "Approve", tone: "success", needsNotes: false, description: "Approve this provider and publish them on the platform. They will be visible to patients immediately." },
+  approve: { label: "Approve", tone: "success", needsNotes: false, description: "Approve this provider and publish them on the platform." },
   reject: { label: "Reject", tone: "danger", needsNotes: true, description: "Reject this application. The provider will not be listed." },
-  request_info: { label: "Request Info", tone: "warning", needsNotes: true, description: "Request additional information from the provider. They will be notified." },
-  suspend: { label: "Suspend", tone: "danger", needsNotes: true, description: "Suspend this provider. They will be hidden from search and unable to take appointments." },
-  reactivate: { label: "Reactivate", tone: "info", needsNotes: false, description: "Reactivate this provider. They will return to approved status." },
+  request_info: { label: "Request Info", tone: "warning", needsNotes: true, description: "Request additional information from the provider." },
+  suspend: { label: "Suspend", tone: "danger", needsNotes: true, description: "Suspend this provider. They will be hidden from search." },
+  reactivate: { label: "Reactivate", tone: "info", needsNotes: false, description: "Reactivate this provider to approved status." },
 };
-
-function DetailRow({ label, value, icon: Icon }: { label: string; value: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
-  return (
-    <div className="flex items-start gap-3 py-2">
-      {Icon && <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />}
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className="text-sm font-medium break-words">{value ?? "—"}</p>
-      </div>
-    </div>
-  );
-}
 
 function Chip({ label }: { label: string }) {
   return (
@@ -56,6 +45,8 @@ function Chip({ label }: { label: string }) {
   );
 }
 
+type Tab = "overview" | "documents" | "history";
+
 export function AdminProviderDetail() {
   const { view } = useNav();
   const providerId = view.params.id ?? "";
@@ -64,6 +55,7 @@ export function AdminProviderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [tab, setTab] = useState<Tab>("overview");
   const [pendingAction, setPendingAction] = useState<VerifyAction | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -115,13 +107,9 @@ export function AdminProviderDetail() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-56 bg-muted animate-pulse rounded-lg" />
         <SkeletonGrid count={4} />
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 h-64 bg-muted/40 animate-pulse rounded-2xl" />
-          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
-        </div>
       </div>
     );
   }
@@ -147,180 +135,212 @@ export function AdminProviderDetail() {
     "border-amber-200 bg-amber-50/40";
 
   return (
-    <div className="pb-28 lg:pb-0 space-y-6">
+    <div className="pb-28 lg:pb-0 space-y-4">
       <PageHeader
         title={`${provider.title} ${provider.firstName} ${provider.lastName}`}
         description={`${provider.specialty} · ${provider.providerNumber}`}
         back
+        actions={<StatusBadge status={provider.verificationStatus} />}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column */}
-        <div className="lg:col-span-2 space-y-6">
-          <SectionCard title="Personal & contact" icon={Stethoscope}>
-            <div className="flex items-center gap-3 mb-4">
-              <Avatar className="h-12 w-12 shrink-0">
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                  {initials(`${provider.firstName} ${provider.lastName}`)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{provider.title} {provider.firstName} {provider.lastName}</p>
-                <p className="text-xs text-muted-foreground">{provider.providerNumber}</p>
+      {/* Provider identity compact card */}
+      <SectionCard className={statusBg}>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-12 w-12 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {initials(`${provider.firstName} ${provider.lastName}`)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold truncate">{provider.title} {provider.firstName} {provider.lastName}</p>
+            <p className="text-xs text-muted-foreground truncate">{provider.specialty} · {provider.professionalTitle}</p>
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {provider.city}</span>
+              <span className="flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" /> {provider.rating.toFixed(1)}</span>
+              <span className="flex items-center gap-1"><Languages className="h-3 w-3" /> {provider.languages.length}</span>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Segmented control for tabs */}
+      <SegmentedControl
+        options={[
+          { value: "overview" as Tab, label: "Overview" },
+          { value: "documents" as Tab, label: "Documents" },
+          { value: "history" as Tab, label: "History", badge: history.length },
+        ]}
+        value={tab}
+        onChange={setTab}
+        size="sm"
+      />
+
+      {tab === "overview" && (
+        <div className="space-y-2">
+          {/* Professional details as ExpandableCard */}
+          <ExpandableCard
+            leading={<div className="rounded-lg bg-primary/10 p-2"><GraduationCap className="h-4 w-4 text-primary" /></div>}
+            title="Professional details"
+            subtitle={`${provider.yearsExperience} years · ₦${provider.consultationFee.toLocaleString("en-NG")} consultation`}
+            trailing={provider.consultationModes.join(", ")}
+          >
+            <div className="space-y-2.5 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Specialty</span>
+                <span className="font-medium">{provider.specialty}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Consultation fee</span>
+                <span className="font-medium">₦{provider.consultationFee.toLocaleString("en-NG")}</span>
+              </div>
+              {provider.qualifications.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Qualifications</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {provider.qualifications.map((q, i) => <Chip key={i} label={q} />)}
+                  </div>
+                </div>
+              )}
+              {provider.biography && (
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Biography</p>
+                  <p className="text-sm leading-relaxed">{provider.biography}</p>
+                </div>
+              )}
+            </div>
+          </ExpandableCard>
+
+          {/* Registration & licence */}
+          <ExpandableCard
+            leading={<div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100"><IdCard className="h-4 w-4 text-sky-600" /></div>}
+            title="Registration & licence"
+            subtitle={`${provider.registrationNumber} · ${provider.licenceNumber}`}
+            trailing={<StatusBadge status={provider.verificationStatus} size="sm" />}
+          >
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">MDCN reg.</span>
+                <span className="font-medium font-mono text-xs">{provider.registrationNumber}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Licence no.</span>
+                <span className="font-medium font-mono text-xs">{provider.licenceNumber}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Expires</span>
+                <span className="font-medium">{formatDate(provider.licenceExpiry)}</span>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-x-6">
-              <DetailRow label="Professional title" value={provider.professionalTitle} />
-              <DetailRow label="Years of experience" value={`${provider.yearsExperience} years`} />
-              <DetailRow label="City / State" value={`${provider.city}, ${provider.state}`} icon={MapPin} />
-              <DetailRow label="Languages" value={provider.languages.join(", ")} icon={Languages} />
-              <DetailRow label="Rating" value={<span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" /> {provider.rating.toFixed(1)} ({provider.reviewCount} reviews)</span>} />
-              <DetailRow label="Consultation modes" value={provider.consultationModes.join(", ")} />
-            </div>
-          </SectionCard>
+          </ExpandableCard>
 
-          <SectionCard title="Professional details" icon={GraduationCap}>
-            <div className="grid sm:grid-cols-2 gap-x-6">
-              <DetailRow label="Specialty" value={provider.specialty} icon={Stethoscope} />
-              <DetailRow label="Consultation fee" value={`₦${provider.consultationFee.toLocaleString("en-NG")}`} icon={Banknote} />
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Qualifications</p>
-              <div className="flex flex-wrap gap-2">
-                {provider.qualifications.map((q, i) => <Chip key={i} label={q} />)}
-              </div>
-            </div>
-            {provider.biography && (
-              <div className="mt-4">
-                <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Biography</p>
-                <p className="text-sm leading-relaxed">{provider.biography}</p>
-              </div>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Registration & practising licence" icon={IdCard}>
-            <div className="grid sm:grid-cols-2 gap-x-6">
-              <DetailRow label="MDCN registration number" value={provider.registrationNumber} icon={FileCheck2} />
-              <DetailRow label="Practising licence number" value={provider.licenceNumber} icon={FileCheck2} />
-              <DetailRow label="Licence expiry" value={formatDate(provider.licenceExpiry)} icon={Clock} />
-              <DetailRow label="Verification status" value={<StatusBadge status={provider.verificationStatus} size="sm" />} />
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Government ID & bank details" icon={IdCard}>
-            <div className="grid sm:grid-cols-2 gap-x-6">
+          {/* Bank & ID */}
+          <ExpandableCard
+            leading={<div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100"><Banknote className="h-4 w-4 text-emerald-600" /></div>}
+            title="Government ID & bank"
+            subtitle="Payout account details"
+          >
+            <div className="space-y-3 text-sm">
               <div>
-                <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Government-issued ID</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Government ID</p>
+                <div className="flex flex-wrap gap-1.5">
                   <Chip label="NIN — 12345678901" />
                   <Chip label="Drivers Licence — LR2026" />
                 </div>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Bank account (payout)</p>
-                <div className="flex flex-wrap gap-2">
-                  <Chip label="Bank — Access Bank" />
+                <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Bank (payout)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip label="Access Bank" />
                   <Chip label="Acct — 0123456789" />
                   <Chip label="Name — Tunde Adeyemi" />
                 </div>
               </div>
             </div>
-          </SectionCard>
-
-          <SectionCard title="Supporting documents" icon={FileText}>
-            {application && application.documents.length > 0 ? (
-              <div className="grid sm:grid-cols-2 gap-2">
-                {application.documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-border/60 p-3">
-                    <div className="rounded-md bg-muted p-2 shrink-0">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{doc.name}</p>
-                      <p className="text-xs text-muted-foreground">{(doc.size / 1024).toFixed(0)} KB · {doc.type}</p>
-                    </div>
-                    <Button variant="ghost" size="sm">View</Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground py-4 text-center">No documents submitted with the application.</p>
-            )}
-          </SectionCard>
+          </ExpandableCard>
         </div>
+      )}
 
-        {/* Right column */}
-        <div className="space-y-6">
-          <SectionCard title="Verification" icon={ShieldCheck} className={statusBg}>
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card p-3 mb-3">
-              <span className="text-sm text-muted-foreground">Current status</span>
-              <StatusBadge status={status} size="sm" />
-            </div>
-            {/* Desktop actions */}
-            <div className="hidden lg:grid grid-cols-2 gap-2">
-              {status === "submitted" || status === "under_review" ? (
-                <>
-                  <Button className="col-span-2" onClick={() => handleAction("approve")}>
-                    <BadgeCheck className="h-4 w-4" /> Approve
-                  </Button>
-                  <Button variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => handleAction("request_info")}>
-                    <MessageSquareWarning className="h-4 w-4" /> Request Info
-                  </Button>
-                  <Button variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50" onClick={() => handleAction("reject")}>
-                    <X className="h-4 w-4" /> Reject
-                  </Button>
-                </>
-              ) : null}
-              {status === "approved" ? (
-                <Button variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50 col-span-2" onClick={() => handleAction("suspend")}>
-                  <Ban className="h-4 w-4" /> Suspend provider
-                </Button>
-              ) : null}
-              {status === "suspended" || status === "rejected" ? (
-                <Button variant="outline" className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 col-span-2" onClick={() => handleAction("reactivate")}>
-                  <RefreshCw className="h-4 w-4" /> Reactivate
-                </Button>
-              ) : null}
-              {status === "additional_information_requested" ? (
-                <>
-                  <Button className="col-span-2" onClick={() => handleAction("approve")}>
-                    <BadgeCheck className="h-4 w-4" /> Approve
-                  </Button>
-                  <Button variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50 col-span-2" onClick={() => handleAction("reject")}>
-                    <X className="h-4 w-4" /> Reject
-                  </Button>
-                </>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-              All actions are recorded in the audit trail. Provider will be notified of the outcome.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="Verification history" icon={Clock} dense>
-            <ol className="space-y-0 max-h-96 overflow-y-auto">
-              {history.length === 0 ? (
-                <li className="text-sm text-muted-foreground py-8 text-center">No history recorded.</li>
-              ) : history.map((h, i) => (
-                <li key={i} className="flex gap-3 px-4 py-3">
-                  <div className="flex flex-col items-center">
-                    <div className="h-2.5 w-2.5 rounded-full bg-primary mt-1.5" />
-                    {i < history.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
+      {tab === "documents" && (
+        <SectionCard title="Supporting documents" icon={FileText} dense>
+          {application && application.documents.length > 0 ? (
+            <ul className="divide-y divide-border/60">
+              {application.documents.map((doc) => (
+                <li key={doc.id} className="flex items-center gap-3 p-3">
+                  <div className="rounded-md bg-muted p-2 shrink-0">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div className="min-w-0 flex-1 pb-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <StatusBadge status={h.status} size="sm" />
-                      <span className="text-xs text-muted-foreground">{formatDateTime(h.at)}</span>
-                    </div>
-                    <p className="text-sm mt-1 leading-relaxed">{h.note}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">By {h.by}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{doc.name}</p>
+                    <p className="text-xs text-muted-foreground">{(doc.size / 1024).toFixed(0)} KB · {doc.type}</p>
                   </div>
+                  <Button variant="ghost" size="sm">View</Button>
                 </li>
               ))}
-            </ol>
-          </SectionCard>
-        </div>
-      </div>
+            </ul>
+          ) : (
+            <EmptyState icon={FileText} title="No documents" description="No documents submitted with the application." compact />
+          )}
+        </SectionCard>
+      )}
+
+      {tab === "history" && (
+        <SectionCard title="Verification history" icon={Clock} dense>
+          <ol className="space-y-0 max-h-[28rem] overflow-y-auto">
+            {history.length === 0 ? (
+              <li className="text-sm text-muted-foreground py-8 text-center">No history recorded.</li>
+            ) : history.map((h, i) => (
+              <li key={i} className="flex gap-3 px-4 py-3">
+                <div className="flex flex-col items-center">
+                  <div className="h-2.5 w-2.5 rounded-full bg-primary mt-1.5" />
+                  {i < history.length - 1 && <div className="flex-1 w-px bg-border mt-1" style={{ minHeight: 16 }} />}
+                </div>
+                <div className="min-w-0 flex-1 pb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusBadge status={h.status} size="sm" />
+                    <span className="text-xs text-muted-foreground">{formatDateTime(h.at)}</span>
+                  </div>
+                  <p className="text-sm mt-1 leading-relaxed">{h.note}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">By {h.by}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </SectionCard>
+      )}
+
+      {/* Verification status compact + desktop actions */}
+      {primaryAction && (
+        <SectionCard title="Verification actions" icon={ShieldCheck} className={statusBg}>
+          <div className="hidden lg:grid grid-cols-2 gap-2">
+            {(status === "submitted" || status === "under_review" || status === "additional_information_requested") && (
+              <>
+                <Button className="col-span-2" onClick={() => handleAction("approve")}>
+                  <BadgeCheck className="h-4 w-4" /> Approve
+                </Button>
+                <Button variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => handleAction("request_info")}>
+                  <MessageSquareWarning className="h-4 w-4" /> Request Info
+                </Button>
+                <Button variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50" onClick={() => handleAction("reject")}>
+                  <X className="h-4 w-4" /> Reject
+                </Button>
+              </>
+            )}
+            {status === "approved" && (
+              <Button variant="outline" className="text-rose-700 border-rose-300 hover:bg-rose-50 col-span-2" onClick={() => handleAction("suspend")}>
+                <Ban className="h-4 w-4" /> Suspend provider
+              </Button>
+            )}
+            {(status === "suspended" || status === "rejected") && (
+              <Button variant="outline" className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 col-span-2" onClick={() => handleAction("reactivate")}>
+                <RefreshCw className="h-4 w-4" /> Reactivate
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+            All actions are recorded in the audit trail. Provider will be notified of the outcome.
+          </p>
+        </SectionCard>
+      )}
 
       {/* Mobile bottom action bar */}
       {primaryAction && (
@@ -337,7 +357,7 @@ export function AdminProviderDetail() {
               {primaryAction === "reactivate" && <RefreshCw className="h-4 w-4" />}
               {ACTION_META[primaryAction].label}
             </Button>
-            {status === "submitted" || status === "under_review" || status === "additional_information_requested" ? (
+            {(status === "submitted" || status === "under_review" || status === "additional_information_requested") ? (
               <>
                 <Button variant="outline" size="icon" onClick={() => handleAction("request_info")} aria-label="Request info">
                   <MessageSquareWarning className="h-4 w-4 text-amber-700" />

@@ -5,15 +5,15 @@ import { useLabContext } from "../use-lab-context";
 import { settlementService, laboratoryService } from "@/lib/services";
 import type { Settlement, LaboratoryBooking } from "@/types";
 import {
-  PageHeader, SectionCard, EmptyState, ErrorState, SkeletonGrid,
+  PageHeader, EmptyState, ErrorState, SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { ExpandableCard, StatTile } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Wallet, TrendingUp, Hourglass, CheckCircle2, Banknote } from "lucide-react";
+import { Wallet, TrendingUp, Hourglass, CheckCircle2, Banknote, Activity } from "lucide-react";
+
+type FilterKey = "all" | "paid" | "pending";
 
 export function LabSettlements() {
   const { labId, lab, reload } = useLabContext();
@@ -21,6 +21,7 @@ export function LabSettlements() {
   const [bookings, setBookings] = useState<LaboratoryBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
     if (!labId) return;
@@ -52,6 +53,11 @@ export function LabSettlements() {
     return completed.reduce((s, b) => s + (b.price || 0), 0);
   }, [bookings]);
 
+  const visible = useMemo(() => {
+    if (filter === "all") return settlements;
+    return settlements.filter((s) => s.status === filter);
+  }, [settlements, filter]);
+
   if (loading) {
     return (
       <div className="space-y-5">
@@ -63,107 +69,108 @@ export function LabSettlements() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Settlements & earnings"
         description={lab ? `${lab.name} · ${lab.laboratoryNumber}` : "Settlement history"}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Total earnings" value={formatCurrency(earningsByBooking)} icon={Banknote} tone="success" />
-        <MetricCard label="Settled (paid)" value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="success" />
-        <MetricCard label="Pending payout" value={formatCurrency(totals.pending)} icon={Hourglass} tone="warning" />
-        <MetricCard label="Platform commission" value={formatCurrency(totals.commission)} icon={TrendingUp} tone="info" />
+      {/* StatTiles — 4 compact stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <StatTile label="Total earnings" value={formatCurrency(earningsByBooking)} icon={Banknote} tone="success" />
+        <StatTile label="Paid out" value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="success" />
+        <StatTile label="Pending payout" value={formatCurrency(totals.pending)} icon={Hourglass} tone="warning" />
+        <StatTile label="Commission" value={formatCurrency(totals.commission)} icon={TrendingUp} tone="info" />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MiniMetric label="Total gross" value={formatCurrency(totals.gross)} tone="info" />
-        <MiniMetric label="Total net" value={formatCurrency(totals.net)} tone="success" />
-        <MiniMetric label="Settlements" value={settlements.length} />
-        <MiniMetric label="Bookings (completed)" value={bookings.filter((b) => ["completed", "result_published"].includes(b.status)).length} />
-      </div>
-
-      <SectionCard title="How settlements work" icon={Wallet}>
-        <div className="text-sm text-muted-foreground space-y-1 leading-relaxed">
-          <p>Royal Palace collects payment from patients at booking and remits your lab payout on a monthly settlement cycle.</p>
-          <p>Each settlement nets out the platform commission and shows the period and net amount payable to your laboratory.</p>
+      {/* Compact how-it-works banner */}
+      <div className="rounded-xl border border-border/60 bg-muted/30 p-3 flex items-start gap-2.5">
+        <div className="rounded-lg bg-primary/10 p-1.5 shrink-0">
+          <Wallet className="h-4 w-4 text-primary" />
         </div>
-      </SectionCard>
+        <div className="min-w-0 text-xs text-muted-foreground leading-relaxed">
+          <p className="font-medium text-foreground">Monthly settlement cycle</p>
+          <p className="mt-0.5">Royal Palace collects payment at booking and remits your lab payout net of platform commission.</p>
+        </div>
+      </div>
 
-      {settlements.length === 0 ? (
+      {/* SegmentedControl filter */}
+      <SegmentedControl
+        options={[
+          { value: "all" as FilterKey, label: "All", badge: settlements.length },
+          { value: "paid" as FilterKey, label: "Paid", badge: settlements.filter((s) => s.status === "paid").length },
+          { value: "pending" as FilterKey, label: "Pending", badge: settlements.filter((s) => s.status === "pending").length },
+        ]}
+        value={filter}
+        onChange={setFilter}
+        size="sm"
+      />
+
+      {visible.length === 0 ? (
         <EmptyState
           icon={Wallet}
           title="No settlements yet"
-          description="Settlements are generated at the end of each billing cycle. Your bookings will appear here once the cycle closes."
+          description="Settlements are generated at the end of each billing cycle."
+          compact
         />
       ) : (
-        <SectionCard title="Settlement history" dense>
-          {/* Desktop table */}
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Settlement</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right">Gross</TableHead>
-                  <TableHead className="text-right">Commission</TableHead>
-                  <TableHead className="text-right">Net</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {settlements.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.settlementNumber}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDate(s.periodStart)} → {formatDate(s.periodEnd)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.grossAmount)}</TableCell>
-                    <TableCell className="text-right text-rose-600">−{formatCurrency(s.commissionAmount)}</TableCell>
-                    <TableCell className="text-right font-semibold text-emerald-700">{formatCurrency(s.netAmount)}</TableCell>
-                    <TableCell><StatusBadge status={s.status} size="sm" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <tfoot className="bg-muted/40 font-medium">
-                <TableRow>
-                  <TableCell colSpan={2}>Totals</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totals.gross)}</TableCell>
-                  <TableCell className="text-right text-rose-600">−{formatCurrency(totals.commission)}</TableCell>
-                  <TableCell className="text-right text-emerald-700">{formatCurrency(totals.net)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </tfoot>
-            </Table>
-          </div>
-
-          {/* Mobile cards */}
-          <ul className="md:hidden divide-y divide-border/60">
-            {settlements.map((s) => (
-              <li key={s.id} className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{s.settlementNumber}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{formatDate(s.periodStart)} → {formatDate(s.periodEnd)}</p>
-                  </div>
+        <div className="space-y-2">
+          {visible.map((s) => (
+            <ExpandableCard
+              key={s.id}
+              leading={
+                <div className={s.status === "paid"
+                  ? "rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100"
+                  : "rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100"}>
+                  {s.status === "paid"
+                    ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    : <Hourglass className="h-4 w-4 text-amber-600" />}
+                </div>
+              }
+              title={s.settlementNumber}
+              subtitle={`${formatDate(s.periodStart)} → ${formatDate(s.periodEnd)}`}
+              trailing={
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</span>
                   <StatusBadge status={s.status} size="sm" />
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+              }
+            >
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-3 gap-2 text-sm">
                   <div>
-                    <p className="text-muted-foreground uppercase tracking-wider">Gross</p>
-                    <p className="font-medium mt-0.5">{formatCurrency(s.grossAmount)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                    <p className="font-medium mt-0.5 tabular-nums">{formatCurrency(s.grossAmount)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground uppercase tracking-wider">Commission</p>
-                    <p className="font-medium text-rose-700 mt-0.5">−{formatCurrency(s.commissionAmount)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
+                    <p className="font-medium text-rose-600 mt-0.5 tabular-nums">−{formatCurrency(s.commissionAmount)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground uppercase tracking-wider">Net</p>
-                    <p className="font-bold text-emerald-700 mt-0.5">{formatCurrency(s.netAmount)}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Net payout</p>
+                    <p className="font-bold text-emerald-700 mt-0.5 tabular-nums">{formatCurrency(s.netAmount)}</p>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1">
+                  <Activity className="h-3 w-3" />
+                  Settlement cycle completed. Funds remitted per platform terms.
+                </div>
+              </div>
+            </ExpandableCard>
+          ))}
+
+          {/* Filtered totals footer */}
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              {filter === "all" ? "All settlements" : filter === "paid" ? "Paid settlements" : "Pending settlements"} totals
+            </span>
+            <div className="flex items-center gap-3 font-medium">
+              <span>Gross <span className="text-foreground tabular-nums">{formatCurrency(totals.gross)}</span></span>
+              <span className="text-rose-600">−<span className="tabular-nums">{formatCurrency(totals.commission)}</span></span>
+              <span className="text-emerald-700">Net <span className="tabular-nums">{formatCurrency(totals.net)}</span></span>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

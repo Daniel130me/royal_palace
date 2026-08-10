@@ -4,18 +4,18 @@ import { useMemo } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { usePharmacyContext } from "../use-pharmacy-context";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MetricCard, MiniMetric } from "@/components/healthcare/metric-card";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import {
-  PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState,
+  PageHeader, EmptyState, SkeletonGrid, ErrorState,
 } from "@/components/healthcare/page-header";
-import { formatCurrency, formatDate, relativeDay } from "@/lib/format";
+import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
+import { formatCurrency, formatDate, relativeDay, initials } from "@/lib/format";
 import {
   FileText, ShoppingCart, AlertTriangle, Package, CheckCircle2,
   CalendarClock, Wallet, Receipt, ArrowRight, Pill, Clock,
-  Building2, TrendingUp,
+  Building2, TrendingUp, ChevronRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const NEAR_EXPIRY_DAYS = 90;
 const LOW_STOCK_THRESHOLD = 10;
@@ -73,310 +73,236 @@ export function PharmacyDashboard() {
     return orders.filter((o) => (o.createdAt ?? "").slice(0, 10) === todayStr);
   }, [orders]);
   const todaySales = todayOrders.reduce((s, o) => s + o.subtotal, 0);
-  const todayCommission = todayOrders.reduce((s, o) => s + o.commissionTotal, 0);
 
   const pendingSettlements = settlements.filter((s) => s.status === "pending");
   const pendingSettlementNet = pendingSettlements.reduce((s, x) => s + x.netAmount, 0);
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-24 bg-muted/40 animate-pulse rounded-2xl" />
         <SkeletonGrid count={4} />
-        <SkeletonGrid count={4} />
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div className="lg:col-span-2 h-72 bg-muted/40 animate-pulse rounded-2xl" />
-          <div className="h-72 bg-muted/40 animate-pulse rounded-2xl" />
-        </div>
       </div>
     );
   }
   if (error) return <ErrorState message={error} onRetry={refresh} />;
 
   const firstName = profile?.name?.split(" ")[0] ?? sessionName?.split(" ")[0] ?? "Pharmacy";
-
-  const quickActions = [
-    { label: "New Rx", sub: "Review", icon: FileText, page: "prescriptions", tone: "text-sky-600" as const },
-    { label: "Orders", sub: "Fulfil", icon: ShoppingCart, page: "orders", tone: "text-amber-600" as const },
-    { label: "Inventory", sub: "Stock", icon: Package, page: "inventory", tone: "text-emerald-600" as const },
-    { label: "Products", sub: "Catalogue", icon: Pill, page: "products", tone: "text-violet-600" as const },
-  ];
+  const actionNeededCount = newRx.length + awaitingAcceptance.length + clarificationOrders.length + preparingOrders.length + readyOrders.length;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`Welcome, ${firstName}`}
-        description={profile ? `${profile.name} · ${profile.city}, ${profile.state}` : "Pharmacy dashboard"}
-        actions={
-          <Button onClick={() => navigate("pharmacy", "prescriptions")}>
-            <FileText className="h-4 w-4" /> Review prescriptions
-          </Button>
-        }
-      />
+    <div className="space-y-5">
+      {/* Greeting + pharmacy tag */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground leading-tight">Welcome back,</p>
+          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">{firstName} 👋</h1>
+          {profile && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{profile.name} · {profile.city}, {profile.state}</p>
+          )}
+        </div>
+        <Button size="sm" onClick={() => navigate("pharmacy", "prescriptions")} className="shrink-0">
+          <FileText className="h-4 w-4" /> Review Rx
+        </Button>
+      </div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {quickActions.map((a) => (
+      {/* Hero: orders needing action */}
+      {actionNeededCount > 0 ? (
+        <button
+          onClick={() => navigate("pharmacy", "orders")}
+          className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-left shadow-soft transition-all hover:shadow-soft-md active:scale-[0.99] tap-highlight-none"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="rounded-xl bg-amber-100 p-2.5 shrink-0">
+                <ShoppingCart className="h-5 w-5 text-amber-700" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-amber-900 leading-tight">
+                  {actionNeededCount} order{actionNeededCount === 1 ? "" : "s"} need action
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5 truncate">
+                  {awaitingAcceptance.length} to accept · {preparingOrders.length} preparing · {readyOrders.length} ready
+                  {clarificationOrders.length > 0 && ` · ${clarificationOrders.length} clarification`}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-amber-700 shrink-0" />
+          </div>
+        </button>
+      ) : (
+        <button
+          onClick={() => navigate("pharmacy", "prescriptions")}
+          className="w-full rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-left text-white shadow-soft-md active:scale-[0.99] transition-transform tap-highlight-none"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-emerald-50/90">All caught up</p>
+              <p className="text-xl font-bold mt-1">Review new prescriptions</p>
+              <p className="text-xs text-emerald-100/80 mt-1">{newRx.length} new Rx awaiting review</p>
+            </div>
+            <div className="rounded-full bg-white/20 p-3">
+              <ArrowRight className="h-5 w-5" />
+            </div>
+          </div>
+        </button>
+      )}
+
+      {/* StatTiles row */}
+      <div className="grid grid-cols-4 gap-2.5">
+        <StatTile label="New Rx" value={newRx.length} icon={FileText} tone="info" onClick={() => navigate("pharmacy", "prescriptions")} />
+        <StatTile label="To accept" value={awaitingAcceptance.length} icon={ShoppingCart} tone="warning" onClick={() => navigate("pharmacy", "orders")} />
+        <StatTile label="Preparing" value={preparingOrders.length} icon={Package} tone="info" onClick={() => navigate("pharmacy", "orders")} />
+        <StatTile label="Sales today" value={formatCurrency(todaySales)} icon={Wallet} tone="success" onClick={() => navigate("pharmacy", "commissions")} />
+      </div>
+
+      {/* Alert cards: low stock + near expiry */}
+      {(lowStock.length > 0 || nearExpiry.length > 0) && (
+        <div className="grid grid-cols-2 gap-2.5">
           <button
-            key={a.label}
-            onClick={() => navigate("pharmacy", a.page as any)}
-            className="group rounded-2xl border border-border/80 bg-card p-4 text-left shadow-soft hover:shadow-soft-md hover:border-primary/30 transition-all tap-highlight-none"
+            onClick={() => navigate("pharmacy", "inventory")}
+            className={cn(
+              "flex flex-col gap-1 rounded-xl border bg-card p-3 text-left transition-all hover:shadow-soft tap-highlight-none active:scale-[0.98]",
+              lowStock.length > 0 ? "border-amber-200 bg-amber-50/40" : "border-border/60"
+            )}
           >
-            <div className="rounded-xl bg-muted/60 p-2 w-fit group-hover:bg-primary/10 transition-colors">
-              <a.icon className={`h-5 w-5 ${a.tone}`} />
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-amber-700 leading-none">Low stock</span>
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
             </div>
-            <p className="text-sm font-semibold mt-2.5 leading-tight">{a.label}</p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{a.sub}</p>
+            <span className="text-lg font-bold leading-none tracking-tight text-amber-700">{lowStock.length}</span>
+            <span className="text-[10px] text-muted-foreground leading-tight">Below {LOW_STOCK_THRESHOLD} units</span>
           </button>
-        ))}
-      </div>
-
-      {/* Metrics row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="New Rx" value={newRx.length} icon={FileText} tone="info" hint="Awaiting review" onClick={() => navigate("pharmacy", "prescriptions")} />
-        <MetricCard label="Orders to accept" value={awaitingAcceptance.length} icon={ShoppingCart} tone="warning" hint="Paid · under review" onClick={() => navigate("pharmacy", "orders")} />
-        <MetricCard label="Preparing" value={preparingOrders.length} icon={Package} tone="info" onClick={() => navigate("pharmacy", "orders")} />
-        <MetricCard label="Ready for pickup" value={readyOrders.length} icon={CheckCircle2} tone="success" onClick={() => navigate("pharmacy", "orders")} />
-      </div>
-
-      {/* Finance row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard label="Today's sales" value={formatCurrency(todaySales)} icon={Wallet} tone="success" hint={`${todayOrders.length} order(s) today`} />
-        <MetricCard label="Commission today" value={formatCurrency(todayCommission)} icon={Receipt} tone="info" hint={`${profile?.commissionPct ?? 0}% platform rate`} />
-        <MetricCard label="Low stock" value={lowStock.length} icon={AlertTriangle} tone="danger" hint="< 10 units" onClick={() => navigate("pharmacy", "inventory")} />
-        <MetricCard label="Pending settlement" value={formatCurrency(pendingSettlementNet)} icon={CalendarClock} tone="warning" hint={`${pendingSettlements.length} period(s)`} onClick={() => navigate("pharmacy", "settlements")} />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
-        {/* Left: queues */}
-        <div className="lg:col-span-2 space-y-6">
-          <SectionCard
-            title="New prescriptions"
-            icon={FileText}
-            action={<Button variant="ghost" size="sm" onClick={() => navigate("pharmacy", "prescriptions")}>View all <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>}
-            dense
-          >
-            {newRx.length === 0 ? (
-              <div className="p-5">
-                <EmptyState icon={FileText} title="No new prescriptions" description="Prescriptions sent to your pharmacy will appear here." compact />
-              </div>
-            ) : (
-              <ul className="divide-y divide-border/60">
-                {newRx.slice(0, 6).map((rx) => (
-                  <li key={rx.id}>
-                    <button
-                      onClick={() => navigate("pharmacy", "prescription", { id: rx.id })}
-                      className="w-full text-left flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-accent/40 transition-colors tap-highlight-none"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 ring-1 ring-sky-100 shrink-0">
-                        <FileText className="h-4 w-4 text-sky-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{rx.prescriptionNumber}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"} · Dr. {rx.provider?.lastName ?? "—"} · {rx.items?.length ?? 0} item(s)
-                        </p>
-                      </div>
-                      <StatusBadge status={rx.status} size="sm" />
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+          <button
+            onClick={() => navigate("pharmacy", "inventory")}
+            className={cn(
+              "flex flex-col gap-1 rounded-xl border bg-card p-3 text-left transition-all hover:shadow-soft tap-highlight-none active:scale-[0.98]",
+              nearExpiry.length > 0 ? "border-amber-200 bg-amber-50/40" : "border-border/60"
             )}
-          </SectionCard>
-
-          <SectionCard
-            title="Orders awaiting acceptance"
-            icon={ShoppingCart}
-            action={<Button variant="ghost" size="sm" onClick={() => navigate("pharmacy", "orders")}>View all <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>}
-            dense
           >
-            {awaitingAcceptance.length === 0 ? (
-              <div className="p-5">
-                <EmptyState icon={ShoppingCart} title="No orders awaiting acceptance" description="Paid orders will appear here for your review." compact />
-              </div>
-            ) : (
-              <ul className="divide-y divide-border/60">
-                {awaitingAcceptance.slice(0, 6).map((o) => (
-                  <li key={o.id}>
-                    <button
-                      onClick={() => navigate("pharmacy", "order", { id: o.id })}
-                      className="w-full text-left flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-accent/40 transition-colors tap-highlight-none"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 ring-1 ring-amber-100 shrink-0">
-                        <ShoppingCart className="h-4 w-4 text-amber-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{o.orderNumber}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · {formatCurrency(o.total)} · {relativeDay(o.createdAt)}
-                        </p>
-                      </div>
-                      <StatusBadge status={o.status} size="sm" />
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-
-          {(preparingOrders.length > 0 || readyOrders.length > 0) && (
-            <SectionCard
-              title="Active fulfilment"
-              icon={Package}
-              description="Orders being prepared or ready for pickup"
-              dense
-            >
-              <ul className="divide-y divide-border/60">
-                {[...preparingOrders, ...readyOrders].slice(0, 6).map((o) => (
-                  <li key={o.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{o.orderNumber}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · {o.items?.length ?? 0} item(s)
-                      </p>
-                    </div>
-                    <StatusBadge status={o.status} size="sm" />
-                    <Button size="sm" variant="outline" onClick={() => navigate("pharmacy", "order", { id: o.id })}>
-                      Continue <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </SectionCard>
-          )}
-        </div>
-
-        {/* Right: alerts */}
-        <div className="space-y-6">
-          {clarificationOrders.length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-soft">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-amber-100 p-2 shrink-0">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-amber-800">Clarification required</p>
-                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                    {clarificationOrders.length} order(s) waiting for your response.
-                  </p>
-                  <Button size="sm" variant="outline" className="mt-3 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => navigate("pharmacy", "orders")}>
-                    Review <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-amber-700 leading-none">Near expiry</span>
+              <CalendarClock className="h-3.5 w-3.5 text-amber-600" />
             </div>
-          )}
-
-          {/* Low stock — amber-tinted alert card */}
-          <SectionCard
-            title="Low stock"
-            description="Below 10 units"
-            icon={AlertTriangle}
-            action={
-              lowStock.length > 0 ? (
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 h-6">{lowStock.length}</Badge>
-              ) : undefined
-            }
-            dense
-          >
-            {lowStock.length === 0 ? (
-              <div className="p-5 text-center">
-                <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">All products well stocked.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border/60 max-h-72 overflow-y-auto">
-                {lowStock.slice(0, 8).map((p) => (
-                  <li key={p.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{p.strength} · {p.dosageForm}</p>
-                    </div>
-                    <span className={`text-sm font-bold ${p.stockQuantity === 0 ? "text-rose-600" : "text-amber-600"}`}>
-                      {p.stockQuantity} left
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-
-          {/* Near expiry — amber-tinted alert card */}
-          <SectionCard
-            title="Near expiry"
-            description="Within 90 days"
-            icon={CalendarClock}
-            action={
-              nearExpiry.length > 0 ? (
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 h-6">{nearExpiry.length}</Badge>
-              ) : undefined
-            }
-            dense
-          >
-            {nearExpiry.length === 0 ? (
-              <div className="p-5 text-center">
-                <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">No products expiring soon.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border/60 max-h-72 overflow-y-auto">
-                {nearExpiry.slice(0, 8).map((p) => {
-                  const days = daysUntil(p.expiryDate);
-                  return (
-                    <li key={p.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">Batch {p.batch ?? "—"}</p>
-                      </div>
-                      <span className={`text-xs font-medium ${days < 30 ? "text-rose-600" : "text-amber-600"}`}>
-                        {days < 0 ? "Expired" : formatDate(p.expiryDate)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </SectionCard>
-
-          {profile && (
-            <SectionCard title="Platform commission" icon={Receipt}>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <MiniMetric label="Platform rate" value={`${profile.commissionPct}%`} tone="info" />
-                <MiniMetric label="Set by" value="Admin" />
-              </div>
-              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("pharmacy", "commissions")}>
-                <TrendingUp className="h-3.5 w-3.5 mr-1" /> View commission reports
-              </Button>
-            </SectionCard>
-          )}
-
-          {profile && (
-            <SectionCard title="Pharmacy" icon={Building2}>
-              <dl className="text-sm space-y-2.5">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Pharmacy No.</dt>
-                  <dd className="font-medium font-mono text-xs">{profile.pharmacyNumber}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Verification</dt>
-                  <dd><StatusBadge status={profile.verificationStatus} size="sm" /></dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Rating</dt>
-                  <dd className="font-medium">★ {profile.rating.toFixed(1)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Phone</dt>
-                  <dd className="font-medium text-right">{profile.phone}</dd>
-                </div>
-              </dl>
-            </SectionCard>
-          )}
+            <span className="text-lg font-bold leading-none tracking-tight text-amber-700">{nearExpiry.length}</span>
+            <span className="text-[10px] text-muted-foreground leading-tight">Within {NEAR_EXPIRY_DAYS} days</span>
+          </button>
         </div>
+      )}
+
+      {/* Action needed: compact list */}
+      {(awaitingAcceptance.length > 0 || newRx.length > 0 || preparingOrders.length > 0 || readyOrders.length > 0) && (
+        <div className="space-y-2">
+          <SectionLabel>Action needed</SectionLabel>
+          <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
+            {awaitingAcceptance.slice(0, 2).map((o) => (
+              <CompactListItem
+                key={o.id}
+                leading={<div className="rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100"><ShoppingCart className="h-4 w-4 text-amber-600" /></div>}
+                title={o.orderNumber}
+                subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · ${formatCurrency(o.total)} · ${relativeDay(o.createdAt)}`}
+                trailing={<StatusBadge status={o.status} size="sm" />}
+                onClick={() => navigate("pharmacy", "order", { id: o.id })}
+                chevron
+              />
+            ))}
+            {newRx.slice(0, 2).map((rx) => (
+              <CompactListItem
+                key={rx.id}
+                leading={<div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100"><FileText className="h-4 w-4 text-sky-600" /></div>}
+                title={rx.prescriptionNumber}
+                subtitle={`${rx.patient ? `${rx.patient.firstName} ${rx.patient.lastName}` : "—"} · Dr. ${rx.provider?.lastName ?? "—"} · ${rx.items?.length ?? 0} item(s)`}
+                trailing={<StatusBadge status={rx.status} size="sm" />}
+                onClick={() => navigate("pharmacy", "prescription", { id: rx.id })}
+                chevron
+              />
+            ))}
+            {preparingOrders.slice(0, 1).map((o) => (
+              <CompactListItem
+                key={o.id}
+                leading={<div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100"><Package className="h-4 w-4 text-sky-600" /></div>}
+                title={`Preparing · ${o.orderNumber}`}
+                subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · ${o.items?.length ?? 0} item(s)`}
+                trailing={<StatusBadge status={o.status} size="sm" />}
+                onClick={() => navigate("pharmacy", "order", { id: o.id })}
+                chevron
+              />
+            ))}
+            {readyOrders.slice(0, 1).map((o) => (
+              <CompactListItem
+                key={o.id}
+                leading={<div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100"><CheckCircle2 className="h-4 w-4 text-emerald-600" /></div>}
+                title={`Ready for pickup · ${o.orderNumber}`}
+                subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · awaiting logistics`}
+                trailing={<StatusBadge status={o.status} size="sm" />}
+                onClick={() => navigate("pharmacy", "order", { id: o.id })}
+                chevron
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Clarification required — amber alert */}
+      {clarificationOrders.length > 0 && (
+        <button
+          onClick={() => navigate("pharmacy", "orders")}
+          className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left flex items-center gap-3 hover:bg-amber-100/60 transition-colors tap-highlight-none"
+        >
+          <div className="rounded-lg bg-amber-100 p-2 shrink-0">
+            <Clock className="h-4 w-4 text-amber-700" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-900">Clarification required</p>
+            <p className="text-xs text-amber-700 truncate">{clarificationOrders.length} order(s) awaiting your response</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-amber-700 shrink-0" />
+        </button>
+      )}
+
+      {/* Finance quick row */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <StatTile label="Commission today" value={formatCurrency(todayOrders.reduce((s, o) => s + o.commissionTotal, 0))} icon={Receipt} tone="info" />
+        <StatTile label="Pending settle" value={formatCurrency(pendingSettlementNet)} icon={CalendarClock} tone="warning" onClick={() => navigate("pharmacy", "settlements")} />
       </div>
+
+      {/* Pharmacy quick info */}
+      {profile && (
+        <div className="rounded-xl border border-border/60 bg-card p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="rounded-xl bg-primary/10 p-2 shrink-0">
+              <Building2 className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate">{profile.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{profile.pharmacyNumber}</p>
+            </div>
+            <StatusBadge status={profile.verificationStatus} size="sm" />
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Rating</p>
+              <p className="text-sm font-bold">★ {profile.rating.toFixed(1)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
+              <p className="text-sm font-bold text-emerald-700">{profile.commissionPct}%</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pending</p>
+              <p className="text-sm font-bold text-amber-700">{pendingSettlements.length}</p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => navigate("pharmacy", "commissions")}>
+            <TrendingUp className="h-3.5 w-3.5 mr-1" /> View commission reports
+          </Button>
+        </div>
+      )}
     </div>
   );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">{children}</p>;
 }
