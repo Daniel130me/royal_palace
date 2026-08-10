@@ -1,0 +1,3684 @@
+# MASTER BUILD PROMPT — ROYAL PALACE HEALTH CARE CLICKABLE MVP PROTOTYPE
+
+You are acting as a senior product engineer, React/TypeScript architect, healthcare-platform UX engineer, frontend engineer, API architect, and QA engineer.
+
+Your task is to build a **fully functional, high-fidelity clickable MVP prototype** for:
+
+# Royal Palace Health Care Digital Platform
+
+This is not a collection of static mockup screens.
+
+It must behave like a real application:
+
+* Users can log in.
+* Users can switch between demo personas.
+* Patients can discover doctors.
+* Patients can book consultations.
+* Appointments are created in the mock database.
+* Doctors can open appointments.
+* Doctors can document consultations.
+* Doctors can create prescriptions.
+* Doctors can request laboratory tests.
+* Doctors can create referrals.
+* Pharmacies can receive prescriptions.
+* Pharmacies can process pharmacy orders.
+* Laboratories can receive requests and upload results.
+* Logistics users can process deliveries.
+* Administrators can verify providers and manage pricing.
+* Actions must update `db.json`.
+* Changes must appear in the appropriate dashboards.
+* Status changes must persist after refreshing the application.
+
+The prototype will use:
+
+* React
+* TypeScript
+* TSX
+* Vite
+* React Router
+* JSON Server
+* `db.json`
+* REST-style API requests
+* Responsive web design
+
+Use the existing project stack and dependencies when a project already exists. Do not unnecessarily replace existing tooling.
+
+The prototype must be architected so that JSON Server can later be replaced by the actual Royal Palace backend without requiring a major frontend rewrite.
+
+---
+
+# 1. PRODUCT DEFINITION
+
+Royal Palace Health Care Digital Platform is a managed healthcare ecosystem connecting:
+
+* Patients.
+* Doctors.
+* Dentists.
+* Pharmacies.
+* Laboratories.
+* Diagnostic centres.
+* Logistics personnel.
+* Platform administrators.
+
+The platform is not simply a doctor-directory website or a telemedicine application.
+
+Its primary differentiator is **continuity of care**.
+
+The patient journey connects:
+
+```text
+Healthcare Need
+      ↓
+Provider Discovery
+      ↓
+Appointment Booking
+      ↓
+Payment
+      ↓
+Consultation
+      ↓
+Structured Clinical Record
+      ↓
+Prescription / Laboratory Request / Referral
+      ↓
+Pharmacy / Laboratory / Receiving Provider
+      ↓
+Result / Fulfilment / Additional Care
+      ↓
+Follow-Up
+      ↓
+Continuous Patient Health Record
+```
+
+Everything implemented in the prototype must support this connected journey.
+
+---
+
+# 2. CRITICAL PROTOTYPE OBJECTIVE
+
+Build a prototype that looks and behaves realistically enough for:
+
+* Client review.
+* Stakeholder presentation.
+* User-flow validation.
+* UX validation.
+* Development planning.
+* Future conversion into the production application.
+
+The system must therefore contain real application state.
+
+Do not build fake screens where every button simply displays an alert.
+
+Important actions must update data through JSON Server.
+
+Example:
+
+When a patient books an appointment:
+
+```text
+POST /appointments
+```
+
+The new appointment must then appear in:
+
+* Patient → Appointments.
+* Doctor → Appointments.
+* Doctor → Dashboard.
+* Admin → Appointments.
+
+When the doctor completes the consultation:
+
+```text
+PATCH /appointments/:id
+POST /clinicalEncounters
+POST /prescriptions
+POST /laboratoryRequests
+```
+
+The information must subsequently appear in the patient's medical records.
+
+This cross-portal behaviour is essential.
+
+---
+
+# 3. PROTOTYPE DEVELOPMENT PRINCIPLE
+
+Treat JSON Server as if it were the real backend API.
+
+Do NOT tightly couple components directly to `db.json`.
+
+Never import `db.json` directly into React components.
+
+Use this architecture:
+
+```text
+React UI
+   ↓
+Hooks / Feature Logic
+   ↓
+Service Layer
+   ↓
+API Client
+   ↓
+JSON Server REST API
+```
+
+Later:
+
+```text
+React UI
+   ↓
+Hooks / Feature Logic
+   ↓
+Service Layer
+   ↓
+Production REST API
+```
+
+The UI must therefore remain reusable when the backend is replaced.
+
+---
+
+# 4. PROJECT STRUCTURE
+
+Use a scalable feature-based structure similar to:
+
+```text
+src/
+│
+├── app/
+│   ├── App.tsx
+│   ├── router.tsx
+│   ├── routes.ts
+│   └── providers/
+│
+├── assets/
+│
+├── components/
+│   ├── common/
+│   ├── layout/
+│   ├── navigation/
+│   ├── feedback/
+│   ├── forms/
+│   ├── tables/
+│   └── healthcare/
+│
+├── features/
+│   ├── auth/
+│   ├── patients/
+│   ├── providers/
+│   ├── appointments/
+│   ├── clinical-encounters/
+│   ├── prescriptions/
+│   ├── laboratory/
+│   ├── pharmacy/
+│   ├── logistics/
+│   ├── referrals/
+│   ├── consent/
+│   ├── payments/
+│   ├── pricing/
+│   ├── notifications/
+│   ├── settlements/
+│   └── admin/
+│
+├── layouts/
+│   ├── PublicLayout.tsx
+│   ├── PatientLayout.tsx
+│   ├── ProviderLayout.tsx
+│   ├── PharmacyLayout.tsx
+│   ├── LaboratoryLayout.tsx
+│   ├── LogisticsLayout.tsx
+│   └── AdminLayout.tsx
+│
+├── pages/
+│   ├── public/
+│   ├── patient/
+│   ├── provider/
+│   ├── pharmacy/
+│   ├── laboratory/
+│   ├── logistics/
+│   └── admin/
+│
+├── services/
+│   ├── api.ts
+│   ├── auth.service.ts
+│   ├── appointment.service.ts
+│   ├── patient.service.ts
+│   ├── encounter.service.ts
+│   ├── prescription.service.ts
+│   ├── laboratory.service.ts
+│   ├── pharmacy.service.ts
+│   ├── logistics.service.ts
+│   ├── payment.service.ts
+│   └── admin.service.ts
+│
+├── hooks/
+│
+├── context/
+│
+├── types/
+│
+├── constants/
+│
+├── utils/
+│
+└── styles/
+```
+
+The exact structure may be adapted where necessary, but maintain clear separation between UI, feature logic, API communication, and domain types.
+
+---
+
+# 5. PROTOTYPE UI STYLE
+
+Create a professional healthcare interface.
+
+The interface must communicate:
+
+* Trust.
+* Safety.
+* Clarity.
+* Medical professionalism.
+* Accessibility.
+* Modern digital healthcare.
+* Calmness.
+* Reliability.
+
+Avoid overly playful designs.
+
+Avoid excessive gradients.
+
+Avoid excessive animation.
+
+Avoid cluttered dashboards.
+
+Use:
+
+* Clear typography.
+* Comfortable spacing.
+* Strong visual hierarchy.
+* Professional dashboard cards.
+* Clean tables.
+* Status badges.
+* Tabs.
+* Timelines.
+* Step indicators.
+* Drawers.
+* Modals.
+* Toast notifications.
+* Empty states.
+* Skeleton/loading states.
+* Confirmation dialogs.
+
+Use consistent:
+
+* Border radius.
+* Button styling.
+* Card patterns.
+* Form patterns.
+* Status colours.
+* Table patterns.
+* Icons.
+
+Use healthcare-related icons through the project's chosen icon library.
+
+If no icon library exists, Lucide React can be used.
+
+---
+
+# 6. RESPONSIVE DESIGN
+
+The application must work on:
+
+* Desktop.
+* Laptop.
+* Tablet.
+* Mobile.
+
+Patient-facing pages must be mobile-first.
+
+Desktop patient navigation:
+
+```text
+Dashboard
+Find Care
+Appointments
+Health Records
+Prescriptions
+Laboratory
+Pharmacy Orders
+Care Plans
+Family
+Payments
+Messages
+Notifications
+Support
+Settings
+```
+
+Mobile patient navigation:
+
+```text
+Home
+Services
+Records
+Orders
+Account
+```
+
+Provider and administrative interfaces may use collapsible sidebar navigation.
+
+---
+
+# 7. AUTHENTICATION FOR THE PROTOTYPE
+
+Do not implement production authentication.
+
+Implement simulated authentication.
+
+Create demo accounts in `db.json`.
+
+Example users:
+
+```text
+Patient
+Amina Bello
+
+Doctor
+Dr. Tunde Adeyemi
+
+Pharmacist
+Grace Pharmacy
+
+Laboratory
+MedLab Diagnostics
+
+Logistics
+SwiftCare Rider
+
+Administrator
+Royal Palace Admin
+```
+
+Provide login information directly on the prototype login page for reviewers.
+
+Example:
+
+```text
+Patient
+amina@demo.com
+demo123
+
+Doctor
+doctor@demo.com
+demo123
+
+Pharmacy
+pharmacy@demo.com
+demo123
+
+Laboratory
+lab@demo.com
+demo123
+
+Logistics
+logistics@demo.com
+demo123
+
+Admin
+admin@demo.com
+demo123
+```
+
+These are synthetic prototype accounts only.
+
+Never use real patient information.
+
+After login:
+
+Store the current demo session in `localStorage`.
+
+Example:
+
+```text
+royalPalaceSession
+```
+
+A session contains:
+
+```ts
+{
+  userId: string;
+  role: UserRole;
+  profileId?: string;
+}
+```
+
+Create route guards.
+
+Examples:
+
+```text
+/patient/*
+/provider/*
+/pharmacy/*
+/laboratory/*
+/logistics/*
+/admin/*
+```
+
+A patient must not access the admin dashboard.
+
+---
+
+# 8. DEMO PERSONA SWITCHER
+
+Because this prototype will be demonstrated to stakeholders, implement a small development/demo tool allowing the reviewer to quickly switch personas.
+
+Example:
+
+```text
+View prototype as:
+
+Patient
+Doctor
+Pharmacy
+Laboratory
+Logistics
+Admin
+```
+
+Switching personas must change:
+
+* Session.
+* Navigation.
+* Dashboard.
+* Available functionality.
+
+Clearly label this feature:
+
+```text
+Demo Persona Switcher
+```
+
+It is a prototype feature and not intended for production.
+
+---
+
+# 9. JSON SERVER
+
+Create:
+
+```text
+db.json
+```
+
+Add an npm script similar to:
+
+```text
+npm run mock-api
+```
+
+The mock API should run separately from the Vite frontend.
+
+Use environment configuration for the API URL.
+
+Example:
+
+```text
+VITE_API_BASE_URL=http://localhost:4000
+```
+
+Create a central API client.
+
+Example responsibility:
+
+```ts
+api.get(...)
+api.post(...)
+api.patch(...)
+api.delete(...)
+```
+
+Do not scatter raw API URLs throughout components.
+
+---
+
+# 10. DB.JSON DOMAIN MODEL
+
+The `db.json` file must contain interconnected collections.
+
+Create at minimum:
+
+```text
+users
+patients
+dependants
+providers
+providerApplications
+pharmacies
+laboratories
+logisticsProviders
+services
+servicePrices
+pharmacyProducts
+appointments
+clinicalEncounters
+diagnoses
+prescriptions
+prescriptionItems
+laboratoryRequests
+laboratoryBookings
+laboratoryResults
+referrals
+careHandoffs
+recordAccessGrants
+consents
+pharmacyOrders
+pharmacyOrderItems
+deliveries
+payments
+refunds
+commissions
+settlements
+notifications
+messages
+ratings
+complaints
+auditLogs
+carePlans
+```
+
+All entities must have stable IDs.
+
+Prefer readable prototype identifiers such as:
+
+```text
+PAT-001
+PRO-001
+APT-001
+ENC-001
+RX-001
+LABREQ-001
+LABRES-001
+ORD-001
+DEL-001
+PAY-001
+```
+
+---
+
+# 11. USER DATA MODEL
+
+Example:
+
+```ts
+interface User {
+  id: string;
+  email: string;
+  phone?: string;
+  password: string;
+  role:
+    | "patient"
+    | "doctor"
+    | "dentist"
+    | "pharmacy"
+    | "laboratory"
+    | "logistics"
+    | "admin";
+  status: "active" | "pending" | "suspended";
+  profileId: string;
+}
+```
+
+Passwords exist only because this is a prototype.
+
+Place an explanatory comment in the project documentation that production authentication must never store plaintext passwords.
+
+---
+
+# 12. PATIENT MODEL
+
+Patient data should include:
+
+```ts
+interface Patient {
+  id: string;
+  userId: string;
+  patientNumber: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  phone: string;
+  email: string;
+  location: {
+    city: string;
+    state: string;
+    country: string;
+  };
+  bloodGroup?: string;
+  genotype?: string;
+  height?: number;
+  weight?: number;
+  allergies: HealthRecordItem[];
+  conditions: HealthRecordItem[];
+  medications: HealthRecordItem[];
+  emergencyContact?: EmergencyContact;
+}
+```
+
+Health information should indicate provenance.
+
+Example:
+
+```ts
+{
+  name: "Penicillin",
+  source: "provider-confirmed",
+  status: "active",
+  recordedAt: "..."
+}
+```
+
+Possible sources:
+
+```text
+patient-reported
+provider-confirmed
+imported
+```
+
+---
+
+# 13. PROVIDER MODEL
+
+Doctors and dentists should include:
+
+```text
+Name
+Specialty
+Professional title
+Qualifications
+Years of experience
+Biography
+Languages
+Registration number
+Licence number
+Licence expiry
+Verification status
+Consultation modes
+Availability
+Current workplace
+Profile image
+Rating
+```
+
+Provider verification statuses:
+
+```text
+draft
+submitted
+under_review
+additional_information_requested
+approved
+rejected
+suspended
+expired
+reverification_required
+```
+
+Only approved providers can be booked.
+
+---
+
+# 14. SERVICE AND PRICING MODEL
+
+Royal Palace controls patient-facing prices for:
+
+* Doctor consultation.
+* Dental services.
+* Laboratory services.
+* Diagnostics.
+* Chronic-care programmes.
+* Preventive healthcare.
+* Home healthcare.
+* Delivery.
+* Subscriptions.
+
+Example:
+
+```ts
+interface ServicePrice {
+  id: string;
+  serviceId: string;
+  patientPrice: number;
+  providerPayout: number;
+  platformMargin: number;
+  currency: "NGN";
+  effectiveFrom: string;
+  status: "active" | "scheduled" | "inactive";
+}
+```
+
+Providers must NOT be able to modify these prices.
+
+The doctor interface can display:
+
+```text
+Patient Price: ₦15,000
+Provider Earnings: ₦11,000
+```
+
+but must not provide an edit button.
+
+---
+
+# 15. PHARMACY PRICING MODEL
+
+Pharmacies control product prices.
+
+Example pharmacy product:
+
+```ts
+{
+  id: "MED-001",
+  pharmacyId: "PHA-001",
+  name: "Amoxicillin",
+  genericName: "Amoxicillin",
+  strength: "500mg",
+  dosageForm: "Capsule",
+  category: "Prescription Medicine",
+  price: 4500,
+  stockQuantity: 38,
+  prescriptionRequired: true,
+  expiryDate: "2027-05-01",
+  status: "active"
+}
+```
+
+The platform controls commission.
+
+Example:
+
+```ts
+{
+  id: "COMRULE-001",
+  pharmacyId: "PHA-001",
+  percentage: 8,
+  status: "active"
+}
+```
+
+Commission must be calculated per order item.
+
+Example:
+
+```text
+Product Price: ₦4,500
+Quantity: 2
+
+Gross:
+₦9,000
+
+Platform Commission:
+8% = ₦720
+
+Pharmacy Net:
+₦8,280
+```
+
+Persist this calculation in `pharmacyOrderItems`.
+
+Do not calculate commission only visually.
+
+---
+
+# 16. PUBLIC WEBSITE
+
+Create these routes:
+
+```text
+/
+/services
+/providers
+/providers/:id
+/pharmacies
+/laboratories
+/pricing
+/how-it-works
+/help
+/login
+/register
+```
+
+The home page must include:
+
+1. Hero section.
+2. Healthcare-service search.
+3. Main healthcare categories.
+4. How Royal Palace works.
+5. Featured verified doctors.
+6. Laboratory services.
+7. Pharmacy services.
+8. Healthcare plans.
+9. Trust and safety.
+10. FAQ.
+11. Registration CTA.
+
+Do not build a generic corporate homepage.
+
+The homepage must immediately communicate that Royal Palace connects:
+
+```text
+Consultation
++
+Medical Records
++
+Laboratory
++
+Pharmacy
++
+Delivery
+```
+
+---
+
+# 17. PATIENT DASHBOARD
+
+Route:
+
+```text
+/patient/dashboard
+```
+
+Display:
+
+* Greeting.
+* Selected patient/dependant.
+* Upcoming appointment.
+* Join consultation CTA where applicable.
+* Pending prescription.
+* Pending laboratory test.
+* Recent laboratory result.
+* Active pharmacy order.
+* Follow-up reminder.
+* Health summary.
+* Notifications.
+
+Quick actions:
+
+```text
+Consult a Doctor
+Book Laboratory Test
+Order Medicine
+View Records
+Add Dependant
+```
+
+---
+
+# 18. FIND CARE
+
+Route:
+
+```text
+/patient/services
+```
+
+Categories:
+
+```text
+Doctor Consultation
+Dental Care
+Laboratory Tests
+Pharmacy
+Chronic Care
+Preventive Healthcare
+Home Healthcare
+```
+
+Implement doctor discovery fully.
+
+Route:
+
+```text
+/patient/services/doctors
+```
+
+Filters:
+
+* Specialty.
+* Consultation mode.
+* Location.
+* Availability.
+* Language.
+* Rating.
+
+Doctor cards should contain:
+
+* Photo.
+* Name.
+* Specialty.
+* Verified badge.
+* Experience.
+* Rating.
+* Consultation formats.
+* Next availability.
+* Platform price.
+* View Profile.
+* Book Appointment.
+
+---
+
+# 19. PROVIDER PROFILE
+
+Route:
+
+```text
+/providers/:providerId
+```
+
+Include:
+
+* Profile image.
+* Verified status.
+* Name.
+* Specialty.
+* Biography.
+* Qualifications.
+* Languages.
+* Experience.
+* Consultation formats.
+* Available slots.
+* Patient rating.
+* Consultation price.
+* Booking CTA.
+
+---
+
+# 20. BOOKING FLOW
+
+Implement a real multi-step booking flow.
+
+Example:
+
+```text
+Select Doctor
+    ↓
+Select Consultation Type
+    ↓
+Choose Date
+    ↓
+Choose Time
+    ↓
+Pre-Consultation Intake
+    ↓
+Review Booking
+    ↓
+Mock Payment
+    ↓
+Booking Confirmed
+```
+
+Create an actual appointment record.
+
+Appointment structure must contain:
+
+```text
+Patient
+Provider
+Service
+Date
+Time
+Duration
+Consultation channel
+Price
+Payment status
+Appointment status
+Intake form
+Consent status
+```
+
+---
+
+# 21. MOCK PAYMENT
+
+Do not integrate a real payment provider.
+
+Create a realistic payment screen.
+
+Display:
+
+```text
+Consultation Fee
+Service Fee where applicable
+Total
+```
+
+Provide demo options:
+
+```text
+Card
+Bank Transfer
+```
+
+The button:
+
+```text
+Pay ₦15,000
+```
+
+creates a payment record and updates the appointment.
+
+Simulate a short processing state.
+
+Then show:
+
+```text
+Payment Successful
+Appointment Confirmed
+```
+
+Persist payment status.
+
+---
+
+# 22. APPOINTMENT STATUS
+
+Support:
+
+```text
+scheduled
+checked_in
+waiting_for_provider
+in_progress
+awaiting_documentation
+completed
+cancelled
+no_show
+```
+
+Changing statuses must update the database.
+
+---
+
+# 23. PATIENT APPOINTMENTS
+
+Route:
+
+```text
+/patient/appointments
+```
+
+Tabs:
+
+```text
+Upcoming
+Completed
+Cancelled
+```
+
+Appointment detail:
+
+```text
+/patient/appointments/:appointmentId
+```
+
+Display:
+
+* Provider.
+* Service.
+* Time.
+* Consultation format.
+* Payment.
+* Intake.
+* Consent.
+* Preparation.
+* Join consultation.
+* Reschedule.
+* Cancel.
+
+---
+
+# 24. VIRTUAL CONSULTATION PROTOTYPE
+
+Do not integrate real WebRTC at this stage.
+
+Build a realistic consultation experience.
+
+Patient route:
+
+```text
+/patient/appointments/:id/consultation
+```
+
+Provider route:
+
+```text
+/provider/appointments/:id/consultation
+```
+
+Waiting room should contain:
+
+* Doctor/patient information.
+* Camera status.
+* Microphone status.
+* Network quality mock indicator.
+* Appointment information.
+* Waiting status.
+* Start/Join action.
+
+Consultation UI should resemble a video consultation interface.
+
+Include:
+
+* Large simulated video area.
+* Participant name.
+* Microphone button.
+* Camera button.
+* Chat toggle.
+* Files toggle.
+* Connection status.
+* End consultation.
+
+The prototype does not need actual streaming.
+
+Clearly isolate this simulated implementation so a WebRTC provider can replace it later.
+
+---
+
+# 25. DOCTOR DASHBOARD
+
+Route:
+
+```text
+/provider/dashboard
+```
+
+Show:
+
+* Today's appointments.
+* Waiting patients.
+* Next consultation.
+* Pending documentation.
+* Laboratory results awaiting review.
+* Pharmacy clarification requests.
+* Open referrals.
+* Follow-ups.
+* Earnings.
+* Licence-expiry notice.
+
+Quick actions:
+
+```text
+View Waiting Room
+Open Appointments
+Review Results
+View Referrals
+```
+
+---
+
+# 26. CLINICAL ENCOUNTER WORKSPACE
+
+This is one of the most important screens in the prototype.
+
+Route:
+
+```text
+/provider/encounters/:encounterId
+```
+
+Create a desktop three-panel interface.
+
+```text
+┌─────────────────────┬────────────────────────────┬──────────────────────┐
+│ Patient Summary     │ Current Consultation       │ Clinical Actions     │
+│                     │                            │                      │
+│ History             │ Documentation              │ Prescription         │
+│ Allergies           │                            │ Laboratory           │
+│ Medicines           │                            │ Referral             │
+└─────────────────────┴────────────────────────────┴──────────────────────┘
+```
+
+## Left Panel
+
+Display:
+
+* Patient name.
+* Patient number.
+* Age.
+* Gender.
+* Allergies.
+* Active conditions.
+* Current medication.
+* Recent consultations.
+* Recent laboratory results.
+* Active prescriptions.
+* Alerts.
+
+Provide expandable sections.
+
+## Centre Panel
+
+Implement structured consultation documentation.
+
+Sections:
+
+```text
+Consultation Reason
+Chief Complaint
+History of Present Illness
+Relevant Medical History
+Medication History
+Allergy Confirmation
+Family History
+Social History
+Vital Signs
+Examination Findings
+Assessment
+Diagnosis
+Differential Diagnosis
+Treatment Plan
+Follow-Up
+Patient Instructions
+Safety-Netting
+Attachments
+```
+
+Support SOAP grouping where useful:
+
+```text
+Subjective
+Objective
+Assessment
+Plan
+```
+
+Autosave form drafts.
+
+Autosave can be implemented using debounced PATCH requests.
+
+Show:
+
+```text
+Saving...
+Saved
+```
+
+## Right Panel
+
+Clinical actions:
+
+```text
+Create Prescription
+Order Laboratory Test
+Create Referral
+Book Follow-Up
+Send Patient Instructions
+Complete Consultation
+```
+
+---
+
+# 27. COMPLETING AN ENCOUNTER
+
+The doctor cannot complete the encounter without:
+
+* Consultation reason.
+* Relevant history.
+* Allergy status.
+* Medication status.
+* Assessment.
+* Diagnosis or provisional diagnosis.
+* Treatment plan.
+* Follow-up recommendation.
+* Provider signature.
+
+If missing:
+
+Display clear validation.
+
+After signing:
+
+```text
+status = completed
+locked = true
+```
+
+The UI must indicate:
+
+```text
+Signed Clinical Record
+This consultation record is locked.
+```
+
+Do not allow editing of the original signed record.
+
+A prototype amendment action can create a separate amendment record.
+
+---
+
+# 28. PRESCRIPTION CREATION
+
+Doctor action:
+
+```text
+Create Prescription
+```
+
+Use a modal, drawer, or dedicated route.
+
+Fields:
+
+```text
+Medicine
+Generic/Brand Preference
+Strength
+Dosage Form
+Dose
+Route
+Frequency
+Duration
+Quantity
+Refill Allowance
+Substitution Permission
+Instructions
+Start Date
+Expiry Date
+```
+
+Display patient allergy information prominently.
+
+After issuing:
+
+Create:
+
+```text
+prescription
+prescriptionItems
+```
+
+Status:
+
+```text
+issued
+```
+
+The prescription must immediately appear in:
+
+```text
+Patient → Prescriptions
+Doctor → Prescriptions
+```
+
+---
+
+# 29. PATIENT PRESCRIPTIONS
+
+Route:
+
+```text
+/patient/prescriptions
+```
+
+Statuses:
+
+```text
+Active
+Awaiting Pharmacy
+Partially Fulfilled
+Fulfilled
+Expired
+Cancelled
+```
+
+Prescription detail:
+
+```text
+/patient/prescriptions/:id
+```
+
+Display:
+
+* Doctor.
+* Consultation.
+* Date.
+* Medicine.
+* Strength.
+* Dosage.
+* Frequency.
+* Duration.
+* Quantity.
+* Instructions.
+* Validity.
+* Pharmacy status.
+
+CTA:
+
+```text
+Order Medicines
+```
+
+---
+
+# 30. PRESCRIPTION TO PHARMACY FLOW
+
+Implement:
+
+```text
+Prescription
+    ↓
+Select Pharmacy
+    ↓
+Check Product Availability
+    ↓
+Review Product Prices
+    ↓
+Add Items
+    ↓
+Delivery Address
+    ↓
+Review Delivery Fee
+    ↓
+Mock Payment
+    ↓
+Pharmacy Receives Order
+```
+
+The pharmacy order must be persisted.
+
+---
+
+# 31. PHARMACY DASHBOARD
+
+Route:
+
+```text
+/pharmacy/dashboard
+```
+
+Display:
+
+* New prescriptions.
+* Orders awaiting acceptance.
+* Orders requiring clarification.
+* Preparing orders.
+* Ready for pickup.
+* Low-stock products.
+* Near-expiry products.
+* Today's sales.
+* Platform commission.
+* Pending settlements.
+
+---
+
+# 32. PHARMACY PRODUCTS
+
+Routes:
+
+```text
+/pharmacy/products
+/pharmacy/products/:id
+```
+
+Allow prototype CRUD:
+
+* Add product.
+* Edit product.
+* Change pharmacy selling price.
+* Update stock.
+* Mark unavailable.
+
+Fields:
+
+```text
+Product name
+Generic name
+Brand
+Category
+Strength
+Dosage form
+Manufacturer
+Selling price
+Stock
+Batch
+Expiry
+Prescription requirement
+Storage requirements
+```
+
+---
+
+# 33. PHARMACY PRESCRIPTION REVIEW
+
+Route:
+
+```text
+/pharmacy/prescriptions/:id
+```
+
+The pharmacy may see:
+
+* Patient identity.
+* Prescriber.
+* Prescription.
+* Medicines.
+* Quantity.
+* Relevant allergy warning.
+* Substitution rules.
+* Validity.
+
+Do NOT show:
+
+* Full clinical notes.
+* Unrelated diagnoses.
+* Complete patient history.
+
+Actions:
+
+```text
+Accept Prescription
+Request Clarification
+Reject
+```
+
+---
+
+# 34. PHARMACY ORDER PROCESSING
+
+Route:
+
+```text
+/pharmacy/orders/:id
+```
+
+Statuses:
+
+```text
+paid
+prescription_under_review
+clarification_required
+accepted
+partially_available
+rejected
+preparing
+ready_for_pickup
+picked_up
+in_transit
+delivered
+cancelled
+refunded
+```
+
+Allow pharmacy staff to progress the order.
+
+Example:
+
+```text
+Accept Order
+       ↓
+Start Preparing
+       ↓
+Mark Ready for Pickup
+       ↓
+Request Logistics
+```
+
+Each transition must persist.
+
+---
+
+# 35. LABORATORY REQUEST
+
+Doctors must be able to request laboratory tests.
+
+Fields:
+
+```text
+Tests
+Clinical indication
+Priority
+Preparation instructions
+Fasting requirement
+Sample type
+Notes
+```
+
+After submission:
+
+Create:
+
+```text
+laboratoryRequest
+```
+
+Status:
+
+```text
+pending_booking
+```
+
+It appears in:
+
+```text
+Patient → Laboratory
+Doctor → Laboratory Requests
+```
+
+---
+
+# 36. PATIENT LABORATORY FLOW
+
+Route:
+
+```text
+/patient/laboratory
+```
+
+Sections:
+
+```text
+Pending Test Requests
+Upcoming Bookings
+Tests In Progress
+Results
+```
+
+The patient can open a request and choose:
+
+```text
+Laboratory Facility
+or
+Home Collection
+```
+
+Then:
+
+```text
+Choose Date
+Choose Time
+Mock Payment
+Confirm Booking
+```
+
+Create a laboratory booking.
+
+---
+
+# 37. LABORATORY DASHBOARD
+
+Route:
+
+```text
+/laboratory/dashboard
+```
+
+Display:
+
+* New requests.
+* Today's appointments.
+* Home collections.
+* Samples awaiting processing.
+* Tests in progress.
+* Results awaiting upload.
+* Critical results.
+* Earnings.
+* Settlements.
+
+---
+
+# 38. LABORATORY WORKFLOW
+
+Support:
+
+```text
+Request Received
+      ↓
+Booking Accepted
+      ↓
+Sample Collected
+      ↓
+Processing
+      ↓
+Quality Review
+      ↓
+Result Uploaded
+      ↓
+Result Published
+```
+
+Persist every status.
+
+---
+
+# 39. RESULT CREATION
+
+Route:
+
+```text
+/laboratory/results/new?requestId=...
+```
+
+Fields:
+
+```text
+Test
+Sample collection date
+Result date
+Value
+Unit
+Reference range
+Abnormal indicator
+Interpretation
+Report attachment placeholder
+Reviewer
+```
+
+Because this is a prototype, actual file uploading can use mocked file metadata.
+
+After finalising:
+
+Create a laboratory result.
+
+Update laboratory request:
+
+```text
+status = completed
+```
+
+Create notifications for:
+
+* Patient.
+* Referring doctor.
+
+The result must appear in the patient's clinical timeline.
+
+---
+
+# 40. CLINICAL TIMELINE
+
+Route:
+
+```text
+/patient/records
+```
+
+Create a unified chronological timeline combining:
+
+* Consultations.
+* Diagnoses.
+* Prescriptions.
+* Laboratory requests.
+* Results.
+* Referrals.
+* Medicine fulfilments.
+* Follow-ups.
+* Care plans.
+
+Do not create unrelated separate datasets visually.
+
+The timeline should demonstrate continuity of care.
+
+Allow filtering by:
+
+```text
+All
+Consultations
+Prescriptions
+Laboratory
+Referrals
+Orders
+```
+
+---
+
+# 41. PATIENT HEALTH SUMMARY
+
+At the top of Health Records show:
+
+```text
+Active Conditions
+Allergies
+Current Medicines
+Recent Results
+Active Referrals
+Current Care Plans
+```
+
+Clearly identify:
+
+```text
+Patient Reported
+Provider Confirmed
+```
+
+---
+
+# 42. REFERRAL FLOW
+
+Doctors can create a referral.
+
+Fields:
+
+```text
+Receiving provider
+Specialty
+Referral reason
+Relevant symptoms
+Relevant history
+Diagnosis
+Current treatment
+Required action
+Urgency
+Attachments
+Access expiry
+```
+
+Create both:
+
+```text
+referral
+careHandoff
+```
+
+Statuses:
+
+```text
+draft
+sent
+received
+accepted
+declined
+in_progress
+completed
+expired
+requires_clarification
+```
+
+Receiving doctors must see incoming referrals.
+
+---
+
+# 43. RECORD ACCESS CENTRE
+
+Patient route:
+
+```text
+/patient/consent
+```
+
+Display:
+
+```text
+Active Access
+Pending Requests
+Previous Access
+Consent Preferences
+```
+
+Each access grant shows:
+
+* Provider.
+* Organisation.
+* Reason.
+* Information shared.
+* Date granted.
+* Expiry.
+* Related consultation/referral.
+* Status.
+
+Provide:
+
+```text
+Revoke Future Access
+```
+
+where appropriate.
+
+This action must update the relevant access grant.
+
+---
+
+# 44. FAMILY / DEPENDANTS
+
+Route:
+
+```text
+/patient/family
+```
+
+Allow patient to:
+
+* View dependants.
+* Add dependant.
+* Select dependant.
+
+Each dependant must have separate:
+
+* Health profile.
+* Appointment history.
+* Prescriptions.
+* Laboratory records.
+
+The selected patient context must remain visible.
+
+Example:
+
+```text
+Managing healthcare for:
+Amina Bello ▼
+```
+
+or:
+
+```text
+Managing healthcare for:
+Zainab Bello — Daughter
+```
+
+---
+
+# 45. LOGISTICS PORTAL
+
+Routes:
+
+```text
+/logistics/dashboard
+/logistics/assignments
+/logistics/deliveries/:id
+```
+
+Dashboard:
+
+* Available assignment.
+* Current pickup.
+* Active delivery.
+* Delivery deadline.
+* Earnings.
+
+Assignment detail must show only:
+
+* Pickup location.
+* Pickup contact.
+* Delivery location.
+* Recipient.
+* Package type.
+* Handling instruction.
+* Verification code.
+* Delivery payout.
+
+It must NOT expose:
+
+* Diagnosis.
+* Clinical record.
+* Laboratory result.
+* Detailed patient history.
+
+---
+
+# 46. DELIVERY WORKFLOW
+
+Statuses:
+
+```text
+assigned
+accepted
+heading_to_pickup
+arrived_at_pickup
+pickup_verified
+picked_up
+in_transit
+arrived_at_destination
+delivered
+failed
+returned
+cancelled
+```
+
+Allow status progression.
+
+Delivery confirmation should require a simulated delivery verification code.
+
+When delivery becomes:
+
+```text
+delivered
+```
+
+also update the corresponding pharmacy order.
+
+---
+
+# 47. ADMIN DASHBOARD
+
+Route:
+
+```text
+/admin/dashboard
+```
+
+Display:
+
+* Total patients.
+* Active patients.
+* Verified providers.
+* Pending provider verification.
+* Today's consultations.
+* Laboratory bookings.
+* Pharmacy orders.
+* Deliveries.
+* Gross transaction value.
+* Platform revenue.
+* Provider payouts.
+* Refunds.
+* Open complaints.
+* Expiring licences.
+
+Use realistic synthetic metrics derived from `db.json` where practical.
+
+---
+
+# 48. PROVIDER VERIFICATION
+
+Route:
+
+```text
+/admin/providers
+/admin/providers/:id
+```
+
+Display:
+
+```text
+Personal Details
+Professional Details
+Registration
+Practising Licence
+Qualifications
+Government ID
+Bank Details
+Supporting Documents
+Verification History
+```
+
+Actions:
+
+```text
+Approve
+Reject
+Request Information
+Suspend
+Reactivate
+```
+
+Update `providerApplications` and provider status.
+
+---
+
+# 49. ADMIN PRICING
+
+Route:
+
+```text
+/admin/pricing
+```
+
+Categories:
+
+```text
+Consultation
+Dental
+Laboratory
+Home Services
+Preventive Care
+Chronic Care
+Logistics
+```
+
+Admin can edit:
+
+* Patient-facing price.
+* Provider payout.
+* Platform margin.
+* Effective date.
+
+Create pricing history.
+
+Provider dashboards must automatically show the changed price.
+
+This demonstrates platform-managed pricing.
+
+---
+
+# 50. PHARMACY COMMISSION MANAGEMENT
+
+Route:
+
+```text
+/admin/pharmacy-commissions
+```
+
+Admin can configure:
+
+* Pharmacy.
+* Product category.
+* Commission percentage.
+* Effective date.
+* Status.
+
+Changing the rule should affect newly created pharmacy orders.
+
+---
+
+# 51. FINANCIAL TRANSACTIONS
+
+Create basic pages for:
+
+```text
+/admin/payments
+/admin/settlements
+```
+
+Display:
+
+* Patient payment.
+* Provider payable.
+* Platform revenue.
+* Pharmacy commission.
+* Laboratory payout.
+* Logistics payout.
+* Refund status.
+* Settlement status.
+
+Do not build full accounting software.
+
+The prototype needs enough financial logic to demonstrate the business model.
+
+---
+
+# 52. AUDIT LOGS
+
+Route:
+
+```text
+/admin/audit
+```
+
+Important actions must create audit events.
+
+Examples:
+
+```text
+Patient logged in
+Patient booked consultation
+Doctor viewed patient record
+Doctor completed consultation
+Doctor issued prescription
+Laboratory viewed test request
+Laboratory published result
+Pharmacy viewed prescription
+Admin changed service price
+Admin approved provider
+Patient revoked record access
+```
+
+Audit event structure:
+
+```ts
+{
+  id: string;
+  actorId: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  timestamp: string;
+  description: string;
+}
+```
+
+---
+
+# 53. NOTIFICATIONS
+
+Create a unified notification system.
+
+Notifications should be stored in `db.json`.
+
+Examples:
+
+Patient:
+
+```text
+Your appointment is confirmed.
+Your prescription is ready.
+Your laboratory result is available.
+Your order is out for delivery.
+```
+
+Doctor:
+
+```text
+A patient has checked in.
+A laboratory result requires review.
+A pharmacy has requested clarification.
+```
+
+Pharmacy:
+
+```text
+New prescription received.
+New paid order received.
+```
+
+Laboratory:
+
+```text
+New laboratory booking received.
+```
+
+Admin:
+
+```text
+New provider application requires review.
+```
+
+Support unread/read state.
+
+---
+
+# 54. TOASTS AND USER FEEDBACK
+
+Every significant action should give feedback.
+
+Examples:
+
+```text
+Appointment successfully booked.
+Prescription successfully issued.
+Laboratory request created.
+Order accepted.
+Result successfully published.
+Provider successfully approved.
+Pricing updated.
+Access revoked.
+```
+
+Never leave the user uncertain whether an action succeeded.
+
+---
+
+# 55. LOADING STATES
+
+Implement:
+
+* Button loading indicators.
+* Skeleton cards.
+* Table loading states.
+* Page loading indicators.
+
+Do not show blank pages while data loads.
+
+---
+
+# 56. EMPTY STATES
+
+Create meaningful empty states.
+
+Examples:
+
+```text
+You do not have an upcoming appointment.
+```
+
+```text
+No active prescriptions are available.
+```
+
+```text
+Your laboratory results will appear here.
+```
+
+```text
+There are no pending provider applications.
+```
+
+Include relevant CTA where possible.
+
+---
+
+# 57. ERROR HANDLING
+
+Create reusable error states.
+
+Handle:
+
+* API unavailable.
+* Record not found.
+* Payment simulation failure.
+* Provider unavailable.
+* Expired prescription.
+* Missing patient consent.
+* Invalid form.
+* Failed status update.
+* Missing laboratory request.
+* Unavailable pharmacy item.
+
+Provide:
+
+```text
+Explanation
+Recovery action
+Retry
+Return action
+```
+
+---
+
+# 58. API SERVICE LAYER
+
+Create services such as:
+
+```ts
+getPatients()
+getPatient(id)
+
+getProviders()
+getProvider(id)
+
+getAppointments()
+createAppointment()
+updateAppointment()
+
+getEncounter()
+createEncounter()
+updateEncounter()
+
+createPrescription()
+getPrescriptions()
+
+createLaboratoryRequest()
+createLaboratoryBooking()
+createLaboratoryResult()
+
+createPharmacyOrder()
+updatePharmacyOrder()
+
+createDelivery()
+updateDelivery()
+
+getNotifications()
+markNotificationRead()
+
+createAuditEvent()
+```
+
+Pages must consume these services instead of performing arbitrary fetches everywhere.
+
+---
+
+# 59. TYPESCRIPT
+
+Create proper domain interfaces/types.
+
+Do not use `any` throughout the project.
+
+Create types for at least:
+
+```text
+User
+Patient
+Dependant
+Provider
+Service
+ServicePrice
+Appointment
+ClinicalEncounter
+Prescription
+PrescriptionItem
+LaboratoryRequest
+LaboratoryBooking
+LaboratoryResult
+Pharmacy
+PharmacyProduct
+PharmacyOrder
+PharmacyOrderItem
+Delivery
+Referral
+CareHandoff
+Consent
+RecordAccessGrant
+Payment
+Commission
+Settlement
+Notification
+AuditLog
+```
+
+Use union types for statuses.
+
+Example:
+
+```ts
+type AppointmentStatus =
+  | "scheduled"
+  | "checked_in"
+  | "waiting_for_provider"
+  | "in_progress"
+  | "awaiting_documentation"
+  | "completed"
+  | "cancelled"
+  | "no_show";
+```
+
+---
+
+# 60. STATUS COMPONENT
+
+Create reusable status badges.
+
+For example:
+
+```tsx
+<StatusBadge status="completed" />
+```
+
+Use the same status styling across:
+
+* Appointments.
+* Prescriptions.
+* Laboratory requests.
+* Orders.
+* Deliveries.
+* Provider verification.
+* Referrals.
+
+---
+
+# 61. TABLE COMPONENTS
+
+Administrative/provider portals will use reusable tables supporting:
+
+* Search.
+* Filtering.
+* Sorting.
+* Pagination.
+* Empty state.
+* Status.
+* Row actions.
+
+Do not duplicate table behaviour across every page.
+
+---
+
+# 62. FORMS
+
+Forms must include:
+
+* Labels.
+* Required-field indicators.
+* Validation.
+* Helpful error text.
+* Loading state.
+* Submit state.
+* Cancel action.
+* Confirmation where necessary.
+
+For long healthcare forms:
+
+* Use sections.
+* Use collapsible groups where helpful.
+* Avoid presenting 25 inputs in one uninterrupted column.
+
+---
+
+# 63. SEEDED PROTOTYPE STORY
+
+Seed the database specifically so reviewers can follow one complete story.
+
+Create a patient:
+
+```text
+Amina Bello
+```
+
+Create a doctor:
+
+```text
+Dr. Tunde Adeyemi
+General Practitioner
+Verified
+```
+
+Create a pharmacy:
+
+```text
+Grace Community Pharmacy
+```
+
+Create a laboratory:
+
+```text
+MedLab Diagnostics
+```
+
+Create logistics:
+
+```text
+SwiftCare Logistics
+```
+
+Create an administrator.
+
+The seed data should demonstrate a mixture of:
+
+* Historical consultation.
+* Current appointment.
+* Existing prescription.
+* Previous laboratory result.
+* New laboratory request.
+* Active pharmacy order.
+* Completed delivery.
+* Record access grant.
+* Notifications.
+
+The application should therefore look populated immediately.
+
+---
+
+# 64. PRIMARY END-TO-END DEMO JOURNEY
+
+The most important prototype journey is:
+
+## STEP 1 — Patient
+
+Amina logs in.
+
+She sees:
+
+```text
+Upcoming Consultation with Dr. Tunde Adeyemi
+```
+
+She can also discover and book a new consultation.
+
+---
+
+## STEP 2 — Booking
+
+Amina chooses:
+
+```text
+General Practitioner
+Video Consultation
+```
+
+She selects Dr. Tunde.
+
+She selects a date/time.
+
+She completes intake.
+
+She pays.
+
+Appointment is created.
+
+---
+
+## STEP 3 — Doctor
+
+Switch to Dr. Tunde.
+
+The appointment appears.
+
+Patient checks in.
+
+Doctor starts consultation.
+
+---
+
+## STEP 4 — Clinical Encounter
+
+Doctor sees:
+
+* Allergies.
+* Current medication.
+* Previous consultation.
+* Recent laboratory information.
+
+Doctor completes structured documentation.
+
+---
+
+## STEP 5 — Prescription
+
+Doctor issues a prescription.
+
+Amina can immediately see it.
+
+---
+
+## STEP 6 — Laboratory
+
+Doctor requests a laboratory test.
+
+The request appears in Amina's portal.
+
+Amina books MedLab Diagnostics.
+
+---
+
+## STEP 7 — Laboratory
+
+Switch to MedLab.
+
+The booking appears.
+
+Progress:
+
+```text
+Accepted
+Collected
+Processing
+Completed
+```
+
+Lab uploads result.
+
+---
+
+## STEP 8 — Doctor
+
+Dr. Tunde receives:
+
+```text
+New Laboratory Result
+```
+
+---
+
+## STEP 9 — Patient
+
+Amina sees the result in:
+
+```text
+Health Records
+```
+
+The clinical timeline now shows:
+
+```text
+Consultation
+Prescription
+Laboratory Request
+Laboratory Booking
+Laboratory Result
+```
+
+---
+
+## STEP 10 — Pharmacy
+
+Amina chooses:
+
+```text
+Order Medicines
+```
+
+She selects Grace Pharmacy.
+
+Order is created.
+
+---
+
+## STEP 11 — Pharmacy
+
+Grace Pharmacy sees the order.
+
+It progresses:
+
+```text
+Prescription Review
+Accepted
+Preparing
+Ready for Pickup
+```
+
+---
+
+## STEP 12 — Logistics
+
+SwiftCare receives the assignment.
+
+Progress:
+
+```text
+Accepted
+Picked Up
+In Transit
+Delivered
+```
+
+---
+
+## STEP 13 — Patient
+
+Amina sees:
+
+```text
+Medicine Delivered
+```
+
+This complete journey must work from the same connected mock dataset.
+
+---
+
+# 65. ROLE-BASED DATA VISIBILITY
+
+The prototype must demonstrate minimum-necessary information.
+
+Doctor:
+
+Can see relevant patient clinical information.
+
+Pharmacy:
+
+Can see prescription and dispensing-related information.
+
+Laboratory:
+
+Can see test request and relevant clinical indication.
+
+Logistics:
+
+Can see delivery details only.
+
+Support/admin operational roles:
+
+Should not automatically expose complete clinical notes.
+
+Even though JSON Server has no backend permission enforcement, the frontend architecture must demonstrate these access boundaries.
+
+---
+
+# 66. CORE ROUTE MAP
+
+Implement at minimum:
+
+```text
+PUBLIC
+
+/
+/services
+/providers
+/providers/:id
+/pharmacies
+/laboratories
+/pricing
+/how-it-works
+/help
+/login
+/register
+```
+
+```text
+PATIENT
+
+/patient/dashboard
+/patient/services
+/patient/services/doctors
+/patient/appointments
+/patient/appointments/:id
+/patient/records
+/patient/records/consultations/:id
+/patient/prescriptions
+/patient/prescriptions/:id
+/patient/laboratory
+/patient/laboratory/results/:id
+/patient/orders
+/patient/orders/:id
+/patient/family
+/patient/consent
+/patient/payments
+/patient/notifications
+/patient/settings
+```
+
+```text
+PROVIDER
+
+/provider/dashboard
+/provider/appointments
+/provider/appointments/:id
+/provider/patients/:id
+/provider/encounters/:id
+/provider/prescriptions
+/provider/laboratory-requests
+/provider/referrals
+/provider/results
+/provider/earnings
+/provider/availability
+/provider/verification
+```
+
+```text
+PHARMACY
+
+/pharmacy/dashboard
+/pharmacy/prescriptions
+/pharmacy/prescriptions/:id
+/pharmacy/orders
+/pharmacy/orders/:id
+/pharmacy/products
+/pharmacy/inventory
+/pharmacy/deliveries
+/pharmacy/commissions
+/pharmacy/settlements
+```
+
+```text
+LABORATORY
+
+/laboratory/dashboard
+/laboratory/requests
+/laboratory/requests/:id
+/laboratory/bookings
+/laboratory/results
+/laboratory/results/new
+/laboratory/critical-results
+/laboratory/services
+/laboratory/settlements
+```
+
+```text
+LOGISTICS
+
+/logistics/dashboard
+/logistics/assignments
+/logistics/deliveries/:id
+/logistics/history
+/logistics/earnings
+```
+
+```text
+ADMIN
+
+/admin/dashboard
+/admin/users
+/admin/providers
+/admin/providers/:id
+/admin/pharmacies
+/admin/laboratories
+/admin/logistics
+/admin/pricing
+/admin/pharmacy-commissions
+/admin/appointments
+/admin/orders
+/admin/bookings
+/admin/deliveries
+/admin/payments
+/admin/refunds
+/admin/settlements
+/admin/complaints
+/admin/reports
+/admin/audit
+/admin/roles
+/admin/settings
+```
+
+No primary navigation item should lead to a broken or blank page.
+
+Where a secondary feature is not deeply implemented, create a realistic read-only page rather than a dead route.
+
+---
+
+# 67. NAVIGATION CONTEXT
+
+Each portal must clearly indicate where the user currently is.
+
+Use:
+
+* Active sidebar state.
+* Breadcrumbs for deeper pages.
+* Page titles.
+* Back navigation where appropriate.
+
+Example:
+
+```text
+Appointments
+/
+Appointment APT-0021
+/
+Clinical Encounter
+```
+
+---
+
+# 68. REALISTIC DATA
+
+Do not use repetitive placeholders such as:
+
+```text
+John Doe
+Jane Doe
+Lorem Ipsum
+```
+
+Create realistic synthetic Nigerian healthcare data.
+
+Examples can contain:
+
+* Lagos.
+* Abuja.
+* Ibadan.
+* Port Harcourt.
+* Lekki.
+* Ikeja.
+* Surulere.
+* Yaba.
+
+All patient data must remain fictional.
+
+---
+
+# 69. CURRENCY
+
+Use Nigerian Naira.
+
+Format consistently:
+
+```text
+₦15,000
+₦4,500
+₦120,000
+```
+
+Create a utility:
+
+```ts
+formatCurrency()
+```
+
+Do not manually format amounts in every component.
+
+---
+
+# 70. DATE UTILITIES
+
+Create reusable date functions.
+
+Examples:
+
+```text
+9 Aug 2026
+09:30 AM
+Today
+Tomorrow
+```
+
+Avoid raw ISO timestamps in the interface.
+
+---
+
+# 71. ACCESSIBILITY
+
+Implement:
+
+* Semantic HTML.
+* Form labels.
+* Keyboard-accessible controls.
+* Visible focus states.
+* Accessible modals.
+* Tooltips where necessary.
+* Adequate contrast.
+* Meaningful button text.
+* Icons with accessible labels where required.
+
+Do not use icons alone for critical medical actions.
+
+---
+
+# 72. PROTOTYPE FILE UPLOADS
+
+Actual file storage is not required.
+
+For prototype uploads such as:
+
+* Provider licences.
+* Laboratory reports.
+* Consultation attachments.
+
+Store mocked file metadata:
+
+```ts
+{
+  id: "FILE-001",
+  name: "medical-report.pdf",
+  type: "application/pdf",
+  size: 134000,
+  uploadedAt: "..."
+}
+```
+
+Show the selected file visually.
+
+The architecture should allow real object storage to replace this later.
+
+---
+
+# 73. DATA RELATIONSHIPS
+
+Use IDs to model relationships.
+
+Example:
+
+```text
+appointment.patientId
+appointment.providerId
+```
+
+```text
+clinicalEncounter.appointmentId
+clinicalEncounter.patientId
+clinicalEncounter.providerId
+```
+
+```text
+prescription.encounterId
+prescription.patientId
+prescription.providerId
+```
+
+```text
+laboratoryRequest.encounterId
+laboratoryRequest.patientId
+laboratoryRequest.requestingProviderId
+```
+
+```text
+pharmacyOrder.prescriptionId
+pharmacyOrder.patientId
+pharmacyOrder.pharmacyId
+```
+
+Avoid duplicating complete objects inside every entity.
+
+Fetch related data through the service layer.
+
+---
+
+# 74. DATABASE INTEGRITY
+
+Before creating a dependent entity, validate that the related entity exists.
+
+Examples:
+
+Do not create a prescription without a valid patient and encounter.
+
+Do not create a laboratory result without a laboratory request.
+
+Do not create a delivery without an order.
+
+Do not create an appointment with an unverified provider.
+
+Do not allow a patient to book an unavailable appointment slot.
+
+---
+
+# 75. PROTOTYPE STATE TRANSITIONS
+
+Centralise status-transition logic.
+
+Do not randomly update statuses from UI components.
+
+Where practical create helpers such as:
+
+```ts
+canTransitionAppointment(from, to)
+canTransitionOrder(from, to)
+canTransitionDelivery(from, to)
+```
+
+This makes the application easier to convert into a real production system.
+
+---
+
+# 76. NO DEAD BUTTONS
+
+Every visible primary button must do one of:
+
+* Navigate.
+* Open form.
+* Open modal.
+* Update data.
+* Submit data.
+* Download/view mock content.
+* Perform a meaningful prototype action.
+
+Avoid meaningless buttons.
+
+For features outside prototype scope, hide them instead of creating non-functional controls.
+
+---
+
+# 77. DO NOT OVERBUILD
+
+Do NOT build:
+
+* Real payment gateway.
+* Real WebRTC video.
+* Real SMS.
+* Real email sending.
+* Real WhatsApp integration.
+* Real medical licence API validation.
+* Production authentication.
+* Production encryption.
+* Full insurance processing.
+* AI diagnosis.
+* Hospital information system integration.
+
+Design clear boundaries where these integrations will later connect.
+
+---
+
+# 78. COMPONENT REUSE
+
+Create reusable components including:
+
+```text
+AppShell
+Sidebar
+TopNavigation
+MobileNavigation
+PageHeader
+MetricCard
+StatusBadge
+EmptyState
+LoadingState
+ErrorState
+DataTable
+FilterBar
+SearchInput
+Modal
+Drawer
+ConfirmDialog
+Timeline
+TimelineItem
+ProviderCard
+PatientSummaryCard
+AppointmentCard
+PrescriptionCard
+LabRequestCard
+OrderCard
+NotificationItem
+CurrencyDisplay
+DateDisplay
+```
+
+Avoid repeating equivalent UI markup across portals.
+
+---
+
+# 79. PAGE QUALITY
+
+Each major screen should contain realistic hierarchy.
+
+A dashboard is not simply:
+
+```text
+<h1>Dashboard</h1>
+```
+
+It should contain:
+
+* Header.
+* Metrics.
+* Important alerts.
+* Current tasks.
+* Recent activity.
+* Quick actions.
+* Relevant data.
+
+A detail page should contain:
+
+* Record identification.
+* Status.
+* Core information.
+* Related information.
+* Timeline.
+* Available actions.
+
+---
+
+# 80. PROTOTYPE STORYTELLING
+
+The prototype must be suitable for a live stakeholder demonstration.
+
+Design the seeded dataset so a presenter can explain:
+
+> Amina had a consultation with Dr. Tunde. Dr. Tunde documented the consultation, issued a prescription, and ordered a test. MedLab processed the test. The result was returned to Dr. Tunde and automatically added to Amina's medical timeline. Amina then sent her prescription to Grace Pharmacy. Grace Pharmacy prepared the medication and SwiftCare delivered it.
+
+The UI must make this story obvious.
+
+---
+
+# 81. README
+
+Create/update `README.md`.
+
+Document:
+
+```text
+Royal Palace Health Care Prototype
+```
+
+Include:
+
+### Installation
+
+```bash
+npm install
+```
+
+### Start Mock API
+
+```bash
+npm run mock-api
+```
+
+### Start Frontend
+
+```bash
+npm run dev
+```
+
+Include demo accounts.
+
+Explain:
+
+* JSON Server is temporary.
+* All data is synthetic.
+* Authentication is simulated.
+* Payment is simulated.
+* Video consultation is simulated.
+* File storage is simulated.
+
+Explain how the architecture will transition to the real backend.
+
+---
+
+# 82. DEVELOPMENT WORKFLOW
+
+Work in the following order.
+
+## Phase 1 — Foundation
+
+Implement:
+
+* Project architecture.
+* Types.
+* API client.
+* JSON Server.
+* `db.json`.
+* Routing.
+* Authentication.
+* Role guards.
+* Shared layouts.
+* Design system.
+
+## Phase 2 — Public + Patient
+
+Implement:
+
+* Public website.
+* Provider directory.
+* Patient dashboard.
+* Find care.
+* Booking.
+* Payment.
+* Appointments.
+* Health records.
+
+## Phase 3 — Doctor
+
+Implement:
+
+* Doctor dashboard.
+* Appointments.
+* Patient summary.
+* Consultation workspace.
+* Prescription.
+* Laboratory request.
+* Referral.
+
+## Phase 4 — Laboratory
+
+Implement:
+
+* Laboratory dashboard.
+* Test requests.
+* Bookings.
+* Workflow.
+* Result upload.
+
+## Phase 5 — Pharmacy
+
+Implement:
+
+* Pharmacy dashboard.
+* Prescription review.
+* Product catalogue.
+* Orders.
+* Item-level commissions.
+
+## Phase 6 — Logistics
+
+Implement:
+
+* Assignments.
+* Delivery workflow.
+* Proof of delivery.
+
+## Phase 7 — Administration
+
+Implement:
+
+* Admin dashboard.
+* Provider verification.
+* Pricing.
+* Commission rules.
+* Transactions.
+* Audit logs.
+
+## Phase 8 — Integration QA
+
+Test the complete patient-care journey across all portals.
+
+---
+
+# 83. DO NOT STOP AFTER CREATING UI
+
+After building screens, verify the workflows yourself.
+
+Perform functional testing.
+
+At minimum test:
+
+```text
+Patient login
+Patient books appointment
+Payment created
+Doctor receives appointment
+Doctor opens patient
+Encounter created
+Encounter completed
+Prescription issued
+Patient sees prescription
+Laboratory request created
+Patient books laboratory
+Laboratory receives booking
+Laboratory uploads result
+Patient sees result
+Doctor sees result
+Patient orders medicine
+Pharmacy receives order
+Pharmacy prepares order
+Delivery created
+Logistics receives delivery
+Logistics completes delivery
+Patient order becomes delivered
+```
+
+Fix broken interactions before declaring the prototype complete.
+
+---
+
+# 84. ACCEPTANCE CRITERIA
+
+The prototype is complete when all of the following are true.
+
+1. The application runs without TypeScript compilation errors.
+
+2. JSON Server runs successfully using `db.json`.
+
+3. A reviewer can log in as every major role.
+
+4. Role-based routing works.
+
+5. Patient dashboard contains realistic healthcare information.
+
+6. Patients can discover verified doctors.
+
+7. Patients can view doctor profiles.
+
+8. Patients can book appointments.
+
+9. Mock payment creates a transaction.
+
+10. Appointments persist in `db.json`.
+
+11. Doctors see newly booked appointments.
+
+12. Doctors can open patient summaries.
+
+13. Doctors can create structured clinical encounters.
+
+14. Clinical encounter drafts persist.
+
+15. Required fields prevent incomplete encounter completion.
+
+16. Completed encounters are visually locked.
+
+17. Doctors can issue prescriptions.
+
+18. Patients can view prescriptions.
+
+19. Patients can send prescriptions to pharmacies.
+
+20. Pharmacies receive corresponding orders.
+
+21. Pharmacies can modify their own product prices.
+
+22. Platform commissions are calculated per order item.
+
+23. Doctors can create laboratory requests.
+
+24. Patients can book the requested laboratory test.
+
+25. Laboratories can see bookings.
+
+26. Laboratories can progress tests through workflow statuses.
+
+27. Laboratories can publish test results.
+
+28. Results appear in patient health records.
+
+29. Referring doctors receive result notifications.
+
+30. Doctors can create referrals.
+
+31. Care handoff information is displayed appropriately.
+
+32. Patients can review record-access grants.
+
+33. Pharmacies cannot see unrelated clinical notes.
+
+34. Logistics users cannot see private clinical records.
+
+35. Logistics users can progress deliveries.
+
+36. Completed deliveries update pharmacy orders.
+
+37. Admin can review provider applications.
+
+38. Admin can approve/reject providers.
+
+39. Admin can modify platform-controlled service prices.
+
+40. Doctors cannot edit patient-facing consultation prices.
+
+41. Admin can configure pharmacy commission.
+
+42. Important operations generate audit events.
+
+43. Navigation contains no major dead routes.
+
+44. Important buttons perform meaningful actions.
+
+45. Loading states exist.
+
+46. Empty states exist.
+
+47. Error states exist.
+
+48. Mobile patient pages are usable.
+
+49. Desktop provider/admin dashboards are usable.
+
+50. The complete end-to-end care journey can be demonstrated without manually editing `db.json`.
+
+---
+
+# 85. CODE QUALITY
+
+Before finishing:
+
+Run:
+
+```bash
+npm run build
+```
+
+Resolve:
+
+* TypeScript errors.
+* Broken imports.
+* Invalid routes.
+* React warnings.
+* Obvious accessibility warnings.
+* Runtime crashes.
+
+Remove:
+
+* Debug `console.log` statements.
+* Unused imports.
+* Unused variables.
+* Duplicate components.
+* Placeholder TODOs relating to implemented MVP functionality.
+
+---
+
+# 86. PRESERVE EXTENSIBILITY
+
+The prototype must intentionally allow future replacement of:
+
+```text
+JSON Server → Real REST API
+
+Mock login → Production authentication
+
+Mock payments → Payment gateway
+
+Simulated video → WebRTC/video provider
+
+Mock uploads → Object storage
+
+Local notifications → SMS/email/push service
+```
+
+The frontend should not need to be rebuilt for these replacements.
+
+This is the reason for:
+
+* Service layers.
+* Typed domain models.
+* Feature separation.
+* Route separation.
+* Reusable components.
+* Context-based authentication.
+* Central API configuration.
+
+---
+
+# 87. FINAL DELIVERY REQUIREMENTS
+
+When implementation is complete, provide a final summary containing:
+
+### Completed Modules
+
+List what was implemented.
+
+### Demo Credentials
+
+Provide all prototype accounts.
+
+### Important Routes
+
+Provide the major URLs for each portal.
+
+### Prototype Limitations
+
+Explicitly identify:
+
+* Simulated authentication.
+* Simulated payments.
+* Simulated video consultation.
+* Simulated file uploads.
+* JSON Server mock API.
+
+### Database
+
+Explain the major `db.json` collections.
+
+### End-to-End Demo
+
+Provide exact steps for demonstrating the complete Amina → Doctor → Laboratory → Pharmacy → Logistics care journey.
+
+### Future Backend Migration
+
+Explain which files/services will be replaced when the production API is introduced.
+
+### Validation
+
+Confirm that:
+
+```bash
+npm run build
+```
+
+passes.
+
+---
+
+# 88. IMPORTANT IMPLEMENTATION RULES
+
+Throughout this project:
+
+* Do not build disconnected static pages.
+* Do not directly import `db.json` into React.
+* Do not hardcode every screen's data inside TSX.
+* Do not duplicate data unnecessarily.
+* Do not expose unnecessary clinical information between roles.
+* Do not give doctors control of platform-managed prices.
+* Do allow pharmacies to manage their product prices.
+* Do calculate pharmacy commission at item level.
+* Do preserve data across page refreshes.
+* Do make significant interactions write to JSON Server.
+* Do use synthetic patient information only.
+* Do maintain strict TypeScript typing.
+* Do keep major features modular.
+* Do keep the patient experience mobile-friendly.
+* Do make the clinical encounter workspace a first-class feature.
+* Do make the patient's longitudinal clinical timeline a first-class feature.
+* Do make care handoff visible in the prototype.
+* Do optimise the application for stakeholder demonstration.
+* Do preserve an architecture that can evolve into the actual Royal Palace Health Care product.
+
+Do not stop after implementing the first few screens.
+
+The task is complete only when the **connected Royal Palace MVP healthcare journey works across the different portals**.
+
+# END OF BUILD SPECIFICATION

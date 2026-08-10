@@ -1,0 +1,2002 @@
+     1→# MASTER BUILD PROMPT — ROYAL PALACE HEALTH CARE CLICKABLE MVP PROTOTYPE
+     2→
+     3→You are acting as a senior product engineer, React/TypeScript architect, healthcare-platform UX engineer, frontend engineer, API architect, and QA engineer.
+     4→
+     5→Your task is to build a **fully functional, high-fidelity clickable MVP prototype** for:
+     6→
+     7→# Royal Palace Health Care Digital Platform
+     8→
+     9→This is not a collection of static mockup screens.
+    10→
+    11→It must behave like a real application:
+    12→
+    13→* Users can log in.
+    14→* Users can switch between demo personas.
+    15→* Patients can discover doctors.
+    16→* Patients can book consultations.
+    17→* Appointments are created in the mock database.
+    18→* Doctors can open appointments.
+    19→* Doctors can document consultations.
+    20→* Doctors can create prescriptions.
+    21→* Doctors can request laboratory tests.
+    22→* Doctors can create referrals.
+    23→* Pharmacies can receive prescriptions.
+    24→* Pharmacies can process pharmacy orders.
+    25→* Laboratories can receive requests and upload results.
+    26→* Logistics users can process deliveries.
+    27→* Administrators can verify providers and manage pricing.
+    28→* Actions must update `db.json`.
+    29→* Changes must appear in the appropriate dashboards.
+    30→* Status changes must persist after refreshing the application.
+    31→
+    32→The prototype will use:
+    33→
+    34→* React
+    35→* TypeScript
+    36→* TSX
+    37→* Vite
+    38→* React Router
+    39→* JSON Server
+    40→* `db.json`
+    41→* REST-style API requests
+    42→* Responsive web design
+    43→
+    44→Use the existing project stack and dependencies when a project already exists. Do not unnecessarily replace existing tooling.
+    45→
+    46→The prototype must be architected so that JSON Server can later be replaced by the actual Royal Palace backend without requiring a major frontend rewrite.
+    47→
+    48→---
+    49→
+    50→# 1. PRODUCT DEFINITION
+    51→
+    52→Royal Palace Health Care Digital Platform is a managed healthcare ecosystem connecting:
+    53→
+    54→* Patients.
+    55→* Doctors.
+    56→* Dentists.
+    57→* Pharmacies.
+    58→* Laboratories.
+    59→* Diagnostic centres.
+    60→* Logistics personnel.
+    61→* Platform administrators.
+    62→
+    63→The platform is not simply a doctor-directory website or a telemedicine application.
+    64→
+    65→Its primary differentiator is **continuity of care**.
+    66→
+    67→The patient journey connects:
+    68→
+    69→```text
+    70→Healthcare Need
+    71→      ↓
+    72→Provider Discovery
+    73→      ↓
+    74→Appointment Booking
+    75→      ↓
+    76→Payment
+    77→      ↓
+    78→Consultation
+    79→      ↓
+    80→Structured Clinical Record
+    81→      ↓
+    82→Prescription / Laboratory Request / Referral
+    83→      ↓
+    84→Pharmacy / Laboratory / Receiving Provider
+    85→      ↓
+    86→Result / Fulfilment / Additional Care
+    87→      ↓
+    88→Follow-Up
+    89→      ↓
+    90→Continuous Patient Health Record
+    91→```
+    92→
+    93→Everything implemented in the prototype must support this connected journey.
+    94→
+    95→---
+    96→
+    97→# 2. CRITICAL PROTOTYPE OBJECTIVE
+    98→
+    99→Build a prototype that looks and behaves realistically enough for:
+   100→
+   101→* Client review.
+   102→* Stakeholder presentation.
+   103→* User-flow validation.
+   104→* UX validation.
+   105→* Development planning.
+   106→* Future conversion into the production application.
+   107→
+   108→The system must therefore contain real application state.
+   109→
+   110→Do not build fake screens where every button simply displays an alert.
+   111→
+   112→Important actions must update data through JSON Server.
+   113→
+   114→Example:
+   115→
+   116→When a patient books an appointment:
+   117→
+   118→```text
+   119→POST /appointments
+   120→```
+   121→
+   122→The new appointment must then appear in:
+   123→
+   124→* Patient → Appointments.
+   125→* Doctor → Appointments.
+   126→* Doctor → Dashboard.
+   127→* Admin → Appointments.
+   128→
+   129→When the doctor completes the consultation:
+   130→
+   131→```text
+   132→PATCH /appointments/:id
+   133→POST /clinicalEncounters
+   134→POST /prescriptions
+   135→POST /laboratoryRequests
+   136→```
+   137→
+   138→The information must subsequently appear in the patient's medical records.
+   139→
+   140→This cross-portal behaviour is essential.
+   141→
+   142→---
+   143→
+   144→# 3. PROTOTYPE DEVELOPMENT PRINCIPLE
+   145→
+   146→Treat JSON Server as if it were the real backend API.
+   147→
+   148→Do NOT tightly couple components directly to `db.json`.
+   149→
+   150→Never import `db.json` directly into React components.
+   151→
+   152→Use this architecture:
+   153→
+   154→```text
+   155→React UI
+   156→   ↓
+   157→Hooks / Feature Logic
+   158→   ↓
+   159→Service Layer
+   160→   ↓
+   161→API Client
+   162→   ↓
+   163→JSON Server REST API
+   164→```
+   165→
+   166→Later:
+   167→
+   168→```text
+   169→React UI
+   170→   ↓
+   171→Hooks / Feature Logic
+   172→   ↓
+   173→Service Layer
+   174→   ↓
+   175→Production REST API
+   176→```
+   177→
+   178→The UI must therefore remain reusable when the backend is replaced.
+   179→
+   180→---
+   181→
+   182→# 4. PROJECT STRUCTURE
+   183→
+   184→Use a scalable feature-based structure similar to:
+   185→
+   186→```text
+   187→src/
+   188→│
+   189→├── app/
+   190→│   ├── App.tsx
+   191→│   ├── router.tsx
+   192→│   ├── routes.ts
+   193→│   └── providers/
+   194→│
+   195→├── assets/
+   196→│
+   197→├── components/
+   198→│   ├── common/
+   199→│   ├── layout/
+   200→│   ├── navigation/
+   201→│   ├── feedback/
+   202→│   ├── forms/
+   203→│   ├── tables/
+   204→│   └── healthcare/
+   205→│
+   206→├── features/
+   207→│   ├── auth/
+   208→│   ├── patients/
+   209→│   ├── providers/
+   210→│   ├── appointments/
+   211→│   ├── clinical-encounters/
+   212→│   ├── prescriptions/
+   213→│   ├── laboratory/
+   214→│   ├── pharmacy/
+   215→│   ├── logistics/
+   216→│   ├── referrals/
+   217→│   ├── consent/
+   218→│   ├── payments/
+   219→│   ├── pricing/
+   220→│   ├── notifications/
+   221→│   ├── settlements/
+   222→│   └── admin/
+   223→│
+   224→├── layouts/
+   225→│   ├── PublicLayout.tsx
+   226→│   ├── PatientLayout.tsx
+   227→│   ├── ProviderLayout.tsx
+   228→│   ├── PharmacyLayout.tsx
+   229→│   ├── LaboratoryLayout.tsx
+   230→│   ├── LogisticsLayout.tsx
+   231→│   └── AdminLayout.tsx
+   232→│
+   233→├── pages/
+   234→│   ├── public/
+   235→│   ├── patient/
+   236→│   ├── provider/
+   237→│   ├── pharmacy/
+   238→│   ├── laboratory/
+   239→│   ├── logistics/
+   240→│   └── admin/
+   241→│
+   242→├── services/
+   243→│   ├── api.ts
+   244→│   ├── auth.service.ts
+   245→│   ├── appointment.service.ts
+   246→│   ├── patient.service.ts
+   247→│   ├── encounter.service.ts
+   248→│   ├── prescription.service.ts
+   249→│   ├── laboratory.service.ts
+   250→│   ├── pharmacy.service.ts
+   251→│   ├── logistics.service.ts
+   252→│   ├── payment.service.ts
+   253→│   └── admin.service.ts
+   254→│
+   255→├── hooks/
+   256→│
+   257→├── context/
+   258→│
+   259→├── types/
+   260→│
+   261→├── constants/
+   262→│
+   263→├── utils/
+   264→│
+   265→└── styles/
+   266→```
+   267→
+   268→The exact structure may be adapted where necessary, but maintain clear separation between UI, feature logic, API communication, and domain types.
+   269→
+   270→---
+   271→
+   272→# 5. PROTOTYPE UI STYLE
+   273→
+   274→Create a professional healthcare interface.
+   275→
+   276→The interface must communicate:
+   277→
+   278→* Trust.
+   279→* Safety.
+   280→* Clarity.
+   281→* Medical professionalism.
+   282→* Accessibility.
+   283→* Modern digital healthcare.
+   284→* Calmness.
+   285→* Reliability.
+   286→
+   287→Avoid overly playful designs.
+   288→
+   289→Avoid excessive gradients.
+   290→
+   291→Avoid excessive animation.
+   292→
+   293→Avoid cluttered dashboards.
+   294→
+   295→Use:
+   296→
+   297→* Clear typography.
+   298→* Comfortable spacing.
+   299→* Strong visual hierarchy.
+   300→* Professional dashboard cards.
+   301→* Clean tables.
+   302→* Status badges.
+   303→* Tabs.
+   304→* Timelines.
+   305→* Step indicators.
+   306→* Drawers.
+   307→* Modals.
+   308→* Toast notifications.
+   309→* Empty states.
+   310→* Skeleton/loading states.
+   311→* Confirmation dialogs.
+   312→
+   313→Use consistent:
+   314→
+   315→* Border radius.
+   316→* Button styling.
+   317→* Card patterns.
+   318→* Form patterns.
+   319→* Status colours.
+   320→* Table patterns.
+   321→* Icons.
+   322→
+   323→Use healthcare-related icons through the project's chosen icon library.
+   324→
+   325→If no icon library exists, Lucide React can be used.
+   326→
+   327→---
+   328→
+   329→# 6. RESPONSIVE DESIGN
+   330→
+   331→The application must work on:
+   332→
+   333→* Desktop.
+   334→* Laptop.
+   335→* Tablet.
+   336→* Mobile.
+   337→
+   338→Patient-facing pages must be mobile-first.
+   339→
+   340→Desktop patient navigation:
+   341→
+   342→```text
+   343→Dashboard
+   344→Find Care
+   345→Appointments
+   346→Health Records
+   347→Prescriptions
+   348→Laboratory
+   349→Pharmacy Orders
+   350→Care Plans
+   351→Family
+   352→Payments
+   353→Messages
+   354→Notifications
+   355→Support
+   356→Settings
+   357→```
+   358→
+   359→Mobile patient navigation:
+   360→
+   361→```text
+   362→Home
+   363→Services
+   364→Records
+   365→Orders
+   366→Account
+   367→```
+   368→
+   369→Provider and administrative interfaces may use collapsible sidebar navigation.
+   370→
+   371→---
+   372→
+   373→# 7. AUTHENTICATION FOR THE PROTOTYPE
+   374→
+   375→Do not implement production authentication.
+   376→
+   377→Implement simulated authentication.
+   378→
+   379→Create demo accounts in `db.json`.
+   380→
+   381→Example users:
+   382→
+   383→```text
+   384→Patient
+   385→Amina Bello
+   386→
+   387→Doctor
+   388→Dr. Tunde Adeyemi
+   389→
+   390→Pharmacist
+   391→Grace Pharmacy
+   392→
+   393→Laboratory
+   394→MedLab Diagnostics
+   395→
+   396→Logistics
+   397→SwiftCare Rider
+   398→
+   399→Administrator
+   400→Royal Palace Admin
+   401→```
+   402→
+   403→Provide login information directly on the prototype login page for reviewers.
+   404→
+   405→Example:
+   406→
+   407→```text
+   408→Patient
+   409→amina@demo.com
+   410→demo123
+   411→
+   412→Doctor
+   413→doctor@demo.com
+   414→demo123
+   415→
+   416→Pharmacy
+   417→pharmacy@demo.com
+   418→demo123
+   419→
+   420→Laboratory
+   421→lab@demo.com
+   422→demo123
+   423→
+   424→Logistics
+   425→logistics@demo.com
+   426→demo123
+   427→
+   428→Admin
+   429→admin@demo.com
+   430→demo123
+   431→```
+   432→
+   433→These are synthetic prototype accounts only.
+   434→
+   435→Never use real patient information.
+   436→
+   437→After login:
+   438→
+   439→Store the current demo session in `localStorage`.
+   440→
+   441→Example:
+   442→
+   443→```text
+   444→royalPalaceSession
+   445→```
+   446→
+   447→A session contains:
+   448→
+   449→```ts
+   450→{
+   451→  userId: string;
+   452→  role: UserRole;
+   453→  profileId?: string;
+   454→}
+   455→```
+   456→
+   457→Create route guards.
+   458→
+   459→Examples:
+   460→
+   461→```text
+   462→/patient/*
+   463→/provider/*
+   464→/pharmacy/*
+   465→/laboratory/*
+   466→/logistics/*
+   467→/admin/*
+   468→```
+   469→
+   470→A patient must not access the admin dashboard.
+   471→
+   472→---
+   473→
+   474→# 8. DEMO PERSONA SWITCHER
+   475→
+   476→Because this prototype will be demonstrated to stakeholders, implement a small development/demo tool allowing the reviewer to quickly switch personas.
+   477→
+   478→Example:
+   479→
+   480→```text
+   481→View prototype as:
+   482→
+   483→Patient
+   484→Doctor
+   485→Pharmacy
+   486→Laboratory
+   487→Logistics
+   488→Admin
+   489→```
+   490→
+   491→Switching personas must change:
+   492→
+   493→* Session.
+   494→* Navigation.
+   495→* Dashboard.
+   496→* Available functionality.
+   497→
+   498→Clearly label this feature:
+   499→
+   500→```text
+   501→Demo Persona Switcher
+   502→```
+   503→
+   504→It is a prototype feature and not intended for production.
+   505→
+   506→---
+   507→
+   508→# 9. JSON SERVER
+   509→
+   510→Create:
+   511→
+   512→```text
+   513→db.json
+   514→```
+   515→
+   516→Add an npm script similar to:
+   517→
+   518→```text
+   519→npm run mock-api
+   520→```
+   521→
+   522→The mock API should run separately from the Vite frontend.
+   523→
+   524→Use environment configuration for the API URL.
+   525→
+   526→Example:
+   527→
+   528→```text
+   529→VITE_API_BASE_URL=http://localhost:4000
+   530→```
+   531→
+   532→Create a central API client.
+   533→
+   534→Example responsibility:
+   535→
+   536→```ts
+   537→api.get(...)
+   538→api.post(...)
+   539→api.patch(...)
+   540→api.delete(...)
+   541→```
+   542→
+   543→Do not scatter raw API URLs throughout components.
+   544→
+   545→---
+   546→
+   547→# 10. DB.JSON DOMAIN MODEL
+   548→
+   549→The `db.json` file must contain interconnected collections.
+   550→
+   551→Create at minimum:
+   552→
+   553→```text
+   554→users
+   555→patients
+   556→dependants
+   557→providers
+   558→providerApplications
+   559→pharmacies
+   560→laboratories
+   561→logisticsProviders
+   562→services
+   563→servicePrices
+   564→pharmacyProducts
+   565→appointments
+   566→clinicalEncounters
+   567→diagnoses
+   568→prescriptions
+   569→prescriptionItems
+   570→laboratoryRequests
+   571→laboratoryBookings
+   572→laboratoryResults
+   573→referrals
+   574→careHandoffs
+   575→recordAccessGrants
+   576→consents
+   577→pharmacyOrders
+   578→pharmacyOrderItems
+   579→deliveries
+   580→payments
+   581→refunds
+   582→commissions
+   583→settlements
+   584→notifications
+   585→messages
+   586→ratings
+   587→complaints
+   588→auditLogs
+   589→carePlans
+   590→```
+   591→
+   592→All entities must have stable IDs.
+   593→
+   594→Prefer readable prototype identifiers such as:
+   595→
+   596→```text
+   597→PAT-001
+   598→PRO-001
+   599→APT-001
+   600→ENC-001
+   601→RX-001
+   602→LABREQ-001
+   603→LABRES-001
+   604→ORD-001
+   605→DEL-001
+   606→PAY-001
+   607→```
+   608→
+   609→---
+   610→
+   611→# 11. USER DATA MODEL
+   612→
+   613→Example:
+   614→
+   615→```ts
+   616→interface User {
+   617→  id: string;
+   618→  email: string;
+   619→  phone?: string;
+   620→  password: string;
+   621→  role:
+   622→    | "patient"
+   623→    | "doctor"
+   624→    | "dentist"
+   625→    | "pharmacy"
+   626→    | "laboratory"
+   627→    | "logistics"
+   628→    | "admin";
+   629→  status: "active" | "pending" | "suspended";
+   630→  profileId: string;
+   631→}
+   632→```
+   633→
+   634→Passwords exist only because this is a prototype.
+   635→
+   636→Place an explanatory comment in the project documentation that production authentication must never store plaintext passwords.
+   637→
+   638→---
+   639→
+   640→# 12. PATIENT MODEL
+   641→
+   642→Patient data should include:
+   643→
+   644→```ts
+   645→interface Patient {
+   646→  id: string;
+   647→  userId: string;
+   648→  patientNumber: string;
+   649→  firstName: string;
+   650→  lastName: string;
+   651→  dateOfBirth: string;
+   652→  gender: string;
+   653→  phone: string;
+   654→  email: string;
+   655→  location: {
+   656→    city: string;
+   657→    state: string;
+   658→    country: string;
+   659→  };
+   660→  bloodGroup?: string;
+   661→  genotype?: string;
+   662→  height?: number;
+   663→  weight?: number;
+   664→  allergies: HealthRecordItem[];
+   665→  conditions: HealthRecordItem[];
+   666→  medications: HealthRecordItem[];
+   667→  emergencyContact?: EmergencyContact;
+   668→}
+   669→```
+   670→
+   671→Health information should indicate provenance.
+   672→
+   673→Example:
+   674→
+   675→```ts
+   676→{
+   677→  name: "Penicillin",
+   678→  source: "provider-confirmed",
+   679→  status: "active",
+   680→  recordedAt: "..."
+   681→}
+   682→```
+   683→
+   684→Possible sources:
+   685→
+   686→```text
+   687→patient-reported
+   688→provider-confirmed
+   689→imported
+   690→```
+   691→
+   692→---
+   693→
+   694→# 13. PROVIDER MODEL
+   695→
+   696→Doctors and dentists should include:
+   697→
+   698→```text
+   699→Name
+   700→Specialty
+   701→Professional title
+   702→Qualifications
+   703→Years of experience
+   704→Biography
+   705→Languages
+   706→Registration number
+   707→Licence number
+   708→Licence expiry
+   709→Verification status
+   710→Consultation modes
+   711→Availability
+   712→Current workplace
+   713→Profile image
+   714→Rating
+   715→```
+   716→
+   717→Provider verification statuses:
+   718→
+   719→```text
+   720→draft
+   721→submitted
+   722→under_review
+   723→additional_information_requested
+   724→approved
+   725→rejected
+   726→suspended
+   727→expired
+   728→reverification_required
+   729→```
+   730→
+   731→Only approved providers can be booked.
+   732→
+   733→---
+   734→
+   735→# 14. SERVICE AND PRICING MODEL
+   736→
+   737→Royal Palace controls patient-facing prices for:
+   738→
+   739→* Doctor consultation.
+   740→* Dental services.
+   741→* Laboratory services.
+   742→* Diagnostics.
+   743→* Chronic-care programmes.
+   744→* Preventive healthcare.
+   745→* Home healthcare.
+   746→* Delivery.
+   747→* Subscriptions.
+   748→
+   749→Example:
+   750→
+   751→```ts
+   752→interface ServicePrice {
+   753→  id: string;
+   754→  serviceId: string;
+   755→  patientPrice: number;
+   756→  providerPayout: number;
+   757→  platformMargin: number;
+   758→  currency: "NGN";
+   759→  effectiveFrom: string;
+   760→  status: "active" | "scheduled" | "inactive";
+   761→}
+   762→```
+   763→
+   764→Providers must NOT be able to modify these prices.
+   765→
+   766→The doctor interface can display:
+   767→
+   768→```text
+   769→Patient Price: ₦15,000
+   770→Provider Earnings: ₦11,000
+   771→```
+   772→
+   773→but must not provide an edit button.
+   774→
+   775→---
+   776→
+   777→# 15. PHARMACY PRICING MODEL
+   778→
+   779→Pharmacies control product prices.
+   780→
+   781→Example pharmacy product:
+   782→
+   783→```ts
+   784→{
+   785→  id: "MED-001",
+   786→  pharmacyId: "PHA-001",
+   787→  name: "Amoxicillin",
+   788→  genericName: "Amoxicillin",
+   789→  strength: "500mg",
+   790→  dosageForm: "Capsule",
+   791→  category: "Prescription Medicine",
+   792→  price: 4500,
+   793→  stockQuantity: 38,
+   794→  prescriptionRequired: true,
+   795→  expiryDate: "2027-05-01",
+   796→  status: "active"
+   797→}
+   798→```
+   799→
+   800→The platform controls commission.
+   801→
+   802→Example:
+   803→
+   804→```ts
+   805→{
+   806→  id: "COMRULE-001",
+   807→  pharmacyId: "PHA-001",
+   808→  percentage: 8,
+   809→  status: "active"
+   810→}
+   811→```
+   812→
+   813→Commission must be calculated per order item.
+   814→
+   815→Example:
+   816→
+   817→```text
+   818→Product Price: ₦4,500
+   819→Quantity: 2
+   820→
+   821→Gross:
+   822→₦9,000
+   823→
+   824→Platform Commission:
+   825→8% = ₦720
+   826→
+   827→Pharmacy Net:
+   828→₦8,280
+   829→```
+   830→
+   831→Persist this calculation in `pharmacyOrderItems`.
+   832→
+   833→Do not calculate commission only visually.
+   834→
+   835→---
+   836→
+   837→# 16. PUBLIC WEBSITE
+   838→
+   839→Create these routes:
+   840→
+   841→```text
+   842→/
+   843→/services
+   844→/providers
+   845→/providers/:id
+   846→/pharmacies
+   847→/laboratories
+   848→/pricing
+   849→/how-it-works
+   850→/help
+   851→/login
+   852→/register
+   853→```
+   854→
+   855→The home page must include:
+   856→
+   857→1. Hero section.
+   858→2. Healthcare-service search.
+   859→3. Main healthcare categories.
+   860→4. How Royal Palace works.
+   861→5. Featured verified doctors.
+   862→6. Laboratory services.
+   863→7. Pharmacy services.
+   864→8. Healthcare plans.
+   865→9. Trust and safety.
+   866→10. FAQ.
+   867→11. Registration CTA.
+   868→
+   869→Do not build a generic corporate homepage.
+   870→
+   871→The homepage must immediately communicate that Royal Palace connects:
+   872→
+   873→```text
+   874→Consultation
+   875→+
+   876→Medical Records
+   877→+
+   878→Laboratory
+   879→+
+   880→Pharmacy
+   881→+
+   882→Delivery
+   883→```
+   884→
+   885→---
+   886→
+   887→# 17. PATIENT DASHBOARD
+   888→
+   889→Route:
+   890→
+   891→```text
+   892→/patient/dashboard
+   893→```
+   894→
+   895→Display:
+   896→
+   897→* Greeting.
+   898→* Selected patient/dependant.
+   899→* Upcoming appointment.
+   900→* Join consultation CTA where applicable.
+   901→* Pending prescription.
+   902→* Pending laboratory test.
+   903→* Recent laboratory result.
+   904→* Active pharmacy order.
+   905→* Follow-up reminder.
+   906→* Health summary.
+   907→* Notifications.
+   908→
+   909→Quick actions:
+   910→
+   911→```text
+   912→Consult a Doctor
+   913→Book Laboratory Test
+   914→Order Medicine
+   915→View Records
+   916→Add Dependant
+   917→```
+   918→
+   919→---
+   920→
+   921→# 18. FIND CARE
+   922→
+   923→Route:
+   924→
+   925→```text
+   926→/patient/services
+   927→```
+   928→
+   929→Categories:
+   930→
+   931→```text
+   932→Doctor Consultation
+   933→Dental Care
+   934→Laboratory Tests
+   935→Pharmacy
+   936→Chronic Care
+   937→Preventive Healthcare
+   938→Home Healthcare
+   939→```
+   940→
+   941→Implement doctor discovery fully.
+   942→
+   943→Route:
+   944→
+   945→```text
+   946→/patient/services/doctors
+   947→```
+   948→
+   949→Filters:
+   950→
+   951→* Specialty.
+   952→* Consultation mode.
+   953→* Location.
+   954→* Availability.
+   955→* Language.
+   956→* Rating.
+   957→
+   958→Doctor cards should contain:
+   959→
+   960→* Photo.
+   961→* Name.
+   962→* Specialty.
+   963→* Verified badge.
+   964→* Experience.
+   965→* Rating.
+   966→* Consultation formats.
+   967→* Next availability.
+   968→* Platform price.
+   969→* View Profile.
+   970→* Book Appointment.
+   971→
+   972→---
+   973→
+   974→# 19. PROVIDER PROFILE
+   975→
+   976→Route:
+   977→
+   978→```text
+   979→/providers/:providerId
+   980→```
+   981→
+   982→Include:
+   983→
+   984→* Profile image.
+   985→* Verified status.
+   986→* Name.
+   987→* Specialty.
+   988→* Biography.
+   989→* Qualifications.
+   990→* Languages.
+   991→* Experience.
+   992→* Consultation formats.
+   993→* Available slots.
+   994→* Patient rating.
+   995→* Consultation price.
+   996→* Booking CTA.
+   997→
+   998→---
+   999→
+  1000→# 20. BOOKING FLOW
+  1001→
+  1002→Implement a real multi-step booking flow.
+  1003→
+  1004→Example:
+  1005→
+  1006→```text
+  1007→Select Doctor
+  1008→    ↓
+  1009→Select Consultation Type
+  1010→    ↓
+  1011→Choose Date
+  1012→    ↓
+  1013→Choose Time
+  1014→    ↓
+  1015→Pre-Consultation Intake
+  1016→    ↓
+  1017→Review Booking
+  1018→    ↓
+  1019→Mock Payment
+  1020→    ↓
+  1021→Booking Confirmed
+  1022→```
+  1023→
+  1024→Create an actual appointment record.
+  1025→
+  1026→Appointment structure must contain:
+  1027→
+  1028→```text
+  1029→Patient
+  1030→Provider
+  1031→Service
+  1032→Date
+  1033→Time
+  1034→Duration
+  1035→Consultation channel
+  1036→Price
+  1037→Payment status
+  1038→Appointment status
+  1039→Intake form
+  1040→Consent status
+  1041→```
+  1042→
+  1043→---
+  1044→
+  1045→# 21. MOCK PAYMENT
+  1046→
+  1047→Do not integrate a real payment provider.
+  1048→
+  1049→Create a realistic payment screen.
+  1050→
+  1051→Display:
+  1052→
+  1053→```text
+  1054→Consultation Fee
+  1055→Service Fee where applicable
+  1056→Total
+  1057→```
+  1058→
+  1059→Provide demo options:
+  1060→
+  1061→```text
+  1062→Card
+  1063→Bank Transfer
+  1064→```
+  1065→
+  1066→The button:
+  1067→
+  1068→```text
+  1069→Pay ₦15,000
+  1070→```
+  1071→
+  1072→creates a payment record and updates the appointment.
+  1073→
+  1074→Simulate a short processing state.
+  1075→
+  1076→Then show:
+  1077→
+  1078→```text
+  1079→Payment Successful
+  1080→Appointment Confirmed
+  1081→```
+  1082→
+  1083→Persist payment status.
+  1084→
+  1085→---
+  1086→
+  1087→# 22. APPOINTMENT STATUS
+  1088→
+  1089→Support:
+  1090→
+  1091→```text
+  1092→scheduled
+  1093→checked_in
+  1094→waiting_for_provider
+  1095→in_progress
+  1096→awaiting_documentation
+  1097→completed
+  1098→cancelled
+  1099→no_show
+  1100→```
+  1101→
+  1102→Changing statuses must update the database.
+  1103→
+  1104→---
+  1105→
+  1106→# 23. PATIENT APPOINTMENTS
+  1107→
+  1108→Route:
+  1109→
+  1110→```text
+  1111→/patient/appointments
+  1112→```
+  1113→
+  1114→Tabs:
+  1115→
+  1116→```text
+  1117→Upcoming
+  1118→Completed
+  1119→Cancelled
+  1120→```
+  1121→
+  1122→Appointment detail:
+  1123→
+  1124→```text
+  1125→/patient/appointments/:appointmentId
+  1126→```
+  1127→
+  1128→Display:
+  1129→
+  1130→* Provider.
+  1131→* Service.
+  1132→* Time.
+  1133→* Consultation format.
+  1134→* Payment.
+  1135→* Intake.
+  1136→* Consent.
+  1137→* Preparation.
+  1138→* Join consultation.
+  1139→* Reschedule.
+  1140→* Cancel.
+  1141→
+  1142→---
+  1143→
+  1144→# 24. VIRTUAL CONSULTATION PROTOTYPE
+  1145→
+  1146→Do not integrate real WebRTC at this stage.
+  1147→
+  1148→Build a realistic consultation experience.
+  1149→
+  1150→Patient route:
+  1151→
+  1152→```text
+  1153→/patient/appointments/:id/consultation
+  1154→```
+  1155→
+  1156→Provider route:
+  1157→
+  1158→```text
+  1159→/provider/appointments/:id/consultation
+  1160→```
+  1161→
+  1162→Waiting room should contain:
+  1163→
+  1164→* Doctor/patient information.
+  1165→* Camera status.
+  1166→* Microphone status.
+  1167→* Network quality mock indicator.
+  1168→* Appointment information.
+  1169→* Waiting status.
+  1170→* Start/Join action.
+  1171→
+  1172→Consultation UI should resemble a video consultation interface.
+  1173→
+  1174→Include:
+  1175→
+  1176→* Large simulated video area.
+  1177→* Participant name.
+  1178→* Microphone button.
+  1179→* Camera button.
+  1180→* Chat toggle.
+  1181→* Files toggle.
+  1182→* Connection status.
+  1183→* End consultation.
+  1184→
+  1185→The prototype does not need actual streaming.
+  1186→
+  1187→Clearly isolate this simulated implementation so a WebRTC provider can replace it later.
+  1188→
+  1189→---
+  1190→
+  1191→# 25. DOCTOR DASHBOARD
+  1192→
+  1193→Route:
+  1194→
+  1195→```text
+  1196→/provider/dashboard
+  1197→```
+  1198→
+  1199→Show:
+  1200→
+  1201→* Today's appointments.
+  1202→* Waiting patients.
+  1203→* Next consultation.
+  1204→* Pending documentation.
+  1205→* Laboratory results awaiting review.
+  1206→* Pharmacy clarification requests.
+  1207→* Open referrals.
+  1208→* Follow-ups.
+  1209→* Earnings.
+  1210→* Licence-expiry notice.
+  1211→
+  1212→Quick actions:
+  1213→
+  1214→```text
+  1215→View Waiting Room
+  1216→Open Appointments
+  1217→Review Results
+  1218→View Referrals
+  1219→```
+  1220→
+  1221→---
+  1222→
+  1223→# 26. CLINICAL ENCOUNTER WORKSPACE
+  1224→
+  1225→This is one of the most important screens in the prototype.
+  1226→
+  1227→Route:
+  1228→
+  1229→```text
+  1230→/provider/encounters/:encounterId
+  1231→```
+  1232→
+  1233→Create a desktop three-panel interface.
+  1234→
+  1235→```text
+  1236→┌─────────────────────┬────────────────────────────┬──────────────────────┐
+  1237→│ Patient Summary     │ Current Consultation       │ Clinical Actions     │
+  1238→│                     │                            │                      │
+  1239→│ History             │ Documentation              │ Prescription         │
+  1240→│ Allergies           │                            │ Laboratory           │
+  1241→│ Medicines           │                            │ Referral             │
+  1242→└─────────────────────┴────────────────────────────┴──────────────────────┘
+  1243→```
+  1244→
+  1245→## Left Panel
+  1246→
+  1247→Display:
+  1248→
+  1249→* Patient name.
+  1250→* Patient number.
+  1251→* Age.
+  1252→* Gender.
+  1253→* Allergies.
+  1254→* Active conditions.
+  1255→* Current medication.
+  1256→* Recent consultations.
+  1257→* Recent laboratory results.
+  1258→* Active prescriptions.
+  1259→* Alerts.
+  1260→
+  1261→Provide expandable sections.
+  1262→
+  1263→## Centre Panel
+  1264→
+  1265→Implement structured consultation documentation.
+  1266→
+  1267→Sections:
+  1268→
+  1269→```text
+  1270→Consultation Reason
+  1271→Chief Complaint
+  1272→History of Present Illness
+  1273→Relevant Medical History
+  1274→Medication History
+  1275→Allergy Confirmation
+  1276→Family History
+  1277→Social History
+  1278→Vital Signs
+  1279→Examination Findings
+  1280→Assessment
+  1281→Diagnosis
+  1282→Differential Diagnosis
+  1283→Treatment Plan
+  1284→Follow-Up
+  1285→Patient Instructions
+  1286→Safety-Netting
+  1287→Attachments
+  1288→```
+  1289→
+  1290→Support SOAP grouping where useful:
+  1291→
+  1292→```text
+  1293→Subjective
+  1294→Objective
+  1295→Assessment
+  1296→Plan
+  1297→```
+  1298→
+  1299→Autosave form drafts.
+  1300→
+  1301→Autosave can be implemented using debounced PATCH requests.
+  1302→
+  1303→Show:
+  1304→
+  1305→```text
+  1306→Saving...
+  1307→Saved
+  1308→```
+  1309→
+  1310→## Right Panel
+  1311→
+  1312→Clinical actions:
+  1313→
+  1314→```text
+  1315→Create Prescription
+  1316→Order Laboratory Test
+  1317→Create Referral
+  1318→Book Follow-Up
+  1319→Send Patient Instructions
+  1320→Complete Consultation
+  1321→```
+  1322→
+  1323→---
+  1324→
+  1325→# 27. COMPLETING AN ENCOUNTER
+  1326→
+  1327→The doctor cannot complete the encounter without:
+  1328→
+  1329→* Consultation reason.
+  1330→* Relevant history.
+  1331→* Allergy status.
+  1332→* Medication status.
+  1333→* Assessment.
+  1334→* Diagnosis or provisional diagnosis.
+  1335→* Treatment plan.
+  1336→* Follow-up recommendation.
+  1337→* Provider signature.
+  1338→
+  1339→If missing:
+  1340→
+  1341→Display clear validation.
+  1342→
+  1343→After signing:
+  1344→
+  1345→```text
+  1346→status = completed
+  1347→locked = true
+  1348→```
+  1349→
+  1350→The UI must indicate:
+  1351→
+  1352→```text
+  1353→Signed Clinical Record
+  1354→This consultation record is locked.
+  1355→```
+  1356→
+  1357→Do not allow editing of the original signed record.
+  1358→
+  1359→A prototype amendment action can create a separate amendment record.
+  1360→
+  1361→---
+  1362→
+  1363→# 28. PRESCRIPTION CREATION
+  1364→
+  1365→Doctor action:
+  1366→
+  1367→```text
+  1368→Create Prescription
+  1369→```
+  1370→
+  1371→Use a modal, drawer, or dedicated route.
+  1372→
+  1373→Fields:
+  1374→
+  1375→```text
+  1376→Medicine
+  1377→Generic/Brand Preference
+  1378→Strength
+  1379→Dosage Form
+  1380→Dose
+  1381→Route
+  1382→Frequency
+  1383→Duration
+  1384→Quantity
+  1385→Refill Allowance
+  1386→Substitution Permission
+  1387→Instructions
+  1388→Start Date
+  1389→Expiry Date
+  1390→```
+  1391→
+  1392→Display patient allergy information prominently.
+  1393→
+  1394→After issuing:
+  1395→
+  1396→Create:
+  1397→
+  1398→```text
+  1399→prescription
+  1400→prescriptionItems
+  1401→```
+  1402→
+  1403→Status:
+  1404→
+  1405→```text
+  1406→issued
+  1407→```
+  1408→
+  1409→The prescription must immediately appear in:
+  1410→
+  1411→```text
+  1412→Patient → Prescriptions
+  1413→Doctor → Prescriptions
+  1414→```
+  1415→
+  1416→---
+  1417→
+  1418→# 29. PATIENT PRESCRIPTIONS
+  1419→
+  1420→Route:
+  1421→
+  1422→```text
+  1423→/patient/prescriptions
+  1424→```
+  1425→
+  1426→Statuses:
+  1427→
+  1428→```text
+  1429→Active
+  1430→Awaiting Pharmacy
+  1431→Partially Fulfilled
+  1432→Fulfilled
+  1433→Expired
+  1434→Cancelled
+  1435→```
+  1436→
+  1437→Prescription detail:
+  1438→
+  1439→```text
+  1440→/patient/prescriptions/:id
+  1441→```
+  1442→
+  1443→Display:
+  1444→
+  1445→* Doctor.
+  1446→* Consultation.
+  1447→* Date.
+  1448→* Medicine.
+  1449→* Strength.
+  1450→* Dosage.
+  1451→* Frequency.
+  1452→* Duration.
+  1453→* Quantity.
+  1454→* Instructions.
+  1455→* Validity.
+  1456→* Pharmacy status.
+  1457→
+  1458→CTA:
+  1459→
+  1460→```text
+  1461→Order Medicines
+  1462→```
+  1463→
+  1464→---
+  1465→
+  1466→# 30. PRESCRIPTION TO PHARMACY FLOW
+  1467→
+  1468→Implement:
+  1469→
+  1470→```text
+  1471→Prescription
+  1472→    ↓
+  1473→Select Pharmacy
+  1474→    ↓
+  1475→Check Product Availability
+  1476→    ↓
+  1477→Review Product Prices
+  1478→    ↓
+  1479→Add Items
+  1480→    ↓
+  1481→Delivery Address
+  1482→    ↓
+  1483→Review Delivery Fee
+  1484→    ↓
+  1485→Mock Payment
+  1486→    ↓
+  1487→Pharmacy Receives Order
+  1488→```
+  1489→
+  1490→The pharmacy order must be persisted.
+  1491→
+  1492→---
+  1493→
+  1494→# 31. PHARMACY DASHBOARD
+  1495→
+  1496→Route:
+  1497→
+  1498→```text
+  1499→/pharmacy/dashboard
+  1500→```
+  1501→
+  1502→Display:
+  1503→
+  1504→* New prescriptions.
+  1505→* Orders awaiting acceptance.
+  1506→* Orders requiring clarification.
+  1507→* Preparing orders.
+  1508→* Ready for pickup.
+  1509→* Low-stock products.
+  1510→* Near-expiry products.
+  1511→* Today's sales.
+  1512→* Platform commission.
+  1513→* Pending settlements.
+  1514→
+  1515→---
+  1516→
+  1517→# 32. PHARMACY PRODUCTS
+  1518→
+  1519→Routes:
+  1520→
+  1521→```text
+  1522→/pharmacy/products
+  1523→/pharmacy/products/:id
+  1524→```
+  1525→
+  1526→Allow prototype CRUD:
+  1527→
+  1528→* Add product.
+  1529→* Edit product.
+  1530→* Change pharmacy selling price.
+  1531→* Update stock.
+  1532→* Mark unavailable.
+  1533→
+  1534→Fields:
+  1535→
+  1536→```text
+  1537→Product name
+  1538→Generic name
+  1539→Brand
+  1540→Category
+  1541→Strength
+  1542→Dosage form
+  1543→Manufacturer
+  1544→Selling price
+  1545→Stock
+  1546→Batch
+  1547→Expiry
+  1548→Prescription requirement
+  1549→Storage requirements
+  1550→```
+  1551→
+  1552→---
+  1553→
+  1554→# 33. PHARMACY PRESCRIPTION REVIEW
+  1555→
+  1556→Route:
+  1557→
+  1558→```text
+  1559→/pharmacy/prescriptions/:id
+  1560→```
+  1561→
+  1562→The pharmacy may see:
+  1563→
+  1564→* Patient identity.
+  1565→* Prescriber.
+  1566→* Prescription.
+  1567→* Medicines.
+  1568→* Quantity.
+  1569→* Relevant allergy warning.
+  1570→* Substitution rules.
+  1571→* Validity.
+  1572→
+  1573→Do NOT show:
+  1574→
+  1575→* Full clinical notes.
+  1576→* Unrelated diagnoses.
+  1577→* Complete patient history.
+  1578→
+  1579→Actions:
+  1580→
+  1581→```text
+  1582→Accept Prescription
+  1583→Request Clarification
+  1584→Reject
+  1585→```
+  1586→
+  1587→---
+  1588→
+  1589→# 34. PHARMACY ORDER PROCESSING
+  1590→
+  1591→Route:
+  1592→
+  1593→```text
+  1594→/pharmacy/orders/:id
+  1595→```
+  1596→
+  1597→Statuses:
+  1598→
+  1599→```text
+  1600→paid
+  1601→prescription_under_review
+  1602→clarification_required
+  1603→accepted
+  1604→partially_available
+  1605→rejected
+  1606→preparing
+  1607→ready_for_pickup
+  1608→picked_up
+  1609→in_transit
+  1610→delivered
+  1611→cancelled
+  1612→refunded
+  1613→```
+  1614→
+  1615→Allow pharmacy staff to progress the order.
+  1616→
+  1617→Example:
+  1618→
+  1619→```text
+  1620→Accept Order
+  1621→       ↓
+  1622→Start Preparing
+  1623→       ↓
+  1624→Mark Ready for Pickup
+  1625→       ↓
+  1626→Request Logistics
+  1627→```
+  1628→
+  1629→Each transition must persist.
+  1630→
+  1631→---
+  1632→
+  1633→# 35. LABORATORY REQUEST
+  1634→
+  1635→Doctors must be able to request laboratory tests.
+  1636→
+  1637→Fields:
+  1638→
+  1639→```text
+  1640→Tests
+  1641→Clinical indication
+  1642→Priority
+  1643→Preparation instructions
+  1644→Fasting requirement
+  1645→Sample type
+  1646→Notes
+  1647→```
+  1648→
+  1649→After submission:
+  1650→
+  1651→Create:
+  1652→
+  1653→```text
+  1654→laboratoryRequest
+  1655→```
+  1656→
+  1657→Status:
+  1658→
+  1659→```text
+  1660→pending_booking
+  1661→```
+  1662→
+  1663→It appears in:
+  1664→
+  1665→```text
+  1666→Patient → Laboratory
+  1667→Doctor → Laboratory Requests
+  1668→```
+  1669→
+  1670→---
+  1671→
+  1672→# 36. PATIENT LABORATORY FLOW
+  1673→
+  1674→Route:
+  1675→
+  1676→```text
+  1677→/patient/laboratory
+  1678→```
+  1679→
+  1680→Sections:
+  1681→
+  1682→```text
+  1683→Pending Test Requests
+  1684→Upcoming Bookings
+  1685→Tests In Progress
+  1686→Results
+  1687→```
+  1688→
+  1689→The patient can open a request and choose:
+  1690→
+  1691→```text
+  1692→Laboratory Facility
+  1693→or
+  1694→Home Collection
+  1695→```
+  1696→
+  1697→Then:
+  1698→
+  1699→```text
+  1700→Choose Date
+  1701→Choose Time
+  1702→Mock Payment
+  1703→Confirm Booking
+  1704→```
+  1705→
+  1706→Create a laboratory booking.
+  1707→
+  1708→---
+  1709→
+  1710→# 37. LABORATORY DASHBOARD
+  1711→
+  1712→Route:
+  1713→
+  1714→```text
+  1715→/laboratory/dashboard
+  1716→```
+  1717→
+  1718→Display:
+  1719→
+  1720→* New requests.
+  1721→* Today's appointments.
+  1722→* Home collections.
+  1723→* Samples awaiting processing.
+  1724→* Tests in progress.
+  1725→* Results awaiting upload.
+  1726→* Critical results.
+  1727→* Earnings.
+  1728→* Settlements.
+  1729→
+  1730→---
+  1731→
+  1732→# 38. LABORATORY WORKFLOW
+  1733→
+  1734→Support:
+  1735→
+  1736→```text
+  1737→Request Received
+  1738→      ↓
+  1739→Booking Accepted
+  1740→      ↓
+  1741→Sample Collected
+  1742→      ↓
+  1743→Processing
+  1744→      ↓
+  1745→Quality Review
+  1746→      ↓
+  1747→Result Uploaded
+  1748→      ↓
+  1749→Result Published
+  1750→```
+  1751→
+  1752→Persist every status.
+  1753→
+  1754→---
+  1755→
+  1756→# 39. RESULT CREATION
+  1757→
+  1758→Route:
+  1759→
+  1760→```text
+  1761→/laboratory/results/new?requestId=...
+  1762→```
+  1763→
+  1764→Fields:
+  1765→
+  1766→```text
+  1767→Test
+  1768→Sample collection date
+  1769→Result date
+  1770→Value
+  1771→Unit
+  1772→Reference range
+  1773→Abnormal indicator
+  1774→Interpretation
+  1775→Report attachment placeholder
+  1776→Reviewer
+  1777→```
+  1778→
+  1779→Because this is a prototype, actual file uploading can use mocked file metadata.
+  1780→
+  1781→After finalising:
+  1782→
+  1783→Create a laboratory result.
+  1784→
+  1785→Update laboratory request:
+  1786→
+  1787→```text
+  1788→status = completed
+  1789→```
+  1790→
+  1791→Create notifications for:
+  1792→
+  1793→* Patient.
+  1794→* Referring doctor.
+  1795→
+  1796→The result must appear in the patient's clinical timeline.
+  1797→
+  1798→---
+  1799→
+  1800→# 40. CLINICAL TIMELINE
+  1801→
+  1802→Route:
+  1803→
+  1804→```text
+  1805→/patient/records
+  1806→```
+  1807→
+  1808→Create a unified chronological timeline combining:
+  1809→
+  1810→* Consultations.
+  1811→* Diagnoses.
+  1812→* Prescriptions.
+  1813→* Laboratory requests.
+  1814→* Results.
+  1815→* Referrals.
+  1816→* Medicine fulfilments.
+  1817→* Follow-ups.
+  1818→* Care plans.
+  1819→
+  1820→Do not create unrelated separate datasets visually.
+  1821→
+  1822→The timeline should demonstrate continuity of care.
+  1823→
+  1824→Allow filtering by:
+  1825→
+  1826→```text
+  1827→All
+  1828→Consultations
+  1829→Prescriptions
+  1830→Laboratory
+  1831→Referrals
+  1832→Orders
+  1833→```
+  1834→
+  1835→---
+  1836→
+  1837→# 41. PATIENT HEALTH SUMMARY
+  1838→
+  1839→At the top of Health Records show:
+  1840→
+  1841→```text
+  1842→Active Conditions
+  1843→Allergies
+  1844→Current Medicines
+  1845→Recent Results
+  1846→Active Referrals
+  1847→Current Care Plans
+  1848→```
+  1849→
+  1850→Clearly identify:
+  1851→
+  1852→```text
+  1853→Patient Reported
+  1854→Provider Confirmed
+  1855→```
+  1856→
+  1857→---
+  1858→
+  1859→# 42. REFERRAL FLOW
+  1860→
+  1861→Doctors can create a referral.
+  1862→
+  1863→Fields:
+  1864→
+  1865→```text
+  1866→Receiving provider
+  1867→Specialty
+  1868→Referral reason
+  1869→Relevant symptoms
+  1870→Relevant history
+  1871→Diagnosis
+  1872→Current treatment
+  1873→Required action
+  1874→Urgency
+  1875→Attachments
+  1876→Access expiry
+  1877→```
+  1878→
+  1879→Create both:
+  1880→
+  1881→```text
+  1882→referral
+  1883→careHandoff
+  1884→```
+  1885→
+  1886→Statuses:
+  1887→
+  1888→```text
+  1889→draft
+  1890→sent
+  1891→received
+  1892→accepted
+  1893→declined
+  1894→in_progress
+  1895→completed
+  1896→expired
+  1897→requires_clarification
+  1898→```
+  1899→
+  1900→Receiving doctors must see incoming referrals.
+  1901→
+  1902→---
+  1903→
+  1904→# 43. RECORD ACCESS CENTRE
+  1905→
+  1906→Patient route:
+  1907→
+  1908→```text
+  1909→/patient/consent
+  1910→```
+  1911→
+  1912→Display:
+  1913→
+  1914→```text
+  1915→Active Access
+  1916→Pending Requests
+  1917→Previous Access
+  1918→Consent Preferences
+  1919→```
+  1920→
+  1921→Each access grant shows:
+  1922→
+  1923→* Provider.
+  1924→* Organisation.
+  1925→* Reason.
+  1926→* Information shared.
+  1927→* Date granted.
+  1928→* Expiry.
+  1929→* Related consultation/referral.
+  1930→* Status.
+  1931→
+  1932→Provide:
+  1933→
+  1934→```text
+  1935→Revoke Future Access
+  1936→```
+  1937→
+  1938→where appropriate.
+  1939→
+  1940→This action must update the relevant access grant.
+  1941→
+  1942→---
+  1943→
+  1944→# 44. FAMILY / DEPENDANTS
+  1945→
+  1946→Route:
+  1947→
+  1948→```text
+  1949→/patient/family
+  1950→```
+  1951→
+  1952→Allow patient to:
+  1953→
+  1954→* View dependants.
+  1955→* Add dependant.
+  1956→* Select dependant.
+  1957→
+  1958→Each dependant must have separate:
+  1959→
+  1960→* Health profile.
+  1961→* Appointment history.
+  1962→* Prescriptions.
+  1963→* Laboratory records.
+  1964→
+  1965→The selected patient context must remain visible.
+  1966→
+  1967→Example:
+  1968→
+  1969→```text
+  1970→Managing healthcare for:
+  1971→Amina Bello ▼
+  1972→```
+  1973→
+  1974→or:
+  1975→
+  1976→```text
+  1977→Managing healthcare for:
+  1978→Zainab Bello — Daughter
+  1979→```
+  1980→
+  1981→---
+  1982→
+  1983→# 45. LOGISTICS PORTAL
+  1984→
+  1985→Routes:
+  1986→
+  1987→```text
+  1988→/logistics/dashboard
+  1989→/logistics/assignments
+  1990→/logistics/deliveries/:id
+  1991→```
+  1992→
+  1993→Dashboard:
+  1994→
+  1995→* Available assignment.
+  1996→* Current pickup.
+  1997→* Active delivery.
+  1998→* Delivery deadline.
+  1999→* Earnings.
+  2000→
+
+[showing lines 1-2000 of 3685; use offset=2001 with limit to continue reading]

@@ -1,0 +1,800 @@
+     1→/* eslint-disable @typescript-eslint/no-unused-vars */
+     2→// Royal Palace Health Care — prototype seed data
+     3→// Seeds the complete Amina → Dr Tunde → MedLab → Grace Pharmacy → SwiftCare
+     4→// connected-care story so reviewers see a populated app immediately.
+     5→
+     6→import { PrismaClient } from "@prisma/client";
+     7→
+     8→const db = new PrismaClient();
+     9→
+    10→const now = new Date();
+    11→const iso = (d: Date) => d.toISOString();
+    12→const today = (offsetDays = 0) => {
+    13→  const d = new Date(now);
+    14→  d.setDate(d.getDate() + offsetDays);
+    15→  return d.toISOString().slice(0, 10);
+    16→};
+    17→const nowPlusDays = (offsetDays: number) => {
+    18→  const d = new Date(now);
+    19→  d.setDate(d.getDate() + offsetDays);
+    20→  return d.toISOString();
+    21→};
+    22→
+    23→async function main() {
+    24→  // -----------------------------------------------------------------------
+    25→  // USERS + ROLE PROFILES
+    26→  // -----------------------------------------------------------------------
+    27→  await db.user.create({
+    28→    data: {
+    29→      id: "USR-ADMIN",
+    30→      email: "admin@demo.com",
+    31→      password: "demo123",
+    32→      role: "admin",
+    33→      status: "active",
+    34→      profileId: "ADM-001",
+    35→      name: "Royal Palace Admin",
+    36→    },
+    37→  });
+    38→
+    39→  const aminaUser = await db.user.create({
+    40→    data: {
+    41→      id: "USR-PAT-001",
+    42→      email: "amina@demo.com",
+    43→      password: "demo123",
+    44→      role: "patient",
+    45→      status: "active",
+    46→      profileId: "PAT-001",
+    47→      name: "Amina Bello",
+    48→    },
+    49→  });
+    50→
+    51→  await db.user.create({
+    52→    data: {
+    53→      id: "USR-DOC-001",
+    54→      email: "doctor@demo.com",
+    55→      password: "demo123",
+    56→      role: "doctor",
+    57→      status: "active",
+    58→      profileId: "PRO-001",
+    59→      name: "Dr. Tunde Adeyemi",
+    60→    },
+    61→  });
+    62→
+    63→  await db.user.create({
+    64→    data: {
+    65→      id: "USR-DOC-002",
+    66→      email: "doctor2@demo.com",
+    67→      password: "demo123",
+    68→      role: "doctor",
+    69→      status: "active",
+    70→      profileId: "PRO-002",
+    71→      name: "Dr. Funmi Okafor",
+    72→    },
+    73→  });
+    74→
+    75→  await db.user.create({
+    76→    data: {
+    77→      id: "USR-DOC-003",
+    78→      email: "doctor3@demo.com",
+    79→      password: "demo123",
+    80→      role: "doctor",
+    81→      status: "active",
+    82→      profileId: "PRO-003",
+    83→      name: "Dr. Chidi Nwosu",
+    84→    },
+    85→  });
+    86→
+    87→  await db.user.create({
+    88→    data: {
+    89→      id: "USR-PHA-001",
+    90→      email: "pharmacy@demo.com",
+    91→      password: "demo123",
+    92→      role: "pharmacy",
+    93→      status: "active",
+    94→      profileId: "PHA-001",
+    95→      name: "Grace Community Pharmacy",
+    96→    },
+    97→  });
+    98→
+    99→  await db.user.create({
+   100→    data: {
+   101→      id: "USR-LAB-001",
+   102→      email: "lab@demo.com",
+   103→      password: "demo123",
+   104→      role: "laboratory",
+   105→      status: "active",
+   106→      profileId: "LAB-001",
+   107→      name: "MedLab Diagnostics",
+   108→    },
+   109→  });
+   110→
+   111→  await db.user.create({
+   112→    data: {
+   113→      id: "USR-LOG-001",
+   114→      email: "logistics@demo.com",
+   115→      password: "demo123",
+   116→      role: "logistics",
+   117→      status: "active",
+   118→      profileId: "LOG-001",
+   119→      name: "SwiftCare Logistics",
+   120→    },
+   121→  });
+   122→
+   123→  // -----------------------------------------------------------------------
+   124→  // PATIENT — Amina Bello (primary) + a dependant
+   125→  // -----------------------------------------------------------------------
+   126→  await db.patient.create({
+   127→    data: {
+   128→      id: "PAT-001",
+   129→      userId: aminaUser.id,
+   130→      patientNumber: "RPH-2026-0001",
+   131→      firstName: "Amina",
+   132→      lastName: "Bello",
+   133→      dateOfBirth: "1992-03-14",
+   134→      gender: "Female",
+   135→      phone: "+234 803 555 0101",
+   136→      email: "amina@demo.com",
+   137→      city: "Lekki",
+   138→      state: "Lagos",
+   139→      country: "Nigeria",
+   140→      bloodGroup: "O+",
+   141→      genotype: "AA",
+   142→      height: 165,
+   143→      weight: 68,
+   144→      allergies: JSON.stringify([
+   145→        { name: "Penicillin", source: "provider-confirmed", status: "active", recordedAt: iso(now) },
+   146→        { name: "Sulphur drugs", source: "patient-reported", status: "active", recordedAt: iso(now) },
+   147→      ]),
+   148→      conditions: JSON.stringify([
+   149→        { name: "Hypertension (Stage 1)", source: "provider-confirmed", status: "active", recordedAt: iso(now) },
+   150→        { name: "Migraine", source: "patient-reported", status: "active", recordedAt: iso(now) },
+   151→      ]),
+   152→      medications: JSON.stringify([
+   153→        { name: "Amlodipine 10mg", source: "provider-confirmed", status: "active", recordedAt: iso(now) },
+   154→      ]),
+   155→      emergencyName: "Yusuf Bello",
+   156→      emergencyPhone: "+234 803 555 0190",
+   157→      emergencyRel: "Spouse",
+   158→    },
+   159→  });
+   160→
+   161→  // Dependant — Zainab (daughter)
+   162→  await db.patient.create({
+   163→    data: {
+   164→      id: "PAT-002",
+   165→      userId: aminaUser.id,
+   166→      parentPatientId: "PAT-001",
+   167→      patientNumber: "RPH-2026-0002",
+   168→      firstName: "Zainab",
+   169→      lastName: "Bello",
+   170→      dateOfBirth: "2016-08-22",
+   171→      gender: "Female",
+   172→      phone: "+234 803 555 0101",
+   173→      email: "amina@demo.com",
+   174→      city: "Lekki",
+   175→      state: "Lagos",
+   176→      country: "Nigeria",
+   177→      bloodGroup: "A+",
+   178→      genotype: "AA",
+   179→      height: 115,
+   180→      weight: 22,
+   181→      allergies: JSON.stringify([]),
+   182→      conditions: JSON.stringify([
+   183→        { name: "Childhood asthma (mild)", source: "provider-confirmed", status: "active", recordedAt: iso(now) },
+   184→      ]),
+   185→      medications: JSON.stringify([]),
+   186→      emergencyName: "Amina Bello",
+   187→      emergencyPhone: "+234 803 555 0101",
+   188→      emergencyRel: "Mother",
+   189→    },
+   190→  });
+   191→
+   192→  // -----------------------------------------------------------------------
+   193→  // PROVIDERS — Dr Tunde (GP, verified) + Dr Funmi (Cardiologist, verified)
+   194→  // -----------------------------------------------------------------------
+   195→  await db.provider.create({
+   196→    data: {
+   197→      id: "PRO-001",
+   198→      userId: "USR-DOC-001",
+   199→      providerNumber: "RPH-PRO-0001",
+   200→      firstName: "Tunde",
+   201→      lastName: "Adeyemi",
+   202→      title: "Dr.",
+   203→      specialty: "General Practitioner",
+   204→      professionalTitle: "MBBS, FWACP (Family Medicine)",
+   205→      qualifications: JSON.stringify(["MBBS — University of Lagos", "FWACP — Family Medicine", "BLS & ACLS certified"]),
+   206→      yearsExperience: 12,
+   207→      biography:
+   208→        "Dr. Tunde Adeyemi is a trusted General Practitioner with over a decade of experience in family medicine, chronic disease management and preventive care across Lagos.",
+   209→      languages: JSON.stringify(["English", "Yoruba", "Hausa"]),
+   210→      registrationNumber: "MDG/LAG/2010/00451",
+   211→      licenceNumber: "MDCN-LAG-2010-2291",
+   212→      licenceExpiry: "2027-12-31",
+   213→      verificationStatus: "approved",
+   214→      consultationModes: JSON.stringify(["video", "audio", "in_person", "chat"]),
+   215→      city: "Ikeja",
+   216→      state: "Lagos",
+   217→      rating: 4.8,
+   218→      reviewCount: 127,
+   219→      consultationFee: 15000,
+   220→    },
+   221→  });
+   222→
+   223→  await db.provider.create({
+   224→    data: {
+   225→      id: "PRO-002",
+   226→      userId: "USR-DOC-002",
+   227→      providerNumber: "RPH-PRO-0002",
+   228→      firstName: "Funmi",
+   229→      lastName: "Okafor",
+   230→      title: "Dr.",
+   231→      specialty: "Cardiologist",
+   232→      professionalTitle: "MBBS, FWACP (Cardiology)",
+   233→      qualifications: JSON.stringify(["MBBS — University of Ibadan", "FWACP — Cardiology", "Fellow, Nigerian Cardiac Society"]),
+   234→      yearsExperience: 15,
+   235→      biography:
+   236→        "Dr. Funmi Okafor is a senior Cardiologist specialising in hypertension, heart failure and preventive cardiology for adults.",
+   237→      languages: JSON.stringify(["English", "Yoruba"]),
+   238→      registrationNumber: "MDG/IBD/2007/00820",
+   239→      licenceNumber: "MDCN-IBD-2007-1180",
+   240→      licenceExpiry: "2026-08-31",
+   241→      verificationStatus: "approved",
+   242→      consultationModes: JSON.stringify(["video", "in_person"]),
+   243→      city: "Yaba",
+   244→      state: "Lagos",
+   245→      rating: 4.9,
+   246→      reviewCount: 89,
+   247→      consultationFee: 25000,
+   248→    },
+   249→  });
+   250→
+   251→  // A pending provider application to be reviewed by admin
+   252→  await db.provider.create({
+   253→    data: {
+   254→      id: "PRO-003",
+   255→      userId: "USR-DOC-003",
+   256→      providerNumber: "RPH-PRO-0003",
+   257→      firstName: "Chidi",
+   258→      lastName: "Nwosu",
+   259→      title: "Dr.",
+   260→      specialty: "Paediatrician",
+   261→      professionalTitle: "MBBS, FWACP (Paediatrics)",
+   262→      qualifications: JSON.stringify(["MBBS — University of Nigeria Nsukka"]),
+   263→      yearsExperience: 6,
+   264→      biography: "Dr. Chidi Nwosu is a paediatrician applying to join the Royal Palace network.",
+   265→      languages: JSON.stringify(["English", "Igbo"]),
+   266→      registrationNumber: "MDG/ENU/2018/01112",
+   267→      licenceNumber: "MDCN-ENU-2018-5521",
+   268→      licenceExpiry: "2028-06-30",
+   269→      verificationStatus: "submitted",
+   270→      consultationModes: JSON.stringify(["video", "in_person"]),
+   271→      city: "Surulere",
+   272→      state: "Lagos",
+   273→      rating: 0,
+   274→      reviewCount: 0,
+   275→      consultationFee: 18000,
+   276→    },
+   277→  });
+   278→
+   279→  await db.providerApplication.create({
+   280→    data: {
+   281→      id: "APP-001",
+   282→      providerId: "PRO-003",
+   283→      status: "under_review",
+   284→      submittedAt: nowPlusDays(-3),
+   285→      documents: JSON.stringify([
+   286→        { id: "FILE-001", name: "medical-licence.pdf", type: "application/pdf", size: 184000, uploadedAt: iso(now) },
+   287→        { id: "FILE-002", name: "degree-certificate.pdf", type: "application/pdf", size: 220000, uploadedAt: iso(now) },
+   288→      ]),
+   289→      history: JSON.stringify([
+   290→        { status: "submitted", at: nowPlusDays(-3), by: "Dr. Chidi Nwosu", note: "Application submitted" },
+   291→      ]),
+   292→    },
+   293→  });
+   294→
+   295→  // -----------------------------------------------------------------------
+   296→  // PHARMACY — Grace Community Pharmacy
+   297→  // -----------------------------------------------------------------------
+   298→  await db.pharmacy.create({
+   299→    data: {
+   300→      id: "PHA-001",
+   301→      userId: "USR-PHA-001",
+   302→      pharmacyNumber: "RPH-PHA-0001",
+   303→      name: "Grace Community Pharmacy",
+   304→      city: "Lekki",
+   305→      state: "Lagos",
+   306→      address: "12 Admiralty Way, Lekki Phase 1, Lagos",
+   307→      phone: "+234 805 222 0101",
+   308→      email: "pharmacy@demo.com",
+   309→      verificationStatus: "approved",
+   310→      commissionPct: 8,
+   311→      rating: 4.6,
+   312→    },
+   313→  });
+   314→
+   315→  const products = [
+   316→    { id: "MED-001", name: "Amoxicillin", genericName: "Amoxicillin", brand: "Amoxil", category: "Prescription Medicine", strength: "500mg", dosageForm: "Capsule", manufacturer: "GSK", price: 4500, stock: 38, batch: "AMX2026A", expiry: "2027-05-01" },
+   317→    { id: "MED-002", name: "Amlodipine", genericName: "Amlodipine", brand: "Norvasc", category: "Prescription Medicine", strength: "10mg", dosageForm: "Tablet", manufacturer: "Pfizer", price: 6000, stock: 52, batch: "AML2026B", expiry: "2027-08-01" },
+   318→    { id: "MED-003", name: "Paracetamol", genericName: "Paracetamol", brand: "Panadol", category: "Over-the-Counter", strength: "500mg", dosageForm: "Tablet", manufacturer: "Emzor", price: 1200, stock: 200, batch: "PAR2026C", expiry: "2028-01-01", prescriptionRequired: false },
+   319→    { id: "MED-004", name: "Lisinopril", genericName: "Lisinopril", brand: "Zestril", category: "Prescription Medicine", strength: "20mg", dosageForm: "Tablet", manufacturer: "AstraZeneca", price: 7500, stock: 28, batch: "LIS2026D", expiry: "2027-03-01" },
+   320→    { id: "MED-005", name: "Metformin", genericName: "Metformin", brand: "Glucophage", category: "Prescription Medicine", strength: "850mg", dosageForm: "Tablet", manufacturer: "Merck", price: 5200, stock: 14, batch: "MET2025E", expiry: "2026-09-15" },
+   321→    { id: "MED-006", name: "Cetirizine", genericName: "Cetirizine", brand: "Zyrtec", category: "Over-the-Counter", strength: "10mg", dosageForm: "Tablet", manufacturer: "Johnson & Johnson", price: 2800, stock: 6, batch: "CET2024F", expiry: "2026-02-20", prescriptionRequired: false },
+   322→  ];
+   323→  for (const p of products) {
+   324→    await db.pharmacyProduct.create({
+   325→      data: {
+   326→        id: p.id,
+   327→        pharmacyId: "PHA-001",
+   328→        name: p.name,
+   329→        genericName: p.genericName,
+   330→        brand: p.brand,
+   331→        category: p.category,
+   332→        strength: p.strength,
+   333→        dosageForm: p.dosageForm,
+   334→        manufacturer: p.manufacturer,
+   335→        price: p.price,
+   336→        stockQuantity: p.stock,
+   337→        batch: p.batch,
+   338→        expiryDate: p.expiry,
+   339→        prescriptionRequired: p.prescriptionRequired ?? true,
+   340→        storageRequirements: "Store below 25°C",
+   341→        status: "active",
+   342→      },
+   343→    });
+   344→  }
+   345→
+   346→  // -----------------------------------------------------------------------
+   347→  // LABORATORY — MedLab Diagnostics
+   348→  // -----------------------------------------------------------------------
+   349→  await db.laboratory.create({
+   350→    data: {
+   351→      id: "LAB-001",
+   352→      userId: "USR-LAB-001",
+   353→      laboratoryNumber: "RPH-LAB-0001",
+   354→      name: "MedLab Diagnostics",
+   355→      city: "Ikeja",
+   356→      state: "Lagos",
+   357→      address: "5 Allen Avenue, Ikeja, Lagos",
+   358→      phone: "+234 805 333 0101",
+   359→      email: "lab@demo.com",
+   360→      verificationStatus: "approved",
+   361→      rating: 4.7,
+   362→    },
+   363→  });
+   364→
+   365→  // -----------------------------------------------------------------------
+   366→  // LOGISTICS — SwiftCare
+   367→  // -----------------------------------------------------------------------
+   368→  await db.logisticsProvider.create({
+   369→    data: {
+   370→      id: "LOG-001",
+   371→      userId: "USR-LOG-001",
+   372→      logisticsNumber: "RPH-LOG-0001",
+   373→      name: "SwiftCare Logistics",
+   374→      vehicleType: "Motorcycle",
+   375→      city: "Lekki",
+   376→      state: "Lagos",
+   377→      phone: "+234 805 444 0101",
+   378→      email: "logistics@demo.com",
+   379→      verificationStatus: "approved",
+   380→    },
+   381→  });
+   382→
+   383→  // -----------------------------------------------------------------------
+   384→  // SERVICES & PRICING (platform-controlled)
+   385→  // -----------------------------------------------------------------------
+   386→  const services = [
+   387→    { id: "SRV-CONSULT-GP", category: "consultation", name: "General Practitioner Consultation", patientPrice: 15000, payout: 11000 },
+   388→    { id: "SRV-CONSULT-CARD", category: "consultation", name: "Cardiologist Consultation", patientPrice: 25000, payout: 18500 },
+   389→    { id: "SRV-CONSULT-PAED", category: "consultation", name: "Paediatrician Consultation", patientPrice: 18000, payout: 13500 },
+   390→    { id: "SRV-DENTAL-GEN", category: "dental", name: "Dental Consultation", patientPrice: 20000, payout: 15000 },
+   391→    { id: "SRV-DENTAL-SCALE", category: "dental", name: "Dental Scaling & Polishing", patientPrice: 35000, payout: 26000 },
+   392→    { id: "SRV-LAB-CBC", category: "laboratory", name: "Full Blood Count", patientPrice: 5000, payout: 3750 },
+   393→    { id: "SRV-LAB-LIPID", category: "laboratory", name: "Lipid Profile", patientPrice: 8000, payout: 6000 },
+   394→    { id: "SRV-LAB-FBS", category: "laboratory", name: "Fasting Blood Sugar", patientPrice: 3000, payout: 2200 },
+   395→    { id: "SRV-LAB-BP", category: "laboratory", name: "Blood Pressure Check", patientPrice: 1500, payout: 1100 },
+   396→    { id: "SRV-HOME-VISIT", category: "home", name: "Home Healthcare Visit", patientPrice: 40000, payout: 30000 },
+   397→    { id: "SRV-PREV-WELLNESS", category: "preventive", name: "Wellness Screening Package", patientPrice: 60000, payout: 45000 },
+   398→    { id: "SRV-CHRONIC-HTN", category: "chronic", name: "Hypertension Care Programme (Monthly)", patientPrice: 30000, payout: 22000 },
+   399→    { id: "SRV-LOGISTICS-STD", category: "logistics", name: "Standard Delivery", patientPrice: 1500, payout: 1200 },
+   400→    { id: "SRV-SUB-FAMILY", category: "subscription", name: "Family Health Plan (Monthly)", patientPrice: 25000, payout: 0 },
+   401→  ];
+   402→  for (const s of services) {
+   403→    await db.service.create({
+   404→      data: {
+   405→        id: s.id,
+   406→        category: s.category,
+   407→        name: s.name,
+   408→        description: s.name,
+   409→        active: true,
+   410→        prices: {
+   411→          create: {
+   412→            id: `SP-${s.id}`,
+   413→            patientPrice: s.patientPrice,
+   414→            providerPayout: s.payout,
+   415→            platformMargin: s.patientPrice - s.payout,
+   416→            currency: "NGN",
+   417→            effectiveFrom: today(-30),
+   418→            status: "active",
+   419→          },
+   420→        },
+   421→      },
+   422→    });
+   423→  }
+   424→
+   425→  // -----------------------------------------------------------------------
+   426→  // HISTORICAL ENCOUNTER (already completed) — Amina + Dr Tunde
+   427→  // -----------------------------------------------------------------------
+   428→  const histAppt = await db.appointment.create({
+   429→    data: {
+   430→      id: "APT-001",
+   431→      patientId: "PAT-001",
+   432→      providerId: "PRO-001",
+   433→      serviceId: "SRV-CONSULT-GP",
+   434→      servicePriceId: "SP-SRV-CONSULT-GP",
+   435→      date: today(-30),
+   436→      time: "10:30",
+   437→      durationMinutes: 30,
+   438→      consultationChannel: "video",
+   439→      price: 15000,
+   440→      paymentStatus: "paid",
+   441→      status: "completed",
+   442→      intakeForm: JSON.stringify({ reason: "Routine blood pressure review", symptoms: "Occasional headaches", consent: true }),
+   443→      consentStatus: "granted",
+   444→    },
+   445→  });
+   446→
+   447→  await db.payment.create({
+   448→    data: {
+   449→      id: "PAY-001",
+   450→      paymentNumber: "RPH-PAY-0001",
+   451→      appointmentId: "APT-001",
+   452→      patientId: "PAT-001",
+   453→      amount: 15000,
+   454→      method: "card",
+   455→      status: "successful",
+   456→      reference: "DEMO-PAY-0001",
+   457→    },
+   458→  });
+   459→
+   460→  const histEnc = await db.clinicalEncounter.create({
+   461→    data: {
+   462→      id: "ENC-001",
+   463→      encounterNumber: "RPH-ENC-0001",
+   464→      appointmentId: "APT-001",
+   465→      patientId: "PAT-001",
+   466→      providerId: "PRO-001",
+   467→      status: "completed",
+   468→      locked: true,
+   469→      signedAt: nowPlusDays(-30),
+   470→      documentation: JSON.stringify({
+   471→        consultationReason: "Routine blood pressure review",
+   472→        chiefComplaint: "Patient reports occasional early-morning headaches",
+   473→        historyPresentIllness: "Known hypertensive, on Amlodipine 10mg daily. Reports intermittent headaches over the past two weeks.",
+   474→        relevantMedicalHistory: "Hypertension diagnosed 2023. Migraine history.",
+   475→        medicationHistory: "Amlodipine 10mg once daily.",
+   476→        allergyConfirmation: "Penicillin (rash), sulphur drugs.",
+   477→        vitalSigns: { bp: "138/86", pulse: "78", temp: "36.7", weight: "68kg" },
+   478→        examinationFindings: "Cardiovascular system stable, no peripheral oedema.",
+   479→        assessment: "Stage 1 hypertension, partially controlled.",
+   480→        diagnosis: "Essential hypertension (I10)",
+   481→        treatmentPlan: "Continue Amlodipine 10mg. Reinforce lifestyle measures.",
+   482→        followUp: "Review in 4 weeks with home BP readings.",
+   483→        patientInstructions: "Reduce salt intake, regular moderate exercise, monitor BP at home twice weekly.",
+   484→        safetyNetting: "Return immediately if severe headache, chest pain or visual disturbance.",
+   485→      }),
+   486→    },
+   487→  });
+   488→
+   489→  await db.diagnosis.create({
+   490→    data: {
+   491→      id: "DX-001",
+   492→      encounterId: "ENC-001",
+   493→      patientId: "PAT-001",
+   494→      code: "I10",
+   495→      description: "Essential (primary) hypertension",
+   496→      type: "primary",
+   497→      status: "active",
+   498→    },
+   499→  });
+   500→
+   501→  // Historical prescription
+   502→  const histRx = await db.prescription.create({
+   503→    data: {
+   504→      id: "RX-001",
+   505→      prescriptionNumber: "RPH-RX-0001",
+   506→      encounterId: "ENC-001",
+   507→      patientId: "PAT-001",
+   508→      providerId: "PRO-001",
+   509→      status: "fulfilled",
+   510→      validityStartDate: today(-30),
+   511→      expiryDate: today(60),
+   512→      notes: "Continue antihypertensive therapy.",
+   513→    },
+   514→  });
+   515→
+   516→  await db.prescriptionItem.create({
+   517→    data: {
+   518→      id: "RXI-001",
+   519→      prescriptionId: "RX-001",
+   520→      medicine: "Amlodipine",
+   521→      genericName: "Amlodipine",
+   522→      strength: "10mg",
+   523→      dosageForm: "Tablet",
+   524→      dose: "1 tablet",
+   525→      route: "Oral",
+   526→      frequency: "Once daily",
+   527→      duration: "30 days",
+   528→      quantity: 30,
+   529→      refillAllowance: 2,
+   530→      substitutionAllowed: true,
+   531→      instructions: "Take in the morning with water.",
+   532→    },
+   533→  });
+   534→
+   535→  // Historical lab request + result
+   536→  const histLabReq = await db.laboratoryRequest.create({
+   537→    data: {
+   538→      id: "LABREQ-001",
+   539→      requestNumber: "RPH-LABREQ-0001",
+   540→      encounterId: "ENC-001",
+   541→      patientId: "PAT-001",
+   542→      requestingProviderId: "PRO-001",
+   543→      tests: JSON.stringify(["Full Blood Count", "Lipid Profile"]),
+   544→      clinicalIndication: "Baseline cardiovascular risk assessment for hypertensive patient.",
+   545→      priority: "routine",
+   546→      preparationInstructions: "Fast for 10-12 hours before sample collection.",
+   547→      fastingRequired: true,
+   548→      sampleType: "Venous blood",
+   549→      notes: "Annual review panel.",
+   550→      status: "completed",
+   551→    },
+   552→  });
+   553→
+   554→  const histLabBooking = await db.laboratoryBooking.create({
+   555→    data: {
+   556→      id: "LABBK-001",
+   557→      bookingNumber: "RPH-LABBK-0001",
+   558→      requestId: "LABREQ-001",
+   559→      patientId: "PAT-001",
+   560→      laboratoryId: "LAB-001",
+   561→      collectionMode: "facility",
+   562→      date: today(-25),
+   563→      time: "08:00",
+   564→      price: 13000,
+   565→      paymentStatus: "paid",
+   566→      status: "result_published",
+   567→    },
+   568→  });
+   569→
+   570→  await db.laboratoryResult.create({
+   571→    data: {
+   572→      id: "LABRES-001",
+   573→      resultNumber: "RPH-LABRES-0001",
+   574→      requestId: "LABREQ-001",
+   575→      bookingId: "LABBK-001",
+   576→      patientId: "PAT-001",
+   577→      laboratoryId: "LAB-001",
+   578→      test: "Lipid Profile",
+   579→      sampleCollectionDate: today(-25),
+   580→      resultDate: today(-24),
+   581→      value: "6.2",
+   582→      unit: "mmol/L",
+   583→      referenceRange: "< 5.0",
+   584→      abnormalIndicator: "high",
+   585→      interpretation: "Total cholesterol slightly elevated. Recommend dietary modification and review in 3 months.",
+   586→      reviewer: "Dr. Funmi Okafor (Lab Director)",
+   587→      status: "published",
+   588→    },
+   589→  });
+   590→
+   591→  // Historical pharmacy order + delivery (fulfilled)
+   592→  const histOrder = await db.pharmacyOrder.create({
+   593→    data: {
+   594→      id: "ORD-001",
+   595→      orderNumber: "RPH-ORD-0001",
+   596→      prescriptionId: "RX-001",
+   597→      patientId: "PAT-001",
+   598→      pharmacyId: "PHA-001",
+   599→      deliveryAddress: "24 Alexander Road, Lekki Phase 1, Lagos",
+   600→      deliveryFee: 1500,
+   601→      subtotal: 6000,
+   602→      commissionTotal: 480,
+   603→      total: 7500,
+   604→      paymentStatus: "paid",
+   605→      status: "delivered",
+   606→      verificationCode: "RP-7291",
+   607→      items: {
+   608→        create: {
+   609→          id: "ORDI-001",
+   610→          productId: "MED-002",
+   611→          productName: "Amlodipine 10mg Tablet",
+   612→          quantity: 1,
+   613→          unitPrice: 6000,
+   614→          gross: 6000,
+   615→          commissionPct: 8,
+   616→          commissionAmount: 480,
+   617→          pharmacyNet: 5520,
+   618→        },
+   619→      },
+   620→    },
+   621→  });
+   622→
+   623→  await db.delivery.create({
+   624→    data: {
+   625→      id: "DEL-001",
+   626→      deliveryNumber: "RPH-DEL-0001",
+   627→      orderId: "ORD-001",
+   628→      logisticsProviderId: "LOG-001",
+   629→      packageType: "pharmacy",
+   630→      pickupLocation: "Grace Community Pharmacy, Lekki",
+   631→      pickupContact: "+234 805 222 0101",
+   632→      deliveryLocation: "24 Alexander Road, Lekki Phase 1, Lagos",
+   633→      recipientName: "Amina Bello",
+   634→      handlingInstruction: "Keep dry, away from direct sunlight.",
+   635→      verificationCode: "RP-7291",
+   636→      payout: 1200,
+   637→      status: "delivered",
+   638→    },
+   639→  });
+   640→
+   641→  // -----------------------------------------------------------------------
+   642→  // UPCOMING APPOINTMENT — Amina + Dr Tunde (scheduled, paid)
+   643→  // -----------------------------------------------------------------------
+   644→  const upcomingAppt = await db.appointment.create({
+   645→    data: {
+   646→      id: "APT-002",
+   647→      patientId: "PAT-001",
+   648→      providerId: "PRO-001",
+   649→      serviceId: "SRV-CONSULT-GP",
+   650→      servicePriceId: "SP-SRV-CONSULT-GP",
+   651→      date: today(2),
+   652→      time: "11:00",
+   653→      durationMinutes: 30,
+   654→      consultationChannel: "video",
+   655→      price: 15000,
+   656→      paymentStatus: "paid",
+   657→      status: "scheduled",
+   658→      intakeForm: JSON.stringify({
+   659→        reason: "Follow-up hypertension review",
+   660→        symptoms: "Headaches persisting; wants medication review",
+   661→        consent: true,
+   662→      }),
+   663→      consentStatus: "granted",
+   664→    },
+   665→  });
+   666→
+   667→  await db.payment.create({
+   668→    data: {
+   669→      id: "PAY-002",
+   670→      paymentNumber: "RPH-PAY-0002",
+   671→      appointmentId: "APT-002",
+   672→      patientId: "PAT-001",
+   673→      amount: 15000,
+   674→      method: "card",
+   675→      status: "successful",
+   676→      reference: "DEMO-PAY-0002",
+   677→    },
+   678→  });
+   679→
+   680→  // -----------------------------------------------------------------------
+   681→  // RECORD ACCESS GRANT — Dr Tunde (active)
+   682→  // -----------------------------------------------------------------------
+   683→  await db.recordAccessGrant.create({
+   684→    data: {
+   685→      id: "RAG-001",
+   686→      patientId: "PAT-001",
+   687→      granteeType: "provider",
+   688→      granteeId: "PRO-001",
+   689→      granteeName: "Dr. Tunde Adeyemi",
+   690→      organisation: "Royal Palace Health Care",
+   691→      reason: "Ongoing hypertension management",
+   692→      informationShared: JSON.stringify(["Consultations", "Diagnoses", "Laboratory Results", "Prescriptions"]),
+   693→      grantedAt: nowPlusDays(-30),
+   694→      expiresAt: today(335),
+   695→      relatedEncounterId: "ENC-001",
+   696→      status: "active",
+   697→    },
+   698→  });
+   699→
+   700→  await db.consent.create({
+   701→    data: {
+   702→      id: "CON-001",
+   703→      patientId: "PAT-001",
+   704→      type: "consultation",
+   705→      status: "granted",
+   706→      grantedAt: nowPlusDays(-30),
+   707→      details: "Consent to share clinical record with consulting provider.",
+   708→    },
+   709→  });
+   710→
+   711→  // -----------------------------------------------------------------------
+   712→  // CARE PLAN
+   713→  // -----------------------------------------------------------------------
+   714→  await db.carePlan.create({
+   715→    data: {
+   716→      id: "CP-001",
+   717→      patientId: "PAT-001",
+   718→      title: "Hypertension Management Plan",
+   719→      description: "Ongoing monitoring and lifestyle modification for Stage 1 hypertension.",
+   720→      startDate: today(-30),
+   721→      endDate: today(335),
+   722→      status: "active",
+   723→      goals: JSON.stringify([
+   724→        "Maintain BP below 130/80",
+   725→        "Reduce dietary sodium",
+   726→        "150 minutes weekly moderate exercise",
+   727→      ]),
+   728→    },
+   729→  });
+   730→
+   731→  // -----------------------------------------------------------------------
+   732→  // NOTIFICATIONS
+   733→  // -----------------------------------------------------------------------
+   734→  await db.notification.createMany({
+   735→    data: [
+   736→      { id: "NTF-001", recipientId: "PAT-001", recipientType: "patient", title: "Appointment confirmed", body: "Your video consultation with Dr. Tunde Adeyemi is confirmed.", type: "appointment", relatedId: "APT-002", read: false },
+   737→      { id: "NTF-002", recipientId: "PAT-001", recipientType: "patient", title: "Laboratory result available", body: "Your Lipid Profile result is now available in Health Records.", type: "laboratory", relatedId: "LABRES-001", read: false },
+   738→      { id: "NTF-003", recipientId: "PAT-001", recipientType: "patient", title: "Order delivered", body: "Your medicine order has been delivered.", type: "pharmacy", relatedId: "ORD-001", read: true },
+   739→      { id: "NTF-004", recipientId: "PRO-001", recipientType: "provider", title: "Upcoming appointment", body: "Amina Bello has a follow-up consultation scheduled.", type: "appointment", relatedId: "APT-002", read: false },
+   740→      { id: "NTF-005", recipientId: "PRO-001", recipientType: "provider", title: "Laboratory result available", body: "Lipid Profile result for Amina Bello is ready for review.", type: "laboratory", relatedId: "LABRES-001", read: false },
+   741→      { id: "NTF-006", recipientId: "PHA-001", recipientType: "pharmacy", title: "Welcome to Royal Palace", body: "Your pharmacy is now live on the platform.", type: "system", read: true },
+   742→      { id: "NTF-007", recipientId: "LAB-001", recipientType: "laboratory", title: "Welcome to Royal Palace", body: "Your laboratory is now live on the platform.", type: "system", read: true },
+   743→      { id: "NTF-008", recipientId: "LOG-001", recipientType: "logistics", title: "Welcome to Royal Palace", body: "Your logistics account is now live.", type: "system", read: true },
+   744→      { id: "NTF-009", recipientId: "ADM-001", recipientType: "admin", title: "New provider application", body: "Dr. Chidi Nwosu submitted an application for review.", type: "system", relatedId: "APP-001", read: false },
+   745→    ],
+   746→  });
+   747→
+   748→  // -----------------------------------------------------------------------
+   749→  // SETTLEMENTS
+   750→  // -----------------------------------------------------------------------
+   751→  await db.settlement.createMany({
+   752→    data: [
+   753→      { id: "STL-001", settlementNumber: "RPH-STL-0001", entityType: "provider", entityId: "PRO-001", entityName: "Dr. Tunde Adeyemi", periodStart: today(-30), periodEnd: today(-1), grossAmount: 15000, commissionAmount: 4000, netAmount: 11000, status: "paid" },
+   754→      { id: "STL-002", settlementNumber: "RPH-STL-0002", entityType: "pharmacy", entityId: "PHA-001", entityName: "Grace Community Pharmacy", periodStart: today(-30), periodEnd: today(-1), grossAmount: 6000, commissionAmount: 480, netAmount: 5520, status: "paid" },
+   755→      { id: "STL-003", settlementNumber: "RPH-STL-0003", entityType: "laboratory", entityId: "LAB-001", entityName: "MedLab Diagnostics", periodStart: today(-30), periodEnd: today(-1), grossAmount: 13000, commissionAmount: 3250, netAmount: 9750, status: "pending" },
+   756→      { id: "STL-004", settlementNumber: "RPH-STL-0004", entityType: "logistics", entityId: "LOG-001", entityName: "SwiftCare Logistics", periodStart: today(-30), periodEnd: today(-1), grossAmount: 1500, commissionAmount: 300, netAmount: 1200, status: "paid" },
+   757→    ],
+   758→  });
+   759→
+   760→  // -----------------------------------------------------------------------
+   761→  // AUDIT LOGS
+   762→  // -----------------------------------------------------------------------
+   763→  await db.auditLog.createMany({
+   764→    data: [
+   765→      { id: "AUD-001", actorId: "PAT-001", actorRole: "patient", action: "patient_logged_in", entityType: "session", entityId: "PAT-001", description: "Amina Bello logged in." },
+   766→      { id: "AUD-002", actorId: "PAT-001", actorRole: "patient", action: "patient_booked_consultation", entityType: "appointment", entityId: "APT-002", description: "Amina Bello booked a consultation with Dr. Tunde Adeyemi." },
+   767→      { id: "AUD-003", actorId: "PRO-001", actorRole: "doctor", action: "doctor_completed_consultation", entityType: "encounter", entityId: "ENC-001", description: "Dr. Tunde Adeyemi completed a consultation." },
+   768→      { id: "AUD-004", actorId: "PRO-001", actorRole: "doctor", action: "doctor_issued_prescription", entityType: "prescription", entityId: "RX-001", description: "Dr. Tunde Adeyemi issued a prescription." },
+   769→      { id: "AUD-005", actorId: "LAB-001", actorRole: "laboratory", action: "laboratory_published_result", entityType: "laboratory_result", entityId: "LABRES-001", description: "MedLab Diagnostics published a laboratory result." },
+   770→      { id: "AUD-006", actorId: "ADM-001", actorRole: "admin", action: "admin_approved_provider", entityType: "provider", entityId: "PRO-001", description: "Dr. Tunde Adeyemi was approved." },
+   771→    ],
+   772→  });
+   773→
+   774→  // -----------------------------------------------------------------------
+   775→  // COMPLAINT
+   776→  // -----------------------------------------------------------------------
+   777→  await db.complaint.create({
+   778→    data: {
+   779→      id: "CMP-001",
+   780→      complainantId: "PAT-001",
+   781→      complainantType: "patient",
+   782→      subject: "Delayed laboratory result",
+   783→      description: "Result took an extra day to appear in records.",
+   784→      status: "resolved",
+   785→      priority: "normal",
+   786→    },
+   787→  });
+   788→
+   789→  console.log("Seed complete ✅");
+   790→}
+   791→
+   792→main()
+   793→  .catch((e) => {
+   794→    console.error(e);
+   795→    process.exit(1);
+   796→  })
+   797→  .finally(async () => {
+   798→    await db.$disconnect();
+   799→  });
+   800→

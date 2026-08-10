@@ -1,0 +1,671 @@
+// Royal Palace Health Care Digital Platform — Prisma schema
+// SQLite-backed prototype database. Statuses are stored as String
+// (SQLite has no native enum) and validated in the application layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// CORE ACCOUNT / AUTH
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id
+  email        String   @unique
+  phone        String?
+  password     String
+  role         String // patient | doctor | dentist | pharmacy | laboratory | logistics | admin
+  status       String   @default("active") // active | pending | suspended
+  profileId    String? // FK to the role-specific profile
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// PATIENTS & DEPENDANTS
+// ---------------------------------------------------------------------------
+
+model Patient {
+  id              String   @id
+  userId          String // not unique: dependants share the parent's account
+  parentPatientId String? // null for primary patient, set for dependants
+  patientNumber   String   @unique
+  firstName       String
+  lastName        String
+  dateOfBirth     String
+  gender          String
+  phone           String
+  email           String
+  city            String
+  state           String
+  country         String   @default("Nigeria")
+  bloodGroup      String?
+  genotype        String?
+  height          Float?
+  weight          Float?
+  // JSON arrays: allergies, conditions, medications (HealthRecordItem[])
+  allergies       String   @default("[]")
+  conditions      String   @default("[]")
+  medications     String   @default("[]")
+  emergencyName   String?
+  emergencyPhone  String?
+  emergencyRel    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appointments         Appointment[]
+  encounters          ClinicalEncounter[]
+  prescriptions       Prescription[]
+  labRequests         LaboratoryRequest[]
+  labBookings         LaboratoryBooking[]
+  labResults          LaboratoryResult[]
+  pharmacyOrders      PharmacyOrder[]
+  recordAccessGrants  RecordAccessGrant[]
+  consents            Consent[]
+  referrals           Referral[]            @relation("ReferralPatient")
+  carePlans           CarePlan[]
+  payments            Payment[]
+  ratings             Rating[]
+}
+
+// ---------------------------------------------------------------------------
+// PROVIDERS (Doctors / Dentists)
+// ---------------------------------------------------------------------------
+
+model Provider {
+  id                 String   @id
+  userId             String   @unique
+  providerNumber     String   @unique
+  firstName          String
+  lastName           String
+  title              String // e.g. Dr., Dr. (Mrs.)
+  specialty          String
+  professionalTitle  String
+  qualifications     String   @default("[]") // JSON string[]
+  yearsExperience    Int
+  biography          String
+  languages         String   @default("[]") // JSON string[]
+  registrationNumber String
+  licenceNumber      String
+  licenceExpiry      String
+  verificationStatus String   @default("submitted")
+  consultationModes  String   @default("[]") // JSON string[]
+  city               String
+  state              String
+  rating             Float    @default(0)
+  reviewCount        Int      @default(0)
+  profileImage       String?
+  consultationFee    Int      @default(15000) // cached from active service price
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  appointments       Appointment[]
+  encounters         ClinicalEncounter[]
+  prescriptions      Prescription[]
+  labRequests        LaboratoryRequest[]
+  referralsSent      Referral[]            @relation("ReferralSender")
+  referralsReceived  Referral[]            @relation("ReferralRecipientProvider")
+  applications       ProviderApplication[]
+}
+
+model ProviderApplication {
+  id              String   @id
+  providerId      String
+  status          String   @default("submitted")
+  submittedAt     DateTime @default(now())
+  reviewedAt      DateTime?
+  reviewerId      String? // admin user id
+  reviewerNotes   String?
+  documents       String   @default("[]") // JSON file metadata
+  history         String   @default("[]") // JSON verification history
+  provider        Provider @relation(fields: [providerId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// PHARMACIES
+// ---------------------------------------------------------------------------
+
+model Pharmacy {
+  id              String   @id
+  userId          String   @unique
+  pharmacyNumber  String   @unique
+  name            String
+  city            String
+  state           String
+  address         String
+  phone           String
+  email           String
+  verificationStatus String @default("approved")
+  commissionPct   Float    @default(8)
+  rating          Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  products        PharmacyProduct[]
+  orders          PharmacyOrder[]
+}
+
+model PharmacyProduct {
+  id                  String   @id
+  pharmacyId         String
+  name                String
+  genericName         String
+  brand               String?
+  category            String
+  strength            String
+  dosageForm          String
+  manufacturer        String?
+  price               Int
+  stockQuantity       Int
+  batch               String?
+  expiryDate          String
+  prescriptionRequired Boolean @default(true)
+  storageRequirements String?
+  status              String   @default("active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  pharmacy            Pharmacy @relation(fields: [pharmacyId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// LABORATORIES
+// ---------------------------------------------------------------------------
+
+model Laboratory {
+  id                String   @id
+  userId            String   @unique
+  laboratoryNumber  String   @unique
+  name              String
+  city              String
+  state             String
+  address           String
+  phone             String
+  email             String
+  verificationStatus String @default("approved")
+  rating            Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  bookings          LaboratoryBooking[]
+  results           LaboratoryResult[]
+}
+
+// ---------------------------------------------------------------------------
+// LOGISTICS
+// ---------------------------------------------------------------------------
+
+model LogisticsProvider {
+  id                  String   @id
+  userId             String   @unique
+  logisticsNumber    String   @unique
+  name               String
+  vehicleType        String
+  city               String
+  state              String
+  phone              String
+  email              String
+  verificationStatus String   @default("approved")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  deliveries         Delivery[]
+}
+
+// ---------------------------------------------------------------------------
+// SERVICES & PRICING (platform-controlled)
+// ---------------------------------------------------------------------------
+
+model Service {
+  id          String   @id
+  category    String // consultation | dental | laboratory | home | preventive | chronic | logistics | subscription
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  prices      ServicePrice[]
+}
+
+model ServicePrice {
+  id            String   @id
+  serviceId     String
+  patientPrice  Int
+  providerPayout Int
+  platformMargin Int
+  currency      String   @default("NGN")
+  effectiveFrom String
+  status        String   @default("active") // active | scheduled | inactive
+  createdAt     DateTime @default(now())
+
+  service       Service  @relation(fields: [serviceId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// APPOINTMENTS
+// ---------------------------------------------------------------------------
+
+model Appointment {
+  id                 String   @id
+  patientId          String
+  providerId         String
+  serviceId          String?
+  servicePriceId     String?
+  date               String
+  time               String
+  durationMinutes    Int      @default(30)
+  consultationChannel String  @default("video") // video | audio | in_person | chat
+  price              Int
+  paymentStatus      String   @default("pending") // pending | paid | refunded
+  status             String   @default("scheduled")
+  intakeForm         String   @default("{}") // JSON
+  consentStatus      String   @default("granted")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  patient            Patient  @relation(fields: [patientId], references: [id])
+  provider           Provider @relation(fields: [providerId], references: [id])
+  encounter          ClinicalEncounter?
+  payment            Payment?
+}
+
+// ---------------------------------------------------------------------------
+// CLINICAL ENCOUNTERS
+// ---------------------------------------------------------------------------
+
+model ClinicalEncounter {
+  id                 String   @id
+  encounterNumber    String   @unique
+  appointmentId      String   @unique
+  patientId         String
+  providerId         String
+  status             String   @default("open") // open | completed | amended
+  locked             Boolean  @default(false)
+  // SOAP / structured documentation stored as JSON
+  documentation      String   @default("{}")
+  signedAt           DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  appointment        Appointment @relation(fields: [appointmentId], references: [id])
+  patient           Patient     @relation(fields: [patientId], references: [id])
+  provider          Provider    @relation(fields: [providerId], references: [id])
+  prescriptions     Prescription[]
+  labRequests       LaboratoryRequest[]
+  referrals         Referral[]
+  diagnoses         Diagnosis[]
+}
+
+model Diagnosis {
+  id           String   @id
+  encounterId  String
+  patientId    String
+  code         String?
+  description  String
+  type         String   @default("primary") // primary | secondary | differential | provisional
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+
+  encounter    ClinicalEncounter @relation(fields: [encounterId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// PRESCRIPTIONS
+// ---------------------------------------------------------------------------
+
+model Prescription {
+  id               String   @id
+  prescriptionNumber String @unique
+  encounterId      String?
+  patientId        String
+  providerId       String
+  status           String   @default("issued") // issued | awaiting_pharmacy | partially_fulfilled | fulfilled | expired | cancelled
+  validityStartDate String
+  expiryDate       String
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient          Patient  @relation(fields: [patientId], references: [id])
+  provider         Provider @relation(fields: [providerId], references: [id])
+  items            PrescriptionItem[]
+  pharmacyOrders   PharmacyOrder[]
+}
+
+model PrescriptionItem {
+  id                String   @id
+  prescriptionId    String
+  medicine          String
+  genericName       String?
+  strength          String
+  dosageForm        String
+  dose              String
+  route             String
+  frequency         String
+  duration          String
+  quantity          Int
+  refillAllowance   Int      @default(0)
+  substitutionAllowed Boolean @default(true)
+  instructions       String?
+  createdAt          DateTime @default(now())
+
+  prescription      Prescription @relation(fields: [prescriptionId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// LABORATORY
+// ---------------------------------------------------------------------------
+
+model LaboratoryRequest {
+  id               String   @id
+  requestNumber    String   @unique
+  encounterId      String?
+  patientId        String
+  requestingProviderId String
+  tests            String   @default("[]") // JSON string[]
+  clinicalIndication String?
+  priority         String   @default("routine") // routine | urgent | stat
+  preparationInstructions String?
+  fastingRequired  Boolean  @default(false)
+  sampleType       String?
+  notes            String?
+  status           String   @default("pending_booking")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient          Patient  @relation(fields: [patientId], references: [id])
+  provider         Provider @relation(fields: [requestingProviderId], references: [id])
+  booking          LaboratoryBooking?
+  result           LaboratoryResult?
+}
+
+model LaboratoryBooking {
+  id               String   @id
+  bookingNumber    String   @unique
+  requestId        String   @unique
+  patientId        String
+  laboratoryId     String
+  collectionMode   String   @default("facility") // facility | home
+  homeAddress      String?
+  date             String
+  time             String
+  price            Int
+  paymentStatus    String   @default("paid")
+  status           String   @default("booking_accepted")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  request          LaboratoryRequest @relation(fields: [requestId], references: [id])
+  patient          Patient   @relation(fields: [patientId], references: [id])
+  laboratory       Laboratory @relation(fields: [laboratoryId], references: [id])
+}
+
+model LaboratoryResult {
+  id               String   @id
+  resultNumber     String   @unique
+  requestId        String   @unique
+  bookingId        String?
+  patientId        String
+  laboratoryId     String
+  test             String
+  sampleCollectionDate String
+  resultDate       String
+  value            String
+  unit             String?
+  referenceRange   String?
+  abnormalIndicator String? // normal | high | low | critical
+  interpretation   String?
+  attachment       String? // JSON file metadata
+  reviewer         String?
+  status           String   @default("published")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  request          LaboratoryRequest @relation(fields: [requestId], references: [id])
+  patient          Patient   @relation(fields: [patientId], references: [id])
+  laboratory       Laboratory @relation(fields: [laboratoryId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// PHARMACY ORDERS
+// ---------------------------------------------------------------------------
+
+model PharmacyOrder {
+  id               String   @id
+  orderNumber      String   @unique
+  prescriptionId   String?
+  patientId        String
+  pharmacyId       String
+  deliveryAddress  String?
+  deliveryFee      Int      @default(0)
+  subtotal         Int      @default(0)
+  commissionTotal Int      @default(0)
+  total            Int      @default(0)
+  paymentStatus    String   @default("paid")
+  status           String   @default("paid")
+  verificationCode String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  prescription     Prescription? @relation(fields: [prescriptionId], references: [id])
+  patient          Patient  @relation(fields: [patientId], references: [id])
+  pharmacy         Pharmacy @relation(fields: [pharmacyId], references: [id])
+  items            PharmacyOrderItem[]
+  delivery         Delivery?
+}
+
+model PharmacyOrderItem {
+  id               String   @id
+  orderId          String
+  productId        String
+  productName      String
+  quantity         Int
+  unitPrice        Int
+  gross            Int
+  commissionPct    Float
+  commissionAmount Int
+  pharmacyNet      Int
+  createdAt        DateTime @default(now())
+
+  order            PharmacyOrder @relation(fields: [orderId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// DELIVERIES (LOGISTICS)
+// ---------------------------------------------------------------------------
+
+model Delivery {
+  id               String   @id
+  deliveryNumber   String   @unique
+  orderId          String   @unique
+  logisticsProviderId String
+  packageType      String   @default("pharmacy")
+  pickupLocation   String
+  pickupContact    String
+  deliveryLocation String
+  recipientName    String
+  handlingInstruction String?
+  verificationCode String
+  payout           Int
+  status           String   @default("assigned")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  order            PharmacyOrder @relation(fields: [orderId], references: [id])
+  logisticsProvider LogisticsProvider @relation(fields: [logisticsProviderId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// REFERRALS & CARE HANDOFFS
+// ---------------------------------------------------------------------------
+
+model Referral {
+  id               String   @id
+  referralNumber   String   @unique
+  encounterId      String?
+  patientId        String
+  senderProviderId String
+  recipientProviderId String?
+  recipientSpecialty String?
+  reason           String
+  symptoms         String?
+  relevantHistory  String?
+  diagnosis        String?
+  currentTreatment String?
+  requiredAction   String?
+  urgency          String   @default("routine") // routine | urgent | emergency
+  attachments      String   @default("[]") // JSON file metadata
+  accessExpiry     String?
+  status           String   @default("sent")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient          Patient  @relation("ReferralPatient", fields: [patientId], references: [id])
+  sender           Provider @relation("ReferralSender", fields: [senderProviderId], references: [id])
+  recipient        Provider? @relation("ReferralRecipientProvider", fields: [recipientProviderId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// CONSENT & RECORD ACCESS
+// ---------------------------------------------------------------------------
+
+model RecordAccessGrant {
+  id               String   @id
+  patientId        String
+  granteeType      String // provider | pharmacy | laboratory | admin
+  granteeId        String?
+  granteeName      String
+  organisation     String?
+  reason           String
+  informationShared String  @default("[]") // JSON string[]
+  grantedAt        DateTime @default(now())
+  expiresAt        String?
+  relatedEncounterId String?
+  relatedReferralId String?
+  status           String   @default("active") // active | revoked | expired
+
+  patient          Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Consent {
+  id               String   @id
+  patientId        String
+  type             String // consultation | laboratory | pharmacy | research
+  status           String   @default("granted")
+  grantedAt        DateTime @default(now())
+  details          String?
+
+  patient          Patient  @relation(fields: [patientId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// PAYMENTS, COMMISSIONS, SETTLEMENTS, REFUNDS
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id               String   @id
+  paymentNumber    String   @unique
+  appointmentId    String?  @unique
+  patientId        String
+  amount           Int
+  method           String   @default("card") // card | bank_transfer
+  status           String   @default("successful")
+  reference        String?
+  createdAt        DateTime @default(now())
+
+  appointment      Appointment? @relation(fields: [appointmentId], references: [id])
+  patient          Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Settlement {
+  id               String   @id
+  settlementNumber String   @unique
+  entityType       String // provider | pharmacy | laboratory | logistics
+  entityId         String
+  entityName       String
+  periodStart      String
+  periodEnd        String
+  grossAmount      Int
+  commissionAmount Int
+  netAmount        Int
+  status           String   @default("pending") // pending | paid
+  createdAt        DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// CARE PLANS
+// ---------------------------------------------------------------------------
+
+model CarePlan {
+  id               String   @id
+  patientId        String
+  title            String
+  description      String?
+  startDate        String
+  endDate          String?
+  status           String   @default("active")
+  goals            String   @default("[]") // JSON
+  createdAt        DateTime @default(now())
+
+  patient          Patient  @relation(fields: [patientId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// NOTIFICATIONS, MESSAGES, RATINGS, COMPLAINTS, AUDIT LOGS
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id               String   @id
+  recipientId      String // generic profile/user id — NOT a FK (multi-role)
+  recipientType    String // patient | provider | pharmacy | laboratory | logistics | admin
+  title            String
+  body             String
+  type             String // appointment | prescription | laboratory | pharmacy | logistics | system
+  relatedId        String?
+  read             Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model Rating {
+  id               String   @id
+  patientId        String
+  entityType       String // provider | pharmacy | laboratory
+  entityId         String
+  score            Int // 1-5
+  comment          String?
+  createdAt        DateTime @default(now())
+
+  patient          Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Complaint {
+  id               String   @id
+  complainantId     String
+  complainantType   String
+  subject          String
+  description      String
+  status           String   @default("open") // open | investigating | resolved | closed
+  priority         String   @default("normal")
+  createdAt        DateTime @default(now())
+}
+
+model AuditLog {
+  id               String   @id
+  actorId          String // generic profile/user id — NOT a FK (multi-role)
+  actorRole        String
+  action           String
+  entityType       String
+  entityId         String // generic — NOT a FK
+  description      String
+  timestamp        DateTime @default(now())
+}
