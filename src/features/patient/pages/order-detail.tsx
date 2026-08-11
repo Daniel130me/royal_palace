@@ -85,22 +85,7 @@ export function PatientOrderDetail() {
                         <p className="font-medium text-sm">{it.productName}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Qty {it.quantity} · {formatCurrency(it.unitPrice)} each</p>
                       </div>
-                      <p className="font-semibold text-sm shrink-0">{formatCurrency(it.gross)}</p>
-                    </div>
-                    {/* Item-level commission breakdown — card on mobile */}
-                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
-                      <div className="rounded-md bg-muted/40 px-2 py-1.5">
-                        <p className="text-muted-foreground">Gross</p>
-                        <p className="text-foreground font-medium mt-0.5">{formatCurrency(it.gross)}</p>
-                      </div>
-                      <div className="rounded-md bg-rose-50 px-2 py-1.5">
-                        <p className="text-rose-700">Commission ({it.commissionPct}%)</p>
-                        <p className="text-rose-700 font-medium mt-0.5">–{formatCurrency(it.commissionAmount)}</p>
-                      </div>
-                      <div className="rounded-md bg-emerald-50 px-2 py-1.5">
-                        <p className="text-emerald-700">Pharmacy net</p>
-                        <p className="text-emerald-700 font-medium mt-0.5">{formatCurrency(it.pharmacyNet)}</p>
-                      </div>
+                      <p className="font-semibold text-sm shrink-0">{formatCurrency(it.unitPrice * it.quantity)}</p>
                     </div>
                   </li>
                 ))}
@@ -196,7 +181,6 @@ export function PatientOrderDetail() {
             <dl className="text-sm space-y-2.5">
               <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
               <Row label="Delivery fee" value={formatCurrency(order.deliveryFee)} />
-              <Row label="Commission total" value={`–${formatCurrency(order.commissionTotal)}`} />
               <Separator className="my-1" />
               <Row label="Total paid" value={<span className="font-bold text-base text-primary">{formatCurrency(order.total)}</span>} />
               <Row label="Payment status" value={<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 capitalize">{order.paymentStatus}</Badge>} />

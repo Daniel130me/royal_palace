@@ -64,6 +64,16 @@ function hashFromView(v: ViewState): string {
   return `#/${path}${qs ? `?${qs}` : ""}`;
 }
 
+function authorizedView(session: Session | null, requested: ViewState): ViewState {
+  if (requested.portal === "public" || requested.portal === "login") return requested;
+  if (!session) return { portal: "login", page: "login", params: {} };
+
+  const sessionPortal = rolePortal(session.role);
+  return requested.portal === sessionPortal
+    ? requested
+    : { portal: sessionPortal, page: "dashboard", params: {} };
+}
+
 const initial = loadSession();
 const initialView: ViewState =
   initial.session
@@ -100,7 +110,7 @@ export const useNav = create<NavState>((set, get) => ({
     set({ session: null, sessionName: "", sessionEmail: "", view: { portal: "public", page: "home", params: {} }, activePatientId: null });
   },
   navigate: (portal, page, params = {}) => {
-    const view = { portal, page, params };
+    const view = authorizedView(get().session, { portal, page, params });
     set({ view });
     if (typeof window !== "undefined") {
       window.location.hash = hashFromView(view);
@@ -116,11 +126,11 @@ export const useNav = create<NavState>((set, get) => ({
 // Keep the store in sync with browser back/forward.
 if (typeof window !== "undefined") {
   window.addEventListener("hashchange", () => {
-    const v = viewFromHash();
+    const requested = viewFromHash();
     const { session, view: current } = useNav.getState();
-    if (!session && v.portal !== "public" && v.portal !== "login") {
-      useNav.setState({ view: { portal: "login", page: "login", params: {} } });
-      return;
+    const v = authorizedView(session, requested);
+    if (v.portal !== requested.portal || v.page !== requested.page) {
+      window.history.replaceState(null, "", hashFromView(v));
     }
     if (v.portal !== current.portal || v.page !== current.page || JSON.stringify(v.params) !== JSON.stringify(current.params)) {
       useNav.setState({ view: v });
