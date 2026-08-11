@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { CompactListItem } from "@/components/healthcare/compact-list";
-import { CalendarDays, Plus, Video } from "lucide-react";
+import { CalendarDays, Plus, Video, Phone, MessageSquare } from "lucide-react";
 import { formatDate, formatTime, fullName, initials, relativeDay } from "@/lib/format";
 import { usePatientContext } from "../use-patient-context";
+import { consultationActionLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
 
 const UPCOMING: AppointmentStatus[] = ["scheduled", "checked_in", "waiting_for_provider", "in_progress", "awaiting_documentation"];
 const COMPLETED: AppointmentStatus[] = ["completed"];
@@ -100,7 +101,9 @@ export function PatientAppointments() {
 function AppointmentRow({ appt: a }: { appt: Appointment }) {
   const provider = a.provider;
   const isUpcoming = ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status);
-  const canJoin = isUpcoming && a.consultationChannel === "video";
+  const channel = isOnlineConsultationChannel(a.consultationChannel) ? a.consultationChannel : "video";
+  const ChannelIcon = channel === "audio" ? Phone : channel === "chat" ? MessageSquare : Video;
+  const canJoin = isUpcoming;
 
   return (
     <CompactListItem
@@ -122,7 +125,7 @@ function AppointmentRow({ appt: a }: { appt: Appointment }) {
               className="h-7 px-2 text-xs"
               onClick={(e) => { e.stopPropagation(); navigate("patient", "consultation", { id: a.id }); }}
             >
-              <Video className="h-3 w-3" /> Join
+              <ChannelIcon className="h-3 w-3" /> {consultationActionLabel(channel)}
             </Button>
           )}
         </div>

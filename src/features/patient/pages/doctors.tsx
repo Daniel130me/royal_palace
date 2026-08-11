@@ -20,10 +20,15 @@ import {
   ArrowRight, ChevronRight, SlidersHorizontal,
 } from "lucide-react";
 import { formatCurrency, fullName, initials } from "@/lib/format";
+import {
+  consultationChannelLabel,
+  ONLINE_CONSULTATION_CHANNELS,
+  onlineConsultationModes,
+  SPECIALIST_COUNTRY,
+} from "@/lib/consultation-policy";
 
 const SPECIALTIES = ["All", "General Practitioner", "Cardiologist", "Paediatrician", "Dentist", "Dermatologist", "Gynaecologist", "Psychiatrist"];
-const CHANNELS = ["All", "video", "audio", "in_person", "chat"];
-const LOCATIONS = ["All", "Ikeja", "Yaba", "Lekki", "Surulere", "Ikorodu"];
+const CHANNELS = ["All", ...ONLINE_CONSULTATION_CHANNELS] as const;
 const RATINGS = ["Any rating", "4.5+", "4.0+"];
 
 export function PatientDoctors() {
@@ -36,7 +41,6 @@ export function PatientDoctors() {
   const [search, setSearch] = useState("");
   const [specialty, setSpecialty] = useState<string>(presetSpecialty ?? "All");
   const [channel, setChannel] = useState("All");
-  const [location, setLocation] = useState("All");
   const [language, setLanguage] = useState("All");
   const [rating, setRating] = useState("Any rating");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -55,8 +59,7 @@ export function PatientDoctors() {
     return providers
       .filter((p) => p.verificationStatus === "approved")
       .filter((p) => specialty === "All" || p.specialty === specialty)
-      .filter((p) => channel === "All" || (Array.isArray(p.consultationModes) && p.consultationModes.includes(channel)))
-      .filter((p) => location === "All" || p.city === location)
+      .filter((p) => channel === "All" || onlineConsultationModes(p.consultationModes).includes(channel as (typeof ONLINE_CONSULTATION_CHANNELS)[number]))
       .filter((p) => language === "All" || (Array.isArray(p.languages) && p.languages.includes(language)))
       .filter((p) => {
         if (rating === "Any rating") return true;
@@ -73,7 +76,7 @@ export function PatientDoctors() {
         );
       })
       .sort((a, b) => b.rating - a.rating);
-  }, [providers, specialty, channel, location, language, rating, search]);
+  }, [providers, specialty, channel, language, rating, search]);
 
   const allLanguages = useMemo(() => {
     const s = new Set<string>();
@@ -84,7 +87,6 @@ export function PatientDoctors() {
   const activeFilters = [
     specialty !== "All",
     channel !== "All",
-    location !== "All",
     language !== "All",
     rating !== "Any rating",
   ].filter(Boolean).length;
@@ -93,7 +95,7 @@ export function PatientDoctors() {
     <div className="space-y-5">
       <PageHeader
         title="Find a Doctor"
-        description="Verified doctors and specialists across Nigeria."
+        description="Verified specialists available for secure online consultations."
         breadcrumbs={[{ label: "Find Care", onClick: () => navigate("patient", "services") }, { label: "Doctors" }]}
       />
 
@@ -128,7 +130,7 @@ export function PatientDoctors() {
       {/* Filters — collapsible on mobile, always visible on desktop */}
       <Card className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
         <CardContent className="p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label className="text-xs text-muted-foreground">Specialty</Label>
               <Select value={specialty} onValueChange={setSpecialty}>
@@ -143,16 +145,11 @@ export function PatientDoctors() {
               <Select value={channel} onValueChange={setChannel}>
                 <SelectTrigger className="w-full mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CHANNELS.map((c) => <SelectItem key={c} value={c}>{c === "All" ? "Any mode" : c.replace("_", " ")}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Location</Label>
-              <Select value={location} onValueChange={setLocation}>
-                <SelectTrigger className="w-full mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l === "All" ? "Any location" : l}</SelectItem>)}
+                  {CHANNELS.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c === "All" ? "Any online mode" : consultationChannelLabel(c)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -194,7 +191,7 @@ export function PatientDoctors() {
           title="No doctors match your filters"
           description="Try widening your search or clearing some filters."
           action={activeFilters > 0 ? <Button variant="outline" onClick={() => {
-            setSpecialty("All"); setChannel("All"); setLocation("All"); setLanguage("All"); setRating("Any rating");
+            setSpecialty("All"); setChannel("All"); setLanguage("All"); setRating("Any rating");
           }}>Clear filters</Button> : undefined}
         />
       ) : (
@@ -209,7 +206,7 @@ export function PatientDoctors() {
 }
 
 function DoctorCard({ provider: p }: { provider: Provider }) {
-  const modes = Array.isArray(p.consultationModes) ? p.consultationModes : [];
+  const modes = onlineConsultationModes(p.consultationModes);
   const languages = Array.isArray(p.languages) ? p.languages : [];
   const bookable = p.verificationStatus === "approved";
   const nextSlot = "Tomorrow · 11:00 AM";
@@ -241,13 +238,13 @@ function DoctorCard({ provider: p }: { provider: Provider }) {
                 <Clock className="h-3 w-3" /> {p.yearsExperience} yrs
               </span>
               <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {p.city}
+                <MapPin className="h-3 w-3" /> {SPECIALIST_COUNTRY}
               </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {modes.map((m) => (
                 <Badge key={m} variant="secondary" className="capitalize text-[10px] h-5 px-1.5">
-                  {m === "in_person" ? "In-person" : m}
+                  {consultationChannelLabel(m)}
                 </Badge>
               ))}
               {languages.length > 0 && (

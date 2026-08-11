@@ -13,14 +13,14 @@ import {
   BottomActionBar,
 } from "@/components/healthcare/page-header";
 import { toast } from "sonner";
-import { Clock, Video, Phone, MessageSquare, User, Save, Calendar } from "lucide-react";
+import { onlineConsultationModes } from "@/lib/consultation-policy";
+import { Clock, Video, Phone, MessageSquare, Save, Calendar } from "lucide-react";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 const MODES = [
   { id: "video", label: "Video", icon: Video },
-  { id: "audio", label: "Audio", icon: Phone },
-  { id: "in_person", label: "In-person", icon: User },
+  { id: "audio", label: "Voice", icon: Phone },
   { id: "chat", label: "Chat", icon: MessageSquare },
 ];
 
@@ -34,7 +34,7 @@ export function ProviderAvailability() {
     }
     return initial;
   });
-  const [modes, setModes] = useState<string[]>(() => profile?.consultationModes ?? ["video", "audio"]);
+  const [modes, setModes] = useState<string[]>(() => onlineConsultationModes(profile?.consultationModes ?? ["video", "audio"]));
   const [saving, setSaving] = useState(false);
 
   function toggle(day: string, slot: string) {
@@ -59,7 +59,7 @@ export function ProviderAvailability() {
     }, 700);
   }
 
-  const consultationModes = profile?.consultationModes ?? [];
+  const consultationModes = onlineConsultationModes(profile?.consultationModes);
   const enabledCount = Object.values(grid).filter(Boolean).length;
 
   return (
@@ -173,7 +173,7 @@ export function ProviderAvailability() {
                       </div>
                       <div>
                         <Label className="text-sm font-medium">{m.label}</Label>
-                        <p className="text-[10px] text-muted-foreground">{m.id === "in_person" ? "Face-to-face at your practice" : `${m.label} consultation`}</p>
+                        <p className="text-[10px] text-muted-foreground">{`${m.label} consultation`}</p>
                       </div>
                     </div>
                     <Switch checked={active} onCheckedChange={() => toggleMode(m.id)} />

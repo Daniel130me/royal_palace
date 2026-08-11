@@ -261,7 +261,7 @@ model Appointment {
   date               String
   time               String
   durationMinutes    Int      @default(30)
-  consultationChannel String  @default("video") // video | audio | in_person | chat
+  consultationChannel String  @default("video") // video | audio | chat
   price              Int
   paymentStatus      String   @default("pending") // pending | paid | refunded
   status             String   @default("scheduled")

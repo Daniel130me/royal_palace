@@ -7,7 +7,7 @@ import { Stethoscope, HeartPulse, FlaskConical, Pill, Activity, Brain, Baby, Arr
 import { PageHeader } from "@/components/healthcare/page-header";
 
 const SERVICES = [
-  { icon: Stethoscope, title: "Doctor Consultation", desc: "General practitioners and specialists available by video, audio, chat or in-person.", price: 15000, page: "providers", color: "bg-emerald-100 text-emerald-700" },
+  { icon: Stethoscope, title: "Doctor Consultation", desc: "General practitioners and specialists available online by video, voice or chat.", price: 15000, page: "providers", color: "bg-emerald-100 text-emerald-700" },
   { icon: HeartPulse, title: "Dental Care", desc: "Check-ups, scaling, fillings and specialist dental procedures.", price: 20000, page: "providers", color: "bg-rose-100 text-rose-700" },
   { icon: FlaskConical, title: "Laboratory Tests", desc: "Book tests at a facility or request home sample collection.", price: 3000, page: "laboratories", color: "bg-violet-100 text-violet-700" },
   { icon: Pill, title: "Pharmacy", desc: "Order prescription and over-the-counter medicines with delivery.", price: 1500, page: "pharmacies", color: "bg-amber-100 text-amber-700" },

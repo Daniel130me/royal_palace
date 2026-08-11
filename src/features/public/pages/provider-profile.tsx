@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Star, ShieldCheck, MapPin, Clock, GraduationCap, Languages, Video, Calendar, ArrowLeft } from "lucide-react";
 import { useNav, navigate } from "@/lib/nav";
 import { LoadingState } from "@/components/healthcare/states";
+import { consultationChannelLabel, onlineConsultationModes, SPECIALIST_COUNTRY } from "@/lib/consultation-policy";
 
 export function PublicProviderProfile() {
   const { view, session } = useNav();
@@ -61,12 +62,12 @@ export function PublicProviderProfile() {
               <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{provider.rating} ({provider.reviewCount} reviews)</span>
                 <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{provider.yearsExperience} years exp.</span>
-                <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{provider.city}, {provider.state}</span>
+                <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{SPECIALIST_COUNTRY}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {provider.consultationModes.map((m) => (
+                {onlineConsultationModes(provider.consultationModes).map((m) => (
                   <span key={m} className="rounded-full bg-muted px-2.5 py-1 text-xs capitalize flex items-center gap-1">
-                    {m === "video" && <Video className="h-3 w-3" />}{m.replace("_", " ")}
+                    {m === "video" && <Video className="h-3 w-3" />}{consultationChannelLabel(m)}
                   </span>
                 ))}
               </div>

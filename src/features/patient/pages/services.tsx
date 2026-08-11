@@ -23,10 +23,10 @@ const CATEGORIES: Category[] = [
   {
     id: "doctor-consultation",
     title: "Doctor Consultation",
-    description: "Video, audio, in-person or chat consults with verified doctors across 30+ specialties.",
+    description: "Video, voice or chat consultations with verified doctors across 30+ specialties.",
     icon: Stethoscope,
     tone: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    bullets: ["Video, audio, in-person or chat", "Verified GPs & specialists", "From ₦15,000"],
+    bullets: ["Video, voice or chat", "Verified GPs & specialists", "From ₦15,000"],
     cta: { label: "Find a doctor", page: "doctors" },
   },
   {

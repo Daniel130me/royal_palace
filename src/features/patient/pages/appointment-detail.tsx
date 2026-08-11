@@ -22,6 +22,7 @@ import { Video, CalendarClock, Phone, MessageSquare, Building2, FileText, CheckC
 import { toast } from "sonner";
 import { formatCurrency, formatDate, formatTime, fullName, initials, relativeDay } from "@/lib/format";
 import { usePatientContext } from "../use-patient-context";
+import { consultationActionLabel, consultationChannelLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
 
 function nextDays(count: number): { value: string; label: string; sub: string }[] {
   const out: { value: string; label: string; sub: string }[] = [];
@@ -114,7 +115,8 @@ export function PatientAppointmentDetail() {
   const isUpcoming = ["scheduled", "checked_in", "waiting_for_provider", "in_progress", "awaiting_documentation"].includes(appt.status);
   const isCompleted = appt.status === "completed";
   const days = nextDays(14);
-  const channelIcon = appt.consultationChannel === "video" ? Video : appt.consultationChannel === "audio" ? Phone : appt.consultationChannel === "chat" ? MessageSquare : Building2;
+  const channel = isOnlineConsultationChannel(appt.consultationChannel) ? appt.consultationChannel : "video";
+  const ChannelIcon = channel === "audio" ? Phone : channel === "chat" ? MessageSquare : Video;
 
   return (
     <div className="space-y-6">
@@ -132,11 +134,9 @@ export function PatientAppointmentDetail() {
                 <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700" onClick={() => setCancelling(true)}>
                   <XCircle className="h-4 w-4" /> Cancel
                 </Button>
-                {appt.consultationChannel === "video" && (
-                  <Button size="sm" onClick={() => navigate("patient", "consultation", { id: appt.id })}>
-                    <Video className="h-4 w-4" /> Join
-                  </Button>
-                )}
+                <Button size="sm" onClick={() => navigate("patient", "consultation", { id: appt.id })}>
+                  <ChannelIcon className="h-4 w-4" /> {consultationActionLabel(channel)}
+                </Button>
               </>
             )}
           </div>
@@ -168,8 +168,8 @@ export function PatientAppointmentDetail() {
                     <CalendarClock className="h-4 w-4" /> {relativeDay(appt.date)} · {formatDate(appt.date)} · {formatTime(appt.time)}
                   </span>
                   <span className="inline-flex items-center gap-1 text-muted-foreground capitalize">
-                    {(() => { const Icon = channelIcon; return <Icon className="h-4 w-4" />; })()}
-                    {appt.consultationChannel.replace("_", " ")}
+                    <ChannelIcon className="h-4 w-4" />
+                    {consultationChannelLabel(channel)}
                   </span>
                 </div>
               </div>

@@ -16,6 +16,8 @@ import {
   ChevronRight, FileText, ArrowRight, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { consultationActionLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
+import type { OnlineConsultationChannel } from "@/lib/consultation-policy";
 
 const QUICK_ACTIONS = [
   { label: "Consult", sub: "Find a doctor", icon: Stethoscope, page: "doctors", tone: "success" as const },
@@ -106,7 +108,7 @@ export function PatientDashboard() {
             <div>
               <p className="text-sm text-emerald-50/90">No upcoming appointment</p>
               <p className="text-xl font-bold mt-1">Book a consultation</p>
-              <p className="text-xs text-emerald-100/80 mt-1">Video, voice, chat or in-person</p>
+              <p className="text-xs text-emerald-100/80 mt-1">Video, voice or chat</p>
             </div>
             <div className="rounded-full bg-white/20 p-3">
               <ArrowRight className="h-5 w-5" />
@@ -216,13 +218,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
   const provider = appointment.provider;
-  const channel = getAppointmentChannelAction(appointment.consultationChannel);
-  const ChannelIcon = channel.icon;
-  const openChannel = () => navigate(
-    "patient",
-    channel.virtual ? "consultation" : "appointment",
-    { id: appointment.id }
-  );
+  const channel: OnlineConsultationChannel = isOnlineConsultationChannel(appointment.consultationChannel)
+    ? appointment.consultationChannel
+    : "video";
+  const ChannelIcon = APPOINTMENT_CHANNEL_ICONS[channel];
 
   return (
     <div
@@ -253,32 +252,22 @@ function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
         </div>
       </div>
       <div className="mt-3 flex gap-2">
-        <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openChannel(); }}>
-          <ChannelIcon className="h-4 w-4 mr-1" /> {channel.actionLabel}
+        <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "consultation", { id: appointment.id }); }}>
+          <ChannelIcon className="h-4 w-4 mr-1" /> {consultationActionLabel(channel)}
         </Button>
-        {channel.virtual && (
-          <Button size="sm" variant="outline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "appointment", { id: appointment.id }); }}>
-            Details
-          </Button>
-        )}
+        <Button size="sm" variant="outline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "appointment", { id: appointment.id }); }}>
+          Details
+        </Button>
       </div>
     </div>
   );
 }
 
-const APPOINTMENT_CHANNEL_ACTIONS = {
-  video: { actionLabel: "Join video", icon: Video, virtual: true },
-  audio: { actionLabel: "Join voice call", icon: Phone, virtual: true },
-  voice: { actionLabel: "Join voice call", icon: Phone, virtual: true },
-  voice_call: { actionLabel: "Join voice call", icon: Phone, virtual: true },
-  chat: { actionLabel: "Open chat", icon: MessageSquare, virtual: true },
-  in_person: { actionLabel: "View appointment", icon: Stethoscope, virtual: false },
-} as const;
-
-function getAppointmentChannelAction(channel: string) {
-  return APPOINTMENT_CHANNEL_ACTIONS[channel as keyof typeof APPOINTMENT_CHANNEL_ACTIONS]
-    ?? APPOINTMENT_CHANNEL_ACTIONS.in_person;
-}
+const APPOINTMENT_CHANNEL_ICONS: Record<OnlineConsultationChannel, React.ComponentType<{ className?: string }>> = {
+  video: Video,
+  audio: Phone,
+  chat: MessageSquare,
+};
 
 function ActionRow({ icon, title, subtitle, badge, onClick }: { icon: React.ReactNode; title: string; subtitle: string; badge?: React.ReactNode; onClick: () => void }) {
   return (

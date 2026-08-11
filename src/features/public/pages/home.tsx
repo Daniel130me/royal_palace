@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const CATEGORIES = [
-  { icon: Stethoscope, label: "Doctor Consultation", desc: "Video & in-person", color: "bg-emerald-100 text-emerald-700" },
+  { icon: Stethoscope, label: "Doctor Consultation", desc: "Video, voice & chat", color: "bg-emerald-100 text-emerald-700" },
   { icon: HeartPulse, label: "Dental Care", desc: "Check-ups & procedures", color: "bg-rose-100 text-rose-700" },
   { icon: FlaskConical, label: "Laboratory Tests", desc: "Home & facility", color: "bg-violet-100 text-violet-700" },
   { icon: Pill, label: "Pharmacy", desc: "Order & delivery", color: "bg-amber-100 text-amber-700" },
@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 const JOURNEY = [
   { icon: Search, title: "Find Care", desc: "Discover verified doctors, pharmacies and labs." },
-  { icon: Video, title: "Consultation", desc: "Video or in-person consultation with your provider." },
+  { icon: Video, title: "Consultation", desc: "Meet your provider securely by video, voice or chat." },
   { icon: FileText, title: "Medical Records", desc: "A structured, continuous clinical record is created." },
   { icon: FlaskConical, title: "Laboratory", desc: "Tests requested, booked and results returned." },
   { icon: Pill, title: "Pharmacy", desc: "Prescriptions sent, medicines ordered." },

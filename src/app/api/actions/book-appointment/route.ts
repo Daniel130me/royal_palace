@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { audit, notify } from "@/lib/audit";
 import { genId } from "@/lib/format";
+import { consultationChannelLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -25,10 +26,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required booking fields." }, { status: 400 });
   }
 
+  const channel = consultationChannel ?? "video";
+  if (!isOnlineConsultationChannel(channel)) {
+    return NextResponse.json(
+      { error: "Only video, voice, and chat consultations are supported." },
+      { status: 400 }
+    );
+  }
+
   const provider = await db.provider.findUnique({ where: { id: providerId } });
   if (!provider) return NextResponse.json({ error: "Provider not found." }, { status: 404 });
   if (provider.verificationStatus !== "approved") {
     return NextResponse.json({ error: "Only verified providers can be booked." }, { status: 400 });
+  }
+
+  let providerModes: string[] = [];
+  try {
+    const parsedModes: unknown = JSON.parse(provider.consultationModes);
+    providerModes = Array.isArray(parsedModes) ? parsedModes.filter((mode): mode is string => typeof mode === "string") : [];
+  } catch {
+    return NextResponse.json({ error: "Provider consultation modes are unavailable." }, { status: 400 });
+  }
+  if (!providerModes.includes(channel)) {
+    return NextResponse.json({ error: "This specialist does not support the selected online consultation mode." }, { status: 400 });
   }
 
   const patient = await db.patient.findUnique({ where: { id: patientId } });
@@ -45,7 +65,7 @@ export async function POST(req: NextRequest) {
       date,
       time,
       durationMinutes: 30,
-      consultationChannel: consultationChannel ?? "video",
+      consultationChannel: channel,
       price: Number(price ?? provider.consultationFee),
       paymentStatus: "paid",
       status: "scheduled",
@@ -80,7 +100,7 @@ export async function POST(req: NextRequest) {
     recipientId: patientId,
     recipientType: "patient",
     title: "Appointment confirmed",
-    body: `Your ${consultationChannel ?? "video"} consultation with ${provider.title} ${provider.lastName} is confirmed for ${date} at ${time}.`,
+    body: `Your ${consultationChannelLabel(channel).toLowerCase()} consultation with ${provider.title} ${provider.lastName} is confirmed for ${date} at ${time}.`,
     type: "appointment",
     relatedId: apptId,
   });

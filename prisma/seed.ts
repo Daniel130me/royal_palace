@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Royal Palace Health Care — prototype seed data
 // Seeds the complete Amina → Dr Tunde → MedLab → Grace Pharmacy → SwiftCare
 // connected-care story so reviewers see a populated app immediately.
@@ -211,7 +210,7 @@ async function main() {
       licenceNumber: "MDCN-LAG-2010-2291",
       licenceExpiry: "2027-12-31",
       verificationStatus: "approved",
-      consultationModes: JSON.stringify(["video", "audio", "in_person", "chat"]),
+      consultationModes: JSON.stringify(["video", "audio", "chat"]),
       city: "Ikeja",
       state: "Lagos",
       rating: 4.8,
@@ -239,7 +238,7 @@ async function main() {
       licenceNumber: "MDCN-IBD-2007-1180",
       licenceExpiry: "2026-08-31",
       verificationStatus: "approved",
-      consultationModes: JSON.stringify(["video", "in_person"]),
+      consultationModes: JSON.stringify(["video"]),
       city: "Yaba",
       state: "Lagos",
       rating: 4.9,
@@ -267,7 +266,7 @@ async function main() {
       licenceNumber: "MDCN-ENU-2018-5521",
       licenceExpiry: "2028-06-30",
       verificationStatus: "submitted",
-      consultationModes: JSON.stringify(["video", "in_person"]),
+      consultationModes: JSON.stringify(["video"]),
       city: "Surulere",
       state: "Lagos",
       rating: 0,

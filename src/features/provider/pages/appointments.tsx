@@ -200,7 +200,7 @@ export function ProviderAppointments() {
 
       <div className={cn("mt-4 rounded-xl bg-muted/30 border border-dashed border-border/60 p-3 text-xs text-muted-foreground")}>
         <p className="font-medium text-foreground mb-0.5">Consultation channels</p>
-        <p className="leading-relaxed">Video, audio, in-person and chat consultations are all supported. Tap <strong>Start</strong> when the patient is ready to begin the clinical encounter. The encounter workspace autosaves your SOAP notes as you type.</p>
+        <p className="leading-relaxed">Video, voice and chat consultations are all supported. Tap <strong>Start</strong> when the patient is ready to begin the clinical encounter. The encounter workspace autosaves your SOAP notes as you type.</p>
       </div>
     </div>
   );

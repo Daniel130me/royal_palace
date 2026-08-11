@@ -20,12 +20,17 @@ import {
 import { toast } from "sonner";
 import { formatCurrency, fullName, initials } from "@/lib/format";
 import { usePatientContext } from "../use-patient-context";
+import {
+  consultationChannelLabel,
+  onlineConsultationModes,
+  SPECIALIST_COUNTRY,
+} from "@/lib/consultation-policy";
+import type { OnlineConsultationChannel } from "@/lib/consultation-policy";
 
-type Channel = "video" | "audio" | "in_person" | "chat";
-const CHANNELS: { id: Channel; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
+
+const CHANNELS: { id: OnlineConsultationChannel; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
   { id: "video", label: "Video Call", icon: Video },
-  { id: "audio", label: "Audio Call", icon: Phone },
-  { id: "in_person", label: "In-person Visit", icon: Building2 },
+  { id: "audio", label: "Voice Call", icon: Phone },
   { id: "chat", label: "Chat", icon: MessageSquare },
 ];
 
@@ -59,7 +64,7 @@ export function PatientBook() {
   const [loading, setLoading] = useState(!!providerIdParam);
   const [error, setError] = useState<string | null>(null);
 
-  const [channel, setChannel] = useState<Channel>("video");
+  const [channel, setChannel] = useState<OnlineConsultationChannel>("video");
   const [date, setDate] = useState<string>("");
   const [time, setTime] = useState<string>("");
   const [reason, setReason] = useState("");
@@ -148,16 +153,14 @@ export function PatientBook() {
             </div>
             <h2 className="text-xl font-bold tracking-tight">Booking confirmed!</h2>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto leading-relaxed">
-              Your {channel.replace("_", " ")} consultation with {fullName(provider)} is confirmed for {date} at {time}.
+              Your {consultationChannelLabel(channel).toLowerCase()} consultation with {fullName(provider)} is confirmed for {date} at {time}.
             </p>
             <p className="text-xs text-muted-foreground mt-2 font-mono">Ref: {confirmedAppt.id}</p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               <Button variant="outline" onClick={() => navigate("patient", "appointments")}>View appointments</Button>
-              {channel === "video" && (
-                <Button onClick={() => navigate("patient", "consultation", { id: confirmedAppt.id })}>
-                  <Video className="h-4 w-4" /> Go to consultation
-                </Button>
-              )}
+              <Button onClick={() => navigate("patient", "consultation", { id: confirmedAppt.id })}>
+                <Video className="h-4 w-4" /> Go to consultation
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -192,7 +195,7 @@ export function PatientBook() {
                 <ShieldCheck className="h-3 w-3" /> Verified
               </Badge>
             </p>
-            <p className="text-xs text-muted-foreground">{provider.specialty} · {provider.city}</p>
+            <p className="text-xs text-muted-foreground">{provider.specialty} · {SPECIALIST_COUNTRY}</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">From</p>
@@ -233,9 +236,9 @@ export function PatientBook() {
         {step === 0 && provider && (
           <div>
             <h3 className="text-sm font-semibold mb-3">Select consultation type</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {CHANNELS.map((c) => {
-                const supported = (provider.consultationModes ?? []).includes(c.id);
+                const supported = onlineConsultationModes(provider.consultationModes).includes(c.id);
                 const Icon = c.icon;
                 return (
                   <button
@@ -318,7 +321,7 @@ export function PatientBook() {
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
               <ReviewRow label="Doctor" value={fullName(provider)} />
               <ReviewRow label="Specialty" value={provider.specialty} />
-              <ReviewRow label="Channel" value={channel.replace("_", " ")} />
+              <ReviewRow label="Channel" value={consultationChannelLabel(channel)} />
               <ReviewRow label="Date" value={date} />
               <ReviewRow label="Time" value={time} />
               <ReviewRow label="Patient" value={profile ? `${profile.firstName} ${profile.lastName}` : "—"} />

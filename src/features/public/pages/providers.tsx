@@ -10,6 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Star, ShieldCheck, Clock, MapPin, Video, Search, Stethoscope } from "lucide-react";
 import { navigate } from "@/lib/nav";
 import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
+import {
+  consultationChannelLabel,
+  ONLINE_CONSULTATION_CHANNELS,
+  onlineConsultationModes,
+  SPECIALIST_COUNTRY,
+} from "@/lib/consultation-policy";
 
 export function PublicProviders() {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -29,18 +35,18 @@ export function PublicProviders() {
   const filtered = providers.filter((p) => {
     if (specialty !== "all" && p.specialty !== specialty) return false;
     if (channel !== "all" && !p.consultationModes.includes(channel)) return false;
-    if (q && !`${p.firstName} ${p.lastName} ${p.specialty} ${p.city}`.toLowerCase().includes(q.toLowerCase())) return false;
+    if (q && !`${p.firstName} ${p.lastName} ${p.specialty}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <PageHeader title="Find a doctor" description="Browse verified providers across our network." />
+      <PageHeader title="Find a doctor" description="Browse verified specialists offering online consultations." />
       <Card className="mb-6">
         <CardContent className="p-4 grid gap-3 sm:grid-cols-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search name, specialty, city…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input className="pl-9" placeholder="Search name or specialty…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <Select value={specialty} onValueChange={setSpecialty}>
             <SelectTrigger><SelectValue placeholder="Specialty" /></SelectTrigger>
@@ -53,10 +59,9 @@ export function PublicProviders() {
             <SelectTrigger><SelectValue placeholder="Consultation mode" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All modes</SelectItem>
-              <SelectItem value="video">Video</SelectItem>
-              <SelectItem value="audio">Audio</SelectItem>
-              <SelectItem value="in_person">In-person</SelectItem>
-              <SelectItem value="chat">Chat</SelectItem>
+              {ONLINE_CONSULTATION_CHANNELS.map((mode) => (
+                <SelectItem key={mode} value={mode}>{consultationChannelLabel(mode)}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </CardContent>
@@ -82,14 +87,14 @@ export function PublicProviders() {
                     <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-0.5"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{p.rating}</span>
                       <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{p.yearsExperience}y exp</span>
-                      <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{p.city}</span>
+                      <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{SPECIALIST_COUNTRY}</span>
                     </div>
                   </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex gap-1.5">
-                    {p.consultationModes.slice(0, 3).map((m) => (
-                      <span key={m} className="rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize">{m.replace("_", " ")}</span>
+                    {onlineConsultationModes(p.consultationModes).map((m) => (
+                      <span key={m} className="rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize">{consultationChannelLabel(m)}</span>
                     ))}
                   </div>
                   <span className="text-sm font-semibold text-emerald-700">{formatCurrency(p.consultationFee)}</span>

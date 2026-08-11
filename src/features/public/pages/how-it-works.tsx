@@ -6,7 +6,7 @@ import { Search, Video, FileText, FlaskConical, Pill, Truck, ArrowRight } from "
 import { PageHeader } from "@/components/healthcare/page-header";
 
 const STEPS = [
-  { n: 1, icon: Search, title: "Discover a provider", desc: "Search verified doctors, pharmacies and laboratories by specialty, location and mode." },
+  { n: 1, icon: Search, title: "Discover a provider", desc: "Search verified doctors by specialty and online consultation mode, plus pharmacies and laboratories by service." },
   { n: 2, icon: Video, title: "Book & consult", desc: "Pick a slot, complete a quick intake, pay securely and join your consultation." },
   { n: 3, icon: FileText, title: "Structured clinical record", desc: "Your doctor documents the consultation using a structured SOAP-based template. The record is locked & signed." },
   { n: 4, icon: FlaskConical, title: "Laboratory & results", desc: "Your doctor can request tests. You book a lab, samples are collected, results return to your timeline." },

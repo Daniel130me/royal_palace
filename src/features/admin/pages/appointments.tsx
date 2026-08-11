@@ -12,13 +12,12 @@ import {
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate, formatTime } from "@/lib/format";
-import { CalendarDays, Search, Video, MapPin, Phone, MessageSquare, CheckCircle2, Clock } from "lucide-react";
+import { CalendarDays, Search, Video, Phone, MessageSquare, CheckCircle2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CHANNEL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   video: Video,
   audio: Phone,
-  in_person: MapPin,
   chat: MessageSquare,
 };
 
