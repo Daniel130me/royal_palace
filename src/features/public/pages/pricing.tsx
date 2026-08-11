@@ -5,7 +5,7 @@ import { serviceService } from "@/lib/services";
 import type { Service } from "@/types";
 import { formatCurrency } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { activeServicePrice } from "@/lib/pricing-policy";
 import { PageHeader, LoadingState } from "@/components/healthcare/page-header";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -33,7 +33,7 @@ export function PublicPricing() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageHeader title="Transparent pricing" description="Platform-managed prices for consultations, laboratory, delivery and more." />
+      <PageHeader title="Service costs" description="See the total amount payable for consultations, laboratory services, delivery and more." />
       {loading ? <LoadingState /> : (
         <div className="space-y-8">
           {Object.entries(byCategory).map(([cat, list]) => (
@@ -42,16 +42,15 @@ export function PublicPricing() {
               <Card>
                 <CardContent className="p-0 divide-y">
                   {list.map((s) => {
-                    const price = s.prices?.[0];
+                    const price = activeServicePrice(s);
                     return (
                       <div key={s.id} className="flex items-center justify-between p-4">
                         <div>
                           <p className="font-medium text-sm">{s.name}</p>
-                          <Badge variant="secondary" className="mt-1 text-[10px]">{price?.status ?? "active"}</Badge>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">{price ? formatCurrency(price.patientPrice) : "—"}</p>
-                          {price && <p className="text-xs text-muted-foreground">Payout {formatCurrency(price.providerPayout)}</p>}
+                          <p className="text-xs text-muted-foreground">Total payable</p>
+                          <p className="font-semibold tabular-nums">{price ? formatCurrency(price.patientPrice) : "—"}</p>
                         </div>
                       </div>
                     );

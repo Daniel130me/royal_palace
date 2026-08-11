@@ -26,6 +26,7 @@ import {
   SPECIALIST_COUNTRY,
 } from "@/lib/consultation-policy";
 import type { OnlineConsultationChannel } from "@/lib/consultation-policy";
+import { patientConsultationTotal, providerConsultationService } from "@/lib/pricing-policy";
 
 
 const CHANNELS: { id: OnlineConsultationChannel; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
@@ -96,20 +97,20 @@ export function PatientBook() {
     return () => { cancelled = true; };
   }, [providerIdParam]);
 
-  const consultationFee = provider?.consultationFee ?? 0;
-  const serviceFee = Math.round(consultationFee * 0.05);
-  const total = consultationFee + serviceFee;
+  const matchingService = provider ? providerConsultationService(provider, services) : undefined;
+  const total = provider ? patientConsultationTotal(provider, services) : 0;
 
   async function confirmAndPay() {
     if (!provider || !profile) {
       toast.error("Missing provider or patient.");
       return;
     }
+    if (!matchingService) {
+      toast.error("The consultation price is unavailable. Please try again.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const matchingService = services.find((s) =>
-        s.name.toLowerCase().includes(provider.specialty.toLowerCase().split(" ")[0])
-      ) ?? services[0];
       const res = await appointmentService.book({
         patientId: profile.id,
         providerId: provider.id,
@@ -117,7 +118,6 @@ export function PatientBook() {
         date,
         time,
         consultationChannel: channel,
-        price: total,
         method,
         intakeForm: { reason, symptoms, consent, channel },
       });
@@ -198,8 +198,8 @@ export function PatientBook() {
             <p className="text-xs text-muted-foreground">{provider.specialty} · {SPECIALIST_COUNTRY}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">From</p>
-            <p className="text-sm font-bold text-primary">{formatCurrency(provider.consultationFee)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</p>
+            <p className="text-sm font-bold text-primary tabular-nums">{formatCurrency(total)}</p>
           </div>
         </div>
       )}
@@ -329,9 +329,6 @@ export function PatientBook() {
             </div>
             <div className="mt-5 rounded-xl border bg-muted/30 p-4">
               <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Cost summary</p>
-              <Line label="Consultation fee" value={formatCurrency(consultationFee)} />
-              <Line label="Platform service fee (5%)" value={formatCurrency(serviceFee)} />
-              <div className="my-2 border-t border-border/80" />
               <Line label="Total payable" value={formatCurrency(total)} bold />
             </div>
           </div>
@@ -340,10 +337,7 @@ export function PatientBook() {
           <div>
             <h3 className="text-sm font-semibold mb-3">Payment</h3>
             <div className="rounded-xl border bg-muted/30 p-4 mb-5">
-              <Line label="Consultation fee" value={formatCurrency(consultationFee)} />
-              <Line label="Service fee" value={formatCurrency(serviceFee)} />
-              <div className="my-2 border-t border-border/80" />
-              <Line label="Total" value={formatCurrency(total)} bold />
+              <Line label="Total payable" value={formatCurrency(total)} bold />
             </div>
             <Label className="text-xs text-muted-foreground">Payment method</Label>
             <div className="grid grid-cols-2 gap-3 mt-2">

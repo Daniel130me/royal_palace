@@ -11,6 +11,7 @@ import { Star, ShieldCheck, MapPin, Clock, GraduationCap, Languages, Video, Cale
 import { useNav, navigate } from "@/lib/nav";
 import { LoadingState } from "@/components/healthcare/states";
 import { consultationChannelLabel, onlineConsultationModes, SPECIALIST_COUNTRY } from "@/lib/consultation-policy";
+import { patientConsultationTotal } from "@/lib/pricing-policy";
 
 export function PublicProviderProfile() {
   const { view, session } = useNav();
@@ -38,6 +39,7 @@ export function PublicProviderProfile() {
     );
 
   const slots = ["09:00", "10:30", "13:00", "15:30", "17:00"];
+  const totalCost = patientConsultationTotal(provider, services);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -73,8 +75,8 @@ export function PublicProviderProfile() {
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-xs text-muted-foreground">Consultation from</p>
-              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(provider.consultationFee)}</p>
+              <p className="text-xs text-muted-foreground">Total consultation cost</p>
+              <p className="text-2xl font-bold text-emerald-700 tabular-nums">{formatCurrency(totalCost)}</p>
               <Button
                 className="mt-3 bg-emerald-600 hover:bg-emerald-700"
                 onClick={() => {
@@ -134,12 +136,9 @@ export function PublicProviderProfile() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Pricing</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex justify-between"><span className="text-muted-foreground">Patient price</span><span className="font-semibold">{formatCurrency(provider.consultationFee)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Provider payout</span><span>{formatCurrency(Math.round(provider.consultationFee * 0.73))}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Platform fee</span><span>{formatCurrency(Math.round(provider.consultationFee * 0.27))}</span></div>
-              <p className="text-xs text-muted-foreground mt-2">Prices are set by Royal Palace and shared with providers.</p>
+            <CardHeader><CardTitle>Consultation cost</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-baseline justify-between gap-4"><span className="text-sm text-muted-foreground">Total payable</span><span className="text-lg font-semibold tabular-nums">{formatCurrency(totalCost)}</span></div>
             </CardContent>
           </Card>
         </div>

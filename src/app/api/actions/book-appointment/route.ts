@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { audit, notify } from "@/lib/audit";
 import { genId } from "@/lib/format";
 import { consultationChannelLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
+import { activeServicePrice, isConsultationServiceForSpecialty } from "@/lib/pricing-policy";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -14,12 +15,10 @@ export async function POST(req: NextRequest) {
     patientId,
     providerId,
     serviceId,
-    servicePriceId,
     date,
     time,
     consultationChannel,
     intakeForm,
-    price,
   } = body ?? {};
 
   if (!patientId || !providerId || !date || !time) {
@@ -34,8 +33,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const provider = await db.provider.findUnique({ where: { id: providerId } });
+  const [provider, patient, service] = await Promise.all([
+    db.provider.findUnique({ where: { id: providerId } }),
+    db.patient.findUnique({ where: { id: patientId } }),
+    serviceId
+      ? db.service.findUnique({ where: { id: serviceId }, include: { prices: true } })
+      : Promise.resolve(null),
+  ]);
   if (!provider) return NextResponse.json({ error: "Provider not found." }, { status: 404 });
+  if (!patient) return NextResponse.json({ error: "Patient not found." }, { status: 404 });
   if (provider.verificationStatus !== "approved") {
     return NextResponse.json({ error: "Only verified providers can be booked." }, { status: 400 });
   }
@@ -51,22 +57,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This specialist does not support the selected online consultation mode." }, { status: 400 });
   }
 
-  const patient = await db.patient.findUnique({ where: { id: patientId } });
-  if (!patient) return NextResponse.json({ error: "Patient not found." }, { status: 404 });
 
+  if (!service || service.category !== "consultation" || !isConsultationServiceForSpecialty(service.name, provider.specialty)) {
+    return NextResponse.json({ error: "A valid consultation service is required for this specialist." }, { status: 400 });
+  }
+  const servicePrice = activeServicePrice(service);
+  if (!servicePrice) {
+    return NextResponse.json({ error: "This consultation does not have an active price." }, { status: 400 });
+  }
+  const bookingPrice = servicePrice.patientPrice;
   const apptId = genId("APT");
   const appointment = await db.appointment.create({
     data: {
       id: apptId,
       patientId,
       providerId,
-      serviceId: serviceId ?? null,
-      servicePriceId: servicePriceId ?? null,
+      serviceId: service.id,
+      servicePriceId: servicePrice.id,
       date,
       time,
       durationMinutes: 30,
       consultationChannel: channel,
-      price: Number(price ?? provider.consultationFee),
+      price: bookingPrice,
       paymentStatus: "paid",
       status: "scheduled",
       intakeForm: JSON.stringify(intakeForm ?? {}),
@@ -81,7 +93,7 @@ export async function POST(req: NextRequest) {
       paymentNumber: genId("RPH-PAY"),
       appointmentId: apptId,
       patientId,
-      amount: Number(price ?? provider.consultationFee),
+      amount: bookingPrice,
       method: body.method ?? "card",
       status: "successful",
       reference: genId("DEMO-PAY"),
