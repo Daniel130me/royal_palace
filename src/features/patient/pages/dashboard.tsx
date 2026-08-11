@@ -12,8 +12,8 @@ import { StatTile, CompactListItem } from "@/components/healthcare/compact-list"
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { formatCurrency, relativeDay, formatTime, age } from "@/lib/format";
 import {
-  CalendarDays, Pill, FlaskConical, Package, Stethoscope, Video, ChevronRight,
-  FileText, ArrowRight, Bell,
+  Pill, FlaskConical, Package, Stethoscope, Video, Phone, MessageSquare,
+  ChevronRight, FileText, ArrowRight, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +106,7 @@ export function PatientDashboard() {
             <div>
               <p className="text-sm text-emerald-50/90">No upcoming appointment</p>
               <p className="text-xl font-bold mt-1">Book a consultation</p>
-              <p className="text-xs text-emerald-100/80 mt-1">Verified doctors, video or in-person</p>
+              <p className="text-xs text-emerald-100/80 mt-1">Video, voice, chat or in-person</p>
             </div>
             <div className="rounded-full bg-white/20 p-3">
               <ArrowRight className="h-5 w-5" />
@@ -116,14 +116,14 @@ export function PatientDashboard() {
       )}
 
       {/* Quick actions grid */}
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {QUICK_ACTIONS.map((a) => {
           const Icon = a.icon;
           return (
             <button
               key={a.label}
               onClick={() => navigate("patient", a.page as any)}
-              className="flex flex-col items-center gap-1.5 rounded-xl border border-border/60 bg-card p-3 transition-all hover:border-border hover:shadow-soft tap-highlight-none active:scale-[0.97]"
+              className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-card p-3 transition-all hover:border-border hover:shadow-soft tap-highlight-none active:scale-[0.97] sm:min-h-0"
             >
               <div className={cn("rounded-xl p-2 ring-1", TONE_BG[a.tone])}>
                 <Icon className="h-5 w-5" />
@@ -136,10 +136,10 @@ export function PatientDashboard() {
 
       {/* Stats row — tappable */}
       <div className="grid grid-cols-4 gap-2.5">
-        <StatTile label="Visits" value={appointments.length} icon={CalendarDays} onClick={() => navigate("patient", "appointments")} />
-        <StatTile label="Rx" value={prescriptions.length} icon={Pill} tone="info" onClick={() => navigate("patient", "prescriptions")} />
-        <StatTile label="Labs" value={labRequests.length} icon={FlaskConical} tone="violet" onClick={() => navigate("patient", "laboratory")} />
-        <StatTile label="Orders" value={orders.length} icon={Package} tone="warning" onClick={() => navigate("patient", "orders")} />
+        <StatTile label="Visits" value={appointments.length} onClick={() => navigate("patient", "appointments")} />
+        <StatTile label="Rx" value={prescriptions.length} tone="info" onClick={() => navigate("patient", "prescriptions")} />
+        <StatTile label="Labs" value={labRequests.length} tone="violet" onClick={() => navigate("patient", "laboratory")} />
+        <StatTile label="Orders" value={orders.length} tone="warning" onClick={() => navigate("patient", "orders")} />
       </div>
 
       {/* Pending tasks (only if any) */}
@@ -216,6 +216,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
   const provider = appointment.provider;
+  const channel = getAppointmentChannelAction(appointment.consultationChannel);
+  const ChannelIcon = channel.icon;
+  const openChannel = () => navigate(
+    "patient",
+    channel.virtual ? "consultation" : "appointment",
+    { id: appointment.id }
+  );
+
   return (
     <div
       role="button"
@@ -245,15 +253,31 @@ function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
         </div>
       </div>
       <div className="mt-3 flex gap-2">
-        <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "consultation", { id: appointment.id }); }}>
-          <Video className="h-4 w-4 mr-1" /> Join
+        <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openChannel(); }}>
+          <ChannelIcon className="h-4 w-4 mr-1" /> {channel.actionLabel}
         </Button>
-        <Button size="sm" variant="outline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "appointment", { id: appointment.id }); }}>
-          Details
-        </Button>
+        {channel.virtual && (
+          <Button size="sm" variant="outline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate("patient", "appointment", { id: appointment.id }); }}>
+            Details
+          </Button>
+        )}
       </div>
     </div>
   );
+}
+
+const APPOINTMENT_CHANNEL_ACTIONS = {
+  video: { actionLabel: "Join video", icon: Video, virtual: true },
+  audio: { actionLabel: "Join voice call", icon: Phone, virtual: true },
+  voice: { actionLabel: "Join voice call", icon: Phone, virtual: true },
+  voice_call: { actionLabel: "Join voice call", icon: Phone, virtual: true },
+  chat: { actionLabel: "Open chat", icon: MessageSquare, virtual: true },
+  in_person: { actionLabel: "View appointment", icon: Stethoscope, virtual: false },
+} as const;
+
+function getAppointmentChannelAction(channel: string) {
+  return APPOINTMENT_CHANNEL_ACTIONS[channel as keyof typeof APPOINTMENT_CHANNEL_ACTIONS]
+    ?? APPOINTMENT_CHANNEL_ACTIONS.in_person;
 }
 
 function ActionRow({ icon, title, subtitle, badge, onClick }: { icon: React.ReactNode; title: string; subtitle: string; badge?: React.ReactNode; onClick: () => void }) {
