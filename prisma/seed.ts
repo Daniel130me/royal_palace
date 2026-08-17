@@ -312,13 +312,17 @@ async function main() {
   });
 
   const products = [
-    { id: "MED-001", name: "Amoxicillin", genericName: "Amoxicillin", brand: "Amoxil", category: "Prescription Medicine", strength: "500mg", dosageForm: "Capsule", manufacturer: "GSK", price: 4500, stock: 38, batch: "AMX2026A", expiry: "2027-05-01" },
-    { id: "MED-002", name: "Amlodipine", genericName: "Amlodipine", brand: "Norvasc", category: "Prescription Medicine", strength: "10mg", dosageForm: "Tablet", manufacturer: "Pfizer", price: 6000, stock: 52, batch: "AML2026B", expiry: "2027-08-01" },
-    { id: "MED-003", name: "Paracetamol", genericName: "Paracetamol", brand: "Panadol", category: "Over-the-Counter", strength: "500mg", dosageForm: "Tablet", manufacturer: "Emzor", price: 1200, stock: 200, batch: "PAR2026C", expiry: "2028-01-01", prescriptionRequired: false },
-    { id: "MED-004", name: "Lisinopril", genericName: "Lisinopril", brand: "Zestril", category: "Prescription Medicine", strength: "20mg", dosageForm: "Tablet", manufacturer: "AstraZeneca", price: 7500, stock: 28, batch: "LIS2026D", expiry: "2027-03-01" },
-    { id: "MED-005", name: "Metformin", genericName: "Metformin", brand: "Glucophage", category: "Prescription Medicine", strength: "850mg", dosageForm: "Tablet", manufacturer: "Merck", price: 5200, stock: 14, batch: "MET2025E", expiry: "2026-09-15" },
-    { id: "MED-006", name: "Cetirizine", genericName: "Cetirizine", brand: "Zyrtec", category: "Over-the-Counter", strength: "10mg", dosageForm: "Tablet", manufacturer: "Johnson & Johnson", price: 2800, stock: 6, batch: "CET2024F", expiry: "2026-02-20", prescriptionRequired: false },
-  ];
+    // controlled — requires a doctor's prescription, cannot be ordered directly
+    { id: "MED-001", name: "Amoxicillin", genericName: "Amoxicillin", brand: "Amoxil", category: "Antibiotic", strength: "500mg", dosageForm: "Capsule", manufacturer: "GSK", price: 4500, stock: 38, batch: "AMX2026A", expiry: "2027-05-01", controlled: true },
+    { id: "MED-002", name: "Amlodipine", genericName: "Amlodipine", brand: "Norvasc", category: "Antihypertensive", strength: "10mg", dosageForm: "Tablet", manufacturer: "Pfizer", price: 6000, stock: 52, batch: "AML2026B", expiry: "2027-08-01", controlled: true },
+    // uncontrolled — OTC, can be ordered directly by patients
+    { id: "MED-003", name: "Paracetamol", genericName: "Paracetamol", brand: "Panadol", category: "Over-the-Counter", strength: "500mg", dosageForm: "Tablet", manufacturer: "Emzor", price: 1200, stock: 200, batch: "PAR2026C", expiry: "2028-01-01", prescriptionRequired: false, controlled: false },
+    { id: "MED-004", name: "Lisinopril", genericName: "Lisinopril", brand: "Zestril", category: "Antihypertensive", strength: "20mg", dosageForm: "Tablet", manufacturer: "AstraZeneca", price: 7500, stock: 28, batch: "LIS2026D", expiry: "2027-03-01", controlled: true },
+    { id: "MED-005", name: "Metformin", genericName: "Metformin", brand: "Glucophage", category: "Antidiabetic", strength: "850mg", dosageForm: "Tablet", manufacturer: "Merck", price: 5200, stock: 14, batch: "MET2025E", expiry: "2026-09-15", controlled: true },
+    { id: "MED-006", name: "Cetirizine", genericName: "Cetirizine", brand: "Zyrtec", category: "Over-the-Counter", strength: "10mg", dosageForm: "Tablet", manufacturer: "Johnson & Johnson", price: 2800, stock: 6, batch: "CET2024F", expiry: "2026-02-20", prescriptionRequired: false, controlled: false },
+    { id: "MED-007", name: "Vitamin C", genericName: "Ascorbic Acid", brand: "Ceeplus", category: "Supplement", strength: "1000mg", dosageForm: "Tablet", manufacturer: "Emzor", price: 1800, stock: 120, batch: "VIT2026G", expiry: "2028-06-01", prescriptionRequired: false, controlled: false },
+    { id: "MED-008", name: "ORS", genericName: "Oral Rehydration Salts", brand: "Dioralyte", category: "Over-the-Counter", strength: "20.5g", dosageForm: "Sachet", manufacturer: "Sanofi", price: 950, stock: 80, batch: "ORS2026H", expiry: "2027-12-01", prescriptionRequired: false, controlled: false },
+  ] as const;
   for (const p of products) {
     await db.pharmacyProduct.create({
       data: {
@@ -336,6 +340,7 @@ async function main() {
         batch: p.batch,
         expiryDate: p.expiry,
         prescriptionRequired: p.prescriptionRequired ?? true,
+        controlled: p.controlled ?? false,
         storageRequirements: "Store below 25°C",
         status: "active",
       },
@@ -509,6 +514,8 @@ async function main() {
       validityStartDate: today(-30),
       expiryDate: today(60),
       notes: "Continue antihypertensive therapy.",
+      doctorNote: "Patient's blood pressure is responding well to Amlodipine 10mg. Continue for 30 days and review with home BP readings. Reinforce salt restriction and daily 30-minute walks. Return if ankle swelling or persistent headaches develop.",
+      pharmacyId: "PHA-001",
     },
   });
 

@@ -73,6 +73,7 @@ model Patient {
   carePlans           CarePlan[]
   payments            Payment[]
   ratings             Rating[]
+  uploadedPrescriptions UploadedPrescription[]
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ model Provider {
   referralsSent      Referral[]            @relation("ReferralSender")
   referralsReceived  Referral[]            @relation("ReferralRecipientProvider")
   applications       ProviderApplication[]
+  payouts            PayoutRequest[]
 }
 
 model ProviderApplication {
@@ -150,6 +152,8 @@ model Pharmacy {
 
   products        PharmacyProduct[]
   orders          PharmacyOrder[]
+  prescriptions   Prescription[]
+  payouts         PayoutRequest[]
 }
 
 model PharmacyProduct {
@@ -167,6 +171,9 @@ model PharmacyProduct {
   batch               String?
   expiryDate          String
   prescriptionRequired Boolean @default(true)
+  // controlled meds (e.g. opioids, psychotropics) CANNOT be ordered directly
+  // by a patient — they require a doctor's prescription first.
+  controlled          Boolean  @default(false)
   storageRequirements String?
   status              String   @default("active")
   createdAt           DateTime @default(now())
@@ -196,6 +203,7 @@ model Laboratory {
 
   bookings          LaboratoryBooking[]
   results           LaboratoryResult[]
+  payouts           PayoutRequest[]
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +225,7 @@ model LogisticsProvider {
   updatedAt          DateTime @updatedAt
 
   deliveries         Delivery[]
+  payouts            PayoutRequest[]
 }
 
 // ---------------------------------------------------------------------------
@@ -330,12 +339,19 @@ model Prescription {
   validityStartDate String
   expiryDate       String
   notes            String?
+  // free-text clinical note from the prescribing doctor (dosage rationale,
+  // warnings, follow-up advice). Shown on the prescription detail.
+  doctorNote        String?
+  // denormalised snapshot of the issuing pharmacy for prescriptions that are
+  // sent to a specific pharmacy (filled in when the Rx is created or sent).
+  pharmacyId       String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
   patient          Patient  @relation(fields: [patientId], references: [id])
   provider         Provider @relation(fields: [providerId], references: [id])
+  pharmacy         Pharmacy? @relation(fields: [pharmacyId], references: [id])
   items            PrescriptionItem[]
   pharmacyOrders   PharmacyOrder[]
 }
@@ -668,4 +684,63 @@ model AuditLog {
   entityId         String // generic — NOT a FK
   description      String
   timestamp        DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// PAYOUT REQUESTS
+// Providers, pharmacies, laboratories and logistics can request a payout of
+// their accrued earnings. Admin reviews and marks the payout as paid.
+// ---------------------------------------------------------------------------
+
+model PayoutRequest {
+  id               String   @id
+  payoutNumber     String   @unique
+  entityType       String // provider | pharmacy | laboratory | logistics
+  entityId         String
+  entityName       String
+  amountRequested  Int // net amount the entity is asking to withdraw
+  periodStart      String
+  periodEnd        String
+  status           String   @default("requested") // requested | processing | paid | rejected
+  method           String   @default("bank_transfer")
+  notes            String?
+  requestedAt      DateTime @default(now())
+  processedAt      DateTime?
+  processedBy      String? // admin user id
+  adminNote        String?
+
+  // Optional relations (entityId matches the relevant profile id)
+  provider         Provider?          @relation(fields: [entityId], references: [id])
+  pharmacy         Pharmacy?          @relation(fields: [entityId], references: [id])
+  laboratory       Laboratory?        @relation(fields: [entityId], references: [id])
+  logisticsProvider LogisticsProvider? @relation(fields: [entityId], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// UPLOADED PRESCRIPTIONS (patient-supplied doctor-written Rx)
+// A registered patient can snap/upload a copy of a paper prescription they
+// received from an offline doctor, then send it to a pharmacy to order meds.
+// Used for the public signup → order flow without a Royal Palace encounter.
+// ---------------------------------------------------------------------------
+
+model UploadedPrescription {
+  id               String   @id
+  uploadNumber     String   @unique
+  patientId        String
+  patientName      String // snapshot for display on the pharmacy side
+  prescriberName   String? // optional, the patient can type the doctor's name
+  prescriberFacility String?
+  notes            String? // patient note to the pharmacy
+  // mocked file metadata (name, type, size, dataUrl). dataUrl holds a base64
+  // data URL so the prototype can render the uploaded image without storage.
+  fileName         String
+  fileType         String
+  fileSize         Int
+  dataUrl          String // data:image/...;base64,....
+  status           String   @default("uploaded") // uploaded | under_review | accepted | rejected
+  pharmacyId       String? // set when the patient sends it to a specific pharmacy
+  createdAt        DateTime @default(now())
+  reviewedAt       DateTime?
+
+  patient          Patient  @relation(fields: [patientId], references: [id])
 }
