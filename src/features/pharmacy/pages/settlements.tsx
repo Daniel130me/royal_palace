@@ -49,7 +49,6 @@ export function PharmacySettlements() {
 
   const totalPendingNet = pending.reduce((s, x) => s + x.netAmount, 0);
   const totalPaidNet = paid.reduce((s, x) => s + x.netAmount, 0);
-  const totalCommission = settlements.reduce((s, x) => s + x.commissionAmount, 0);
   const totalGross = settlements.reduce((s, x) => s + x.grossAmount, 0);
 
   const deliveredOrdersWithoutSettlement = useMemo(() => {
@@ -85,17 +84,15 @@ export function PharmacySettlements() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <StatTile label="Pending net" value={formatCurrency(totalPendingNet)} icon={Clock} tone="warning" />
         <StatTile label="Paid net" value={formatCurrency(totalPaidNet)} icon={CheckCircle2} tone="success" />
-        <StatTile label="Commission" value={formatCurrency(totalCommission)} icon={Receipt} tone="info" />
-        <StatTile label="Delivered orders" value={deliveredOrdersWithoutSettlement.length} icon={Wallet} tone="default" />
+        <StatTile label="Total gross" value={formatCurrency(totalGross)} icon={Wallet} tone="default" />
+        <StatTile label="Delivered orders" value={deliveredOrdersWithoutSettlement.length} icon={Receipt} tone="info" />
       </div>
 
       {profile && (
         <Alert className="border-sky-200 bg-sky-50">
           <Info className="h-4 w-4 text-sky-600" />
           <AlertDescription className="text-sky-700 text-sm">
-            Settlements run on a periodic cycle. Royal Palace deducts a{" "}
-            <span className="font-bold text-sky-900">{profile.commissionPct}%</span> platform
-            commission from each order and remits the net to your pharmacy at the end of each period.
+            Settlements run on a periodic cycle. Royal Palace collects payment at the time of order and remits your pharmacy earnings at the end of each period.
           </AlertDescription>
         </Alert>
       )}
@@ -145,22 +142,16 @@ export function PharmacySettlements() {
                 }
               >
                 <div className="space-y-2.5">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-muted/40 p-2">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                         <Wallet className="h-3 w-3" /> Gross
                       </p>
                       <p className="text-sm font-semibold tabular-nums">{formatCurrency(s.grossAmount)}</p>
                     </div>
-                    <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                      <p className="text-[10px] text-rose-700 uppercase tracking-wider flex items-center gap-1">
-                        <Receipt className="h-3 w-3" /> Comm
-                      </p>
-                      <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(s.commissionAmount)}</p>
-                    </div>
                     <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
                       <p className="text-[10px] text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-                        <CalendarDays className="h-3 w-3" /> Net
+                        <CalendarDays className="h-3 w-3" /> Your earnings
                       </p>
                       <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</p>
                     </div>
@@ -180,13 +171,9 @@ export function PharmacySettlements() {
               <span className="text-muted-foreground">Total gross</span>
               <span className="font-medium tabular-nums">{formatCurrency(totalGross)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total commission</span>
-              <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(totalCommission)}</span>
-            </div>
             <Separator />
             <div className="flex justify-between items-center">
-              <span className="font-semibold">Total net paid</span>
+              <span className="font-semibold">Total earnings paid</span>
               <span className="font-bold text-lg text-emerald-700 tabular-nums">{formatCurrency(totalPaidNet)}</span>
             </div>
           </div>

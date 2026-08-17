@@ -98,7 +98,6 @@ export function PharmacyOrderDetail() {
 
   const items = order.items ?? [];
   const subtotal = items.reduce((s, i) => s + i.gross, 0);
-  const commissionTotal = items.reduce((s, i) => s + i.commissionAmount, 0);
   const pharmacyNet = items.reduce((s, i) => s + i.pharmacyNet, 0);
 
   const primaryNext = nextSteps.find((s) => !["rejected", "cancelled", "clarification_required", "partially_available"].includes(s)) ?? null;
@@ -136,10 +135,10 @@ export function PharmacyOrderDetail() {
         </div>
       )}
 
-      {/* Order items as ExpandableCards (commission breakdown on expand) */}
+      {/* Order items as ExpandableCards (per-item earnings on expand) */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
-          Order items · {items.length} item(s) · commission breakdown
+          Order items · {items.length} item(s) · earnings breakdown
         </p>
         <div className="space-y-2">
           {items.map((it) => (
@@ -147,20 +146,16 @@ export function PharmacyOrderDetail() {
               key={it.id}
               leading={<div className="rounded-lg bg-sky-50 p-2 ring-1 ring-sky-100"><Package className="h-4 w-4 text-sky-600" /></div>}
               title={it.productName}
-              subtitle={`Qty ${it.quantity} · ${formatCurrency(it.unitPrice)} each · Net ${formatCurrency(it.pharmacyNet)}`}
+              subtitle={`Qty ${it.quantity} · ${formatCurrency(it.unitPrice)} each · Your earnings ${formatCurrency(it.pharmacyNet)}`}
               trailing={<span className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.gross)}</span>}
             >
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-muted/40 p-2">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
                   <p className="text-sm font-semibold tabular-nums">{formatCurrency(it.gross)}</p>
                 </div>
-                <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                  <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({it.commissionPct}%)</p>
-                  <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(it.commissionAmount)}</p>
-                </div>
                 <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
-                  <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
+                  <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Your earnings</p>
                   <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(it.pharmacyNet)}</p>
                 </div>
               </div>
@@ -182,11 +177,7 @@ export function PharmacyOrderDetail() {
             <span className="font-medium tabular-nums">{formatCurrency(subtotal || order.subtotal)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Platform commission ({order.pharmacy?.commissionPct ?? "—"}%)</span>
-            <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(commissionTotal || order.commissionTotal)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Pharmacy net (before delivery fee)</span>
+            <span className="text-muted-foreground">Your earnings (before delivery fee)</span>
             <span className="font-medium text-emerald-700 tabular-nums">{formatCurrency(pharmacyNet)}</span>
           </div>
           <div className="flex justify-between">

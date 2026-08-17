@@ -41,6 +41,7 @@ const STATUS_STYLES: Record<string, string> = {
   submitted: "bg-sky-50 text-sky-700 border-sky-200",
   open: "bg-sky-50 text-sky-700 border-sky-200",
   booking_accepted: "bg-sky-50 text-sky-700 border-sky-200",
+  requested: "bg-sky-50 text-sky-700 border-sky-200",
 
   // warning
   pending_booking: "bg-amber-50 text-amber-700 border-amber-200",

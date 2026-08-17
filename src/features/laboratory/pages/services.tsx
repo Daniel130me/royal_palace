@@ -121,7 +121,6 @@ export function LabServices() {
                 trailing={
                   <div className="flex flex-col items-end gap-1">
                     <StatusBadge status={s.active ? "active" : "draft"} size="sm" />
-                    {price && <span className="text-[10px] text-muted-foreground">margin {formatCurrency(price.platformMargin)}</span>}
                   </div>
                 }
                 onClick={undefined}

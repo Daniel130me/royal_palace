@@ -12,7 +12,7 @@ import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } fr
 import { StatTile } from "@/components/healthcare/compact-list";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { initials } from "@/lib/format";
-import { Building2, MapPin, Phone, Mail, Star, ShieldAlert, LogOut, Receipt, FileText, Bell, CheckCircle2 } from "lucide-react";
+import { Building2, MapPin, Phone, Mail, Star, LogOut, Receipt, FileText, Bell, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function PharmacySettings() {
@@ -95,24 +95,6 @@ export function PharmacySettings() {
         </div>
 
         <div className="space-y-6">
-          <Card className="border-sky-200 bg-sky-50/40">
-            <CardContent className="p-4">
-              <p className="text-sm font-semibold text-sky-900 flex items-center gap-2 mb-1.5">
-                <ShieldAlert className="h-4 w-4" /> Platform commission
-              </p>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-sky-700">Platform rate</span>
-                <span className="font-bold text-lg text-sky-900">{profile.commissionPct}%</span>
-              </div>
-              <p className="text-xs text-sky-700 mt-1 leading-relaxed">
-                Set by Royal Palace admin. Cannot be edited by the pharmacy.
-              </p>
-              <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => navigate("pharmacy", "commissions")}>
-                <Receipt className="h-3.5 w-3.5 mr-1" /> View commission reports
-              </Button>
-            </CardContent>
-          </Card>
-
           <SectionCard title="Account summary" icon={Building2}>
             <div className="grid grid-cols-2 gap-2.5 mb-3">
               <StatTile label="Orders" value={orders.length} icon={Receipt} tone="info" />

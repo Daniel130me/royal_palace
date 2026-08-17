@@ -7,7 +7,6 @@ import { settlementService } from "@/lib/services";
 import type { Settlement } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
@@ -207,17 +206,10 @@ export function LogisticsEarnings() {
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
                     <p className="text-sm font-medium tabular-nums">{formatCurrency(s.grossAmount)}</p>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
-                    <p className="text-sm font-medium text-rose-700 tabular-nums">–{formatCurrency(s.commissionAmount)}</p>
+                  <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
+                    <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Your earnings</p>
+                    <p className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(s.netAmount)}</p>
                   </div>
-                </div>
-                <Separator className="my-2" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Net payout</span>
-                  <span className={`font-bold tabular-nums ${s.status === "paid" ? "text-emerald-700" : "text-amber-700"}`}>
-                    {formatCurrency(s.netAmount)}
-                  </span>
                 </div>
               </li>
             ))}

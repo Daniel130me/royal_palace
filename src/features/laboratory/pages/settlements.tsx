@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/healthcare/status-badge";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { ExpandableCard, StatTile } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Wallet, TrendingUp, Hourglass, CheckCircle2, Banknote, Activity } from "lucide-react";
+import { Wallet, Hourglass, CheckCircle2, Banknote, Activity, CalendarDays } from "lucide-react";
 
 type FilterKey = "all" | "paid" | "pending";
 
@@ -41,11 +41,10 @@ export function LabSettlements() {
 
   const totals = useMemo(() => {
     const gross = settlements.reduce((s, x) => s + x.grossAmount, 0);
-    const commission = settlements.reduce((s, x) => s + x.commissionAmount, 0);
     const net = settlements.reduce((s, x) => s + x.netAmount, 0);
     const pending = settlements.filter((s) => s.status === "pending").reduce((s, x) => s + x.netAmount, 0);
     const paid = settlements.filter((s) => s.status === "paid").reduce((s, x) => s + x.netAmount, 0);
-    return { gross, commission, net, pending, paid };
+    return { gross, net, pending, paid };
   }, [settlements]);
 
   const earningsByBooking = useMemo(() => {
@@ -80,7 +79,7 @@ export function LabSettlements() {
         <StatTile label="Total earnings" value={formatCurrency(earningsByBooking)} icon={Banknote} tone="success" />
         <StatTile label="Paid out" value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="success" />
         <StatTile label="Pending payout" value={formatCurrency(totals.pending)} icon={Hourglass} tone="warning" />
-        <StatTile label="Commission" value={formatCurrency(totals.commission)} icon={TrendingUp} tone="info" />
+        <StatTile label="Total gross" value={formatCurrency(totals.gross)} icon={Wallet} tone="info" />
       </div>
 
       {/* Compact how-it-works banner */}
@@ -90,7 +89,7 @@ export function LabSettlements() {
         </div>
         <div className="min-w-0 text-xs text-muted-foreground leading-relaxed">
           <p className="font-medium text-foreground">Monthly settlement cycle</p>
-          <p className="mt-0.5">Royal Palace collects payment at booking and remits your lab payout net of platform commission.</p>
+          <p className="mt-0.5">Royal Palace collects payment at booking and remits your lab payout at the end of each cycle.</p>
         </div>
       </div>
 
@@ -137,17 +136,17 @@ export function LabSettlements() {
               }
             >
               <div className="space-y-2.5">
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
-                    <p className="font-medium mt-0.5 tabular-nums">{formatCurrency(s.grossAmount)}</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-muted/40 p-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Wallet className="h-3 w-3" /> Gross
+                    </p>
+                    <p className="font-semibold mt-0.5 tabular-nums">{formatCurrency(s.grossAmount)}</p>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
-                    <p className="font-medium text-rose-600 mt-0.5 tabular-nums">−{formatCurrency(s.commissionAmount)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Net payout</p>
+                  <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
+                    <p className="text-[10px] text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3" /> Your earnings
+                    </p>
                     <p className="font-bold text-emerald-700 mt-0.5 tabular-nums">{formatCurrency(s.netAmount)}</p>
                   </div>
                 </div>
@@ -166,8 +165,7 @@ export function LabSettlements() {
             </span>
             <div className="flex items-center gap-3 font-medium">
               <span>Gross <span className="text-foreground tabular-nums">{formatCurrency(totals.gross)}</span></span>
-              <span className="text-rose-600">−<span className="tabular-nums">{formatCurrency(totals.commission)}</span></span>
-              <span className="text-emerald-700">Net <span className="tabular-nums">{formatCurrency(totals.net)}</span></span>
+              <span className="text-emerald-700">Your earnings <span className="tabular-nums">{formatCurrency(totals.net)}</span></span>
             </div>
           </div>
         </div>

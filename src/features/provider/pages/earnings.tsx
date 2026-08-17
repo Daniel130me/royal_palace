@@ -16,7 +16,7 @@ import {
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { ExpandableCard, CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate, relativeDay } from "@/lib/format";
-import { Wallet, TrendingUp, Calendar, Receipt, Download, Banknote, Coins } from "lucide-react";
+import { Wallet, TrendingUp, Calendar, Receipt, Download, Banknote } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "all" | "paid" | "pending";
@@ -119,7 +119,7 @@ export function ProviderEarnings() {
           value={formatCurrency(todayEarnings)}
           icon={Wallet}
           tone="text-emerald-600"
-          hint="Est. 73% share"
+          hint="Estimated earnings"
         />
         <StatTileInline
           label="This week"
@@ -174,17 +174,13 @@ export function ProviderEarnings() {
                 }
                 trailing={<StatusBadge status={s.status} size="sm" />}
               >
-                <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-lg bg-muted/30 p-2">
                     <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Gross</p>
                     <p className="font-semibold mt-0.5">{formatCurrency(s.grossAmount)}</p>
                   </div>
-                  <div className="rounded-lg bg-rose-50 p-2">
-                    <p className="text-rose-600 text-[10px] uppercase tracking-wider">Platform fee</p>
-                    <p className="font-semibold text-rose-700 mt-0.5">−{formatCurrency(s.commissionAmount)}</p>
-                  </div>
                   <div className="rounded-lg bg-emerald-50 p-2">
-                    <p className="text-emerald-600 text-[10px] uppercase tracking-wider">Net payout</p>
+                    <p className="text-emerald-600 text-[10px] uppercase tracking-wider">Your earnings</p>
                     <p className="font-semibold text-emerald-700 mt-0.5">{formatCurrency(s.netAmount)}</p>
                   </div>
                 </div>
@@ -202,7 +198,7 @@ export function ProviderEarnings() {
             <CompactListItem title="Completed & paid" subtitle="Eligible for payout" trailing={<span className="font-semibold text-sm tabular-nums text-emerald-700">{paidAppointments.length}</span>} />
             <CompactListItem title="Gross billed" subtitle="Total consultation fees" trailing={<span className="font-semibold text-sm tabular-nums">{formatCurrency(paidAppointments.reduce((s, a) => s + a.price, 0))}</span>} />
             <div className="flex items-center justify-between px-4 py-3 bg-emerald-50/40">
-              <span className="text-xs text-muted-foreground">Est. provider share (73%)</span>
+              <span className="text-xs text-muted-foreground">Estimated earnings</span>
               <span className="font-bold text-sm text-emerald-700 tabular-nums">{formatCurrency(allTimeEstimated)}</span>
             </div>
           </div>
@@ -211,14 +207,6 @@ export function ProviderEarnings() {
         <SectionCard title="Payout schedule" icon={Banknote}>
           <div className="text-xs space-y-2 text-muted-foreground leading-relaxed">
             <p>Settlements are calculated monthly and disbursed to your registered bank account within <span className="text-foreground font-medium">5 business days</span> of period end.</p>
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 p-2.5">
-              <span className="flex items-center gap-1.5"><Coins className="h-3.5 w-3.5" /> Commission rate</span>
-              <span className="text-foreground font-semibold">27%</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted/40 p-2.5">
-              <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Provider payout share</span>
-              <span className="text-foreground font-semibold">73%</span>
-            </div>
             <p className="pt-2 border-t border-border/60">For dispute or reconciliation queries, contact <span className="text-foreground font-medium">finance@royalpalace.health</span>.</p>
           </div>
         </SectionCard>

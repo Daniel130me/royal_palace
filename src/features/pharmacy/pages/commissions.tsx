@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useNav, navigate } from "@/lib/nav";
+import { navigate } from "@/lib/nav";
 import { usePharmacyContext } from "../use-pharmacy-context";
 import { pharmacyOrderService } from "@/lib/services";
 import type { PharmacyOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { PageHeader, SectionCard, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
+import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { StatTile, ExpandableCard } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
-  Wallet, Receipt, TrendingUp, Building2, Info, ArrowRight, Package, Hash,
+  Wallet, Receipt, TrendingUp, Info, ArrowRight, Package, Hash, CalendarDays,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 type PeriodKey = "all" | "today" | "week" | "month";
@@ -27,6 +27,15 @@ const PERIODS: { value: PeriodKey; label: string }[] = [
   { value: "month", label: "Last 30 days" },
 ];
 
+/**
+ * Pharmacy "Earnings" page (file kept as commissions.tsx + export name
+ * PharmacyCommissions so the portal router import continues to resolve).
+ *
+ * NOTE: This page surfaces only the pharmacy's own gross sales and net
+ * earnings. The platform commission removed by Royal Palace is intentionally
+ * hidden from staff portals — admin retains full visibility in
+ * src/features/admin/.
+ */
 export function PharmacyCommissions() {
   const { profile, pharmacyId, loading, error, refresh } = usePharmacyContext();
   const [orders, setOrders] = useState<PharmacyOrder[]>([]);
@@ -55,10 +64,9 @@ export function PharmacyCommissions() {
   }, [orders, period]);
 
   const totalSales = filteredOrders.reduce((s, o) => s + o.subtotal, 0);
-  const totalCommission = filteredOrders.reduce((s, o) => s + o.commissionTotal, 0);
   const totalNet = filteredOrders.reduce((s, o) => s + (o.subtotal - o.commissionTotal), 0);
-  const earnedCommission = filteredOrders.filter((o) => earnedStatuses.includes(o.status)).reduce((s, o) => s + o.commissionTotal, 0);
-  const pendingCommission = filteredOrders.filter((o) => !earnedStatuses.includes(o.status)).reduce((s, o) => s + o.commissionTotal, 0);
+  const earnedNet = filteredOrders.filter((o) => earnedStatuses.includes(o.status)).reduce((s, o) => s + (o.subtotal - o.commissionTotal), 0);
+  const pendingNet = filteredOrders.filter((o) => !earnedStatuses.includes(o.status)).reduce((s, o) => s + (o.subtotal - o.commissionTotal), 0);
 
   if (loading || localLoading) {
     return (
@@ -74,18 +82,16 @@ export function PharmacyCommissions() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Commission reports"
-        description="Track commission earned from each order. Platform rate is set centrally by Royal Palace."
+        title="Earnings"
+        description="Track your gross sales and net earnings from each order."
       />
 
       {profile && (
         <Alert className="border-sky-200 bg-sky-50">
-          <Building2 className="h-4 w-4 text-sky-600" />
-          <AlertTitle className="text-sky-800">Platform commission rate</AlertTitle>
+          <CalendarDays className="h-4 w-4 text-sky-600" />
           <AlertDescription className="text-sky-700">
-            Your platform commission rate is{" "}
-            <span className="font-bold text-sky-900">{profile.commissionPct}%</span> of gross sales.
-            This rate is set by the Royal Palace admin team and applies to every order.
+            Royal Palace collects payment at the time of order and remits your net earnings
+            at the end of each settlement cycle.
           </AlertDescription>
         </Alert>
       )}
@@ -101,12 +107,12 @@ export function PharmacyCommissions() {
       {/* StatTiles row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <StatTile label="Gross sales" value={formatCurrency(totalSales)} icon={Wallet} tone="info" />
-        <StatTile label="Earned" value={formatCurrency(earnedCommission)} icon={Receipt} tone="success" />
-        <StatTile label="Pending" value={formatCurrency(pendingCommission)} icon={TrendingUp} tone="warning" />
-        <StatTile label="Net to pharmacy" value={formatCurrency(totalNet)} icon={Wallet} tone="success" />
+        <StatTile label="Earned" value={formatCurrency(earnedNet)} icon={Receipt} tone="success" />
+        <StatTile label="Pending" value={formatCurrency(pendingNet)} icon={TrendingUp} tone="warning" />
+        <StatTile label="Net earnings" value={formatCurrency(totalNet)} icon={Wallet} tone="success" />
       </div>
 
-      {/* Per-order commission list as ExpandableCards */}
+      {/* Per-order earnings list as ExpandableCards */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -120,13 +126,12 @@ export function PharmacyCommissions() {
           <EmptyState
             icon={Wallet}
             title="No orders in this period"
-            description="Once orders are placed at your pharmacy, you will see the commission breakdown here."
+            description="Once orders are placed at your pharmacy, you will see your earnings breakdown here."
             compact
           />
         ) : (
           <div className="space-y-2">
             {filteredOrders.map((o) => {
-              const commPct = o.pharmacy?.commissionPct ?? profile?.commissionPct ?? 0;
               const net = o.subtotal - o.commissionTotal;
               const isEarned = earnedStatuses.includes(o.status);
               return (
@@ -138,7 +143,7 @@ export function PharmacyCommissions() {
                     </div>
                   }
                   title={o.orderNumber}
-                  subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · ${formatDate(o.createdAt)} · ${commPct}%`}
+                  subtitle={`${o.patient ? `${o.patient.firstName} ${o.patient.lastName}` : "—"} · ${formatDate(o.createdAt)}`}
                   trailing={
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatCurrency(net)}</span>
@@ -147,17 +152,17 @@ export function PharmacyCommissions() {
                   }
                 >
                   <div className="space-y-2.5">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-lg bg-muted/40 p-2">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gross</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                          <Wallet className="h-3 w-3" /> Gross
+                        </p>
                         <p className="text-sm font-semibold tabular-nums">{formatCurrency(o.subtotal)}</p>
                       </div>
-                      <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                        <p className="text-[10px] text-rose-700 uppercase tracking-wider">Comm ({commPct}%)</p>
-                        <p className="text-sm font-semibold text-rose-700 tabular-nums">-{formatCurrency(o.commissionTotal)}</p>
-                      </div>
                       <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100">
-                        <p className="text-[10px] text-emerald-700 uppercase tracking-wider">Net</p>
+                        <p className="text-[10px] text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" /> Your earnings
+                        </p>
                         <p className="text-sm font-semibold text-emerald-700 tabular-nums">{formatCurrency(net)}</p>
                       </div>
                     </div>
@@ -192,13 +197,9 @@ export function PharmacyCommissions() {
                 <span className="text-muted-foreground">Total gross sales</span>
                 <span className="font-medium tabular-nums">{formatCurrency(totalSales)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total commission</span>
-                <span className="font-medium text-rose-700 tabular-nums">-{formatCurrency(totalCommission)}</span>
-              </div>
               <Separator />
               <div className="flex justify-between items-center">
-                <span className="font-semibold">Net to pharmacy</span>
+                <span className="font-semibold">Total earnings</span>
                 <span className="font-bold text-lg text-emerald-700 tabular-nums">{formatCurrency(totalNet)}</span>
               </div>
             </div>
@@ -209,8 +210,8 @@ export function PharmacyCommissions() {
       <Alert className="border-muted bg-muted/30">
         <Info className="h-4 w-4" />
         <AlertDescription className="text-xs">
-          Commission is calculated per order item using the platform rate at the time the order was
-          placed. To see per-item commission, open an order detail.
+          Earnings are calculated per order item and reflected once the order is delivered.
+          Open an order detail to see the per-item breakdown.
         </AlertDescription>
       </Alert>
     </div>

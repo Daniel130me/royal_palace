@@ -451,7 +451,7 @@ export function PharmacyProducts() {
             <DialogTitle>{form.id ? "Edit product" : "Add new product"}</DialogTitle>
             <DialogDescription>
               {form.id
-                ? "You can update price, stock, expiry and status. Commission rate is set by Royal Palace admin."
+                ? "You can update price, stock, expiry and status."
                 : "Fill in the details below to add a new product to your catalogue."}
             </DialogDescription>
           </DialogHeader>

@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useNav, navigate } from "@/lib/nav";
+import { useNav } from "@/lib/nav";
 import { pharmacyService, pharmacyOrderService } from "@/lib/services";
 import type { PharmacyProduct, PharmacyOrderItem } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +15,7 @@ import { StatusBadge } from "@/components/healthcare/status-badge";
 import { PageHeader, SectionCard, BottomActionBar, LoadingState, ErrorState } from "@/components/healthcare/page-header";
 import { CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { Save, Package, ShoppingBag, ShieldAlert } from "lucide-react";
+import { Save, Package, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = ["active", "inactive", "discontinued"];
@@ -279,21 +278,6 @@ export function PharmacyProductDetail() {
               </div>
             </BottomActionBar>
           )}
-
-          <Card className="border-sky-200 bg-sky-50/40">
-            <CardContent className="p-4">
-              <p className="text-sm font-semibold text-sky-900 flex items-center gap-2 mb-1.5">
-                <ShieldAlert className="h-4 w-4" /> Commission is set centrally
-              </p>
-              <p className="text-xs text-sky-800 leading-relaxed">
-                Platform commission ({product.pharmacy?.commissionPct ?? "—"}%) is set by the
-                Royal Palace admin and applies to all your products.
-              </p>
-              <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => navigate("pharmacy", "commissions")}>
-                View commission reports
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

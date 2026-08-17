@@ -73,6 +73,7 @@ export function PharmacyDashboard() {
     return orders.filter((o) => (o.createdAt ?? "").slice(0, 10) === todayStr);
   }, [orders]);
   const todaySales = todayOrders.reduce((s, o) => s + o.subtotal, 0);
+  const todayNet = todayOrders.reduce((s, o) => s + (o.subtotal - o.commissionTotal), 0);
 
   const pendingSettlements = settlements.filter((s) => s.status === "pending");
   const pendingSettlementNet = pendingSettlements.reduce((s, x) => s + x.netAmount, 0);
@@ -263,7 +264,7 @@ export function PharmacyDashboard() {
 
       {/* Finance quick row */}
       <div className="grid grid-cols-2 gap-2.5">
-        <StatTile label="Commission today" value={formatCurrency(todayOrders.reduce((s, o) => s + o.commissionTotal, 0))} icon={Receipt} tone="info" />
+        <StatTile label="Earnings today" value={formatCurrency(todayNet)} icon={Receipt} tone="success" onClick={() => navigate("pharmacy", "commissions")} />
         <StatTile label="Pending settle" value={formatCurrency(pendingSettlementNet)} icon={CalendarClock} tone="warning" onClick={() => navigate("pharmacy", "settlements")} />
       </div>
 
@@ -286,8 +287,8 @@ export function PharmacyDashboard() {
               <p className="text-sm font-bold">★ {profile.rating.toFixed(1)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Commission</p>
-              <p className="text-sm font-bold text-emerald-700">{profile.commissionPct}%</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Today's orders</p>
+              <p className="text-sm font-bold text-emerald-700">{todayOrders.length}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pending</p>
@@ -295,7 +296,7 @@ export function PharmacyDashboard() {
             </div>
           </div>
           <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => navigate("pharmacy", "commissions")}>
-            <TrendingUp className="h-3.5 w-3.5 mr-1" /> View commission reports
+            <TrendingUp className="h-3.5 w-3.5 mr-1" /> View earnings
           </Button>
         </div>
       )}
