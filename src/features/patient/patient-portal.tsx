@@ -10,6 +10,8 @@ import { PatientBook } from "./pages/book";
 import { PatientRecords } from "./pages/records";
 import { PatientPrescriptions } from "./pages/prescriptions";
 import { PatientPrescriptionDetail } from "./pages/prescription-detail";
+import { PatientUploadPrescription } from "./pages/upload-prescription";
+import { PatientUploads } from "./pages/uploads";
 import { PatientLaboratory } from "./pages/laboratory";
 import { PatientOrders } from "./pages/orders";
 import { PatientOrderDetail } from "./pages/order-detail";
@@ -22,9 +24,11 @@ import { PatientConsultation } from "./pages/consultation";
 import { PatientPharmacies } from "./pages/pharmacies";
 import { PatientLaboratories } from "./pages/laboratories";
 import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
+import { PatientUploadPrescription } from "./pages/upload-prescription";
+import { PatientUploads } from "./pages/uploads";
 import {
   LayoutDashboard, Stethoscope, CalendarDays, FileText, Pill, FlaskConical,
-  Package, Users, ShieldCheck, CreditCard, Bell, Settings,
+  Package, Users, ShieldCheck, CreditCard, Bell, Settings, Upload,
 } from "lucide-react";
 import { AppShell } from "@/components/healthcare/app-shell";
 import { usePatientContext } from "./use-patient-context";
@@ -43,6 +47,7 @@ export function PatientPortal() {
     { label: "Orders", page: "orders", icon: Package, mobile: true },
     { label: "Appointments", page: "appointments", icon: CalendarDays },
     { label: "Prescriptions", page: "prescriptions", icon: Pill },
+    { label: "My Uploads", page: "uploads", icon: Upload },
     { label: "Laboratory", page: "laboratory", icon: FlaskConical },
     { label: "Family", page: "family", icon: Users },
     { label: "Consent & Access", page: "consent", icon: ShieldCheck },
@@ -63,6 +68,8 @@ export function PatientPortal() {
        page === "pharmacies" ? <PatientPharmacies /> :
        page === "laboratories" ? <PatientLaboratories /> :
        page === "pharmacy" ? <PatientPharmacyDetail /> :
+       page === "upload-prescription" ? <PatientUploadPrescription /> :
+       page === "uploads" ? <PatientUploads /> :
        page === "records" ? <PatientRecords /> :
        page === "prescriptions" ? <PatientPrescriptions /> :
        page === "prescription" ? <PatientPrescriptionDetail /> :

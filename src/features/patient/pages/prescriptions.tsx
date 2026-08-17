@@ -6,11 +6,12 @@ import { prescriptionService } from "@/lib/services";
 import type { Prescription, PrescriptionStatus } from "@/types";
 import { PageHeader, EmptyState, SkeletonGrid } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Fab } from "@/components/healthcare/fab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { CompactListItem } from "@/components/healthcare/compact-list";
-import { Pill, Plus, Search, ShoppingCart } from "lucide-react";
+import { Pill, Plus, Search, ShoppingCart, Upload } from "lucide-react";
 import { formatDate, fullName } from "@/lib/format";
 import { usePatientContext } from "../use-patient-context";
 
@@ -71,6 +72,8 @@ export function PatientPrescriptions() {
           </Button>
         }
       />
+
+      <Fab icon={Upload} label="Upload" onClick={() => navigate("patient", "upload-prescription")} />
 
       {/* Sticky search bar */}
       <div className="sticky top-14 lg:top-16 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 bg-background/95 backdrop-blur-md">

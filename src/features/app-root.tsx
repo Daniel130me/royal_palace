@@ -4,6 +4,7 @@ import { useNav } from "@/lib/nav";
 import { useEffect, useState } from "react";
 import { PublicSite } from "@/features/public/public-site";
 import { LoginPage } from "@/features/auth/login-page";
+import { SignupPage } from "@/features/auth/signup-page";
 import { PersonaSwitcher } from "@/features/auth/persona-switcher";
 import { PatientPortal } from "@/features/patient/patient-portal";
 import { ProviderPortal } from "@/features/provider/provider-portal";
@@ -37,7 +38,7 @@ export function AppRoot() {
       ) : view.portal === "public" ? (
         <PublicSite />
       ) : view.portal === "login" ? (
-        <LoginPage />
+        view.page === "signup" ? <SignupPage /> : <LoginPage />
       ) : view.portal === "patient" ? (
         <PatientPortal />
       ) : view.portal === "provider" ? (

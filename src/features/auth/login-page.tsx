@@ -113,6 +113,16 @@ export function LoginPage() {
               ))}
             </CardContent>
           </Card>
+          <div className="text-center text-sm text-muted-foreground">
+            Don&apos;t have an account?{" "}
+            <button
+              type="button"
+              onClick={() => navigate("login", "signup")}
+              className="font-medium text-emerald-700 hover:underline tap-highlight-none"
+            >
+              Sign up
+            </button>
+          </div>
         </div>
       </main>
     </div>
