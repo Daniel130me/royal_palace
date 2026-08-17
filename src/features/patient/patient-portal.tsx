@@ -19,6 +19,9 @@ import { PatientPayments } from "./pages/payments";
 import { PatientNotifications } from "./pages/notifications";
 import { PatientSettings } from "./pages/settings";
 import { PatientConsultation } from "./pages/consultation";
+import { PatientPharmacies } from "./pages/pharmacies";
+import { PatientLaboratories } from "./pages/laboratories";
+import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
 import {
   LayoutDashboard, Stethoscope, CalendarDays, FileText, Pill, FlaskConical,
   Package, Users, ShieldCheck, CreditCard, Bell, Settings,
@@ -57,6 +60,9 @@ export function PatientPortal() {
        page === "appointment" ? <PatientAppointmentDetail /> :
        page === "book" ? <PatientBook /> :
        page === "consultation" ? <PatientConsultation /> :
+       page === "pharmacies" ? <PatientPharmacies /> :
+       page === "laboratories" ? <PatientLaboratories /> :
+       page === "pharmacy" ? <PatientPharmacyDetail /> :
        page === "records" ? <PatientRecords /> :
        page === "prescriptions" ? <PatientPrescriptions /> :
        page === "prescription" ? <PatientPrescriptionDetail /> :

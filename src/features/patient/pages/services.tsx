@@ -45,7 +45,7 @@ const CATEGORIES: Category[] = [
     icon: FlaskConical,
     tone: "bg-violet-50 text-violet-700 ring-violet-100",
     bullets: ["200+ tests available", "Facility or home collection", "Results in 24–48 hrs"],
-    cta: { label: "View lab tests", page: "laboratory" },
+    cta: { label: "Find a laboratory", page: "laboratories" },
   },
   {
     id: "pharmacy",
@@ -53,8 +53,8 @@ const CATEGORIES: Category[] = [
     description: "Order prescription & OTC medicines from verified pharmacies with home delivery.",
     icon: Pill,
     tone: "bg-amber-50 text-amber-700 ring-amber-100",
-    bullets: ["Order from your prescription", "Verified pharmacies", "Same-day delivery"],
-    cta: { label: "View prescriptions", page: "prescriptions" },
+    bullets: ["Order from your prescription", "Buy OTC medicines directly", "Same-day delivery"],
+    cta: { label: "Find a pharmacy", page: "pharmacies" },
   },
   {
     id: "chronic-care",
