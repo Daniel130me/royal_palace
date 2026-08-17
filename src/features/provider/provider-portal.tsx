@@ -14,6 +14,7 @@ import { ProviderLabRequests } from "./pages/laboratory-requests";
 import { ProviderReferrals } from "./pages/referrals";
 import { ProviderResults } from "./pages/results";
 import { ProviderEarnings } from "./pages/earnings";
+import { ProviderPayouts } from "./pages/payouts";
 import { ProviderAvailability } from "./pages/availability";
 import { ProviderVerification } from "./pages/verification";
 import { ProviderNotifications } from "./pages/notifications";
@@ -47,6 +48,7 @@ export function ProviderPortal() {
     { label: "Results", page: "results", icon: FileText },
     { label: "Referrals", page: "referrals", icon: Share2 },
     { label: "Earnings", page: "earnings", icon: Wallet },
+    { label: "Payouts", page: "payouts", icon: Wallet },
     { label: "Availability", page: "availability", icon: Clock },
     { label: "Verification", page: "verification", icon: BadgeCheck },
     { label: "Notifications", page: "notifications", icon: Bell, badge: unread || undefined },
@@ -66,6 +68,7 @@ export function ProviderPortal() {
        page === "results" ? <ProviderResults /> :
        page === "referrals" ? <ProviderReferrals /> :
        page === "earnings" ? <ProviderEarnings /> :
+       page === "payouts" ? <ProviderPayouts /> :
        page === "availability" ? <ProviderAvailability /> :
        page === "verification" ? <ProviderVerification /> :
        page === "notifications" ? <ProviderNotifications /> :

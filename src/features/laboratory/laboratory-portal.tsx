@@ -12,6 +12,7 @@ import { LabResultNew } from "./pages/result-new";
 import { LabCriticalResults } from "./pages/critical-results";
 import { LabServices } from "./pages/services";
 import { LabSettlements } from "./pages/settlements";
+import { LaboratoryPayouts } from "./pages/payouts";
 import { LabNotifications } from "./pages/notifications";
 import { LabSettings } from "./pages/settings";
 import {
@@ -32,6 +33,7 @@ export function LaboratoryPortal() {
     { label: "Critical", page: "critical-results", icon: AlertTriangle, badge: unread || undefined },
     { label: "Service Catalogue", page: "services", icon: ListChecks },
     { label: "Settlements", page: "settlements", icon: Wallet },
+    { label: "Payouts", page: "payouts", icon: Wallet },
     { label: "Notifications", page: "notifications", icon: Bell, badge: unread || undefined },
     { label: "Settings", page: "settings", icon: Settings },
   ];
@@ -47,6 +49,7 @@ export function LaboratoryPortal() {
        page === "critical-results" ? <LabCriticalResults /> :
        page === "services" ? <LabServices /> :
        page === "settlements" ? <LabSettlements /> :
+       page === "payouts" ? <LaboratoryPayouts /> :
        page === "notifications" ? <LabNotifications /> :
        page === "settings" ? <LabSettings /> :
        <LabDashboard />}

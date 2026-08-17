@@ -7,6 +7,7 @@ import { LogisticsAssignments } from "./pages/assignments";
 import { LogisticsDeliveryDetail } from "./pages/delivery";
 import { LogisticsHistory } from "./pages/history";
 import { LogisticsEarnings } from "./pages/earnings";
+import { LogisticsPayouts } from "./pages/payouts";
 import { LayoutDashboard, Package, Truck, History, Wallet } from "lucide-react";
 
 export function LogisticsPortal() {
@@ -19,6 +20,7 @@ export function LogisticsPortal() {
     { label: "Delivery Detail", page: "delivery", icon: Truck },
     { label: "History", page: "history", icon: History },
     { label: "Earnings", page: "earnings", icon: Wallet },
+    { label: "Payouts", page: "payouts", icon: Wallet },
   ];
 
   return (
@@ -27,6 +29,7 @@ export function LogisticsPortal() {
        page === "delivery" ? <LogisticsDeliveryDetail /> :
        page === "history" ? <LogisticsHistory /> :
        page === "earnings" ? <LogisticsEarnings /> :
+       page === "payouts" ? <LogisticsPayouts /> :
        <LogisticsDashboard />}
     </AppShell>
   );

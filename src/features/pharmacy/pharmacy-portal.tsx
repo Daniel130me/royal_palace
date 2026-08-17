@@ -13,11 +13,12 @@ import { PharmacyInventory } from "./pages/inventory";
 import { PharmacyDeliveries } from "./pages/deliveries";
 import { PharmacyCommissions } from "./pages/commissions";
 import { PharmacySettlements } from "./pages/settlements";
+import { PharmacyPayouts } from "./pages/payouts";
 import { PharmacyNotifications } from "./pages/notifications";
 import { PharmacySettings } from "./pages/settings";
 import {
   LayoutDashboard, FileText, Package, Pill, Boxes, Truck,
-  Percent, Wallet, Bell, Settings,
+  TrendingUp, Wallet, Bell, Settings,
 } from "lucide-react";
 
 export function PharmacyPortal() {
@@ -31,8 +32,9 @@ export function PharmacyPortal() {
     { label: "Products", page: "products", icon: Pill },
     { label: "Inventory", page: "inventory", icon: Boxes },
     { label: "Deliveries", page: "deliveries", icon: Truck },
-    { label: "Commissions", page: "commissions", icon: Percent },
+    { label: "Earnings", page: "commissions", icon: TrendingUp },
     { label: "Settlements", page: "settlements", icon: Wallet },
+    { label: "Payouts", page: "payouts", icon: Wallet },
     { label: "Notifications", page: "notifications", icon: Bell },
     { label: "Settings", page: "settings", icon: Settings },
   ];
@@ -49,6 +51,7 @@ export function PharmacyPortal() {
        page === "deliveries" ? <PharmacyDeliveries /> :
        page === "commissions" ? <PharmacyCommissions /> :
        page === "settlements" ? <PharmacySettlements /> :
+       page === "payouts" ? <PharmacyPayouts /> :
        page === "notifications" ? <PharmacyNotifications /> :
        page === "settings" ? <PharmacySettings /> :
        <PharmacyDashboard />}
