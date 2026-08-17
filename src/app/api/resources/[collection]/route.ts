@@ -58,6 +58,8 @@ const MODELS = [
   "rating",
   "complaint",
   "auditLog",
+  "payoutRequest",
+  "uploadedPrescription",
 ] as const;
 
 export { MODELS };
@@ -67,7 +69,7 @@ type ModelName = (typeof MODELS)[number];
 const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   appointment: { patient: true, provider: true, encounter: true, payment: true },
   clinicalEncounter: { appointment: true, patient: true, provider: true, prescriptions: true, labRequests: true, referrals: true, diagnoses: true },
-  prescription: { patient: true, provider: true, items: true, pharmacyOrders: true },
+  prescription: { patient: true, provider: true, items: true, pharmacyOrders: true, pharmacy: true },
   laboratoryRequest: { patient: true, provider: true, booking: true, result: true },
   laboratoryBooking: { laboratory: true, patient: true, request: true },
   laboratoryResult: { laboratory: true, patient: true },
@@ -77,6 +79,7 @@ const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   referral: { patient: true, sender: true, recipient: true },
   providerApplication: { provider: true },
   service: { prices: true },
+  uploadedPrescription: { patient: true },
 };
 
 export { INCLUDES };

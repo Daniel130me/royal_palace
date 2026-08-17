@@ -13,6 +13,8 @@ export async function POST(req: NextRequest) {
     patientId,
     providerId,
     notes,
+    doctorNote,
+    pharmacyId,
     validityStartDate,
     expiryDate,
     items,
@@ -37,9 +39,11 @@ export async function POST(req: NextRequest) {
       validityStartDate: validityStartDate ?? new Date().toISOString().slice(0, 10),
       expiryDate: expiryDate ?? new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
       notes: notes ?? null,
+      doctorNote: doctorNote ?? null,
+      pharmacyId: pharmacyId ?? null,
       items: { create: items },
     },
-    include: { items: true, patient: true, provider: true },
+    include: { items: true, patient: true, provider: true, pharmacy: true },
   });
 
   await audit({

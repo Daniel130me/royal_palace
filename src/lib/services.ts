@@ -34,6 +34,8 @@ import type {
   LogisticsProvider,
   ProviderVerificationStatus,
   EncounterDocumentation,
+  PayoutRequest,
+  UploadedPrescription,
 } from "@/types";
 
 // --- auth ---
@@ -42,6 +44,11 @@ export const authService = {
     api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string } }>(
       "/api/auth/login",
       { email, password }
+    ).then((r) => r.session),
+  signup: (body: Record<string, unknown>) =>
+    api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string }; patient: Patient }>(
+      "/api/actions/signup",
+      body
     ).then((r) => r.session),
 };
 
@@ -136,6 +143,8 @@ export const pharmacyOrderService = {
   list: (params?: Record<string, string>) => resource.list<PharmacyOrder>("pharmacyOrder", params),
   get: (id: string) => resource.get<PharmacyOrder>("pharmacyOrder", id),
   create: (body: Record<string, unknown>) => action("create-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
+  // Direct OTC order — no prescription required (uncontrolled meds only)
+  directOrder: (body: Record<string, unknown>) => action("direct-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
   progress: (orderId: string, status: string, actorId: string) =>
     action("progress-order", { orderId, status, actorId }).then((r) => r.data as PharmacyOrder),
 };
@@ -210,6 +219,26 @@ export const adminService = {
     action("admin-update-pricing", { serviceId, patientPrice, providerPayout, effectiveFrom, actorId }),
   updateCommission: (pharmacyId: string, percentage: number, actorId?: string) =>
     action("admin-pharmacy-commission", { pharmacyId, percentage, actorId }),
+};
+
+// --- payout requests (provider / pharmacy / laboratory / logistics) ---
+export const payoutService = {
+  list: (params?: Record<string, string>) => resource.list<PayoutRequest>("payoutRequest", params),
+  listForEntity: (entityType: string, entityId: string) =>
+    resource.list<PayoutRequest>("payoutRequest", { entityType, entityId }),
+  listAll: () => resource.list<PayoutRequest>("payoutRequest"),
+  request: (body: Record<string, unknown>) => action("request-payout", body).then((r) => r.data as PayoutRequest),
+  update: (id: string, data: Partial<PayoutRequest>) => resource.update<PayoutRequest>("payoutRequest", id, data),
+};
+
+// --- uploaded prescriptions (patient-supplied paper Rx) ---
+export const uploadedPrescriptionService = {
+  list: (patientId: string) => resource.list<UploadedPrescription>("uploadedPrescription", { patientId }),
+  listForPharmacy: (pharmacyId: string) =>
+    resource.list<UploadedPrescription>("uploadedPrescription", { pharmacyId }),
+  get: (id: string) => resource.get<UploadedPrescription>("uploadedPrescription", id),
+  upload: (body: Record<string, unknown>) => action("upload-prescription", body).then((r) => r.data as UploadedPrescription),
+  update: (id: string, data: Partial<UploadedPrescription>) => resource.update<UploadedPrescription>("uploadedPrescription", id, data),
 };
 
 export type { ProviderVerificationStatus };

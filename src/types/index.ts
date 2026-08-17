@@ -233,8 +233,11 @@ export interface Prescription {
   validityStartDate: string;
   expiryDate: string;
   notes?: string | null;
+  doctorNote?: string | null;
+  pharmacyId?: string | null;
   patient?: Patient;
   provider?: Provider;
+  pharmacy?: Pharmacy | null;
   items?: PrescriptionItem[];
   pharmacyOrders?: PharmacyOrder[];
 }
@@ -352,6 +355,7 @@ export interface PharmacyProduct {
   batch?: string | null;
   expiryDate: string;
   prescriptionRequired: boolean;
+  controlled: boolean;
   storageRequirements?: string | null;
   status: string;
   pharmacy?: Pharmacy;
@@ -620,4 +624,45 @@ export interface Rating {
   score: number;
   comment?: string | null;
   createdAt: string;
+}
+
+export type PayoutStatus = "requested" | "processing" | "paid" | "rejected";
+
+export interface PayoutRequest {
+  id: string;
+  payoutNumber: string;
+  entityType: "provider" | "pharmacy" | "laboratory" | "logistics";
+  entityId: string;
+  entityName: string;
+  amountRequested: number;
+  periodStart: string;
+  periodEnd: string;
+  status: PayoutStatus;
+  method: string;
+  notes?: string | null;
+  requestedAt: string;
+  processedAt?: string | null;
+  processedBy?: string | null;
+  adminNote?: string | null;
+}
+
+export type UploadedPrescriptionStatus = "uploaded" | "under_review" | "accepted" | "rejected";
+
+export interface UploadedPrescription {
+  id: string;
+  uploadNumber: string;
+  patientId: string;
+  patientName: string;
+  prescriberName?: string | null;
+  prescriberFacility?: string | null;
+  notes?: string | null;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  dataUrl: string;
+  status: UploadedPrescriptionStatus;
+  pharmacyId?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+  patient?: Patient;
 }
