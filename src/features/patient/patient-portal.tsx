@@ -24,8 +24,6 @@ import { PatientConsultation } from "./pages/consultation";
 import { PatientPharmacies } from "./pages/pharmacies";
 import { PatientLaboratories } from "./pages/laboratories";
 import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
-import { PatientUploadPrescription } from "./pages/upload-prescription";
-import { PatientUploads } from "./pages/uploads";
 import {
   LayoutDashboard, Stethoscope, CalendarDays, FileText, Pill, FlaskConical,
   Package, Users, ShieldCheck, CreditCard, Bell, Settings, Upload,

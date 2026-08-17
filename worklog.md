@@ -938,3 +938,78 @@ Stage Summary:
 - The prototype now feels like a native app: compact focused screens, SegmentedControl instead of long tabs, CompactListItem dense rows, ExpandableCard inline details, StatTile compact metrics, Fab for create actions, BottomActionBar for thumb-reachable CTAs.
 - "Less scroll, more screens" achieved: dashboards are launchpads (greeting + hero + stats + action list), long lists use SegmentedControl filters + dense rows, detail items expand inline rather than navigating, booking is step-by-step full screens.
 - All 6 portals consistently use the new app-like components. Connected care journey still works end-to-end.
+
+---
+Task ID: U3
+Agent: frontend-styling-expert (sub agent)
+Task: Hide platform commission from all non-admin portals (Royal Palace Health Care prototype). Royal Palace removes a commission from every pharmacy/lab/logistics/provider transaction; non-admin staff portals must surface only gross + their own net earnings, never commissionAmount / commissionTotal / commissionPct / platformMargin. Admin portal keeps full commission breakdown untouched.
+
+Pattern source: `src/features/pharmacy/pages/settlements.tsx` (already refactored upstream — removed the Commission StatTile, replaced the 3-col gross/commission/net grid with a 2-col gross/your-earnings grid using emerald tinting on the net cell, removed the total-commission line, and rephrased the alert to not mention "platform commission"). All edits below follow that same pattern.
+
+Work Log:
+- `src/features/laboratory/pages/settlements.tsx`:
+  - Removed the `commission` field from the `totals` useMemo (only `gross / net / pending / paid` remain).
+  - Replaced the "Commission" StatTile (TrendingUp icon, rose-toned) with a "Total gross" StatTile (Wallet icon, info tone) so the 4-tile row stays balanced.
+  - Dropped `TrendingUp` from lucide imports (now unused), added `CalendarDays` for the new "Your earnings" cell icon.
+  - Per-settlement ExpandableCard body: 3-col grid (Gross / Commission / Net payout) → 2-col grid (Gross / Your earnings) with emerald-tinted "Your earnings" cell matching the pharmacy settlements pattern.
+  - Filtered-totals footer: removed the rose `−commission` span; now shows only Gross + "Your earnings" (emerald) on the right side.
+  - How-it-works banner rephrased: "remits your lab payout net of platform commission" → "remits your lab payout at the end of each cycle" (no commission mention).
+- `src/features/logistics/pages/earnings.tsx`:
+  - Per-settlement card body: removed the rose "Commission" column from the 2-col grid and the redundant "Net payout" row + `<Separator />` that followed it. Now shows Gross + emerald-tinted "Your earnings" (netAmount) in a single 2-col grid.
+  - Dropped the now-unused `Separator` import.
+  - StatTile row (Lifetime / This week / Today / Pending) and the per-delivery payout totals row were already commission-free — left untouched.
+- `src/features/provider/pages/earnings.tsx`:
+  - Per-settlement ExpandableCard body: 3-col grid (Gross / "Platform fee" −commissionAmount / Net payout) → 2-col grid (Gross / "Your earnings" emerald) — rose platform-fee cell removed entirely.
+  - Payout-schedule card: removed both "Commission rate 27%" and "Provider payout share 73%" rows — these surfaced commissionPct directly. Kept the monthly-cycle sentence and the finance@royalpalace.health contact line.
+  - Activity-summary card: "Est. provider share (73%)" row relabelled to "Estimated earnings" (still computes the same value via the existing 0.73 multiplier; the percentage is no longer surfaced).
+  - StatTile hint "Est. 73% share" → "Estimated earnings" so today's tile no longer exposes the share %.
+  - Dropped `Coins` from lucide imports (was only used by the deleted Commission rate row).
+- `src/features/pharmacy/pages/commissions.tsx` (REPURPOSED → "Earnings" page):
+  - File name kept as `commissions.tsx` and export kept as `PharmacyCommissions` so the portal router import (`./pages/commissions`) and `view.page === "commissions"` route keep resolving.
+  - PageHeader: title "Commission reports" → "Earnings"; description rewritten to "Track your gross sales and net earnings from each order." (no mention of platform rate).
+  - Removed the top Alert that displayed `profile.commissionPct%` of gross sales — replaced with a simpler info Alert ("Royal Palace collects payment at the time of order and remits your net earnings at the end of each settlement cycle") that mentions no commission.
+  - StatTile row: "Earned" and "Pending" tiles now compute from `o.subtotal - o.commissionTotal` (pharmacy net) instead of `o.commissionTotal` (commission amount); "Net to pharmacy" tile relabelled to "Net earnings". Gross sales tile unchanged.
+  - Per-order ExpandableCard: removed the `· ${commPct}%` suffix from the subtitle, replaced the 3-col (Gross / Comm (commPct%) / Net) grid with a 2-col (Gross / Your earnings) emerald grid, dropped the local `commPct` lookup entirely.
+  - Totals card: removed the "Total commission" line (rose) — now shows Total gross sales → Separator → Total earnings (emerald).
+  - Bottom Info Alert rewritten: "Commission is calculated per order item using the platform rate…" → "Earnings are calculated per order item and reflected once the order is delivered. Open an order detail to see the per-item breakdown."
+  - Cleaned up previously-unused imports (`useNav`, `SectionCard`, `Building2`) that were sitting in the file. Added a JSDoc comment explaining the file-name/export-name retention rule and the staff-vs-admin visibility boundary.
+- `src/features/pharmacy/pages/order.tsx`:
+  - Order-items section header: "commission breakdown" → "earnings breakdown".
+  - Per-item ExpandableCard subtitle: "Net ${pharmacyNet}" → "Your earnings ${pharmacyNet}".
+  - Per-item body: 3-col grid (Gross / Comm (commissionPct%) / Net) → 2-col grid (Gross / "Your earnings" emerald). Removed the rose commission cell entirely.
+  - Order-totals card: removed the "Platform commission (commissionPct%)" row and its rose `−commissionTotal` value; relabelled "Pharmacy net (before delivery fee)" → "Your earnings (before delivery fee)".
+  - Removed the now-unused `const commissionTotal = items.reduce((s, i) => s + i.commissionAmount, 0);` declaration.
+- `src/features/pharmacy/pages/dashboard.tsx`:
+  - Added `const todayNet = todayOrders.reduce((s, o) => s + (o.subtotal - o.commissionTotal), 0);` next to `todaySales`.
+  - Finance quick row StatTile: "Commission today" (commissionTotal, info tone) → "Earnings today" (todayNet, success tone, emerald) and now navigates to the Earnings page on click.
+  - Pharmacy quick-info card 3-col grid: replaced the middle "Commission" cell (showing `profile.commissionPct%`) with a "Today's orders" cell showing `todayOrders.length` — preserves the 3-col layout without surfacing commission rate.
+  - CTA button at the bottom of the card: "View commission reports" → "View earnings" (still navigates to the `commissions` route, which now renders the repurposed Earnings page).
+- `src/features/pharmacy/pages/product.tsx`:
+  - Removed the entire "Commission is set centrally" Card (sky-tinted) that displayed `product.pharmacy?.commissionPct%` and the "View commission reports" CTA.
+  - Dropped now-unused imports: `navigate` (from `@/lib/nav` — `useNav` is still used), `Card` + `CardContent` (from `@/components/ui/card`), and `ShieldAlert` (from lucide-react).
+- `src/features/pharmacy/pages/products.tsx`:
+  - Edit-product dialog description: "You can update price, stock, expiry and status. Commission rate is set by Royal Palace admin." → "You can update price, stock, expiry and status." (commission mention removed).
+- `src/features/pharmacy/pages/settings.tsx`:
+  - Removed the entire "Platform commission" Card (sky-tinted) that displayed `profile.commissionPct%` and the "View commission reports" CTA.
+  - Dropped now-unused `ShieldAlert` from lucide imports. `Card` / `CardContent` retained — still used by the "Sign out" card below.
+- `src/features/laboratory/pages/services.tsx`:
+  - Removed the `margin {formatCurrency(price.platformMargin)}` trailing span on each service row — labs now see only patient price + their own payout in the subtitle. The "Pricing is set by Royal Palace" banner was kept (it speaks about centrally-set pricing/payouts, not commission/margin).
+- `src/features/pharmacy/pharmacy-portal.tsx`:
+  - Nav label "Commissions" → "Earnings" and icon `Percent` → `TrendingUp` (thematically correct for an Earnings entry; `Percent` implied commission). The `page: "commissions"` route key is unchanged so existing deep links and notification routing (`TYPE_TARGET.commission → "commissions"` in `pharmacy/pages/notifications.tsx`) keep working.
+  - Updated lucide import: removed `Percent`, added `TrendingUp`.
+
+NOT touched (per task instructions):
+- `src/features/admin/**` — admin still sees the full commission breakdown (pharmacy-commissions page, settlements, payments, etc.).
+- `src/components/healthcare/payouts-view.tsx` — the shared Payouts view used by provider/pharmacy/laboratory/logistics was already commission-free (header comment explicitly documents that the entity only sees gross + net). Verified and left as-is.
+- `src/features/pharmacy/pages/notifications.tsx` — only references "commission" as a notification-category routing key (`commission → "commissions"` route), not as a displayed commission amount/rate. Left untouched.
+- `src/features/pharmacy/pages/settlements.tsx` — already refactored upstream (used as the pattern source).
+
+Lint / type-check:
+- `bun run lint` → 0 errors (1 pre-existing harmless warning in `src/components/healthcare/payouts-view.tsx` line 385 — unused eslint-disable directive; file is outside this task's scope and was not modified).
+- Per-file `eslint` on all 11 modified files → 0 errors / 0 warnings.
+
+Stage Summary:
+- Non-admin portals (pharmacy, laboratory, logistics, provider) now consistently show only Gross + "Your earnings" (emerald-tinted net) — no commissionAmount, commissionTotal, commissionPct, or platformMargin is surfaced anywhere a staff user can see.
+- Rose-tinted commission cells replaced with emerald-tinted "Your earnings" cells; 3-col gross/commission/net grids collapsed to 2-col gross/your-earnings grids across all 4 portals (matching the upstream pharmacy settlements pattern).
+- Pharmacy "Commissions" page repurposed into "Earnings" (file name + export unchanged for router compatibility); nav label + icon updated.
+- Admin portal retains full commission breakdown — visibility boundary enforced by file-level scope, not runtime checks (admin pages were not modified).
