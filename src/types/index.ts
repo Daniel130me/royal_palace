@@ -970,3 +970,23 @@ export interface ManagerDashboardSummary {
   };
   monthly: { month: string; payments: number; earnings: number }[];
 }
+
+/** Server-projected, manager-safe organization shape (see manager-access.ts). */
+export interface ManagerOrganizationDto {
+  id: string;
+  organizationType: ManagerOrganizationType;
+  organizationNumber: string;
+  name: string;
+  city: string;
+  state: string;
+  address: string;
+  phone: string;
+  email: string;
+  verificationStatus: string;
+  joinedAt: string;
+  acquiredByManagerId: string | null;
+  acquiredAt: string | null;
+  currentManagerId: string | null;
+  managerAssignedAt: string | null;
+  managerRelationshipStatus: string | null;
+}

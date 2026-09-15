@@ -73,3 +73,41 @@ export const action = (name: string, body: unknown, method: "POST" | "PATCH" = "
   method === "PATCH"
     ? api.patch<{ data: unknown }>(`/api/actions/${name}`, body)
     : api.post<{ data: unknown }>(`/api/actions/${name}`, body);
+
+// ---------------------------------------------------------------------------
+// Session-scoped calls (Manager module).
+// These attach the simulated session to the `x-rp-session` header so the
+// server can derive the caller's identity. A managerId from the browser is
+// never trusted — see src/lib/manager-access.ts.
+// ---------------------------------------------------------------------------
+
+function sessionHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem("royalPalaceSession");
+    return raw ? { "x-rp-session": raw } : {};
+  } catch {
+    return {};
+  }
+}
+
+export const sessionApi = {
+  get: <T>(path: string) => fetch(path, { headers: sessionHeaders() }).then(handle<T>),
+  post: <T>(path: string, body?: unknown) =>
+    fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...sessionHeaders() },
+      body: body == null ? undefined : JSON.stringify(body),
+    }).then(handle<T>),
+  patch: <T>(path: string, body?: unknown) =>
+    fetch(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...sessionHeaders() },
+      body: body == null ? undefined : JSON.stringify(body),
+    }).then(handle<T>),
+};
+
+export interface Paginated<T> {
+  data: T[];
+  meta: { page: number; pageSize: number; total: number; [key: string]: unknown };
+}

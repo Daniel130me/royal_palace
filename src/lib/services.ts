@@ -2,7 +2,7 @@
 // The UI consumes these functions instead of performing raw fetches, so the
 // backend can be replaced without touching components (see spec section 58).
 
-import { api, resource, action } from "./api-client";
+import { api, resource, action, sessionApi, type Paginated } from "./api-client";
 import type {
   Appointment,
   ClinicalEncounter,
@@ -12,7 +12,17 @@ import type {
   LaboratoryBooking,
   LaboratoryRequest,
   LaboratoryResult,
+  Manager,
+  ManagerBankAccount,
+  ManagerDashboardSummary,
+  ManagerEarning,
+  ManagerOrganization,
+  ManagerOrganizationApplication,
+  ManagerOrganizationDto,
+  ManagerRevenueShareRule,
   Notification,
+  OrganizationPayment,
+  PayoutRequest,
   Patient,
   Payment,
   Pharmacy,
@@ -26,6 +36,8 @@ import type {
   Service,
   ServicePrice,
   Settlement,
+  SupportTicket,
+  SupportTicketMessage,
   User,
   CarePlan,
   AuditLog,
@@ -34,7 +46,6 @@ import type {
   LogisticsProvider,
   ProviderVerificationStatus,
   EncounterDocumentation,
-  PayoutRequest,
   UploadedPrescription,
 } from "@/types";
 
@@ -242,3 +253,101 @@ export const uploadedPrescriptionService = {
 };
 
 export type { ProviderVerificationStatus };
+
+// ---------------------------------------------------------------------------
+// MANAGER MODULE — dedicated role-scoped service (plan §6).
+// All calls carry the simulated session; the server derives the manager
+// identity and enforces portfolio scope. UI pages never hit raw endpoints.
+// ---------------------------------------------------------------------------
+
+export interface ManagerOrganizationDetail {
+  organization: ManagerOrganizationDto;
+  payments: OrganizationPayment[];
+  earnings: ManagerEarning[];
+  tickets: (SupportTicket & { messageCount: number; open: boolean })[];
+  openTickets: number;
+  assignmentHistory: {
+    id: string;
+    managerName: string;
+    managerNumber: string;
+    source: string;
+    relationshipStatus: string;
+    startsAt: string;
+    endsAt?: string | null;
+    assignedBy: string;
+    reason?: string | null;
+  }[];
+}
+
+export interface ManagerMePayload {
+  manager: Manager;
+  bankAccount: (Omit<ManagerBankAccount, "accountNumberMasked"> & { accountNumberMasked: string }) | null;
+  stats: {
+    portfolioCount: number;
+    acquiredCount: number;
+    openTicketCount: number;
+    pendingApplications: number;
+  };
+}
+
+export const managerService = {
+  me: () => sessionApi.get<{ data: ManagerMePayload }>("/api/manager/me").then((r) => r.data),
+  dashboard: () =>
+    sessionApi.get<{ data: ManagerDashboardSummary & { notifications: Notification[]; manager: { id: string; managerNumber: string; onboardingCode: string; name: string } } }>(
+      "/api/manager/dashboard"
+    ).then((r) => r.data),
+  organizations: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return sessionApi
+      .get<Paginated<ManagerOrganization>>(`/api/manager/organizations${qs}`)
+      .then((r) => r as Paginated<ManagerOrganization>);
+  },
+  organization: (id: string, type: "pharmacy" | "laboratory") =>
+    sessionApi
+      .get<{ data: ManagerOrganizationDetail }>(`/api/manager/organizations/${id}?type=${type}`)
+      .then((r) => r.data),
+  applications: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return sessionApi
+      .get<Paginated<ManagerOrganizationApplication>>(`/api/manager/applications${qs}`)
+      .then((r) => r as Paginated<ManagerOrganizationApplication>);
+  },
+  earnings: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return sessionApi
+      .get<Paginated<ManagerEarning>>(`/api/manager/earnings${qs}`)
+      .then((r) => r as Paginated<ManagerEarning>);
+  },
+  payouts: () =>
+    sessionApi
+      .get<{
+        data: {
+          payouts: (PayoutRequest & { allocatedEarnings?: { earningNumber: string; amount: number }[] })[];
+          availableBalance: number;
+          bankAccount: { id: string; bankName: string; accountName: string; accountNumberMasked: string; verificationStatus: string } | null;
+        };
+      }>("/api/manager/payouts")
+      .then((r) => r.data),
+  tickets: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return sessionApi
+      .get<Paginated<SupportTicket>>(`/api/manager/support${qs}`)
+      .then((r) => r as Paginated<SupportTicket>);
+  },
+  ticket: (id: string) =>
+    sessionApi.get<{ data: SupportTicket & { messages: SupportTicketMessage[] } }>(`/api/manager/support/${id}`).then((r) => r.data),
+
+  // --- mutations go through dedicated action endpoints ---
+  submitApplication: (body: Record<string, unknown>) => action("manager-onboard-organization", body),
+  requestPayout: (body: Record<string, unknown>) => action("manager-request-payout", body),
+  updateTicket: (body: Record<string, unknown>) => action("manager-update-ticket", body),
+  confirmPayment: (body: Record<string, unknown>) => action("confirm-organization-payment", body),
+  refundPayment: (body: Record<string, unknown>) => action("refund-organization-payment", body),
+
+  // --- admin-side manager methods (plan §3.8) ---
+  adminReviewApplication: (body: Record<string, unknown>) => action("admin-review-manager-application", body),
+  adminAssignManager: (body: Record<string, unknown>) => action("admin-assign-manager", body),
+  adminManagerRule: (body: Record<string, unknown>) => action("admin-manager-rule", body),
+};
+
+export type { ManagerRevenueShareRule };
