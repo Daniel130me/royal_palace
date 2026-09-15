@@ -10,6 +10,7 @@ export type UserRole =
   | "pharmacy"
   | "laboratory"
   | "logistics"
+  | "manager"
   | "admin";
 
 export type UserStatus = "active" | "pending" | "suspended";
@@ -338,6 +339,13 @@ export interface Pharmacy {
   verificationStatus: string;
   commissionPct: number;
   rating: number;
+  // Manager module attribution (see plan §4). acquiredBy is permanent;
+  // currentManager changes with reassignment and keeps assignment history.
+  acquiredByManagerId?: string | null;
+  acquiredAt?: string | null;
+  currentManagerId?: string | null;
+  managerAssignedAt?: string | null;
+  managerRelationshipStatus?: ManagerRelationshipStatus | null;
 }
 
 export interface PharmacyProduct {
@@ -424,6 +432,12 @@ export interface Laboratory {
   email: string;
   verificationStatus: string;
   rating: number;
+  // Manager module attribution — same semantics as Pharmacy.
+  acquiredByManagerId?: string | null;
+  acquiredAt?: string | null;
+  currentManagerId?: string | null;
+  managerAssignedAt?: string | null;
+  managerRelationshipStatus?: ManagerRelationshipStatus | null;
 }
 
 export interface LogisticsProvider {
@@ -631,7 +645,7 @@ export type PayoutStatus = "requested" | "processing" | "paid" | "rejected";
 export interface PayoutRequest {
   id: string;
   payoutNumber: string;
-  entityType: "provider" | "pharmacy" | "laboratory" | "logistics";
+  entityType: "provider" | "pharmacy" | "laboratory" | "logistics" | "manager";
   entityId: string;
   entityName: string;
   amountRequested: number;
@@ -665,4 +679,294 @@ export interface UploadedPrescription {
   createdAt: string;
   reviewedAt?: string | null;
   patient?: Patient;
+}
+
+// ---------------------------------------------------------------------------
+// MANAGER MODULE (see MANAGER_MODULE_AGENT_IMPLEMENTATION_PLAN.md)
+// A Manager is a business-relationship role: they acquire/onboard pharmacies
+// and laboratories, manage a portfolio, earn a configured share of eligible
+// organization-to-platform payments, and provide first-level support.
+// Managers never see patient or clinical data.
+// ---------------------------------------------------------------------------
+
+export type ManagerOrganizationType = "pharmacy" | "laboratory";
+
+export type ManagerEmploymentStatus =
+  | "full_time"
+  | "contract"
+  | "probation"
+  | "suspended"
+  | "offboarding";
+
+export type ManagerVerificationStatus = "pending" | "verified" | "rejected" | "suspended";
+
+/** Relationship between a manager and an organization (assignment history rows keep this state). */
+export type ManagerRelationshipStatus = "active" | "paused" | "ended";
+
+export type ManagerAssignmentSource =
+  | "acquisition" // manager brought the organization onto the platform
+  | "application_approval"
+  | "admin_assignment" // admin assigned an independently-registered organization
+  | "reassignment";
+
+export type ManagerApplicationStatus =
+  | "draft"
+  | "submitted"
+  | "under_review"
+  | "information_required"
+  | "approved"
+  | "rejected";
+
+/** Organization payments are platform-facing fees only — never patient transactions. */
+export type OrganizationTransactionType = "subscription" | "renewal" | "platform_fee" | "service_fee";
+
+export type OrganizationPaymentStatus =
+  | "pending"
+  | "successful"
+  | "failed"
+  | "cancelled"
+  | "refunded";
+
+export type ManagerEarningEntryType = "earning" | "reversal";
+
+export type ManagerEarningStatus = "pending" | "available" | "paid" | "reversed";
+
+export type ManagerPayoutStatus = "requested" | "processing" | "paid" | "rejected";
+
+export type ManagerTicketStatus =
+  | "new"
+  | "assigned_to_manager"
+  | "manager_investigating"
+  | "waiting_for_organization"
+  | "escalated_to_royal_palace"
+  | "royal_palace_investigating"
+  | "resolved"
+  | "closed"
+  | "reopened";
+
+export type ManagerTicketPriority = "low" | "medium" | "high" | "urgent";
+
+/** Message visibility: shared = both sides, manager_internal/admin_internal filtered by role. */
+export type ManagerTicketVisibility = "shared" | "manager_internal" | "admin_internal";
+
+export interface Manager {
+  id: string;
+  userId: string;
+  managerNumber: string;
+  onboardingCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  territory: string;
+  employmentStatus: ManagerEmploymentStatus;
+  verificationStatus: ManagerVerificationStatus;
+  joinedAt: string;
+  profileImage?: string | null;
+}
+
+/** Portfolio row shown to managers — business fields only, never clinical data. */
+export interface ManagerOrganization {
+  id: string;
+  organizationType: ManagerOrganizationType;
+  organizationNumber: string;
+  name: string;
+  city: string;
+  state: string;
+  verificationStatus: string;
+  relationshipStatus: ManagerRelationshipStatus;
+  dateAssigned?: string | null;
+  acquiredByManagerId?: string | null;
+  acquiredAt?: string | null;
+  lastPaymentAt?: string | null;
+  lastPaymentAmount?: number | null;
+  totalEarnings: number;
+  openTicketCount: number;
+}
+
+export interface ManagerAssignment {
+  id: string;
+  managerId: string;
+  organizationType: ManagerOrganizationType;
+  pharmacyId?: string | null;
+  laboratoryId?: string | null;
+  organizationName: string;
+  source: ManagerAssignmentSource;
+  relationshipStatus: ManagerRelationshipStatus;
+  startsAt: string;
+  endsAt?: string | null;
+  assignedBy: string;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface ManagerOrganizationApplication {
+  id: string;
+  applicationNumber: string;
+  managerId: string;
+  organizationType: ManagerOrganizationType;
+  businessName: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  city: string;
+  state: string;
+  registrationNumber: string;
+  licenceNumber?: string | null;
+  notes?: string | null;
+  status: ManagerApplicationStatus;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewerId?: string | null;
+  reviewerNote?: string | null;
+  createdOrganizationId?: string | null;
+  createdAt: string;
+}
+
+export interface OrganizationPayment {
+  id: string;
+  paymentNumber: string;
+  organizationType: ManagerOrganizationType;
+  pharmacyId?: string | null;
+  laboratoryId?: string | null;
+  organizationName: string;
+  transactionType: OrganizationTransactionType;
+  amount: number;
+  currency: string;
+  method: string;
+  status: OrganizationPaymentStatus;
+  reference: string;
+  paidAt?: string | null;
+  refundedAt?: string | null;
+  refundAmount: number;
+  createdAt: string;
+}
+
+export interface ManagerRevenueShareRule {
+  id: string;
+  managerId: string;
+  organizationType: ManagerOrganizationType;
+  transactionType: OrganizationTransactionType;
+  /** Integer basis points: 10000 = 100%, 300 = 3.00%. Never a float percentage. */
+  rateBps: number;
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  status: "active" | "retired";
+  createdBy: string;
+  approvedBy?: string | null;
+  createdAt: string;
+}
+
+/** Immutable ledger row. Reversals are separate negative entries linked to the original. */
+export interface ManagerEarning {
+  id: string;
+  earningNumber: string;
+  eventKey: string;
+  managerId: string;
+  managerAssignmentId?: string | null;
+  organizationPaymentId: string;
+  organizationType: ManagerOrganizationType;
+  organizationId: string;
+  organizationName: string;
+  paymentType: OrganizationTransactionType;
+  paymentNumber: string;
+  eligibleAmount: number;
+  rateBps: number;
+  /** Signed: positive for earning entries, negative for reversal entries. */
+  amount: number;
+  entryType: ManagerEarningEntryType;
+  status: ManagerEarningStatus;
+  occurredAt: string;
+  availableAt?: string | null;
+  reversalOfId?: string | null;
+  payoutRequestId?: string | null;
+  payoutNumber?: string | null;
+  createdAt: string;
+}
+
+export interface ManagerBankAccount {
+  id: string;
+  managerId: string;
+  bankName: string;
+  bankCode: string;
+  accountName: string;
+  /** API responses only ever return the masked form (****1234). */
+  accountNumberMasked: string;
+  verificationStatus: "pending" | "verified" | "failed";
+  verifiedAt?: string | null;
+}
+
+export interface SupportTicket {
+  id: string;
+  ticketNumber: string;
+  organizationType: ManagerOrganizationType;
+  organizationId: string;
+  organizationName: string;
+  managerId?: string | null;
+  creatorId: string;
+  creatorName: string;
+  subject: string;
+  category: string;
+  priority: ManagerTicketPriority;
+  status: ManagerTicketStatus;
+  escalationDepartment?: string | null;
+  escalationReason?: string | null;
+  escalatedAt?: string | null;
+  resolution?: string | null;
+  resolvedAt?: string | null;
+  messageCount: number;
+  lastActivityAt: string;
+  createdAt: string;
+}
+
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  actorId: string;
+  actorRole: string;
+  actorName: string;
+  body: string;
+  visibility: ManagerTicketVisibility;
+  createdAt: string;
+}
+
+/** Aggregated dashboard payload — computed with DB aggregates, not client-side reduces. */
+export interface ManagerDashboardSummary {
+  portfolio: {
+    total: number;
+    pharmacies: number;
+    laboratories: number;
+    active: number;
+    pendingVerification: number;
+    inactive: number;
+    suspended: number;
+    acquiredByManager: number;
+  };
+  payments: {
+    successfulThisMonth: number;
+    countThisMonth: number;
+  };
+  earnings: {
+    thisMonth: number;
+    pending: number;
+    available: number;
+    paid: number;
+    reversed: number;
+  };
+  payouts: {
+    availableBalance: number;
+    pendingPayout: number;
+  };
+  support: {
+    open: number;
+    awaitingManager: number;
+    escalated: number;
+  };
+  applications: {
+    pending: number;
+  };
+  monthly: { month: string; payments: number; earnings: number }[];
 }
