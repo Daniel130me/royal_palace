@@ -338,16 +338,19 @@ export const managerService = {
     sessionApi.get<{ data: SupportTicket & { messages: SupportTicketMessage[] } }>(`/api/manager/support/${id}`).then((r) => r.data),
 
   // --- mutations go through dedicated action endpoints ---
-  submitApplication: (body: Record<string, unknown>) => action("manager-onboard-organization", body),
-  requestPayout: (body: Record<string, unknown>) => action("manager-request-payout", body),
-  updateTicket: (body: Record<string, unknown>) => action("manager-update-ticket", body),
-  confirmPayment: (body: Record<string, unknown>) => action("confirm-organization-payment", body),
-  refundPayment: (body: Record<string, unknown>) => action("refund-organization-payment", body),
+  // sessionApi (not plain action) so the server can derive the caller
+  // identity from the x-rp-session header — body-sent identities are never
+  // trusted for manager/admin actions.
+  submitApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-onboard-organization", body),
+  requestPayout: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-request-payout", body),
+  updateTicket: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-update-ticket", body),
+  confirmPayment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/confirm-organization-payment", body),
+  refundPayment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/refund-organization-payment", body),
 
   // --- admin-side manager methods (plan §3.8) ---
-  adminReviewApplication: (body: Record<string, unknown>) => action("admin-review-manager-application", body),
-  adminAssignManager: (body: Record<string, unknown>) => action("admin-assign-manager", body),
-  adminManagerRule: (body: Record<string, unknown>) => action("admin-manager-rule", body),
+  adminReviewApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-review-manager-application", body),
+  adminAssignManager: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-assign-manager", body),
+  adminManagerRule: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-manager-rule", body),
 };
 
 export type { ManagerRevenueShareRule };
