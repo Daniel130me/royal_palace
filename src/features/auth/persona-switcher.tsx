@@ -13,6 +13,7 @@ const PERSONAS = [
   { role: "laboratory", email: "lab@demo.com", name: "MedLab Diagnostics", label: "Laboratory" },
   { role: "logistics", email: "logistics@demo.com", name: "SwiftCare Logistics", label: "Logistics" },
   { role: "admin", email: "admin@demo.com", name: "Royal Palace Admin", label: "Admin" },
+  { role: "manager", email: "manager@demo.com", name: "Oluwagbenga Kosoko", label: "Manager" },
 ] as const;
 
 export function PersonaSwitcher() {

@@ -9,7 +9,7 @@ import { create } from "zustand";
 import type { Session, UserRole } from "@/types";
 
 export interface ViewState {
-  portal: "public" | "patient" | "provider" | "pharmacy" | "laboratory" | "logistics" | "admin" | "login";
+  portal: "public" | "patient" | "provider" | "pharmacy" | "laboratory" | "logistics" | "manager" | "admin" | "login";
   page: string; // e.g. "dashboard", "appointments", "encounter"
   params: Record<string, string>;
 }

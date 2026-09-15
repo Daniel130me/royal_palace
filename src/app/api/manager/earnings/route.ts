@@ -50,6 +50,13 @@ export async function GET(req: Request) {
     for (const g of statusGroups) {
       totals[g.status] = { amount: g._sum.amount ?? 0, count: g._count._all };
     }
+    // Report the gross refund impact rather than the netted status pair
+    // (an earning + its reversal both carry status "reversed").
+    const reversalAgg = await db.managerEarning.aggregate({
+      where: { managerId: manager.id, entryType: "reversal" },
+      _sum: { amount: true },
+    });
+    totals.reversed = { amount: Math.abs(reversalAgg._sum.amount ?? 0), count: totals.reversed?.count ?? 0 };
 
     return NextResponse.json({
       data: items.map((e) => ({

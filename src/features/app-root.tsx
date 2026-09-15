@@ -12,6 +12,7 @@ import { PharmacyPortal } from "@/features/pharmacy/pharmacy-portal";
 import { LaboratoryPortal } from "@/features/laboratory/laboratory-portal";
 import { LogisticsPortal } from "@/features/logistics/logistics-portal";
 import { AdminPortal } from "@/features/admin/admin-portal";
+import { ManagerPortal } from "@/features/manager/manager-portal";
 
 export function AppRoot() {
   const { session, view } = useNav();
@@ -49,6 +50,8 @@ export function AppRoot() {
         <LaboratoryPortal />
       ) : view.portal === "logistics" ? (
         <LogisticsPortal />
+      ) : view.portal === "manager" ? (
+        <ManagerPortal />
       ) : view.portal === "admin" ? (
         <AdminPortal />
       ) : (

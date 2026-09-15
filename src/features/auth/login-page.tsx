@@ -14,13 +14,14 @@ import { toast } from "sonner";
 // TEMPORARY STUB — Task 2/3 (Public + Auth agent) should overwrite this file
 // with the full login page (quick demo persona buttons etc.). Exists only so
 // the dev server can compile while parallel agents work.
-const DEMO_PERSONAS: { email: string; label: string; portal: "patient" | "provider" | "pharmacy" | "laboratory" | "logistics" | "admin" }[] = [
+const DEMO_PERSONAS: { email: string; label: string; portal: "patient" | "provider" | "pharmacy" | "laboratory" | "logistics" | "manager" | "admin" }[] = [
   { email: "amina@demo.com", label: "Amina · Patient", portal: "patient" },
   { email: "doctor@demo.com", label: "Dr Tunde · Provider", portal: "provider" },
   { email: "pharmacy@demo.com", label: "Grace · Pharmacy", portal: "pharmacy" },
   { email: "lab@demo.com", label: "MedLab · Laboratory", portal: "laboratory" },
   { email: "logistics@demo.com", label: "SwiftCare · Logistics", portal: "logistics" },
   { email: "admin@demo.com", label: "Admin · Console", portal: "admin" },
+  { email: "manager@demo.com", label: "Kosoko · Manager", portal: "manager" },
 ];
 
 export function LoginPage() {

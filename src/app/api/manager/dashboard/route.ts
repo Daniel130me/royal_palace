@@ -90,8 +90,15 @@ export async function GET(req: Request) {
       if (g.status === "pending") earnings.pending = sum;
       else if (g.status === "available") earnings.available = sum;
       else if (g.status === "paid") earnings.paid = sum;
-      else if (g.status === "reversed") earnings.reversed = sum;
     }
+    // "Reversed" reports the gross refund impact — the positive total of all
+    // reversal entries (an earning + its reversal pair both carry the
+    // "reversed" status, so their status-group sum would net to zero).
+    const reversalAgg = await db.managerEarning.aggregate({
+      where: { managerId, entryType: "reversal" },
+      _sum: { amount: true },
+    });
+    earnings.reversed = Math.abs(reversalAgg._sum.amount ?? 0);
     const thisMonthAgg = await db.managerEarning.aggregate({
       where: { managerId, occurredAt: { gte: monthStart } },
       _sum: { amount: true },
