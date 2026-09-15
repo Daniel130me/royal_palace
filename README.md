@@ -77,8 +77,55 @@ All accounts use the password **`demo123`**.
 | Laboratory | `lab@demo.com` | MedLab Diagnostics |
 | Logistics | `logistics@demo.com` | SwiftCare Logistics |
 | Admin | `admin@demo.com` | Royal Palace Admin |
+| **Manager** | `manager@demo.com` | Oluwagbenga Kosoko (Manager ID MGR-00128, code MGR00128) |
+| Manager (2) | `manager2@demo.com` | Adaeze Umeh (pending verification, manages Sunrise Pharmacy) |
 
 A floating **Demo Persona Switcher** (bottom-right) lets you instantly jump between roles without re-typing credentials.
+
+---
+
+## Manager Management Module
+
+A Manager is a business-relationship role: they acquire and onboard pharmacies and laboratories, manage a portfolio, earn a configured share of eligible **organization-to-platform payments** (subscriptions, renewals, platform fees, configured service fees), provide first-level support, and request payouts. Managers never see patient or clinical data — organization detail responses are built from explicit server-side select allowlists.
+
+### Key concepts
+
+| Concept | Behaviour |
+|---|---|
+| Acquired by | The manager who brought an organization onto the platform. Permanent. |
+| Currently managed by | The manager responsible today. Changes create assignment-history rows (never edits). |
+| Manager Earnings | Immutable ledger. One earning per successful organization payment (idempotent `eventKey`). Refunds create separate negative reversal entries — originals are never mutated. |
+| Revenue share rules | Effective-dated, per manager/organization type/transaction type, stored in **integer basis points** (300 = 3%). Overlaps are rejected. |
+| Available balance | Matured, unallocated earnings. Payout requests re-validate against it inside a transaction and FIFO-allocate whole ledger entries. |
+| Support routing | Pharmacy/Laboratory → Manager (Level 1) → Royal Palace (Level 2) → Finance/Technical/Operations/Compliance. |
+
+### Demo walkthrough (Manager module)
+
+1. Log in as `manager@demo.com` / `demo123` (or use the "Kosoko · Manager" persona button).
+2. Dashboard — portfolio, payments, earnings status, payout balance, support queues, 6-month chart.
+3. **My Pharmacies → Grace Community Pharmacy** — business, payment, earnings, support and assignment history (acquired-by vs currently-managed-by).
+4. **Onboard Organization** — copy the Manager Onboarding Link, submit an application.
+5. **Applications** — track submitted → under review → approved/rejected.
+6. **Transactions** — trace an organization payment into a Manager Earning (ORGP-… → MGE-…), including the refunded pair and its reversal.
+7. **Support → TKT-1001** — reply, add manager-only note, or escalate to a department.
+8. **Payouts** — request a payout of the available balance (one live request at a time, verified bank account required).
+9. Switch to **Admin → Managers** — directory, portfolio oversight, assignment with mandatory reason, revenue-share rules, application review queue, escalations. Marking a manager payout *paid* in the payouts console settles its allocated earnings and notifies the manager.
+
+### Running locally
+
+```bash
+bun install
+DATABASE_URL="file:<abs-path>/db/custom.db" bun run db:push    # sandbox note: a global DATABASE_URL env may override .env
+DATABASE_URL="file:<abs-path>/db/custom.db" bun run db:seed    # idempotent demo data
+bun run dev                                                    # http://localhost:3000
+bun run test                                                   # vitest (24 unit/integration tests)
+```
+
+> **Prototype limitation.** Authentication is simulated (session echoed from the client via `x-rp-session`), bank data is plaintext-but-masked-in-responses, and payouts are not disbursed to real banks. Production requires server-managed sessions, hashed credentials, CSRF protection, authorization middleware, encrypted secrets/tokenized payout recipients and PostgreSQL.
+
+---
+
+
 
 ---
 
