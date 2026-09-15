@@ -14,6 +14,7 @@ import {
   EARNING_STATUS_LABELS,
   MANAGER_TICKET_STATUS_LABELS,
   MANAGER_PAYOUT_STATUS_LABELS,
+  MANAGER_VERIFICATION_STATUS_LABELS,
   ORGANIZATION_PAYMENT_STATUS_LABELS,
 } from "@/lib/manager-constants";
 import type { ManagerOrganization } from "@/types";
@@ -30,6 +31,8 @@ const STATUS_TONES: Record<string, Tone> = {
   successful: "success", failed: "danger", cancelled: "default", refunded: "warning",
   // payouts
   requested: "warning", processing: "info",
+  // manager verification
+  verified: "success", suspended: "danger",
   // tickets
   new: "info", assigned_to_manager: "info", manager_investigating: "warning", waiting_for_organization: "warning",
   escalated_to_royal_palace: "danger", royal_palace_investigating: "danger", resolved: "success", closed: "default", reopened: "warning",
@@ -52,6 +55,7 @@ export function ManagerStatusBadge({ status, label }: { status: string; label?: 
     ...EARNING_STATUS_LABELS,
     ...MANAGER_TICKET_STATUS_LABELS,
     ...MANAGER_PAYOUT_STATUS_LABELS,
+    ...MANAGER_VERIFICATION_STATUS_LABELS,
     ...ORGANIZATION_PAYMENT_STATUS_LABELS,
   };
   return (

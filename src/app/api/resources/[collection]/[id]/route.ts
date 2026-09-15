@@ -80,6 +80,47 @@ export async function PATCH(
   const include = INCLUDES[collection as keyof typeof INCLUDES] ?? undefined;
   try {
     const updated = await (db as unknown as Record<string, { update: (args: { where: { id: string }; data: unknown; include?: unknown }) => Promise<unknown> }>)[collection].update({ where: { id }, data: body, include });
+
+    // Manager payout settlement hook: when a manager payout is marked "paid"
+    // (or "rejected") through this console, keep the earnings ledger in step
+    // — allocated entries flip to the matching status and the manager is
+    // notified. Rejected payouts release their allocations back to the
+    // available balance. (Generic route keeps working for all other models.)
+    if (collection === "payoutRequest" && typeof body.status === "string" && ["paid", "rejected"].includes(body.status)) {
+      const payout = await db.payoutRequest.findUnique({
+        where: { id },
+        include: { allocatedEarnings: true },
+      });
+      if (payout && payout.entityType === "manager" && payout.managerId) {
+        if (body.status === "paid") {
+          await db.managerEarning.updateMany({
+            where: { id: { in: payout.allocatedEarnings.map((e) => e.id) } },
+            data: { status: "paid" },
+          });
+        } else {
+          await db.managerEarning.updateMany({
+            where: { id: { in: payout.allocatedEarnings.map((e) => e.id) } },
+            data: { payoutRequestId: null },
+          });
+        }
+        await db.notification.create({
+          data: {
+            id: `NTF-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+            recipientId: payout.managerId,
+            recipientType: "manager",
+            title: body.status === "paid" ? "Payout Paid" : "Payout Rejected",
+            body:
+              body.status === "paid"
+                ? `Payout ${payout.payoutNumber} for ₦${payout.amountRequested.toLocaleString("en-NG")} has been paid.`
+                : `Payout ${payout.payoutNumber} was rejected. The allocated earnings returned to your available balance.${body.adminNote ? ` Note: ${body.adminNote}` : ""}`,
+            type: "manager",
+            relatedId: payout.id,
+            read: false,
+          },
+        });
+      }
+    }
+
     return NextResponse.json({ data: serializeOne(collection, updated) });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

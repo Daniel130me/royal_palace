@@ -5,9 +5,14 @@ import { AppShell } from "@/components/healthcare/app-shell";
 import {
   LayoutDashboard, Stethoscope, Tag, Pill, CreditCard, Wallet,
   ScrollText, MessageSquareWarning, CalendarDays, Package, Truck,
-  Users, BarChart3, Settings,
+  Users, BarChart3, Settings, UserCog,
 } from "lucide-react";
 import { AdminDashboard } from "./pages/dashboard";
+import { AdminManagers } from "./pages/managers";
+import { AdminManagerDetail } from "./pages/manager";
+import { AdminManagerApplications } from "./pages/manager-applications";
+import { AdminManagerEarnings } from "./pages/manager-earnings";
+import { AdminManagerSupport } from "./pages/manager-support";
 import { AdminProviders } from "./pages/providers";
 import { AdminProviderDetail } from "./pages/provider";
 import { AdminPricing } from "./pages/pricing";
@@ -29,6 +34,7 @@ export function AdminPortal() {
 
   const navItems = [
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
+    { label: "Managers", page: "managers", icon: UserCog },
     { label: "Providers", page: "providers", icon: Stethoscope },
     { label: "Pricing", page: "pricing", icon: Tag },
     { label: "Pharmacy Commission", page: "pharmacy-commissions", icon: Pill },
@@ -47,6 +53,11 @@ export function AdminPortal() {
   return (
     <AppShell portal="admin" brand="Royal Palace" navItems={navItems} notifications={0}>
       {page === "dashboard" ? <AdminDashboard /> :
+       page === "managers" ? <AdminManagers /> :
+       page === "manager" ? <AdminManagerDetail /> :
+       page === "manager-applications" ? <AdminManagerApplications /> :
+       page === "manager-earnings" ? <AdminManagerEarnings /> :
+       page === "manager-support" ? <AdminManagerSupport /> :
        page === "providers" ? <AdminProviders /> :
        page === "provider" ? <AdminProviderDetail /> :
        page === "pricing" ? <AdminPricing /> :
