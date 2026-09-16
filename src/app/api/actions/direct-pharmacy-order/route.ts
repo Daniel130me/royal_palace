@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
 
   // Resolve products and ENFORCE the controlled-medication restriction.
   const orderItems: {
+    id: string;
     productId: string;
     productName: string;
     quantity: number;
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
     const commissionAmount = Math.round((gross * commissionPct) / 100);
     const pharmacyNet = gross - commissionAmount;
     orderItems.push({
+      id: genId("ORDI"),
       productId: product.id,
       productName: `${product.name} ${product.strength} ${product.dosageForm}`,
       quantity,

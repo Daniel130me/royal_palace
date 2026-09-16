@@ -303,6 +303,8 @@ export interface LaboratoryBooking {
   paymentStatus: string;
   status: string;
   laboratory?: Laboratory;
+  patient?: Patient;
+  request?: LaboratoryRequest;
 }
 
 export interface LaboratoryResult {
@@ -324,6 +326,9 @@ export interface LaboratoryResult {
   reviewer?: string | null;
   status: string;
   laboratory?: Laboratory;
+  patient?: Patient;
+  request?: LaboratoryRequest;
+  booking?: LaboratoryBooking;
 }
 
 export interface Pharmacy {

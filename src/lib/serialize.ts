@@ -77,15 +77,13 @@ export function serializeLabRequest(r: Record<string, unknown>): LaboratoryReque
 }
 
 export function serializeLabBooking(b: Record<string, unknown>): LaboratoryBooking {
-  const out = { ...(b as unknown as LaboratoryBooking) } as LaboratoryBooking & {
-    request?: Record<string, unknown> | null;
-  };
+  const out = { ...(b as unknown as LaboratoryBooking) };
   // Recursively serialize the nested request so its `tests` field is parsed
   // from its SQLite JSON-string form into a typed array.
   if (out.request && typeof out.request === "object") {
-    out.request = serializeLabRequest(out.request as Record<string, unknown>) as unknown as Record<string, unknown>;
+    out.request = serializeLabRequest(out.request as unknown as Record<string, unknown>);
   }
-  return out as LaboratoryBooking;
+  return out;
 }
 
 export function serializeReferral(r: Record<string, unknown>): Referral {

@@ -39,6 +39,7 @@ import type {
   SupportTicket,
   SupportTicketMessage,
   User,
+  UserRole,
   CarePlan,
   AuditLog,
   Complaint,
@@ -52,7 +53,7 @@ import type {
 // --- auth ---
 export const authService = {
   login: (email: string, password: string) =>
-    api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string } }>(
+    api.post<{ session: { userId: string; role: UserRole; profileId?: string; name: string; email: string } }>(
       "/api/auth/login",
       { email, password }
     ).then((r) => r.session),
