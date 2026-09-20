@@ -154,7 +154,7 @@ header, and one new public intake route that authenticates via the manager
 | `/api/resources/[collection]` | GET, POST | Generic list/create; **now also exposes `hospital` and `hospitalService` collections** (hospital GET forced to `verificationStatus:"approved"`) | **None** | Y — everything client-controlled | **Unauthenticated read/create of all data** (incl. `user` rows → plaintext passwords, payments, audit logs, consents); arbitrary `where` from query params; hospital rows returned **without field projection** (email/phone/rating/acquisition exposed) | remove (re-noted) | Cross-cutting — forbidden by plan §23; hospital discovery must move to `/v1/public/hospitals` (Incr. 06) |
 | `/api/resources/[collection]/[id]` | GET, PATCH, DELETE | Generic fetch/update/delete any row by id; **hospital/hospitalService writes blocked** (403, admin-only message); non-approved hospital GET returns 404 | **None** | Y — everything client-controlled | **Unauthenticated update/delete of any row** except the new hospital guards; business logic (manager payout settlement) embedded in generic PATCH | remove (re-noted) | Cross-cutting — superseded by per-domain endpoints |
 
-### 3.3 `actions/*` — patient, clinical, pharmacy, laboratory, logistics (19 routes, ungated)
+### 3.3 `actions/*` — patient, clinical, pharmacy, laboratory, logistics (18 routes, ungated)
 
 | Route | Method | Purpose | Auth mechanism | Client-trusted identity | Anti-patterns | Classification | Future module |
 | --- | --- | --- | --- | --- | --- | --- | --- |
