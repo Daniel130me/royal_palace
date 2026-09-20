@@ -448,8 +448,7 @@ function AssignOrganizationDialog({ managerId, onDone }: { managerId: string; on
 
 function RevenueShareRuleDialog({ managerId, onDone }: { managerId: string; onDone: () => void }) {
   const [open, setOpen] = useState(false);
-  const [organizationType, setOrganizationType] = useState<"pharmacy" | "laboratory">("pharmacy");
-  const [transactionType, setTransactionType] = useState<"subscription" | "renewal" | "platform_fee" | "service_fee">("subscription");
+  const [activityType, setActivityType] = useState<"consultation" | "pharmacy" | "laboratory" | "hospital">("consultation");
   const [rateBps, setRateBps] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -463,7 +462,7 @@ function RevenueShareRuleDialog({ managerId, onDone }: { managerId: string; onDo
     }
     setSubmitting(true);
     try {
-      await managerService.adminManagerRule({ action: "create", managerId, organizationType, transactionType, rateBps: parsed });
+      await managerService.adminManagerRule({ action: "create", managerId, activityType, rateBps: parsed });
       toast.success("Revenue share rule created.");
       setOpen(false);
       setRateBps("");
@@ -488,26 +487,13 @@ function RevenueShareRuleDialog({ managerId, onDone }: { managerId: string; onDo
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label>Organization type</Label>
-              <Select value={organizationType} onValueChange={(v) => setOrganizationType(v as "pharmacy" | "laboratory")}>
+              <Label>Patient activity</Label>
+              <Select value={activityType} onValueChange={(v) => setActivityType(v as typeof activityType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                  <SelectItem value="laboratory">Laboratory</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Transaction type</Label>
-              <Select value={transactionType} onValueChange={(v) => setTransactionType(v as typeof transactionType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="subscription">Subscription</SelectItem>
-                  <SelectItem value="renewal">Renewal</SelectItem>
-                  <SelectItem value="platform_fee">Platform fee</SelectItem>
-                  <SelectItem value="service_fee">Service fee</SelectItem>
+                  <SelectItem value="consultation">Consultation</SelectItem><SelectItem value="pharmacy">Pharmacy order</SelectItem><SelectItem value="laboratory">Laboratory booking</SelectItem><SelectItem value="hospital">Hospital payment</SelectItem>
                 </SelectContent>
               </Select>
             </div>

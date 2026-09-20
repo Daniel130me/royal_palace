@@ -88,6 +88,18 @@ export async function getAdminContext(req: Request): Promise<{ userId: string; p
   return { userId: user.id, profileId: session.profileId };
 }
 
+/** Read-only operational access for Support and Admin staff. */
+export async function getSupportOrAdminContext(req: Request): Promise<{ userId: string; role: "support" | "admin" }> {
+  const raw = req.headers.get("x-rp-session");
+  if (!raw) throw new ManagerAccessError("Missing session.", 401);
+  let session: SessionPayload;
+  try { session = JSON.parse(raw) as SessionPayload; } catch { throw new ManagerAccessError("Invalid session.", 401); }
+  if (!session.userId || (session.role !== "support" && session.role !== "admin")) throw new ManagerAccessError("Support or Admin access required.", 403);
+  const user = await db.user.findUnique({ where: { id: session.userId } });
+  if (!user || user.status !== "active") throw new ManagerAccessError("Account is not active.", 403);
+  return { userId: user.id, role: session.role };
+}
+
 /** Assert the organization is currently in the manager's active portfolio. */
 export async function assertOrganizationInPortfolio(
   managerId: string,

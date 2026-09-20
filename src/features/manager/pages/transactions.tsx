@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ManagerStatusBadge } from "../components/manager-shared";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { formatRateBps, TRANSACTION_TYPE_LABELS } from "@/lib/manager-constants";
+import { TRANSACTION_TYPE_LABELS } from "@/lib/manager-constants";
 import { ArrowLeftRight, Search, Info, Undo2 } from "lucide-react";
 import type { ManagerEarning } from "@/types";
 
@@ -111,10 +111,10 @@ export function ManagerTransactions() {
                   <p className="truncate">{e.paymentNumber}</p>
                   <p className="text-xs text-muted-foreground">{TRANSACTION_TYPE_LABELS[e.paymentType] ?? e.paymentType}</p>
                 </div>
-                <div className={e.eligibleAmount < 0 ? "text-rose-600 font-medium" : ""}>
-                  {e.eligibleAmount < 0 ? "−" : ""}{formatCurrency(Math.abs(e.eligibleAmount))}
+                <div className="text-muted-foreground">
+                  Confidential
                 </div>
-                <div>{formatRateBps(e.rateBps)}</div>
+                <div>Confidential</div>
                 <div className={e.amount < 0 ? "font-semibold text-rose-600" : "font-semibold text-emerald-600"}>
                   {e.amount < 0 ? "−" : ""}{formatCurrency(Math.abs(e.amount))}
                 </div>

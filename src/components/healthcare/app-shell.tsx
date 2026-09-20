@@ -28,7 +28,7 @@ export interface NavItem {
 }
 
 interface AppShellProps {
-  portal: "patient" | "provider" | "pharmacy" | "laboratory" | "logistics" | "manager" | "admin";
+  portal: "patient" | "provider" | "pharmacy" | "laboratory" | "hospital" | "logistics" | "manager" | "support" | "admin";
   brand: string;
   navItems: NavItem[];
   notifications?: number;
@@ -44,6 +44,8 @@ const PORTAL_LABEL: Record<string, string> = {
   laboratory: "Laboratory",
   logistics: "Logistics",
   manager: "Manager",
+  support: "Support",
+  hospital: "Hospital",
   admin: "Admin",
 };
 

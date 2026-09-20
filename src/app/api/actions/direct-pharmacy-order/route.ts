@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { audit, notify } from "@/lib/audit";
 import { genId } from "@/lib/format";
+import { recordPatientActivityPayment } from "@/lib/manager-patient-earnings";
 
 interface DirectOrderItem {
   productId: string;
@@ -106,6 +107,11 @@ export async function POST(req: NextRequest) {
     },
     include: { items: true, pharmacy: true, patient: true },
   });
+
+  await db.$transaction((tx) => recordPatientActivityPayment({
+    patientId, activityType: "pharmacy", sourceId: order.id,
+    amount: total, reference: `direct-pharmacy-order:${order.id}`,
+  }, tx));
 
   // Auto-create delivery assignment.
   await db.delivery.create({

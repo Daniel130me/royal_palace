@@ -16,11 +16,14 @@ import { ManagerStatusBadge } from "@/features/manager/components/manager-shared
 import { formatDate } from "@/lib/format";
 import { APPLICATION_STATUS_LABELS } from "@/lib/manager-constants";
 import { toast } from "sonner";
-import { Building2, FlaskConical, ClipboardCheck } from "lucide-react";
-import type { ManagerOrganizationApplication } from "@/types";
+import { Building2, FlaskConical, ClipboardCheck, Hospital, UserRound } from "lucide-react";
 
 // The admin endpoint decorates rows with the manager's name.
-type ApplicationRow = ManagerOrganizationApplication & { managerName?: string };
+type ApplicationRow = {
+  id: string; applicationNumber: string; enrollmentType: "patient" | "pharmacy" | "laboratory" | "hospital";
+  organizationType?: string; businessName?: string; patientName?: string; managerId: string; managerName?: string;
+  city: string; state: string; status: string; submittedAt: string; reviewerNote?: string | null;
+};
 
 type ReviewAction = "under_review" | "information_required" | "approved" | "rejected";
 
@@ -31,6 +34,7 @@ export function AdminManagerApplications() {
   const [review, setReview] = useState<{ app: ApplicationRow; action: ReviewAction } | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingSafe, setLoadingSafe] = useState(true);
 
   const load = useCallback(async () => {
     setError(null);
@@ -41,6 +45,8 @@ export function AdminManagerApplications() {
       setItems(payload.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load applications.");
+    } finally {
+      setLoadingSafe(false);
     }
   }, [status]);
 
@@ -48,8 +54,6 @@ export function AdminManagerApplications() {
     setLoadingSafe(true);
     void load();
   }, [load]);
-
-  const [loadingSafe, setLoadingSafe] = useState(true);
 
   async function submitReview() {
     if (!review) return;
@@ -59,7 +63,9 @@ export function AdminManagerApplications() {
     }
     setBusy(true);
     try {
-      await managerService.adminReviewApplication({ applicationId: review.app.id, action: review.action, reviewerNote: note });
+      const payload = { applicationId: review.app.id, action: review.action, reviewerNote: note };
+      if (review.app.enrollmentType === "patient") await managerService.adminReviewPatientEnrollment(payload);
+      else await managerService.adminReviewApplication(payload);
       toast.success(`${review.app.applicationNumber} ${review.action.replace("_", " ")}.`);
       setReview(null);
       setNote("");
@@ -74,8 +80,8 @@ export function AdminManagerApplications() {
   return (
     <div>
       <PageHeader
-        title="Manager Applications"
-        description="Organizations submitted by Managers for onboarding. Approval creates the organization, its acquisition attribution and first assignment atomically."
+        title="Manager Enrollment Reviews"
+        description="Review patients, pharmacies, laboratories and hospitals attributed through Manager links. Only Admin can approve, reject or request information."
         actions={<ClipboardCheck className="h-5 w-5 text-muted-foreground" />}
       />
 
@@ -97,17 +103,18 @@ export function AdminManagerApplications() {
         <Card>
           <CardContent className="p-0">
             {items.map((a) => {
-              const Icon = a.organizationType === "pharmacy" ? Building2 : FlaskConical;
+              const Icon = a.enrollmentType === "patient" ? UserRound : a.enrollmentType === "hospital" ? Hospital : a.enrollmentType === "pharmacy" ? Building2 : FlaskConical;
+              const displayName = a.enrollmentType === "patient" ? a.patientName : a.businessName;
               return (
                 <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3.5 border-b border-border/40 last:border-0">
                   <div className="rounded-lg bg-primary/10 p-2 shrink-0"><Icon className="h-4 w-4 text-primary" /></div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-sm">{a.businessName}</p>
+                      <p className="font-semibold text-sm">{displayName}</p>
                       <ManagerStatusBadge status={a.status} label={APPLICATION_STATUS_LABELS[a.status as keyof typeof APPLICATION_STATUS_LABELS]} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {a.applicationNumber} · {a.managerName ?? a.managerId} · {a.city}, {a.state} · submitted {formatDate(a.submittedAt)}
+                      {a.applicationNumber} · {a.enrollmentType} · {a.managerName ?? a.managerId} · {a.city}, {a.state} · submitted {formatDate(a.submittedAt)}
                     </p>
                     {a.reviewerNote ? <p className="text-[11px] text-muted-foreground mt-0.5">Note: {a.reviewerNote}</p> : null}
                   </div>
@@ -133,7 +140,7 @@ export function AdminManagerApplications() {
                 <DialogTitle>{review.action === "approved" ? "Approve" : review.action === "rejected" ? "Reject" : "Request information for"} {review.app.applicationNumber}</DialogTitle>
                 <DialogDescription>
                   {review.action === "approved"
-                    ? "Approval creates the organization, sets acquired-by attribution and the first assignment in one transaction."
+                    ? `Approval activates this ${review.app.enrollmentType} and preserves the Manager attribution without granting the Manager record access.`
                     : "A reviewer note is required and is shared with the manager."}
                 </DialogDescription>
               </DialogHeader>

@@ -8,6 +8,7 @@ import { audit, notify } from "@/lib/audit";
 import { genId } from "@/lib/format";
 import { consultationChannelLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
 import { activeServicePrice, isConsultationServiceForSpecialty } from "@/lib/pricing-policy";
+import { recordPatientActivityPayment } from "@/lib/manager-patient-earnings";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -67,37 +68,39 @@ export async function POST(req: NextRequest) {
   }
   const bookingPrice = servicePrice.patientPrice;
   const apptId = genId("APT");
-  const appointment = await db.appointment.create({
-    data: {
-      id: apptId,
-      patientId,
-      providerId,
-      serviceId: service.id,
-      servicePriceId: servicePrice.id,
-      date,
-      time,
-      durationMinutes: 30,
-      consultationChannel: channel,
-      price: bookingPrice,
-      paymentStatus: "paid",
-      status: "scheduled",
-      intakeForm: JSON.stringify(intakeForm ?? {}),
-      consentStatus: "granted",
-    },
-    include: { patient: true, provider: true },
-  });
-
-  const payment = await db.payment.create({
-    data: {
-      id: genId("PAY"),
-      paymentNumber: genId("RPH-PAY"),
-      appointmentId: apptId,
-      patientId,
-      amount: bookingPrice,
-      method: body.method ?? "card",
-      status: "successful",
-      reference: genId("DEMO-PAY"),
-    },
+  const { appointment, payment } = await db.$transaction(async (tx) => {
+    const createdAppointment = await tx.appointment.create({
+      data: {
+        id: apptId,
+        patientId,
+        providerId,
+        serviceId: service.id,
+        servicePriceId: servicePrice.id,
+        date,
+        time,
+        durationMinutes: 30,
+        consultationChannel: channel,
+        price: bookingPrice,
+        paymentStatus: "paid",
+        status: "scheduled",
+        intakeForm: JSON.stringify(intakeForm ?? {}),
+        consentStatus: "granted",
+      },
+      include: { patient: true, provider: true },
+    });
+    const paymentReference = genId("DEMO-PAY");
+    const createdPayment = await tx.payment.create({
+      data: {
+        id: genId("PAY"), paymentNumber: genId("RPH-PAY"), appointmentId: apptId,
+        patientId, amount: bookingPrice, method: body.method ?? "card",
+        status: "successful", reference: paymentReference,
+      },
+    });
+    await recordPatientActivityPayment({
+      patientId, activityType: "consultation", sourceId: apptId,
+      amount: bookingPrice, reference: `appointment:${paymentReference}`,
+    }, tx);
+    return { appointment: createdAppointment, payment: createdPayment };
   });
 
   await audit({

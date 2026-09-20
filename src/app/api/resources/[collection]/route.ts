@@ -34,6 +34,8 @@ const MODELS = [
   "pharmacy",
   "pharmacyProduct",
   "laboratory",
+  "hospital",
+  "hospitalService",
   "logisticsProvider",
   "service",
   "servicePrice",
@@ -72,6 +74,7 @@ const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   prescription: { patient: true, provider: true, items: true, pharmacyOrders: true, pharmacy: true },
   laboratoryRequest: { patient: true, provider: true, booking: true, result: true },
   laboratoryBooking: { laboratory: true, patient: true, request: true },
+  hospital: { services: true },
   laboratoryResult: { laboratory: true, patient: true },
   pharmacyOrder: { patient: true, pharmacy: true, prescription: true, items: true, delivery: true },
   pharmacyProduct: { pharmacy: true },
@@ -106,6 +109,8 @@ export async function GET(
     else if (/^-?\d+$/.test(value)) where[key] = parseInt(value, 10);
     else where[key] = value;
   }
+  // Public hospital discovery must never reveal pending/rejected facilities.
+  if (collection === "hospital") where.verificationStatus = "approved";
   const include = INCLUDES[collection] ?? undefined;
   const limitParam = url.searchParams.get("limit");
   const take = limitParam ? parseInt(limitParam, 10) : undefined;
@@ -161,6 +166,9 @@ export async function POST(
   const { collection } = await params;
   if (!isModel(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
+  }
+  if (collection === "hospital" || collection === "hospitalService") {
+    return NextResponse.json({ error: "Hospitals are created only through Admin-approved onboarding." }, { status: 403 });
   }
   const body = await req.json();
   const include = INCLUDES[collection] ?? undefined;

@@ -27,12 +27,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-function channelIcon(channel: string) {
-  if (channel === "video") return Video;
-  if (channel === "audio") return Phone;
-  if (channel === "chat") return MessageSquare;
-  return User;
-}
+const CHANNEL_ICONS = { video: Video, audio: Phone, chat: MessageSquare } as const;
 
 export function ProviderAppointmentDetail() {
   const { view } = useNav();
@@ -84,7 +79,7 @@ export function ProviderAppointmentDetail() {
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!appt) return <ErrorState message="Appointment not found." />;
 
-  const Icon = channelIcon(appt.consultationChannel);
+  const ChannelIcon = CHANNEL_ICONS[appt.consultationChannel as keyof typeof CHANNEL_ICONS] ?? User;
   const intake = appt.intakeForm as unknown;
   const intakeObj: Record<string, unknown> =
     intake && typeof intake === "object"
@@ -153,7 +148,7 @@ export function ProviderAppointmentDetail() {
               <div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Channel</p>
                 <p className="text-sm font-semibold mt-1 capitalize flex items-center gap-1.5">
-                  <Icon className="h-4 w-4 text-primary" /> {appt.consultationChannel.replace(/_/g, " ")}
+                  <ChannelIcon className="h-4 w-4 text-primary" /> {appt.consultationChannel.replace(/_/g, " ")}
                 </p>
               </div>
               <div>

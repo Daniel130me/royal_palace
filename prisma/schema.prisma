@@ -16,16 +16,16 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String   @id
-  email        String   @unique
-  phone        String?
-  password     String
-  role         String // patient | doctor | dentist | pharmacy | laboratory | logistics | admin
-  status       String   @default("active") // active | pending | suspended
-  profileId    String? // FK to the role-specific profile
-  name         String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id
+  email     String   @unique
+  phone     String?
+  password  String
+  role      String // patient | doctor | dentist | pharmacy | laboratory | hospital | logistics | manager | support | admin
+  status    String   @default("active") // active | pending | suspended
+  profileId String? // FK to the role-specific profile
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------
@@ -33,47 +33,57 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Patient {
-  id              String   @id
-  userId          String // not unique: dependants share the parent's account
-  parentPatientId String? // null for primary patient, set for dependants
-  patientNumber   String   @unique
-  firstName       String
-  lastName        String
-  dateOfBirth     String
-  gender          String
-  phone           String
-  email           String
-  city            String
-  state           String
-  country         String   @default("Nigeria")
-  bloodGroup      String?
-  genotype        String?
-  height          Float?
-  weight          Float?
+  id                  String    @id
+  userId              String // not unique: dependants share the parent's account
+  parentPatientId     String? // null for primary patient, set for dependants
+  patientNumber       String    @unique
+  firstName           String
+  lastName            String
+  dateOfBirth         String
+  gender              String
+  phone               String
+  email               String
+  city                String
+  state               String
+  country             String    @default("Nigeria")
+  bloodGroup          String?
+  genotype            String?
+  height              Float?
+  weight              Float?
   // JSON arrays: allergies, conditions, medications (HealthRecordItem[])
-  allergies       String   @default("[]")
-  conditions      String   @default("[]")
-  medications     String   @default("[]")
-  emergencyName   String?
-  emergencyPhone  String?
-  emergencyRel    String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  allergies           String    @default("[]")
+  conditions          String    @default("[]")
+  medications         String    @default("[]")
+  emergencyName       String?
+  emergencyPhone      String?
+  emergencyRel        String?
+  // Acquisition attribution only. Managers never receive patient profile or
+  // clinical access; this link exists solely for enrollment reporting and
+  // patient-activity earnings.
+  acquiredByManagerId String?
+  acquiredAt          DateTime?
+  onboardingStatus    String    @default("approved") // pending | information_required | approved | rejected
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  appointments         Appointment[]
-  encounters          ClinicalEncounter[]
-  prescriptions       Prescription[]
-  labRequests         LaboratoryRequest[]
-  labBookings         LaboratoryBooking[]
-  labResults          LaboratoryResult[]
-  pharmacyOrders      PharmacyOrder[]
-  recordAccessGrants  RecordAccessGrant[]
-  consents            Consent[]
-  referrals           Referral[]            @relation("ReferralPatient")
-  carePlans           CarePlan[]
-  payments            Payment[]
-  ratings             Rating[]
+  appointments          Appointment[]
+  encounters            ClinicalEncounter[]
+  prescriptions         Prescription[]
+  labRequests           LaboratoryRequest[]
+  labBookings           LaboratoryBooking[]
+  labResults            LaboratoryResult[]
+  pharmacyOrders        PharmacyOrder[]
+  recordAccessGrants    RecordAccessGrant[]
+  consents              Consent[]
+  referrals             Referral[]               @relation("ReferralPatient")
+  carePlans             CarePlan[]
+  payments              Payment[]
+  ratings               Rating[]
   uploadedPrescriptions UploadedPrescription[]
+  acquiredByManager     Manager?                 @relation("PatientAcquiredBy", fields: [acquiredByManagerId], references: [id])
+  activityPayments      PatientActivityPayment[]
+
+  @@index([acquiredByManagerId, onboardingStatus])
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +102,7 @@ model Provider {
   qualifications     String   @default("[]") // JSON string[]
   yearsExperience    Int
   biography          String
-  languages         String   @default("[]") // JSON string[]
+  languages          String   @default("[]") // JSON string[]
   registrationNumber String
   licenceNumber      String
   licenceExpiry      String
@@ -107,26 +117,26 @@ model Provider {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  appointments       Appointment[]
-  encounters         ClinicalEncounter[]
-  prescriptions      Prescription[]
-  labRequests        LaboratoryRequest[]
-  referralsSent      Referral[]            @relation("ReferralSender")
-  referralsReceived  Referral[]            @relation("ReferralRecipientProvider")
-  applications       ProviderApplication[]
+  appointments      Appointment[]
+  encounters        ClinicalEncounter[]
+  prescriptions     Prescription[]
+  labRequests       LaboratoryRequest[]
+  referralsSent     Referral[]            @relation("ReferralSender")
+  referralsReceived Referral[]            @relation("ReferralRecipientProvider")
+  applications      ProviderApplication[]
 }
 
 model ProviderApplication {
-  id              String   @id
-  providerId      String
-  status          String   @default("submitted")
-  submittedAt     DateTime @default(now())
-  reviewedAt      DateTime?
-  reviewerId      String? // admin user id
-  reviewerNotes   String?
-  documents       String   @default("[]") // JSON file metadata
-  history         String   @default("[]") // JSON verification history
-  provider        Provider @relation(fields: [providerId], references: [id])
+  id            String    @id
+  providerId    String
+  status        String    @default("submitted")
+  submittedAt   DateTime  @default(now())
+  reviewedAt    DateTime?
+  reviewerId    String? // admin user id
+  reviewerNotes String?
+  documents     String    @default("[]") // JSON file metadata
+  history       String    @default("[]") // JSON verification history
+  provider      Provider  @relation(fields: [providerId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -134,18 +144,18 @@ model ProviderApplication {
 // ---------------------------------------------------------------------------
 
 model Pharmacy {
-  id              String   @id
-  userId          String   @unique
-  pharmacyNumber  String   @unique
-  name            String
-  city            String
-  state           String
-  address         String
-  phone           String
-  email           String
+  id                 String @id
+  userId             String @unique
+  pharmacyNumber     String @unique
+  name               String
+  city               String
+  state              String
+  address            String
+  phone              String
+  email              String
   verificationStatus String @default("approved")
-  commissionPct   Float    @default(8)
-  rating          Float    @default(0)
+  commissionPct      Float  @default(8)
+  rating             Float  @default(0)
 
   // Manager attribution (plan §4): "acquired by" is permanent, "currently
   // managed by" changes with reassignment and is cached here for fast filters.
@@ -155,14 +165,14 @@ model Pharmacy {
   managerAssignedAt         DateTime?
   managerRelationshipStatus String? // active | paused | ended (null = never managed)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  products        PharmacyProduct[]
-  orders          PharmacyOrder[]
-  prescriptions   Prescription[]
-  payments        OrganizationPayment[]
-  assignments     ManagerAssignment[]
+  products      PharmacyProduct[]
+  orders        PharmacyOrder[]
+  prescriptions Prescription[]
+  payments      OrganizationPayment[]
+  assignments   ManagerAssignment[]
 
   acquiredByManager Manager? @relation("PharmacyAcquiredBy", fields: [acquiredByManagerId], references: [id])
   currentManager    Manager? @relation("PharmacyCurrentManager", fields: [currentManagerId], references: [id])
@@ -173,29 +183,29 @@ model Pharmacy {
 }
 
 model PharmacyProduct {
-  id                  String   @id
-  pharmacyId         String
-  name                String
-  genericName         String
-  brand               String?
-  category            String
-  strength            String
-  dosageForm          String
-  manufacturer        String?
-  price               Int
-  stockQuantity       Int
-  batch               String?
-  expiryDate          String
-  prescriptionRequired Boolean @default(true)
+  id                   String   @id
+  pharmacyId           String
+  name                 String
+  genericName          String
+  brand                String?
+  category             String
+  strength             String
+  dosageForm           String
+  manufacturer         String?
+  price                Int
+  stockQuantity        Int
+  batch                String?
+  expiryDate           String
+  prescriptionRequired Boolean  @default(true)
   // controlled meds (e.g. opioids, psychotropics) CANNOT be ordered directly
   // by a patient — they require a doctor's prescription first.
-  controlled          Boolean  @default(false)
-  storageRequirements String?
-  status              String   @default("active")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  controlled           Boolean  @default(false)
+  storageRequirements  String?
+  status               String   @default("active")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  pharmacy            Pharmacy @relation(fields: [pharmacyId], references: [id])
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -203,17 +213,17 @@ model PharmacyProduct {
 // ---------------------------------------------------------------------------
 
 model Laboratory {
-  id                String   @id
-  userId            String   @unique
-  laboratoryNumber  String   @unique
-  name              String
-  city              String
-  state             String
-  address           String
-  phone             String
-  email             String
+  id                 String @id
+  userId             String @unique
+  laboratoryNumber   String @unique
+  name               String
+  city               String
+  state              String
+  address            String
+  phone              String
+  email              String
   verificationStatus String @default("approved")
-  rating            Float    @default(0)
+  rating             Float  @default(0)
 
   // Manager attribution — same semantics as Pharmacy.
   acquiredByManagerId       String?
@@ -222,13 +232,13 @@ model Laboratory {
   managerAssignedAt         DateTime?
   managerRelationshipStatus String? // active | paused | ended (null = never managed)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  bookings          LaboratoryBooking[]
-  results           LaboratoryResult[]
-  payments          OrganizationPayment[]
-  assignments       ManagerAssignment[]
+  bookings    LaboratoryBooking[]
+  results     LaboratoryResult[]
+  payments    OrganizationPayment[]
+  assignments ManagerAssignment[]
 
   acquiredByManager Manager? @relation("LaboratoryAcquiredBy", fields: [acquiredByManagerId], references: [id])
   currentManager    Manager? @relation("LaboratoryCurrentManager", fields: [currentManagerId], references: [id])
@@ -239,11 +249,60 @@ model Laboratory {
 }
 
 // ---------------------------------------------------------------------------
+// HOSPITALS
+// Hospitals publish a searchable service catalogue during onboarding so
+// patients can find the right facility for a specific need.
+// ---------------------------------------------------------------------------
+
+model Hospital {
+  id                  String    @id
+  userId              String    @unique
+  hospitalNumber      String    @unique
+  name                String
+  description         String?
+  city                String
+  state               String
+  address             String
+  phone               String
+  email               String
+  emergencyAvailable  Boolean   @default(false)
+  openTwentyFourHours Boolean   @default(false)
+  verificationStatus  String    @default("pending")
+  rating              Float     @default(0)
+  acquiredByManagerId String?
+  acquiredAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  acquiredByManager Manager?          @relation("HospitalAcquiredBy", fields: [acquiredByManagerId], references: [id])
+  services          HospitalService[]
+
+  @@index([acquiredByManagerId, verificationStatus])
+  @@index([state, city, verificationStatus])
+}
+
+model HospitalService {
+  id          String   @id
+  hospitalId  String
+  name        String
+  category    String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@unique([hospitalId, name])
+  @@index([category, active])
+  @@index([hospitalId, active])
+}
+
+// ---------------------------------------------------------------------------
 // LOGISTICS
 // ---------------------------------------------------------------------------
 
 model LogisticsProvider {
-  id                  String   @id
+  id                 String   @id
   userId             String   @unique
   logisticsNumber    String   @unique
   name               String
@@ -256,7 +315,7 @@ model LogisticsProvider {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  deliveries         Delivery[]
+  deliveries Delivery[]
 }
 
 // ---------------------------------------------------------------------------
@@ -271,21 +330,21 @@ model Service {
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  prices      ServicePrice[]
+  prices ServicePrice[]
 }
 
 model ServicePrice {
-  id            String   @id
-  serviceId     String
-  patientPrice  Int
+  id             String   @id
+  serviceId      String
+  patientPrice   Int
   providerPayout Int
   platformMargin Int
-  currency      String   @default("NGN")
-  effectiveFrom String
-  status        String   @default("active") // active | scheduled | inactive
-  createdAt     DateTime @default(now())
+  currency       String   @default("NGN")
+  effectiveFrom  String
+  status         String   @default("active") // active | scheduled | inactive
+  createdAt      DateTime @default(now())
 
-  service       Service  @relation(fields: [serviceId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -293,27 +352,27 @@ model ServicePrice {
 // ---------------------------------------------------------------------------
 
 model Appointment {
-  id                 String   @id
-  patientId          String
-  providerId         String
-  serviceId          String?
-  servicePriceId     String?
-  date               String
-  time               String
-  durationMinutes    Int      @default(30)
-  consultationChannel String  @default("video") // video | audio | chat
-  price              Int
-  paymentStatus      String   @default("pending") // pending | paid | refunded
-  status             String   @default("scheduled")
-  intakeForm         String   @default("{}") // JSON
-  consentStatus      String   @default("granted")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                  String   @id
+  patientId           String
+  providerId          String
+  serviceId           String?
+  servicePriceId      String?
+  date                String
+  time                String
+  durationMinutes     Int      @default(30)
+  consultationChannel String   @default("video") // video | audio | chat
+  price               Int
+  paymentStatus       String   @default("pending") // pending | paid | refunded
+  status              String   @default("scheduled")
+  intakeForm          String   @default("{}") // JSON
+  consentStatus       String   @default("granted")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  patient            Patient  @relation(fields: [patientId], references: [id])
-  provider           Provider @relation(fields: [providerId], references: [id])
-  encounter          ClinicalEncounter?
-  payment            Payment?
+  patient   Patient            @relation(fields: [patientId], references: [id])
+  provider  Provider           @relation(fields: [providerId], references: [id])
+  encounter ClinicalEncounter?
+  payment   Payment?
 }
 
 // ---------------------------------------------------------------------------
@@ -321,39 +380,39 @@ model Appointment {
 // ---------------------------------------------------------------------------
 
 model ClinicalEncounter {
-  id                 String   @id
-  encounterNumber    String   @unique
-  appointmentId      String   @unique
-  patientId         String
-  providerId         String
-  status             String   @default("open") // open | completed | amended
-  locked             Boolean  @default(false)
+  id              String    @id
+  encounterNumber String    @unique
+  appointmentId   String    @unique
+  patientId       String
+  providerId      String
+  status          String    @default("open") // open | completed | amended
+  locked          Boolean   @default(false)
   // SOAP / structured documentation stored as JSON
-  documentation      String   @default("{}")
-  signedAt           DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  documentation   String    @default("{}")
+  signedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  appointment        Appointment @relation(fields: [appointmentId], references: [id])
-  patient           Patient     @relation(fields: [patientId], references: [id])
-  provider          Provider    @relation(fields: [providerId], references: [id])
-  prescriptions     Prescription[]
-  labRequests       LaboratoryRequest[]
-  referrals         Referral[]
-  diagnoses         Diagnosis[]
+  appointment   Appointment         @relation(fields: [appointmentId], references: [id])
+  patient       Patient             @relation(fields: [patientId], references: [id])
+  provider      Provider            @relation(fields: [providerId], references: [id])
+  prescriptions Prescription[]
+  labRequests   LaboratoryRequest[]
+  referrals     Referral[]
+  diagnoses     Diagnosis[]
 }
 
 model Diagnosis {
-  id           String   @id
-  encounterId  String
-  patientId    String
-  code         String?
-  description  String
-  type         String   @default("primary") // primary | secondary | differential | provisional
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
+  id          String   @id
+  encounterId String
+  patientId   String
+  code        String?
+  description String
+  type        String   @default("primary") // primary | secondary | differential | provisional
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
 
-  encounter    ClinicalEncounter @relation(fields: [encounterId], references: [id])
+  encounter ClinicalEncounter @relation(fields: [encounterId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -361,50 +420,50 @@ model Diagnosis {
 // ---------------------------------------------------------------------------
 
 model Prescription {
-  id               String   @id
-  prescriptionNumber String @unique
-  encounterId      String?
-  patientId        String
-  providerId       String
-  status           String   @default("issued") // issued | awaiting_pharmacy | partially_fulfilled | fulfilled | expired | cancelled
-  validityStartDate String
-  expiryDate       String
-  notes            String?
+  id                 String   @id
+  prescriptionNumber String   @unique
+  encounterId        String?
+  patientId          String
+  providerId         String
+  status             String   @default("issued") // issued | awaiting_pharmacy | partially_fulfilled | fulfilled | expired | cancelled
+  validityStartDate  String
+  expiryDate         String
+  notes              String?
   // free-text clinical note from the prescribing doctor (dosage rationale,
   // warnings, follow-up advice). Shown on the prescription detail.
-  doctorNote        String?
+  doctorNote         String?
   // denormalised snapshot of the issuing pharmacy for prescriptions that are
   // sent to a specific pharmacy (filled in when the Rx is created or sent).
-  pharmacyId       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  pharmacyId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
-  patient          Patient  @relation(fields: [patientId], references: [id])
-  provider         Provider @relation(fields: [providerId], references: [id])
-  pharmacy         Pharmacy? @relation(fields: [pharmacyId], references: [id])
-  items            PrescriptionItem[]
-  pharmacyOrders   PharmacyOrder[]
+  encounter      ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient        Patient            @relation(fields: [patientId], references: [id])
+  provider       Provider           @relation(fields: [providerId], references: [id])
+  pharmacy       Pharmacy?          @relation(fields: [pharmacyId], references: [id])
+  items          PrescriptionItem[]
+  pharmacyOrders PharmacyOrder[]
 }
 
 model PrescriptionItem {
-  id                String   @id
-  prescriptionId    String
-  medicine          String
-  genericName       String?
-  strength          String
-  dosageForm        String
-  dose              String
-  route             String
-  frequency         String
-  duration          String
-  quantity          Int
-  refillAllowance   Int      @default(0)
-  substitutionAllowed Boolean @default(true)
-  instructions       String?
-  createdAt          DateTime @default(now())
+  id                  String   @id
+  prescriptionId      String
+  medicine            String
+  genericName         String?
+  strength            String
+  dosageForm          String
+  dose                String
+  route               String
+  frequency           String
+  duration            String
+  quantity            Int
+  refillAllowance     Int      @default(0)
+  substitutionAllowed Boolean  @default(true)
+  instructions        String?
+  createdAt           DateTime @default(now())
 
-  prescription      Prescription @relation(fields: [prescriptionId], references: [id])
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -412,74 +471,74 @@ model PrescriptionItem {
 // ---------------------------------------------------------------------------
 
 model LaboratoryRequest {
-  id               String   @id
-  requestNumber    String   @unique
-  encounterId      String?
-  patientId        String
-  requestingProviderId String
-  tests            String   @default("[]") // JSON string[]
-  clinicalIndication String?
-  priority         String   @default("routine") // routine | urgent | stat
+  id                      String   @id
+  requestNumber           String   @unique
+  encounterId             String?
+  patientId               String
+  requestingProviderId    String
+  tests                   String   @default("[]") // JSON string[]
+  clinicalIndication      String?
+  priority                String   @default("routine") // routine | urgent | stat
   preparationInstructions String?
-  fastingRequired  Boolean  @default(false)
-  sampleType       String?
-  notes            String?
-  status           String   @default("pending_booking")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  fastingRequired         Boolean  @default(false)
+  sampleType              String?
+  notes                   String?
+  status                  String   @default("pending_booking")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
-  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
-  patient          Patient  @relation(fields: [patientId], references: [id])
-  provider         Provider @relation(fields: [requestingProviderId], references: [id])
-  booking          LaboratoryBooking?
-  result           LaboratoryResult?
+  encounter ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient   Patient            @relation(fields: [patientId], references: [id])
+  provider  Provider           @relation(fields: [requestingProviderId], references: [id])
+  booking   LaboratoryBooking?
+  result    LaboratoryResult?
 }
 
 model LaboratoryBooking {
-  id               String   @id
-  bookingNumber    String   @unique
-  requestId        String   @unique
-  patientId        String
-  laboratoryId     String
-  collectionMode   String   @default("facility") // facility | home
-  homeAddress      String?
-  date             String
-  time             String
-  price            Int
-  paymentStatus    String   @default("paid")
-  status           String   @default("booking_accepted")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id             String   @id
+  bookingNumber  String   @unique
+  requestId      String   @unique
+  patientId      String
+  laboratoryId   String
+  collectionMode String   @default("facility") // facility | home
+  homeAddress    String?
+  date           String
+  time           String
+  price          Int
+  paymentStatus  String   @default("paid")
+  status         String   @default("booking_accepted")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  request          LaboratoryRequest @relation(fields: [requestId], references: [id])
-  patient          Patient   @relation(fields: [patientId], references: [id])
-  laboratory       Laboratory @relation(fields: [laboratoryId], references: [id])
+  request    LaboratoryRequest @relation(fields: [requestId], references: [id])
+  patient    Patient           @relation(fields: [patientId], references: [id])
+  laboratory Laboratory        @relation(fields: [laboratoryId], references: [id])
 }
 
 model LaboratoryResult {
-  id               String   @id
-  resultNumber     String   @unique
-  requestId        String   @unique
-  bookingId        String?
-  patientId        String
-  laboratoryId     String
-  test             String
+  id                   String   @id
+  resultNumber         String   @unique
+  requestId            String   @unique
+  bookingId            String?
+  patientId            String
+  laboratoryId         String
+  test                 String
   sampleCollectionDate String
-  resultDate       String
-  value            String
-  unit             String?
-  referenceRange   String?
-  abnormalIndicator String? // normal | high | low | critical
-  interpretation   String?
-  attachment       String? // JSON file metadata
-  reviewer         String?
-  status           String   @default("published")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  resultDate           String
+  value                String
+  unit                 String?
+  referenceRange       String?
+  abnormalIndicator    String? // normal | high | low | critical
+  interpretation       String?
+  attachment           String? // JSON file metadata
+  reviewer             String?
+  status               String   @default("published")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  request          LaboratoryRequest @relation(fields: [requestId], references: [id])
-  patient          Patient   @relation(fields: [patientId], references: [id])
-  laboratory       Laboratory @relation(fields: [laboratoryId], references: [id])
+  request    LaboratoryRequest @relation(fields: [requestId], references: [id])
+  patient    Patient           @relation(fields: [patientId], references: [id])
+  laboratory Laboratory        @relation(fields: [laboratoryId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -495,7 +554,7 @@ model PharmacyOrder {
   deliveryAddress  String?
   deliveryFee      Int      @default(0)
   subtotal         Int      @default(0)
-  commissionTotal Int      @default(0)
+  commissionTotal  Int      @default(0)
   total            Int      @default(0)
   paymentStatus    String   @default("paid")
   status           String   @default("paid")
@@ -503,11 +562,11 @@ model PharmacyOrder {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  prescription     Prescription? @relation(fields: [prescriptionId], references: [id])
-  patient          Patient  @relation(fields: [patientId], references: [id])
-  pharmacy         Pharmacy @relation(fields: [pharmacyId], references: [id])
-  items            PharmacyOrderItem[]
-  delivery         Delivery?
+  prescription Prescription?       @relation(fields: [prescriptionId], references: [id])
+  patient      Patient             @relation(fields: [patientId], references: [id])
+  pharmacy     Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  items        PharmacyOrderItem[]
+  delivery     Delivery?
 }
 
 model PharmacyOrderItem {
@@ -523,7 +582,7 @@ model PharmacyOrderItem {
   pharmacyNet      Int
   createdAt        DateTime @default(now())
 
-  order            PharmacyOrder @relation(fields: [orderId], references: [id])
+  order PharmacyOrder @relation(fields: [orderId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -531,23 +590,23 @@ model PharmacyOrderItem {
 // ---------------------------------------------------------------------------
 
 model Delivery {
-  id               String   @id
-  deliveryNumber   String   @unique
-  orderId          String   @unique
+  id                  String   @id
+  deliveryNumber      String   @unique
+  orderId             String   @unique
   logisticsProviderId String
-  packageType      String   @default("pharmacy")
-  pickupLocation   String
-  pickupContact    String
-  deliveryLocation String
-  recipientName    String
+  packageType         String   @default("pharmacy")
+  pickupLocation      String
+  pickupContact       String
+  deliveryLocation    String
+  recipientName       String
   handlingInstruction String?
-  verificationCode String
-  payout           Int
-  status           String   @default("assigned")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  verificationCode    String
+  payout              Int
+  status              String   @default("assigned")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  order            PharmacyOrder @relation(fields: [orderId], references: [id])
+  order             PharmacyOrder     @relation(fields: [orderId], references: [id])
   logisticsProvider LogisticsProvider @relation(fields: [logisticsProviderId], references: [id])
 }
 
@@ -556,30 +615,30 @@ model Delivery {
 // ---------------------------------------------------------------------------
 
 model Referral {
-  id               String   @id
-  referralNumber   String   @unique
-  encounterId      String?
-  patientId        String
-  senderProviderId String
+  id                  String   @id
+  referralNumber      String   @unique
+  encounterId         String?
+  patientId           String
+  senderProviderId    String
   recipientProviderId String?
-  recipientSpecialty String?
-  reason           String
-  symptoms         String?
-  relevantHistory  String?
-  diagnosis        String?
-  currentTreatment String?
-  requiredAction   String?
-  urgency          String   @default("routine") // routine | urgent | emergency
-  attachments      String   @default("[]") // JSON file metadata
-  accessExpiry     String?
-  status           String   @default("sent")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  recipientSpecialty  String?
+  reason              String
+  symptoms            String?
+  relevantHistory     String?
+  diagnosis           String?
+  currentTreatment    String?
+  requiredAction      String?
+  urgency             String   @default("routine") // routine | urgent | emergency
+  attachments         String   @default("[]") // JSON file metadata
+  accessExpiry        String?
+  status              String   @default("sent")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  encounter        ClinicalEncounter? @relation(fields: [encounterId], references: [id])
-  patient          Patient  @relation("ReferralPatient", fields: [patientId], references: [id])
-  sender           Provider @relation("ReferralSender", fields: [senderProviderId], references: [id])
-  recipient        Provider? @relation("ReferralRecipientProvider", fields: [recipientProviderId], references: [id])
+  encounter ClinicalEncounter? @relation(fields: [encounterId], references: [id])
+  patient   Patient            @relation("ReferralPatient", fields: [patientId], references: [id])
+  sender    Provider           @relation("ReferralSender", fields: [senderProviderId], references: [id])
+  recipient Provider?          @relation("ReferralRecipientProvider", fields: [recipientProviderId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -587,32 +646,32 @@ model Referral {
 // ---------------------------------------------------------------------------
 
 model RecordAccessGrant {
-  id               String   @id
-  patientId        String
-  granteeType      String // provider | pharmacy | laboratory | admin
-  granteeId        String?
-  granteeName      String
-  organisation     String?
-  reason           String
-  informationShared String  @default("[]") // JSON string[]
-  grantedAt        DateTime @default(now())
-  expiresAt        String?
+  id                 String   @id
+  patientId          String
+  granteeType        String // provider | pharmacy | laboratory | admin
+  granteeId          String?
+  granteeName        String
+  organisation       String?
+  reason             String
+  informationShared  String   @default("[]") // JSON string[]
+  grantedAt          DateTime @default(now())
+  expiresAt          String?
   relatedEncounterId String?
-  relatedReferralId String?
-  status           String   @default("active") // active | revoked | expired
+  relatedReferralId  String?
+  status             String   @default("active") // active | revoked | expired
 
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 }
 
 model Consent {
-  id               String   @id
-  patientId        String
-  type             String // consultation | laboratory | pharmacy | research
-  status           String   @default("granted")
-  grantedAt        DateTime @default(now())
-  details          String?
+  id        String   @id
+  patientId String
+  type      String // consultation | laboratory | pharmacy | research
+  status    String   @default("granted")
+  grantedAt DateTime @default(now())
+  details   String?
 
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -620,18 +679,18 @@ model Consent {
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id               String   @id
-  paymentNumber    String   @unique
-  appointmentId    String?  @unique
-  patientId        String
-  amount           Int
-  method           String   @default("card") // card | bank_transfer
-  status           String   @default("successful")
-  reference        String?
-  createdAt        DateTime @default(now())
+  id            String   @id
+  paymentNumber String   @unique
+  appointmentId String?  @unique
+  patientId     String
+  amount        Int
+  method        String   @default("card") // card | bank_transfer
+  status        String   @default("successful")
+  reference     String?
+  createdAt     DateTime @default(now())
 
-  appointment      Appointment? @relation(fields: [appointmentId], references: [id])
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  patient     Patient      @relation(fields: [patientId], references: [id])
 }
 
 model Settlement {
@@ -654,17 +713,17 @@ model Settlement {
 // ---------------------------------------------------------------------------
 
 model CarePlan {
-  id               String   @id
-  patientId        String
-  title            String
-  description      String?
-  startDate        String
-  endDate          String?
-  status           String   @default("active")
-  goals            String   @default("[]") // JSON
-  createdAt        DateTime @default(now())
+  id          String   @id
+  patientId   String
+  title       String
+  description String?
+  startDate   String
+  endDate     String?
+  status      String   @default("active")
+  goals       String   @default("[]") // JSON
+  createdAt   DateTime @default(now())
 
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
@@ -672,49 +731,49 @@ model CarePlan {
 // ---------------------------------------------------------------------------
 
 model Notification {
-  id               String   @id
-  recipientId      String // generic profile/user id — NOT a FK (multi-role)
-  recipientType    String // patient | provider | pharmacy | laboratory | logistics | admin
-  title            String
-  body             String
-  type             String // appointment | prescription | laboratory | pharmacy | logistics | system
-  relatedId        String?
-  read             Boolean  @default(false)
-  createdAt        DateTime @default(now())
+  id            String   @id
+  recipientId   String // generic profile/user id — NOT a FK (multi-role)
+  recipientType String // patient | provider | pharmacy | laboratory | logistics | admin
+  title         String
+  body          String
+  type          String // appointment | prescription | laboratory | pharmacy | logistics | system
+  relatedId     String?
+  read          Boolean  @default(false)
+  createdAt     DateTime @default(now())
 }
 
 model Rating {
-  id               String   @id
-  patientId        String
-  entityType       String // provider | pharmacy | laboratory
-  entityId         String
-  score            Int // 1-5
-  comment          String?
-  createdAt        DateTime @default(now())
+  id         String   @id
+  patientId  String
+  entityType String // provider | pharmacy | laboratory
+  entityId   String
+  score      Int // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
 
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 }
 
 model Complaint {
-  id               String   @id
-  complainantId     String
-  complainantType   String
-  subject          String
-  description      String
-  status           String   @default("open") // open | investigating | resolved | closed
-  priority         String   @default("normal")
-  createdAt        DateTime @default(now())
+  id              String   @id
+  complainantId   String
+  complainantType String
+  subject         String
+  description     String
+  status          String   @default("open") // open | investigating | resolved | closed
+  priority        String   @default("normal")
+  createdAt       DateTime @default(now())
 }
 
 model AuditLog {
-  id               String   @id
-  actorId          String // generic profile/user id — NOT a FK (multi-role)
-  actorRole        String
-  action           String
-  entityType       String
-  entityId         String // generic — NOT a FK
-  description      String
-  timestamp        DateTime @default(now())
+  id          String   @id
+  actorId     String // generic profile/user id — NOT a FK (multi-role)
+  actorRole   String
+  action      String
+  entityType  String
+  entityId    String // generic — NOT a FK
+  description String
+  timestamp   DateTime @default(now())
 }
 
 // ---------------------------------------------------------------------------
@@ -724,29 +783,29 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model PayoutRequest {
-  id               String   @id
-  payoutNumber     String   @unique
-  entityType       String // provider | pharmacy | laboratory | logistics | manager
+  id              String    @id
+  payoutNumber    String    @unique
+  entityType      String // provider | pharmacy | laboratory | logistics | manager
   // entityId is a plain application-level reference (NOT a FK): one column
   // points at different tables depending on entityType, which SQLite cannot
   // express as physical foreign keys. Referential integrity is enforced in
   // the action endpoints.
-  entityId         String
-  entityName       String
-  amountRequested  Int // net amount the entity is asking to withdraw
-  periodStart      String
-  periodEnd        String
-  status           String   @default("requested") // requested | processing | paid | rejected
-  method           String   @default("bank_transfer")
-  notes            String?
-  requestedAt      DateTime @default(now())
-  processedAt      DateTime?
-  processedBy      String? // admin user id
-  adminNote        String?
+  entityId        String
+  entityName      String
+  amountRequested Int // net amount the entity is asking to withdraw
+  periodStart     String
+  periodEnd       String
+  status          String    @default("requested") // requested | processing | paid | rejected
+  method          String    @default("bank_transfer")
+  notes           String?
+  requestedAt     DateTime  @default(now())
+  processedAt     DateTime?
+  processedBy     String? // admin user id
+  adminNote       String?
 
   // Manager payouts additionally link their allocated earnings rows.
-  managerId        String?
-  manager          Manager?             @relation(fields: [managerId], references: [id])
+  managerId         String?
+  manager           Manager?         @relation(fields: [managerId], references: [id])
   allocatedEarnings ManagerEarning[]
 
   @@index([entityType, entityId, status])
@@ -760,33 +819,32 @@ model PayoutRequest {
 // ---------------------------------------------------------------------------
 
 model UploadedPrescription {
-  id               String   @id
-  uploadNumber     String   @unique
-  patientId        String
-  patientName      String // snapshot for display on the pharmacy side
-  prescriberName   String? // optional, the patient can type the doctor's name
+  id                 String    @id
+  uploadNumber       String    @unique
+  patientId          String
+  patientName        String // snapshot for display on the pharmacy side
+  prescriberName     String? // optional, the patient can type the doctor's name
   prescriberFacility String?
-  notes            String? // patient note to the pharmacy
+  notes              String? // patient note to the pharmacy
   // mocked file metadata (name, type, size, dataUrl). dataUrl holds a base64
   // data URL so the prototype can render the uploaded image without storage.
-  fileName         String
-  fileType         String
-  fileSize         Int
-  dataUrl          String // data:image/...;base64,....
-  status           String   @default("uploaded") // uploaded | under_review | accepted | rejected
-  pharmacyId       String? // set when the patient sends it to a specific pharmacy
-  createdAt        DateTime @default(now())
-  reviewedAt       DateTime?
+  fileName           String
+  fileType           String
+  fileSize           Int
+  dataUrl            String // data:image/...;base64,....
+  status             String    @default("uploaded") // uploaded | under_review | accepted | rejected
+  pharmacyId         String? // set when the patient sends it to a specific pharmacy
+  createdAt          DateTime  @default(now())
+  reviewedAt         DateTime?
 
-  patient          Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 }
 
 // ---------------------------------------------------------------------------
 // MANAGER MODULE (plan §4)
-// Managers acquire/onboard pharmacies and laboratories, manage a portfolio,
-// earn a configurable share of eligible organization payments, and handle
-// first-level support. Statuses are stored as strings (SQLite has no native
-// enum) and validated in the application layer.
+// Managers are acquisition/marketing users. They onboard patients and
+// organizations through attributed links, see only aggregate enrollment and
+// earnings information, and may escalate/follow up privacy-safe tickets.
 // ---------------------------------------------------------------------------
 
 model Manager {
@@ -808,18 +866,21 @@ model Manager {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  acquiredPharmacies Pharmacy[] @relation("PharmacyAcquiredBy")
-  managedPharmacies  Pharmacy[] @relation("PharmacyCurrentManager")
+  acquiredPharmacies   Pharmacy[]   @relation("PharmacyAcquiredBy")
+  managedPharmacies    Pharmacy[]   @relation("PharmacyCurrentManager")
   acquiredLaboratories Laboratory[] @relation("LaboratoryAcquiredBy")
   managedLaboratories  Laboratory[] @relation("LaboratoryCurrentManager")
+  acquiredHospitals    Hospital[]   @relation("HospitalAcquiredBy")
+  acquiredPatients     Patient[]    @relation("PatientAcquiredBy")
 
-  assignments  ManagerAssignment[]
-  applications ManagerOrganizationApplication[]
-  rules        ManagerRevenueShareRule[]
-  earnings     ManagerEarning[]
-  bankAccount  ManagerBankAccount?
-  payouts      PayoutRequest[]
-  tickets      SupportTicket[]
+  assignments         ManagerAssignment[]
+  applications        ManagerOrganizationApplication[]
+  rules               ManagerRevenueShareRule[]
+  earnings            ManagerEarning[]
+  bankAccount         ManagerBankAccount?
+  payouts             PayoutRequest[]
+  tickets             SupportTicket[]
+  patientApplications ManagerPatientApplication[]
 
   @@index([verificationStatus])
   @@index([state, territory])
@@ -842,9 +903,9 @@ model ManagerAssignment {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  manager    Manager     @relation(fields: [managerId], references: [id])
-  pharmacy   Pharmacy?   @relation(fields: [pharmacyId], references: [id])
-  laboratory Laboratory? @relation(fields: [laboratoryId], references: [id])
+  manager    Manager          @relation(fields: [managerId], references: [id])
+  pharmacy   Pharmacy?        @relation(fields: [pharmacyId], references: [id])
+  laboratory Laboratory?      @relation(fields: [laboratoryId], references: [id])
   earnings   ManagerEarning[]
 
   @@index([managerId, relationshipStatus])
@@ -854,35 +915,56 @@ model ManagerAssignment {
 }
 
 model ManagerOrganizationApplication {
-  id                   String    @id
-  applicationNumber    String    @unique
-  managerId            String
-  organizationType     String // pharmacy | laboratory
-  businessName         String
-  contactPerson        String
-  contactEmail         String
-  contactPhone         String
-  address              String
-  city                 String
-  state                String
-  registrationNumber   String
-  licenceNumber        String?
-  notes                String?
-  status               String    @default("submitted") // draft | submitted | under_review | information_required | approved | rejected
-  submittedAt          DateTime?
-  reviewedAt           DateTime?
-  reviewerId           String?
-  reviewerNote         String?
-  createdPharmacyId    String? // application-level reference to the created org
-  createdLaboratoryId  String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  String    @id
+  applicationNumber   String    @unique
+  managerId           String
+  organizationType    String // pharmacy | laboratory | hospital
+  businessName        String
+  contactPerson       String
+  contactEmail        String
+  contactPhone        String
+  address             String
+  city                String
+  state               String
+  registrationNumber  String
+  licenceNumber       String?
+  notes               String?
+  services            String    @default("[]") // JSON string[]; required for hospitals
+  status              String    @default("submitted") // draft | submitted | under_review | information_required | approved | rejected
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  reviewerId          String?
+  reviewerNote        String?
+  createdPharmacyId   String? // application-level reference to the created org
+  createdLaboratoryId String?
+  createdHospitalId   String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   manager Manager @relation(fields: [managerId], references: [id])
 
   @@index([managerId, status])
   @@index([status, submittedAt])
   @@index([organizationType])
+}
+
+model ManagerPatientApplication {
+  id                String    @id
+  applicationNumber String    @unique
+  managerId         String
+  patientId         String    @unique
+  status            String    @default("submitted") // submitted | under_review | information_required | approved | rejected
+  submittedAt       DateTime  @default(now())
+  reviewedAt        DateTime?
+  reviewerId        String?
+  reviewerNote      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  manager Manager @relation(fields: [managerId], references: [id])
+
+  @@index([managerId, status])
+  @@index([status, submittedAt])
 }
 
 // Payments made BY a pharmacy/laboratory TO Royal Palace for subscriptions,
@@ -918,25 +1000,52 @@ model OrganizationPayment {
   @@index([transactionType])
 }
 
+// Canonical payment event used for manager attribution. It records that an
+// enrolled patient completed a paid activity; Manager APIs never expose the
+// patient identity, gross amount or payment reference.
+model PatientActivityPayment {
+  id            String    @id
+  paymentNumber String    @unique
+  patientId     String
+  activityType  String // consultation | pharmacy | laboratory | hospital
+  sourceId      String
+  amount        Int
+  currency      String    @default("NGN")
+  status        String    @default("successful") // successful | refunded
+  reference     String    @unique
+  occurredAt    DateTime  @default(now())
+  refundedAt    DateTime?
+  refundAmount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  patient  Patient          @relation(fields: [patientId], references: [id])
+  earnings ManagerEarning[]
+
+  @@index([patientId, occurredAt])
+  @@index([activityType, status, occurredAt])
+}
+
 // Effective-dated revenue share rules. Rates are integer basis points
 // (10000 = 100%). Overlaps for the same scope are rejected in application code.
 model ManagerRevenueShareRule {
-  id              String    @id
-  managerId       String
+  id               String    @id
+  managerId        String
   organizationType String // pharmacy | laboratory
-  transactionType String // subscription | renewal | platform_fee | service_fee
-  rateBps         Int
-  effectiveFrom   DateTime  @default(now())
-  effectiveUntil  DateTime?
-  status          String    @default("active") // active | retired
-  createdBy       String
-  approvedBy      String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  transactionType  String // subscription | renewal | platform_fee | service_fee
+  activityType     String? // consultation | pharmacy | laboratory | hospital; new attribution model
+  rateBps          Int
+  effectiveFrom    DateTime  @default(now())
+  effectiveUntil   DateTime?
+  status           String    @default("active") // active | retired
+  createdBy        String
+  approvedBy       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   manager Manager @relation(fields: [managerId], references: [id])
 
   @@index([managerId, organizationType, transactionType, status])
+  @@index([managerId, activityType, status])
   @@index([effectiveFrom])
   @@index([effectiveUntil])
 }
@@ -944,39 +1053,42 @@ model ManagerRevenueShareRule {
 // Immutable earnings ledger. Never mutate or delete historical rows; refunds
 // create separate signed reversal entries linked via reversalOfId.
 model ManagerEarning {
-  id                    String    @id
-  earningNumber         String    @unique
-  eventKey              String    @unique // idempotency key, e.g. "orgpay:<id>:earning"
-  managerId             String
-  managerAssignmentId   String? // snapshot of the assignment in force at payment time
-  organizationPaymentId String
-  organizationType      String
-  organizationId        String
-  organizationName      String // snapshot — survives org renames
-  paymentType           String // snapshot of transactionType
-  paymentNumber         String // snapshot
-  eligibleAmount        Int // signed: negative on reversal entries
-  rateBps               Int // snapshot of the rule in force
-  amount                Int // signed: positive earning, negative reversal
-  entryType             String // earning | reversal
-  status                String    @default("pending") // pending | available | paid | reversed
-  occurredAt            DateTime  @default(now())
-  availableAt           DateTime? // when the entry became available for payout
-  reversalOfId          String?
-  payoutRequestId       String? // allocation to the payout that consumed it
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id                       String    @id
+  earningNumber            String    @unique
+  eventKey                 String    @unique // idempotency key, e.g. "orgpay:<id>:earning"
+  managerId                String
+  managerAssignmentId      String? // snapshot of the assignment in force at payment time
+  organizationPaymentId    String?
+  patientActivityPaymentId String?
+  organizationType         String
+  organizationId           String
+  organizationName         String // snapshot — survives org renames
+  paymentType              String // snapshot of transactionType
+  paymentNumber            String // snapshot
+  eligibleAmount           Int // signed: negative on reversal entries
+  rateBps                  Int // snapshot of the rule in force
+  amount                   Int // signed: positive earning, negative reversal
+  entryType                String // earning | reversal
+  status                   String    @default("pending") // pending | available | paid | reversed
+  occurredAt               DateTime  @default(now())
+  availableAt              DateTime? // when the entry became available for payout
+  reversalOfId             String?
+  payoutRequestId          String? // allocation to the payout that consumed it
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  manager             Manager             @relation(fields: [managerId], references: [id])
-  assignment          ManagerAssignment?  @relation(fields: [managerAssignmentId], references: [id])
-  organizationPayment OrganizationPayment @relation(fields: [organizationPaymentId], references: [id])
-  reversalOf          ManagerEarning?     @relation("EarningReversal", fields: [reversalOfId], references: [id])
-  reversals           ManagerEarning[]    @relation("EarningReversal")
-  payoutRequest       PayoutRequest?      @relation(fields: [payoutRequestId], references: [id])
+  manager                Manager                 @relation(fields: [managerId], references: [id])
+  assignment             ManagerAssignment?      @relation(fields: [managerAssignmentId], references: [id])
+  organizationPayment    OrganizationPayment?    @relation(fields: [organizationPaymentId], references: [id])
+  patientActivityPayment PatientActivityPayment? @relation(fields: [patientActivityPaymentId], references: [id])
+  reversalOf             ManagerEarning?         @relation("EarningReversal", fields: [reversalOfId], references: [id])
+  reversals              ManagerEarning[]        @relation("EarningReversal")
+  payoutRequest          PayoutRequest?          @relation(fields: [payoutRequestId], references: [id])
 
   @@index([managerId, status, createdAt])
   @@index([organizationType, organizationId, occurredAt])
   @@index([organizationPaymentId])
+  @@index([patientActivityPaymentId])
   @@index([payoutRequestId])
   @@index([reversalOfId])
 }

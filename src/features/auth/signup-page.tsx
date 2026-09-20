@@ -50,7 +50,8 @@ const EMPTY: SignupForm = {
 };
 
 export function SignupPage() {
-  const { setSession } = useNav();
+  const { setSession, view } = useNav();
+  const onboardingCode = view.params.code?.trim().toUpperCase() ?? "";
   const [form, setForm] = useState<SignupForm>(EMPTY);
   const [busy, setBusy] = useState(false);
 
@@ -75,7 +76,7 @@ export function SignupPage() {
     }
     setBusy(true);
     try {
-      const session = await authService.signup({
+      const result = await authService.signup({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim().toLowerCase(),
@@ -85,9 +86,15 @@ export function SignupPage() {
         dateOfBirth: form.dateOfBirth,
         city: form.city,
         state: form.state,
+        onboardingCode: onboardingCode || undefined,
       });
-      setSession(session as never);
-      toast.success("Welcome to Royal Palace Health Care");
+      if (result.pendingReview) {
+        toast.success("Enrollment submitted", { description: "Royal Palace will review your information before activating your account." });
+        navigate("login", "login");
+      } else {
+        setSession(result.session as never);
+        toast.success("Welcome to Royal Palace Health Care");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign up failed");
     } finally {
@@ -115,8 +122,8 @@ export function SignupPage() {
       <main className="flex-1 flex items-start sm:items-center justify-center p-4 py-8">
         <div className="w-full max-w-lg space-y-4">
           <PageHeader
-            title="Create your account"
-            description="Book appointments, order medicines and upload prescriptions in minutes."
+            title={onboardingCode ? "Join through a Manager" : "Create your account"}
+            description={onboardingCode ? "Submit your patient enrollment for Royal Palace review." : "Book appointments, order medicines and upload prescriptions in minutes."}
           />
 
           <Card>
@@ -125,7 +132,7 @@ export function SignupPage() {
                 <Sparkles className="h-4 w-4 text-emerald-600" /> Patient sign up
               </CardTitle>
               <CardDescription className="text-xs">
-                Free to join. Prototype — no real account or payment is created.
+                {onboardingCode ? `Manager code ${onboardingCode} · Admin approval is required.` : "Free to join. Prototype — no real account or payment is created."}
               </CardDescription>
             </CardHeader>
             <CardContent>

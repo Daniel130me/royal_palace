@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     const page = Math.max(Number(url.searchParams.get("page") ?? 1) || 1, 1);
     const pageSize = clampPageSize(url.searchParams.get("pageSize"));
     const skip = (page - 1) * pageSize;
+    const applicationStatus = url.searchParams.get("status") ?? "all";
 
     const managerSelect = { select: { firstName: true, lastName: true, managerNumber: true } };
     const managerName = (m?: { firstName: string; lastName: string; managerNumber: string } | null) =>
@@ -217,14 +218,21 @@ export async function GET(req: Request) {
     }
 
     async function applicationSection() {
-      const rows = await db.managerOrganizationApplication.findMany({
+      const [rows, patientRows] = await Promise.all([db.managerOrganizationApplication.findMany({
+        where: applicationStatus === "all" ? {} : { status: applicationStatus },
         include: { manager: managerSelect },
         orderBy: { createdAt: "desc" },
         skip,
         take: pageSize,
-      });
-      return rows.map((a) => ({
+      }), db.managerPatientApplication.findMany({
+        where: applicationStatus === "all" ? {} : { status: applicationStatus },
+        include: { manager: managerSelect }, orderBy: { createdAt: "desc" }, skip, take: pageSize,
+      })]);
+      const patients = patientRows.length ? await db.patient.findMany({ where: { id: { in: patientRows.map((row) => row.patientId) } } }) : [];
+      const patientById = new Map(patients.map((patient) => [patient.id, patient]));
+      return [...rows.map((a) => ({
         id: a.id,
+        enrollmentType: a.organizationType,
         applicationNumber: a.applicationNumber,
         managerId: a.managerId,
         managerName: managerName(a.manager),
@@ -246,10 +254,15 @@ export async function GET(req: Request) {
         reviewerId: a.reviewerId,
         reviewerNote: a.reviewerNote,
         createdAt: a.createdAt,
-      }));
+      })), ...patientRows.map((a) => {
+        const patient = patientById.get(a.patientId);
+        return { id: a.id, enrollmentType: "patient", applicationNumber: a.applicationNumber, managerId: a.managerId, managerName: managerName(a.manager), managerNumber: a.manager?.managerNumber ?? "—", patientId: a.patientId, patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown patient", patientEmail: patient?.email ?? "", patientPhone: patient?.phone ?? "", city: patient?.city ?? "", state: patient?.state ?? "", status: a.status, submittedAt: a.submittedAt, reviewedAt: a.reviewedAt, reviewerId: a.reviewerId, reviewerNote: a.reviewerNote, createdAt: a.createdAt };
+      })].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, pageSize);
     }
     async function applicationCount() {
-      return db.managerOrganizationApplication.count();
+      const where = applicationStatus === "all" ? {} : { status: applicationStatus };
+      const [organizations, patients] = await Promise.all([db.managerOrganizationApplication.count({ where }), db.managerPatientApplication.count({ where })]);
+      return organizations + patients;
     }
 
     async function escalationSection() {

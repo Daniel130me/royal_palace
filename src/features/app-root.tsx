@@ -5,14 +5,17 @@ import { useEffect, useState } from "react";
 import { PublicSite } from "@/features/public/public-site";
 import { LoginPage } from "@/features/auth/login-page";
 import { SignupPage } from "@/features/auth/signup-page";
+import { OrganizationSignupPage } from "@/features/auth/organization-signup-page";
 import { PersonaSwitcher } from "@/features/auth/persona-switcher";
 import { PatientPortal } from "@/features/patient/patient-portal";
 import { ProviderPortal } from "@/features/provider/provider-portal";
 import { PharmacyPortal } from "@/features/pharmacy/pharmacy-portal";
 import { LaboratoryPortal } from "@/features/laboratory/laboratory-portal";
+import { HospitalPortal } from "@/features/hospital/hospital-portal";
 import { LogisticsPortal } from "@/features/logistics/logistics-portal";
 import { AdminPortal } from "@/features/admin/admin-portal";
 import { ManagerPortal } from "@/features/manager/manager-portal";
+import { SupportPortal } from "@/features/support/support-portal";
 
 export function AppRoot() {
   const { session, view } = useNav();
@@ -39,7 +42,7 @@ export function AppRoot() {
       ) : view.portal === "public" ? (
         <PublicSite />
       ) : view.portal === "login" ? (
-        view.page === "signup" ? <SignupPage /> : <LoginPage />
+        view.page === "signup" ? <SignupPage /> : view.page === "organization-signup" ? <OrganizationSignupPage /> : <LoginPage />
       ) : view.portal === "patient" ? (
         <PatientPortal />
       ) : view.portal === "provider" ? (
@@ -48,10 +51,14 @@ export function AppRoot() {
         <PharmacyPortal />
       ) : view.portal === "laboratory" ? (
         <LaboratoryPortal />
+      ) : view.portal === "hospital" ? (
+        <HospitalPortal />
       ) : view.portal === "logistics" ? (
         <LogisticsPortal />
       ) : view.portal === "manager" ? (
         <ManagerPortal />
+      ) : view.portal === "support" ? (
+        <SupportPortal />
       ) : view.portal === "admin" ? (
         <AdminPortal />
       ) : (

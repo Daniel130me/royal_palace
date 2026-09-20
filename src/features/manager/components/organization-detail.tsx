@@ -252,8 +252,8 @@ export function OrganizationDetailPage({ type }: { type: "pharmacy" | "laborator
                             <p className="truncate">{e.paymentNumber}</p>
                             <p className="text-xs text-muted-foreground">{TRANSACTION_TYPE_LABELS[e.paymentType] ?? e.paymentType}</p>
                           </div>
-                          <div>{formatCurrency(Math.abs(e.eligibleAmount))}</div>
-                          <div>{formatRateBps(e.rateBps)}</div>
+                          <div>{formatCurrency(Math.abs(e.eligibleAmount ?? 0))}</div>
+                          <div>{formatRateBps(e.rateBps ?? 0)}</div>
                           <div className={e.amount < 0 ? "font-semibold text-rose-600" : "font-semibold text-emerald-600"}>
                             {e.amount < 0 ? "−" : ""}{formatCurrency(Math.abs(e.amount))}
                           </div>

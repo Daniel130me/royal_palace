@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Stethoscope, Smile, FlaskConical, Pill, HeartPulse, ShieldPlus,
   Home, ArrowRight, Phone, Video, FileText, Sparkles,
+  Building2,
 } from "lucide-react";
 
 interface Category {
@@ -20,6 +21,15 @@ interface Category {
 }
 
 const CATEGORIES: Category[] = [
+  {
+    id: "hospitals",
+    title: "Hospitals",
+    description: "Find verified hospitals by the exact service, specialty or facility you need.",
+    icon: Building2,
+    tone: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+    bullets: ["Filter by service", "Verified facilities", "Emergency and 24-hour options"],
+    cta: { label: "Find a hospital", page: "hospitals" },
+  },
   {
     id: "doctor-consultation",
     title: "Doctor Consultation",

@@ -8,7 +8,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { genId } from "@/lib/format";
 import { getAdminContext, ManagerAccessError } from "@/lib/manager-access";
-import { assignOrganizationToManager } from "@/lib/manager-assignment-policy";
 
 const REVIEW_ACTIONS = ["under_review", "information_required", "approved", "rejected"] as const;
 type ReviewAction = (typeof REVIEW_ACTIONS)[number];
@@ -42,8 +41,12 @@ export async function POST(req: Request) {
         return { application: updated };
       }
 
-      // --- APPROVAL: create organization + user + attribution + assignment ---
-      const orgId = application.organizationType === "pharmacy" ? genId("PHA") : genId("LAB");
+      // APPROVAL creates the organization and permanent acquisition
+      // attribution. It deliberately does NOT assign the organization to the
+      // Manager: Managers are marketers, not account owners.
+      const orgId = application.organizationType === "pharmacy"
+        ? genId("PHA")
+        : application.organizationType === "laboratory" ? genId("LAB") : genId("HOS");
       const userId = genId("USR");
       const now = new Date();
 
@@ -71,15 +74,12 @@ export async function POST(req: Request) {
             address: application.address,
             phone: application.contactPhone,
             email: application.contactEmail,
-            verificationStatus: "pending",
+            verificationStatus: "approved",
             acquiredByManagerId: application.managerId, // acquisition attribution is permanent
             acquiredAt: now,
-            currentManagerId: application.managerId,
-            managerAssignedAt: now,
-            managerRelationshipStatus: "active",
           },
         });
-      } else {
+      } else if (application.organizationType === "laboratory") {
         await tx.laboratory.create({
           data: {
             id: orgId,
@@ -91,28 +91,27 @@ export async function POST(req: Request) {
             address: application.address,
             phone: application.contactPhone,
             email: application.contactEmail,
-            verificationStatus: "pending",
+            verificationStatus: "approved",
             acquiredByManagerId: application.managerId,
             acquiredAt: now,
-            currentManagerId: application.managerId,
-            managerAssignedAt: now,
-            managerRelationshipStatus: "active",
+          },
+        });
+      } else {
+        const serviceNames: string[] = JSON.parse(application.services || "[]");
+        await tx.hospital.create({
+          data: {
+            id: orgId, userId, hospitalNumber: `RPH-${orgId}`, name: application.businessName,
+            description: application.notes, city: application.city, state: application.state,
+            address: application.address, phone: application.contactPhone, email: application.contactEmail,
+            verificationStatus: "approved", acquiredByManagerId: application.managerId, acquiredAt: now,
+            services: {
+              create: serviceNames.map((name, index) => ({
+                id: genId("HOS-SVC"), name, category: index === 0 ? "Primary service" : "Clinical service",
+              })),
+            },
           },
         });
       }
-
-      const assignment = await assignOrganizationToManager(
-        {
-          organizationType: application.organizationType as "pharmacy" | "laboratory",
-          organizationId: orgId,
-          managerId: application.managerId,
-          assignedBy: admin.profileId ?? admin.userId,
-          source: "application_approval",
-          reason: `Approved application ${application.applicationNumber}.`,
-          startsAt: now,
-        },
-        tx
-      );
 
       const updated = await tx.managerOrganizationApplication.update({
         where: { id: application.id },
@@ -120,9 +119,10 @@ export async function POST(req: Request) {
           ...data,
           createdPharmacyId: application.organizationType === "pharmacy" ? orgId : null,
           createdLaboratoryId: application.organizationType === "laboratory" ? orgId : null,
+          createdHospitalId: application.organizationType === "hospital" ? orgId : null,
         },
       });
-      return { application: updated, orgId, assignment };
+      return { application: updated, orgId };
     });
 
     // Post-commit notifications (non-critical, best effort).
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
         recipientId: application.managerId,
         recipientType: "manager",
         title: `Application ${action.replace("_", " ")}`,
-        body: `${application.businessName} (${application.applicationNumber}) was ${action.replace("_", " ")}.${reviewerNote ? ` Note: ${reviewerNote}` : ""}`,
+        body: `${application.applicationNumber} was ${action.replace("_", " ")}.${reviewerNote ? ` Note: ${reviewerNote}` : ""}`,
         type: "manager",
         relatedId: application.id,
         read: false,

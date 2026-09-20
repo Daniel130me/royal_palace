@@ -24,9 +24,10 @@ import { PatientConsultation } from "./pages/consultation";
 import { PatientPharmacies } from "./pages/pharmacies";
 import { PatientLaboratories } from "./pages/laboratories";
 import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
+import { PatientHospitals } from "./pages/hospitals";
 import {
   LayoutDashboard, Stethoscope, CalendarDays, FileText, Pill, FlaskConical,
-  Package, Users, ShieldCheck, CreditCard, Bell, Settings, Upload,
+  Package, Users, ShieldCheck, CreditCard, Bell, Settings, Upload, Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/healthcare/app-shell";
 import { usePatientContext } from "./use-patient-context";
@@ -47,6 +48,7 @@ export function PatientPortal() {
     { label: "Prescriptions", page: "prescriptions", icon: Pill },
     { label: "My Uploads", page: "uploads", icon: Upload },
     { label: "Laboratory", page: "laboratory", icon: FlaskConical },
+    { label: "Hospitals", page: "hospitals", icon: Building2 },
     { label: "Family", page: "family", icon: Users },
     { label: "Consent & Access", page: "consent", icon: ShieldCheck },
     { label: "Payments", page: "payments", icon: CreditCard },
@@ -65,6 +67,7 @@ export function PatientPortal() {
        page === "consultation" ? <PatientConsultation /> :
        page === "pharmacies" ? <PatientPharmacies /> :
        page === "laboratories" ? <PatientLaboratories /> :
+       page === "hospitals" ? <PatientHospitals /> :
        page === "pharmacy" ? <PatientPharmacyDetail /> :
        page === "upload-prescription" ? <PatientUploadPrescription /> :
        page === "uploads" ? <PatientUploads /> :

@@ -9,8 +9,10 @@ export type UserRole =
   | "dentist"
   | "pharmacy"
   | "laboratory"
+  | "hospital"
   | "logistics"
   | "manager"
+  | "support"
   | "admin";
 
 export type UserStatus = "active" | "pending" | "suspended";
@@ -62,6 +64,9 @@ export interface Patient {
   emergencyName?: string | null;
   emergencyPhone?: string | null;
   emergencyRel?: string | null;
+  acquiredByManagerId?: string | null;
+  acquiredAt?: string | null;
+  onboardingStatus?: "pending" | "information_required" | "approved" | "rejected";
 }
 
 export type ProviderVerificationStatus =
@@ -445,6 +450,35 @@ export interface Laboratory {
   managerRelationshipStatus?: ManagerRelationshipStatus | null;
 }
 
+export interface HospitalService {
+  id: string;
+  hospitalId: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  active: boolean;
+}
+
+export interface Hospital {
+  id: string;
+  userId: string;
+  hospitalNumber: string;
+  name: string;
+  description?: string | null;
+  city: string;
+  state: string;
+  address: string;
+  phone: string;
+  email: string;
+  emergencyAvailable: boolean;
+  openTwentyFourHours: boolean;
+  verificationStatus: string;
+  rating: number;
+  acquiredByManagerId?: string | null;
+  acquiredAt?: string | null;
+  services?: HospitalService[];
+}
+
 export interface LogisticsProvider {
   id: string;
   userId: string;
@@ -689,12 +723,13 @@ export interface UploadedPrescription {
 // ---------------------------------------------------------------------------
 // MANAGER MODULE (see MANAGER_MODULE_AGENT_IMPLEMENTATION_PLAN.md)
 // A Manager is a business-relationship role: they acquire/onboard pharmacies
-// and laboratories, manage a portfolio, earn a configured share of eligible
+// patients and organizations through attributed links and earn a configured share of eligible
 // organization-to-platform payments, and provide first-level support.
 // Managers never see patient or clinical data.
 // ---------------------------------------------------------------------------
 
-export type ManagerOrganizationType = "pharmacy" | "laboratory";
+export type ManagerOrganizationType = "pharmacy" | "laboratory" | "hospital";
+export type ManagerActivityType = "consultation" | "pharmacy" | "laboratory" | "hospital";
 
 export type ManagerEmploymentStatus =
   | "full_time"
@@ -822,6 +857,7 @@ export interface ManagerOrganizationApplication {
   registrationNumber: string;
   licenceNumber?: string | null;
   notes?: string | null;
+  services?: string[];
   status: ManagerApplicationStatus;
   submittedAt?: string | null;
   reviewedAt?: string | null;
@@ -829,6 +865,32 @@ export interface ManagerOrganizationApplication {
   reviewerNote?: string | null;
   createdOrganizationId?: string | null;
   createdAt: string;
+}
+
+export interface ManagerPatientApplication {
+  id: string;
+  applicationNumber: string;
+  managerId: string;
+  patientId: string;
+  status: ManagerApplicationStatus;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewerId?: string | null;
+  reviewerNote?: string | null;
+  createdAt: string;
+}
+
+export interface PatientActivityPayment {
+  id: string;
+  paymentNumber: string;
+  patientId: string;
+  activityType: ManagerActivityType;
+  sourceId: string;
+  amount: number;
+  status: "successful" | "refunded";
+  reference: string;
+  occurredAt: string;
+  refundAmount: number;
 }
 
 export interface OrganizationPayment {
@@ -855,6 +917,7 @@ export interface ManagerRevenueShareRule {
   managerId: string;
   organizationType: ManagerOrganizationType;
   transactionType: OrganizationTransactionType;
+  activityType?: ManagerActivityType | null;
   /** Integer basis points: 10000 = 100%, 300 = 3.00%. Never a float percentage. */
   rateBps: number;
   effectiveFrom: string;
@@ -872,14 +935,17 @@ export interface ManagerEarning {
   eventKey: string;
   managerId: string;
   managerAssignmentId?: string | null;
-  organizationPaymentId: string;
+  organizationPaymentId?: string | null;
+  patientActivityPaymentId?: string | null;
   organizationType: ManagerOrganizationType;
   organizationId: string;
   organizationName: string;
   paymentType: OrganizationTransactionType;
   paymentNumber: string;
-  eligibleAmount: number;
-  rateBps: number;
+  /** Source values are admin-only; Manager endpoints intentionally omit them. */
+  eligibleAmount?: number;
+  rateBps?: number;
+  activityType?: ManagerActivityType;
   /** Signed: positive for earning entries, negative for reversal entries. */
   amount: number;
   entryType: ManagerEarningEntryType;
@@ -940,19 +1006,14 @@ export interface SupportTicketMessage {
 
 /** Aggregated dashboard payload — computed with DB aggregates, not client-side reduces. */
 export interface ManagerDashboardSummary {
-  portfolio: {
+  enrollments: {
     total: number;
+    patients: number;
     pharmacies: number;
     laboratories: number;
-    active: number;
-    pendingVerification: number;
-    inactive: number;
-    suspended: number;
-    acquiredByManager: number;
-  };
-  payments: {
-    successfulThisMonth: number;
-    countThisMonth: number;
+    hospitals: number;
+    pendingReview: number;
+    approved: number;
   };
   earnings: {
     thisMonth: number;
@@ -973,7 +1034,8 @@ export interface ManagerDashboardSummary {
   applications: {
     pending: number;
   };
-  monthly: { month: string; payments: number; earnings: number }[];
+  monthly: { month: string; earnings: number }[];
+  daily: { date: string; earnings: number }[];
 }
 
 /** Server-projected, manager-safe organization shape (see manager-access.ts). */

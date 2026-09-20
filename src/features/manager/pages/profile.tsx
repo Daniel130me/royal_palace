@@ -46,9 +46,9 @@ export function ManagerProfile() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-        <MetricCard label="Portfolio size" value={data.stats.portfolioCount} hint="Organizations you currently manage" icon={Building2} />
-        <MetricCard label="Acquired by you" value={data.stats.acquiredCount} hint="Organizations you brought onto the platform" icon={Handshake} tone="violet" />
-        <MetricCard label="Open tickets" value={data.stats.openTicketCount} hint="First-level support workload" icon={LifeBuoy} tone="warning" />
+        <MetricCard label="Enrollments" value={data.stats.enrollmentCount} hint="Patients and organizations attributed to your links" icon={Building2} />
+        <MetricCard label="Attributed to you" value={data.stats.acquiredCount} hint="Referral counts only" icon={Handshake} tone="violet" />
+        <MetricCard label="Open tickets" value={data.stats.openTicketCount} hint="Reference-only follow-up" icon={LifeBuoy} tone="warning" />
         <MetricCard label="Pending applications" value={data.stats.pendingApplications} hint="In review right now" icon={ClipboardList} tone="info" />
       </div>
 

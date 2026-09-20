@@ -13,7 +13,6 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const status = url.searchParams.get("status") ?? "all";
     const view = url.searchParams.get("view") ?? "all"; // all | open | escalated | resolved
-    const search = url.searchParams.get("search")?.trim() ?? "";
     const page = Math.max(Number(url.searchParams.get("page") ?? 1) || 1, 1);
     const pageSize = clampPageSize(url.searchParams.get("pageSize"));
 
@@ -30,7 +29,6 @@ export async function GET(req: Request) {
       managerId: manager.id,
       ...viewFilter,
       ...(status === "all" ? {} : { status }),
-      ...(search ? { OR: [{ subject: { contains: search } }, { organizationName: { contains: search } }] } : {}),
     };
 
     const [items, total, statusGroups] = await Promise.all([
@@ -40,10 +38,8 @@ export async function GET(req: Request) {
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {
-          id: true, ticketNumber: true, organizationType: true, organizationId: true, organizationName: true,
-          subject: true, category: true, priority: true, status: true, escalationDepartment: true,
-          escalatedAt: true, resolution: true, resolvedAt: true, lastActivityAt: true, createdAt: true,
-          _count: { select: { messages: true } },
+          id: true, ticketNumber: true, organizationName: true, creatorName: true,
+          category: true, status: true, lastActivityAt: true,
         },
       }),
       db.supportTicket.count({ where }),
@@ -53,7 +49,7 @@ export async function GET(req: Request) {
     const statusCounts = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
 
     return NextResponse.json({
-      data: items.map((t) => ({ ...t, messageCount: t._count.messages })),
+      data: items.map((t) => ({ id: t.id, ticketNumber: t.ticketNumber, displayName: t.organizationName || t.creatorName, category: t.category, status: t.status, lastActivityAt: t.lastActivityAt })),
       meta: { page, pageSize, total, statusCounts },
     });
   } catch (error) {

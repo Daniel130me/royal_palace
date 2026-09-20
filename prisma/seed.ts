@@ -29,7 +29,9 @@ async function main() {
   await db.supportTicketMessage.deleteMany();
   await db.supportTicket.deleteMany();
   await db.managerEarning.deleteMany();
+  await db.patientActivityPayment.deleteMany();
   await db.managerRevenueShareRule.deleteMany();
+  await db.managerPatientApplication.deleteMany();
   await db.managerOrganizationApplication.deleteMany();
   await db.managerAssignment.deleteMany();
   await db.managerBankAccount.deleteMany();
@@ -62,6 +64,8 @@ async function main() {
   await db.service.deleteMany();
   await db.providerApplication.deleteMany();
   await db.pharmacyProduct.deleteMany();
+  await db.hospitalService.deleteMany();
+  await db.hospital.deleteMany();
   await db.pharmacy.deleteMany();
   await db.laboratory.deleteMany();
   await db.logisticsProvider.deleteMany();
@@ -861,6 +865,7 @@ async function main() {
         profileId: "MGR-001",
         name: "Oluwagbenga Kosoko",
       },
+      { id: "USR-SUPPORT-001", email: "support@demo.com", password: "demo123", role: "support", status: "active", name: "Royal Palace Support" },
       {
         id: "USR-MGR-002",
         email: "manager2@demo.com",
@@ -874,6 +879,7 @@ async function main() {
       { id: "USR-PHA-002", email: "sunrise@demo.com", password: "demo123", role: "pharmacy", status: "active", profileId: "PHA-002", name: "Sunrise Pharmacy" },
       { id: "USR-PHA-003", email: "wellness@demo.com", password: "demo123", role: "pharmacy", status: "active", profileId: "PHA-003", name: "WellnessPlus Pharmacy" },
       { id: "USR-LAB-002", email: "ikejacentral@demo.com", password: "demo123", role: "laboratory", status: "active", profileId: "LAB-002", name: "Ikeja Central Laboratory" },
+      { id: "USR-HOS-001", email: "lagoonhospital@demo.com", password: "demo123", role: "hospital", status: "active", profileId: "HOS-001", name: "Lagoon Specialist Hospital" },
     ],
   });
 
@@ -939,6 +945,26 @@ async function main() {
       verificationStatus: "approved", rating: 4.4,
     },
   });
+  await db.hospital.create({
+    data: {
+      id: "HOS-001", userId: "USR-HOS-001", hospitalNumber: "RPH-HOS-0001", name: "Lagoon Specialist Hospital",
+      description: "Multi-specialty hospital with emergency and diagnostic care.", city: "Lagos", state: "Lagos",
+      address: "8 Marine Road, Victoria Island", phone: "+234 809 555 0101", email: "care@lagoonhospital.ng",
+      emergencyAvailable: true, openTwentyFourHours: true, verificationStatus: "approved", rating: 4.7,
+      acquiredByManagerId: "MGR-001", acquiredAt: nowPlusDays(-25),
+      services: { create: [
+        { id: "HOS-SVC-001", name: "Emergency Care", category: "Emergency" },
+        { id: "HOS-SVC-002", name: "Cardiology", category: "Specialist Care" },
+        { id: "HOS-SVC-003", name: "Maternity", category: "Women and Children" },
+        { id: "HOS-SVC-004", name: "Diagnostic Imaging", category: "Diagnostics" },
+      ] },
+    },
+  });
+
+  await db.patient.update({
+    where: { id: "PAT-001" },
+    data: { acquiredByManagerId: "MGR-001", acquiredAt: nowPlusDays(-180), onboardingStatus: "approved" },
+  });
 
   // -- attribution: acquired-by vs currently-managed-by (plan §1) ----------
   await db.pharmacy.update({
@@ -985,6 +1011,10 @@ async function main() {
       { id: "MRR-003", managerId: "MGR-001", organizationType: "pharmacy", transactionType: "platform_fee", rateBps: 500, effectiveFrom: nowPlusDays(-200), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
       { id: "MRR-004", managerId: "MGR-001", organizationType: "laboratory", transactionType: "platform_fee", rateBps: 400, effectiveFrom: nowPlusDays(-190), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
       { id: "MRR-005", managerId: "MGR-002", organizationType: "pharmacy", transactionType: "platform_fee", rateBps: 500, effectiveFrom: nowPlusDays(-30), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
+      { id: "MRR-006", managerId: "MGR-001", organizationType: "consultation", transactionType: "patient_payment", activityType: "consultation", rateBps: 500, effectiveFrom: nowPlusDays(-180), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
+      { id: "MRR-007", managerId: "MGR-001", organizationType: "pharmacy", transactionType: "patient_payment", activityType: "pharmacy", rateBps: 300, effectiveFrom: nowPlusDays(-180), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
+      { id: "MRR-008", managerId: "MGR-001", organizationType: "laboratory", transactionType: "patient_payment", activityType: "laboratory", rateBps: 400, effectiveFrom: nowPlusDays(-180), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
+      { id: "MRR-009", managerId: "MGR-001", organizationType: "hospital", transactionType: "patient_payment", activityType: "hospital", rateBps: 450, effectiveFrom: nowPlusDays(-180), status: "active", createdBy: "ADM-001", approvedBy: "ADM-001" },
     ],
   });
 
@@ -1045,6 +1075,17 @@ async function main() {
     ],
   });
 
+  // Patient-attributed activity: the Manager ledger exposes only the earning
+  // rows, while gross activity amounts remain restricted to Admin.
+  await db.patientActivityPayment.createMany({ data: [
+    { id: "PAP-001", paymentNumber: "RPH-PAP-0001", patientId: "PAT-001", activityType: "consultation", sourceId: "APT-001", amount: 25000, reference: "demo-patient-consultation", occurredAt: nowPlusDays(-2) },
+    { id: "PAP-002", paymentNumber: "RPH-PAP-0002", patientId: "PAT-001", activityType: "laboratory", sourceId: "LBK-001", amount: 18000, reference: "demo-patient-laboratory", occurredAt: nowPlusDays(-1) },
+  ] });
+  await db.managerEarning.createMany({ data: [
+    { id: "MGE-PAT-001", earningNumber: "RPH-ME-0001", eventKey: "patient-activity:PAP-001", managerId: "MGR-001", patientActivityPaymentId: "PAP-001", organizationType: "consultation", organizationId: "APT-001", organizationName: "Patient activity", paymentType: "patient_payment", paymentNumber: "RPH-PAP-0001", eligibleAmount: 25000, rateBps: 500, amount: 1250, entryType: "earning", status: "available", occurredAt: nowPlusDays(-2), availableAt: nowPlusDays(-2) },
+    { id: "MGE-PAT-002", earningNumber: "RPH-ME-0002", eventKey: "patient-activity:PAP-002", managerId: "MGR-001", patientActivityPaymentId: "PAP-002", organizationType: "laboratory", organizationId: "LBK-001", organizationName: "Patient activity", paymentType: "patient_payment", paymentNumber: "RPH-PAP-0002", eligibleAmount: 18000, rateBps: 400, amount: 720, entryType: "earning", status: "available", occurredAt: nowPlusDays(-1), availableAt: nowPlusDays(-1) },
+  ] });
+
   // -- organization applications across every status (plan §3.4) -----------
   await db.managerOrganizationApplication.createMany({
     data: [
@@ -1056,8 +1097,10 @@ async function main() {
       { id: "MOA-006", applicationNumber: "MOA-1006", managerId: "MGR-001", organizationType: "laboratory", businessName: "Ikeja Central Laboratory", contactPerson: "Chika Eze", contactEmail: "chika@ikejacentral.ng", contactPhone: "+234 801 111 0006", address: "88 Allen Avenue", city: "Lagos", state: "Lagos", registrationNumber: "RC-771006", licenceNumber: "LAB-LIC-2210", status: "approved", submittedAt: nowPlusDays(-44), reviewedAt: nowPlusDays(-41), reviewerId: "ADM-001", reviewerNote: "Approved and onboarded.", createdLaboratoryId: "LAB-002" },
       { id: "MOA-007", applicationNumber: "MOA-1007", managerId: "MGR-002", organizationType: "pharmacy", businessName: "Victoria Island Rx", contactPerson: "Lanre Shonibare", contactEmail: "lanre@virx.ng", contactPhone: "+234 801 111 0007", address: "4 Adeola Odeku", city: "Lagos", state: "Lagos", registrationNumber: "RC-771007", status: "submitted", submittedAt: nowPlusDays(-2) },
       { id: "MOA-008", applicationNumber: "MOA-1008", managerId: "MGR-001", organizationType: "pharmacy", businessName: "Gbagada HealthMart", contactPerson: "Uche Nwosu", contactEmail: "uche@healthmart.ng", contactPhone: "+234 801 111 0008", address: "7 Diya Street", city: "Lagos", state: "Lagos", registrationNumber: "RC-771008", status: "draft", submittedAt: null },
+      { id: "MOA-009", applicationNumber: "MOA-1009", managerId: "MGR-001", organizationType: "hospital", businessName: "Lagoon Specialist Hospital", contactPerson: "Dr. Lara Bello", contactEmail: "care@lagoonhospital.ng", contactPhone: "+234 809 555 0101", address: "8 Marine Road, Victoria Island", city: "Lagos", state: "Lagos", registrationNumber: "RC-771009", services: "[\"Emergency Care\",\"Cardiology\",\"Maternity\",\"Diagnostic Imaging\"]", status: "approved", submittedAt: nowPlusDays(-30), reviewedAt: nowPlusDays(-25), reviewerId: "ADM-001", createdHospitalId: "HOS-001" },
     ],
   });
+  await db.managerPatientApplication.create({ data: { id: "MPA-001", applicationNumber: "MPA-1001", managerId: "MGR-001", patientId: "PAT-001", status: "approved", submittedAt: nowPlusDays(-182), reviewedAt: nowPlusDays(-180), reviewerId: "ADM-001", reviewerNote: "Identity verified." } });
 
   // -- support tickets across the routing flow (plan §3.7) ------------------
   await db.supportTicket.createMany({

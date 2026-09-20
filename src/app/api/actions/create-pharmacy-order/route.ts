@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { audit, notify } from "@/lib/audit";
 import { genId } from "@/lib/format";
+import { recordPatientActivityPayment } from "@/lib/manager-patient-earnings";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -93,6 +94,11 @@ export async function POST(req: NextRequest) {
   if (prescriptionId) {
     await db.prescription.update({ where: { id: prescriptionId }, data: { status: "awaiting_pharmacy" } });
   }
+
+  await db.$transaction((tx) => recordPatientActivityPayment({
+    patientId, activityType: "pharmacy", sourceId: order.id,
+    amount: total, reference: `pharmacy-order:${order.id}`,
+  }, tx));
 
   await audit({
     actorId: actorId ?? patientId,

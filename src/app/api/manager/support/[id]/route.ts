@@ -5,26 +5,19 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { assertTicketInPortfolio, getManagerContext, ManagerAccessError } from "@/lib/manager-access";
+import { getManagerContext, ManagerAccessError } from "@/lib/manager-access";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { manager } = await getManagerContext(req);
     const { id } = await ctx.params;
-    await assertTicketInPortfolio(manager.id, id);
-
-    const ticket = await db.supportTicket.findUnique({
-      where: { id },
-      include: {
-        messages: {
-          where: { visibility: { in: ["shared", "manager_internal"] } },
-          orderBy: { createdAt: "asc" },
-        },
-      },
+    const ticket = await db.supportTicket.findFirst({
+      where: { id, managerId: manager.id },
+      select: { id: true, ticketNumber: true, organizationName: true, creatorName: true, category: true, status: true, lastActivityAt: true, escalationDepartment: true },
     });
     if (!ticket) return NextResponse.json({ error: "Ticket not found." }, { status: 404 });
 
-    return NextResponse.json({ data: ticket });
+    return NextResponse.json({ data: { id: ticket.id, ticketNumber: ticket.ticketNumber, displayName: ticket.organizationName || ticket.creatorName, category: ticket.category, status: ticket.status, lastActivityAt: ticket.lastActivityAt, escalationDepartment: ticket.escalationDepartment } });
   } catch (error) {
     if (error instanceof ManagerAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

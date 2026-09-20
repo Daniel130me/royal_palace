@@ -7,14 +7,9 @@ import { useNav } from "@/lib/nav";
 import { AppShell } from "@/components/healthcare/app-shell";
 import { useManagerContext } from "./use-manager-context";
 import { ManagerDashboard } from "./pages/dashboard";
-import { ManagerPharmacies } from "./pages/pharmacies";
-import { ManagerPharmacyDetail } from "./pages/pharmacy";
-import { ManagerLaboratories } from "./pages/laboratories";
-import { ManagerLaboratoryDetail } from "./pages/laboratory";
 import { ManagerOnboard } from "./pages/onboard";
 import { ManagerApplications } from "./pages/applications";
 import { ManagerEarnings } from "./pages/earnings";
-import { ManagerTransactions } from "./pages/transactions";
 import { ManagerPayouts } from "./pages/payouts";
 import { ManagerSupport } from "./pages/support";
 import { ManagerTicketDetail } from "./pages/ticket";
@@ -25,8 +20,8 @@ import { ManagerProfile } from "./pages/profile";
 import { ManagerBankDetails } from "./pages/bank-details";
 import { ManagerSettings } from "./pages/settings";
 import {
-  LayoutDashboard, Building2, FlaskConical, UserPlus, ClipboardList, Coins,
-  ArrowLeftRight, Wallet, LifeBuoy, Ticket, BarChart3, Bell, BookOpen,
+  LayoutDashboard, UserPlus, ClipboardList, Coins,
+  Wallet, LifeBuoy, Ticket, BarChart3, Bell, BookOpen,
   UserCircle, Landmark, Settings,
 } from "lucide-react";
 
@@ -37,12 +32,9 @@ export function ManagerPortal() {
 
   const navItems = [
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard, mobile: true },
-    { label: "My Pharmacies", page: "pharmacies", icon: Building2, mobile: true },
-    { label: "My Laboratories", page: "laboratories", icon: FlaskConical, mobile: true },
-    { label: "Onboard Organization", page: "onboard", icon: UserPlus },
-    { label: "Applications", page: "applications", icon: ClipboardList },
+    { label: "Enrollment Links", page: "onboard", icon: UserPlus, mobile: true },
+    { label: "Enrollment Status", page: "applications", icon: ClipboardList },
     { label: "Manager Earnings", page: "earnings", icon: Coins, mobile: true },
-    { label: "Transactions", page: "transactions", icon: ArrowLeftRight },
     { label: "Payouts", page: "payouts", icon: Wallet },
     { label: "Support", page: "support", icon: LifeBuoy },
     { label: "Ticket Detail", page: "ticket", icon: Ticket, badge: unread || undefined },
@@ -57,14 +49,9 @@ export function ManagerPortal() {
   return (
     <AppShell portal="manager" brand="Royal Palace" navItems={navItems} notifications={unread}>
       {page === "dashboard" ? <ManagerDashboard /> :
-       page === "pharmacies" ? <ManagerPharmacies /> :
-       page === "pharmacy" ? <ManagerPharmacyDetail /> :
-       page === "laboratories" ? <ManagerLaboratories /> :
-       page === "laboratory" ? <ManagerLaboratoryDetail /> :
        page === "onboard" ? <ManagerOnboard /> :
        page === "applications" ? <ManagerApplications /> :
        page === "earnings" ? <ManagerEarnings /> :
-       page === "transactions" ? <ManagerTransactions /> :
        page === "payouts" ? <ManagerPayouts /> :
        page === "support" ? <ManagerSupport /> :
        page === "ticket" ? <ManagerTicketDetail /> :

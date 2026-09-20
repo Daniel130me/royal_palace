@@ -44,6 +44,7 @@ import type {
   AuditLog,
   Complaint,
   Laboratory,
+  Hospital,
   LogisticsProvider,
   ProviderVerificationStatus,
   EncounterDocumentation,
@@ -58,10 +59,10 @@ export const authService = {
       { email, password }
     ).then((r) => r.session),
   signup: (body: Record<string, unknown>) =>
-    api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string }; patient: Patient }>(
+    api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string }; patient: Patient; pendingReview: boolean }>(
       "/api/actions/signup",
       body
-    ).then((r) => r.session),
+    ),
 };
 
 // --- generic fetchers (deserialize JSON string fields handled by API) ---
@@ -97,6 +98,16 @@ export const laboratoryService = {
   requests: (laboratoryId?: string) => resource.list<LaboratoryRequest>("laboratoryRequest", laboratoryId ? { laboratoryId } : {}),
   bookings: (laboratoryId: string) => resource.list<LaboratoryBooking>("laboratoryBooking", { laboratoryId }),
   results: (laboratoryId: string) => resource.list<LaboratoryResult>("laboratoryResult", { laboratoryId }),
+};
+
+export const enrollmentService = {
+  submitOrganization: (body: Record<string, unknown>) =>
+    api.post<{ data: { applicationNumber: string; status: string } }>("/api/actions/submit-manager-enrollment", body).then((r) => r.data),
+};
+
+export const hospitalService = {
+  list: (params?: Record<string, string>) => resource.list<Hospital>("hospital", params),
+  get: (id: string) => resource.get<Hospital>("hospital", id),
 };
 
 export const logisticsService = {
@@ -284,7 +295,7 @@ export interface ManagerMePayload {
   manager: Manager;
   bankAccount: (Omit<ManagerBankAccount, "accountNumberMasked"> & { accountNumberMasked: string }) | null;
   stats: {
-    portfolioCount: number;
+    enrollmentCount: number;
     acquiredCount: number;
     openTicketCount: number;
     pendingApplications: number;
@@ -350,6 +361,7 @@ export const managerService = {
 
   // --- admin-side manager methods (plan §3.8) ---
   adminReviewApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-review-manager-application", body),
+  adminReviewPatientEnrollment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-review-patient-enrollment", body),
   adminAssignManager: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-assign-manager", body),
   adminManagerRule: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-manager-rule", body),
 };

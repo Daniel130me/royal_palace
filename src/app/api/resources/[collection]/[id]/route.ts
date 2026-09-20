@@ -62,6 +62,7 @@ export async function GET(
   try {
     const row = await (db as unknown as Record<string, { findUnique: (args: { where: { id: string }; include?: unknown }) => Promise<unknown> }>)[collection].findUnique({ where: { id }, include });
     if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (collection === "hospital" && (row as { verificationStatus?: string }).verificationStatus !== "approved") return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ data: serializeOne(collection, row) });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
@@ -76,6 +77,7 @@ export async function PATCH(
   if (!(MODELS as readonly string[]).includes(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }
+  if (collection === "hospital" || collection === "hospitalService") return NextResponse.json({ error: "Hospital records are maintained through Admin workflows." }, { status: 403 });
   const body = await req.json();
   const include = INCLUDES[collection as keyof typeof INCLUDES] ?? undefined;
   try {
@@ -135,6 +137,7 @@ export async function DELETE(
   if (!(MODELS as readonly string[]).includes(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }
+  if (collection === "hospital" || collection === "hospitalService") return NextResponse.json({ error: "Hospital records are maintained through Admin workflows." }, { status: 403 });
   try {
     await (db as unknown as Record<string, { delete: (args: { where: { id: string } }) => Promise<unknown> }>)[collection].delete({ where: { id } });
     return NextResponse.json({ ok: true });

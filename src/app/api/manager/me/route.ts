@@ -11,20 +11,17 @@ export async function GET(req: Request) {
   try {
     const { manager } = await getManagerContext(req);
 
-    const [bankAccount, portfolioCount, acquiredCount, openTicketCount, pendingApplications] =
+    const [bankAccount, acquiredPatients, acquiredPharmacies, acquiredLaboratories, acquiredHospitals, openTicketCount, pendingOrgApplications, pendingPatientApplications] =
       await Promise.all([
         db.managerBankAccount.findUnique({ where: { managerId: manager.id } }),
-        db.pharmacy.count({ where: { currentManagerId: manager.id, managerRelationshipStatus: "active" } }),
+        db.patient.count({ where: { acquiredByManagerId: manager.id } }),
         db.pharmacy.count({ where: { acquiredByManagerId: manager.id } }),
+        db.laboratory.count({ where: { acquiredByManagerId: manager.id } }),
+        db.hospital.count({ where: { acquiredByManagerId: manager.id } }),
         db.supportTicket.count({ where: { managerId: manager.id, status: { in: ["new", "assigned_to_manager", "manager_investigating", "waiting_for_organization", "escalated_to_royal_palace", "royal_palace_investigating", "reopened"] } } }),
         db.managerOrganizationApplication.count({ where: { managerId: manager.id, status: { in: ["submitted", "under_review", "information_required"] } } }),
+        db.managerPatientApplication.count({ where: { managerId: manager.id, status: { in: ["submitted", "under_review", "information_required"] } } }),
       ]);
-
-    // Add the laboratory counts (kept in parallel keeps this a single round trip).
-    const [labs, acquiredLabs] = await Promise.all([
-      db.laboratory.count({ where: { currentManagerId: manager.id, managerRelationshipStatus: "active" } }),
-      db.laboratory.count({ where: { acquiredByManagerId: manager.id } }),
-    ]);
 
     return NextResponse.json({
       data: {
@@ -55,10 +52,10 @@ export async function GET(req: Request) {
             }
           : null,
         stats: {
-          portfolioCount: portfolioCount + labs,
-          acquiredCount: acquiredCount + acquiredLabs,
+          enrollmentCount: acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
+          acquiredCount: acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
           openTicketCount,
-          pendingApplications,
+          pendingApplications: pendingOrgApplications + pendingPatientApplications,
         },
       },
     });
