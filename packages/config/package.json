@@ -4,6 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./environment": {
+      "types": "./src/environment.ts",
+      "default": "./dist/environment.js"
+    },
+    "./observability": {
+      "types": "./src/observability.ts",
+      "default": "./dist/observability.js"
+    },
+    "./readiness": {
+      "types": "./src/readiness.ts",
+      "default": "./dist/readiness.js"
+    },
     "./eslint/base": "./eslint/base.mjs",
     "./eslint/next": "./eslint/next.mjs",
     "./vitest/node": "./vitest/node.mjs",
@@ -12,16 +24,26 @@
     "./typescript/node.json": "./typescript/node.json"
   },
   "scripts": {
-    "build": "node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs",
+    "build": "tsc -p tsconfig.build.json && node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs",
     "lint": "eslint .",
-    "test": "node --test",
-    "typecheck": "node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs"
+  },
+  "dependencies": {
+    "ioredis": "6.0.0",
+    "pino": "10.3.1",
+    "pg": "8.23.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "9.39.2",
+    "@types/node": "24.13.6",
+    "@types/pg": "8.23.1",
     "eslint": "9.39.2",
-    "eslint-config-next": "16.1.3",
+    "eslint-config-next": "16.3.6",
     "globals": "16.4.0",
-    "typescript-eslint": "8.53.0"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.53.0",
+    "vitest": "5.0.1"
   }
 }

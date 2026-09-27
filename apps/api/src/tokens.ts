@@ -1,0 +1,2 @@
+export const DEPENDENCY_READINESS = Symbol("DEPENDENCY_READINESS");
+export const SERVICE_CONFIG = Symbol("SERVICE_CONFIG");

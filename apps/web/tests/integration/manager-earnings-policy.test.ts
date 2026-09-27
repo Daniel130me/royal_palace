@@ -4,7 +4,7 @@
 // - refunds produce clamped reversals
 // - payout allocation cannot exceed or double-allocate the balance
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { genId } from "@/lib/format";
 import {
@@ -17,6 +17,10 @@ import {
 
 let seq = 0;
 const uniq = (prefix: string) => `${prefix}-T${++seq}`;
+
+afterAll(async () => {
+  await db.$disconnect();
+});
 
 async function seedOrg(type: "pharmacy" | "laboratory") {
   const id = uniq(type === "pharmacy" ? "PHX" : "LBX");

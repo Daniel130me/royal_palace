@@ -46,6 +46,10 @@ Every action updates the shared database and the change appears in every relevan
 corepack enable
 pnpm install --frozen-lockfile
 
+# configure and start local production dependencies
+# copy .env.example to .env.local, then fill development-only values
+pnpm local:up
+
 # prepare and seed the prototype SQLite database
 pnpm --filter @royal-palace/web db:push
 pnpm --filter @royal-palace/web db:seed
@@ -61,7 +65,10 @@ pnpm verify
 ```
 
 The web interface remains available at `http://localhost:3000`. The API and worker
-health shells default to ports `4000` and `4001`.
+health shells default to ports `4000` and `4001`. Their `/health/ready` endpoints
+verify PostgreSQL, Redis queue, object-storage, and ClamAV connectivity. See
+`infra/local/README.md` for the synthetic-data-only local stack and its MinIO
+maintenance warning.
 
 ---
 
@@ -87,30 +94,33 @@ A floating **Demo Persona Switcher** (bottom-right) lets you instantly jump betw
 
 ## Manager Management Module
 
-A Manager is a business-relationship role: they acquire and onboard pharmacies and laboratories, manage a portfolio, earn a configured share of eligible **organization-to-platform payments** (subscriptions, renewals, platform fees, configured service fees), provide first-level support, and request payouts. Managers never see patient or clinical data — organization detail responses are built from explicit server-side select allowlists.
+A Manager is a referral and business-development role. Managers distribute attributed
+enrollment links for patients, hospitals, pharmacies, and laboratories; applicants
+complete their own submissions. Managers do not manage those accounts and cannot see
+full patient, organization, clinical, or payment data. They may follow an attributed
+enrollment's minimal status, escalate and follow support tickets using minimal
+identifiers, view only their resulting earnings, and request payouts.
 
 ### Key concepts
 
 | Concept | Behaviour |
 |---|---|
-| Acquired by | The manager who brought an organization onto the platform. Permanent. |
-| Currently managed by | The manager responsible today. Changes create assignment-history rows (never edits). |
-| Manager Earnings | Immutable ledger. One earning per successful organization payment (idempotent `eventKey`). Refunds create separate negative reversal entries — originals are never mutated. |
-| Revenue share rules | Effective-dated, per manager/organization type/transaction type, stored in **integer basis points** (300 = 3%). Overlaps are rejected. |
+| Referral attribution | Signed/unguessable links associate an applicant with a manager without granting the manager access to the application. Production attribution changes require audited administrative correction. |
+| Manager earnings | Immutable records derived from eligible, settled activity by attributed patients. Managers see their earning—not the patient's gross payment or Royal Palace revenue. |
+| Revenue share rules | Effective-dated and stored in integer basis points. The exact approved rule used for an earning remains traceable. |
 | Available balance | Matured, unallocated earnings. Payout requests re-validate against it inside a transaction and FIFO-allocate whole ledger entries. |
-| Support routing | Pharmacy/Laboratory → Manager (Level 1) → Royal Palace (Level 2) → Finance/Technical/Operations/Compliance. |
+| Support | Managers may escalate and follow tickets using ticket ID, display name/minimal identifier, category, safe status, timestamps, and manager-authored follow-up only. |
 
 ### Demo walkthrough (Manager module)
 
 1. Log in as `manager@demo.com` / `demo123` (or use the "Kosoko · Manager" persona button).
-2. Dashboard — portfolio, payments, earnings status, payout balance, support queues, 6-month chart.
-3. **My Pharmacies → Grace Community Pharmacy** — business, payment, earnings, support and assignment history (acquired-by vs currently-managed-by).
-4. **Onboard Organization** — copy the Manager Onboarding Link, submit an application.
-5. **Applications** — track submitted → under review → approved/rejected.
-6. **Transactions** — trace an organization payment into a Manager Earning (ORGP-… → MGE-…), including the refunded pair and its reversal.
-7. **Support → TKT-1001** — reply, add manager-only note, or escalate to a department.
-8. **Payouts** — request a payout of the available balance (one live request at a time, verified bank account required).
-9. Switch to **Admin → Managers** — directory, portfolio oversight, assignment with mandatory reason, revenue-share rules, application review queue, escalations. Marking a manager payout *paid* in the payouts console settles its allocated earnings and notifies the manager.
+2. Dashboard — referral activity, minimal enrollment status, earnings, payout balance, and support follow-up without private applicant data.
+3. **Enrollment Links** — copy a patient, hospital, pharmacy, or laboratory enrollment link; the applicant supplies their own information.
+4. **Enrollment Status** — track only the minimal submitted/review/decision status available to the referring manager.
+5. **Manager Earnings / Reports** — view earning amounts and daily, monthly, or custom-range totals without patient payments or Royal Palace revenue.
+6. **Support → TKT-1001** — follow up or escalate using the ticket reference and minimal identifying information.
+7. **Payouts** — request a payout of the available balance (one live request at a time, verified bank account required).
+8. Switch to **Admin → Managers** — administrators retain complete oversight and the exclusive authority to approve, reject, or request more application information.
 
 ### Running locally
 
@@ -159,7 +169,7 @@ apps/
 ├── api/                      # NestJS + Fastify production API boundary
 └── worker/                   # NestJS + Fastify worker health/process boundary
 packages/
-├── config/                   # Shared TypeScript, ESLint, and test configuration
+├── config/                   # Shared tooling, typed runtime config, telemetry, readiness
 ├── contracts/                # Future OpenAPI-generated contract package
 └── testing/                  # Shared synthetic fixture/test helpers
 
@@ -277,6 +287,11 @@ The typed service layer (`apps/web/src/lib/services.ts`), domain types
 ```bash
 pnpm verify
 ```
+
+Implementation status is tracked in
+[`docs/IMPLEMENTATION_PROGRESS.md`](docs/IMPLEMENTATION_PROGRESS.md); the controlling
+architecture and delivery order remain in
+[`docs/PRODUCTION_BACKEND_IMPLEMENTATION_PLAN.md`](docs/PRODUCTION_BACKEND_IMPLEMENTATION_PLAN.md).
 
 The dev server runs on port 3000. Open the **Preview Panel** to explore the prototype (or click "Open in New Tab" for a separate browser window).
 
