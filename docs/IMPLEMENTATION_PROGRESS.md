@@ -51,7 +51,8 @@ that completes an increment.
   - Evidence:
     [`increments/01-workspace-and-quality-gates.md`](./increments/01-workspace-and-quality-gates.md)
   - Completion commit: `e9c3caf`
-- `[~]` **Increment 02 — Configuration, telemetry, and local dependencies**
+- `[x]` **Increment 02 — Configuration, telemetry, and local dependencies**
+  - Completion commit: `9acd814`
   - `[x]` Typed startup configuration and fail-closed validation implemented.
   - `[x]` Safe root `.env.example` added.
   - `[x]` Local PostgreSQL, Redis, MinIO, and ClamAV definitions added.
@@ -63,7 +64,7 @@ that completes an increment.
     validation, and dependency-audit gates pass on the final tree.
   - `[x]` Static Compose validation and available runtime smoke tests are recorded.
   - `[x]` Section 20 completion report is added.
-  - `[ ]` Increment is committed and pushed to `origin/feat_prod`.
+  - `[x]` Increment is committed and pushed to `origin/feat_prod`.
 - `[ ]` **Increment 03 — Database foundation**
 - `[ ]` **Increment 04 — Managed identity and secure BFF session**
 - `[ ]` **Increment 05 — Policy engine and audit boundary**

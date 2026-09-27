@@ -2,6 +2,8 @@
 
 **Increment:** 02 — Configuration, telemetry, and local dependencies
 
+**Completion commit:** `9acd814` (pushed to `origin/feat_prod`)
+
 **Scope completed:** Added fail-closed typed configuration for web, API, and worker;
 safe environment documentation; local PostgreSQL, Redis queue transport, MinIO, and
 ClamAV definitions; structured JSON logging and redaction; validated request IDs and
