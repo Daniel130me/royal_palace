@@ -4,6 +4,8 @@
 
 **Increment:** 03 — Database foundation
 
+**Completion commit:** `281e9fb` (`feat(database): establish PostgreSQL foundation`)
+
 **Scope completed:** Established the API-owned PostgreSQL data boundary, two-step
 transactional migration history, foundational identity/organization/authorization and
 reliability records, synthetic-only seed, migration/repair/drift verification, and

@@ -68,6 +68,7 @@ that completes an increment.
 - `[x]` **Increment 03 — Database foundation**
   - Evidence:
     [`increments/03-database-foundation.md`](./increments/03-database-foundation.md)
+  - Completion commit: `281e9fb`
   - `[x]` Establish the API-owned PostgreSQL Prisma boundary without changing the
     prototype SQLite schema.
   - `[x]` Add constrained identity-reference, organization, membership,
@@ -81,7 +82,7 @@ that completes an increment.
     plans and record the evidence.
   - `[x]` Rehearse rollback/repair, run all quality gates, and publish the Section 20
     completion report.
-  - `[~]` Commit and push the completed increment to `origin/feat_prod`.
+  - `[x]` Commit and push the completed increment to `origin/feat_prod`.
 - `[ ]` **Increment 04 — Managed identity and secure BFF session**
 - `[ ]` **Increment 05 — Policy engine and audit boundary**
 - `[ ]` **Increment 06 — Public discovery vertical slice**
