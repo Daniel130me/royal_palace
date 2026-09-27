@@ -21,6 +21,7 @@ node_modules
 # production
 /build
 /apps/*/dist/
+/apps/api/src/generated/prisma/
 /packages/*/dist/
 /.turbo/
 /apps/web/prisma/.test-*/

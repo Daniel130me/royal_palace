@@ -1,0 +1,224 @@
+// PostgreSQL-only CHECK constraints, partial indexes, and immutability triggers live
+// in the reviewed migration SQL because Prisma cannot express them in its data model.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+  engineType             = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PrincipalStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum OrganizationType {
+  HOSPITAL
+  PHARMACY
+  LABORATORY
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum RoleScope {
+  PLATFORM
+  ORGANIZATION
+}
+
+enum PlatformRole {
+  PATIENT
+  MANAGER
+  ORGANIZATION_APPLICANT
+  ORGANIZATION_STAFF
+  PROVIDER
+  SUPPORT
+  ADMINISTRATOR
+  FINANCE
+  LOGISTICS
+  SYSTEM_WORKER
+}
+
+enum AuditResult {
+  SUCCEEDED
+  DENIED
+  FAILED
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum InboxStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  DEAD_LETTERED
+}
+
+model IdentityPrincipal {
+  id              String           @id @db.Uuid
+  issuer          String           @db.VarChar(255)
+  subject         String           @db.VarChar(255)
+  status          PrincipalStatus  @default(ACTIVE)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version         Int              @default(1)
+  memberships     Membership[]
+  roleAssignments RoleAssignment[] @relation("RoleAssignee")
+  grantedRoles    RoleAssignment[] @relation("RoleGrantor")
+  auditEvents     AuditEvent[]     @relation("AuditActor")
+  idempotencyKeys IdempotencyKey[]
+
+  @@unique([issuer, subject], map: "identity_principals_issuer_subject_key")
+  @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
+  @@map("identity_principals")
+}
+
+model Organization {
+  id          String             @id @db.Uuid
+  type        OrganizationType
+  status      OrganizationStatus @default(ACTIVE)
+  legalName   String             @map("legal_name") @db.VarChar(200)
+  displayName String             @map("display_name") @db.VarChar(120)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version     Int                @default(1)
+  memberships Membership[]
+  auditEvents AuditEvent[]
+
+  @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
+  @@map("organizations")
+}
+
+model Membership {
+  id              String            @id @db.Uuid
+  organizationId  String            @map("organization_id") @db.Uuid
+  principalId     String            @map("principal_id") @db.Uuid
+  effectiveFrom   DateTime          @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil  DateTime?         @map("effective_until") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version         Int               @default(1)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  principal       IdentityPrincipal @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  roleAssignments RoleAssignment[]
+
+  @@index([organizationId, effectiveFrom, id], map: "memberships_org_effective_id_idx")
+  @@index([principalId, effectiveFrom, id], map: "memberships_principal_effective_id_idx")
+  @@map("memberships")
+}
+
+model RoleAssignment {
+  id                   String             @id @db.Uuid
+  principalId          String?            @map("principal_id") @db.Uuid
+  membershipId         String?            @map("membership_id") @db.Uuid
+  grantedByPrincipalId String?            @map("granted_by_principal_id") @db.Uuid
+  role                 PlatformRole
+  scope                RoleScope
+  effectiveFrom        DateTime           @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil       DateTime?          @map("effective_until") @db.Timestamptz(6)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                @default(1)
+  principal            IdentityPrincipal? @relation("RoleAssignee", fields: [principalId], references: [id], onDelete: Restrict)
+  membership           Membership?        @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  grantedByPrincipal   IdentityPrincipal? @relation("RoleGrantor", fields: [grantedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([principalId, scope, effectiveFrom, id], map: "role_assignments_principal_scope_effective_id_idx")
+  @@index([membershipId, role, effectiveFrom, id], map: "role_assignments_membership_role_effective_id_idx")
+  @@map("role_assignments")
+}
+
+model AuditEvent {
+  id               String             @id @db.Uuid
+  occurredAt       DateTime           @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorPrincipalId String?            @map("actor_principal_id") @db.Uuid
+  effectiveRole    PlatformRole?      @map("effective_role")
+  action           String             @db.VarChar(160)
+  resourceType     String             @map("resource_type") @db.VarChar(100)
+  resourceId       String             @map("resource_id") @db.Uuid
+  organizationId   String?            @map("organization_id") @db.Uuid
+  patientScopeId   String?            @map("patient_scope_id") @db.Uuid
+  result           AuditResult
+  reasonCode       String?            @map("reason_code") @db.VarChar(100)
+  requestId        String             @map("request_id") @db.VarChar(128)
+  correlationId    String?            @map("correlation_id") @db.VarChar(128)
+  metadata         Json               @default("{}") @db.JsonB
+  actorPrincipal   IdentityPrincipal? @relation("AuditActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+  organization     Organization?      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_org_occurred_id_idx")
+  @@index([actorPrincipalId, occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_actor_occurred_id_idx")
+  @@index([resourceType, resourceId, occurredAt(sort: Desc)], map: "audit_events_resource_occurred_idx")
+  @@map("audit_events")
+}
+
+model IdempotencyKey {
+  id                 String            @id @db.Uuid
+  principalId        String            @map("principal_id") @db.Uuid
+  operation          String            @db.VarChar(128)
+  key                String            @db.VarChar(128)
+  requestHash        String            @map("request_hash") @db.Char(64)
+  status             IdempotencyStatus @default(IN_PROGRESS)
+  responseStatusCode Int?              @map("response_status_code")
+  resourceType       String?           @map("resource_type") @db.VarChar(100)
+  resourceId         String?           @map("resource_id") @db.Uuid
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt          DateTime          @map("expires_at") @db.Timestamptz(6)
+  principal          IdentityPrincipal @relation(fields: [principalId], references: [id], onDelete: Restrict)
+
+  @@unique([principalId, operation, key], map: "idempotency_keys_principal_operation_key_key")
+  @@index([expiresAt], map: "idempotency_keys_expires_at_idx")
+  @@map("idempotency_keys")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  aggregateType String    @map("aggregate_type") @db.VarChar(100)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(160)
+  eventVersion  Int       @default(1) @map("event_version")
+  payload       Json      @db.JsonB
+  traceId       String?   @map("trace_id") @db.VarChar(64)
+  occurredAt    DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  availableAt   DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastErrorCode String?   @map("last_error_code") @db.VarChar(100)
+
+  @@index([aggregateType, aggregateId, occurredAt, id], map: "outbox_events_aggregate_occurred_id_idx")
+  @@map("outbox_events")
+}
+
+model InboxEvent {
+  id            String      @id @db.Uuid
+  consumer      String      @db.VarChar(128)
+  messageId     String      @map("message_id") @db.VarChar(255)
+  eventType     String      @map("event_type") @db.VarChar(160)
+  payloadHash   String      @map("payload_hash") @db.Char(64)
+  status        InboxStatus @default(RECEIVED)
+  receivedAt    DateTime    @default(now()) @map("received_at") @db.Timestamptz(6)
+  processingAt  DateTime?   @map("processing_at") @db.Timestamptz(6)
+  processedAt   DateTime?   @map("processed_at") @db.Timestamptz(6)
+  attemptCount  Int         @default(0) @map("attempt_count")
+  lastErrorCode String?     @map("last_error_code") @db.VarChar(100)
+
+  @@unique([consumer, messageId], map: "inbox_events_consumer_message_key")
+  @@index([status, receivedAt, id], map: "inbox_events_status_received_id_idx")
+  @@map("inbox_events")
+}

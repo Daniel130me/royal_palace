@@ -64,3 +64,57 @@ jobs:
         uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  database:
+    name: PostgreSQL migrations and query plans
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: royal_palace_ci
+          POSTGRES_PASSWORD: synthetic-ci-password
+          POSTGRES_USER: royal_palace_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U royal_palace_ci -d royal_palace_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      APP_ENV: test
+      DATABASE_MIGRATION_VERIFY: "true"
+      DATABASE_URL: postgresql://royal_palace_ci:synthetic-ci-password@127.0.0.1:5432/royal_palace_ci
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Activate the pinned pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Install dependencies from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify migration history
+        run: pnpm db:migrate:verify
+
+      - name: Apply migrations to the query-plan database
+        run: pnpm --filter @royal-palace/api db:migrate:deploy
+
+      - name: Reject Prisma schema drift
+        run: pnpm --filter @royal-palace/api db:drift:check
+
+      - name: Review representative query plans
+        run: pnpm db:query-plans

@@ -8,5 +8,11 @@
     "types": ["node", "vitest/globals"],
     "useDefineForClassFields": false
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "prisma/**/*.ts",
+    "scripts/**/*.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

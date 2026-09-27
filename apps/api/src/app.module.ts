@@ -3,6 +3,7 @@ import type { ServiceConfig } from "@royal-palace/config/environment";
 import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/config/readiness";
 
 import { HealthController } from "./health.controller.js";
+import { DatabaseModule } from "./platform/database/database.module.js";
 import { DEPENDENCY_READINESS, SERVICE_CONFIG } from "./tokens.js";
 
 @Module({})
@@ -13,6 +14,7 @@ export class AppModule {
   ): DynamicModule {
     return {
       module: AppModule,
+      imports: [DatabaseModule.register(config)],
       controllers: [HealthController],
       providers: [
         { provide: SERVICE_CONFIG, useValue: config },

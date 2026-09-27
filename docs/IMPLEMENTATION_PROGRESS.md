@@ -23,13 +23,13 @@ that completes an increment.
   approval, and the identity/payment/queue/observability ADRs remain open. Development
   foundation work may continue; these items block their relevant production work and
   public launch.
-- `[~]` **Phase 1 — Engineering and infrastructure foundation.** Increment 01 is
-  complete. Increment 02 is active. Managed cloud provisioning and deployment/restore
+- `[~]` **Phase 1 — Engineering and infrastructure foundation.** Increments 01–03 are
+  complete. Managed cloud provisioning and deployment/restore
   evidence remain future work and require the relevant Phase 0 decisions.
 - `[ ]` **Phase 2 — Identity, sessions, and authorization.** Delivered primarily by
   Increments 04–05.
-- `[ ]` **Phase 3 — PostgreSQL domain foundation.** Delivered initially by Increment
-  03 and extended by each later vertical slice.
+- `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
+  foundation; domain models will be extended by each later vertical slice.
 - `[ ]` **Phase 4 — Production vertical slices and frontend connection.** Delivered by
   Increments 06–09 and 11.
 - `[ ]` **Phase 5 — Payments, files, and asynchronous integrations.** Delivered by
@@ -65,7 +65,23 @@ that completes an increment.
   - `[x]` Static Compose validation and available runtime smoke tests are recorded.
   - `[x]` Section 20 completion report is added.
   - `[x]` Increment is committed and pushed to `origin/feat_prod`.
-- `[ ]` **Increment 03 — Database foundation**
+- `[x]` **Increment 03 — Database foundation**
+  - Evidence:
+    [`increments/03-database-foundation.md`](./increments/03-database-foundation.md)
+  - `[x]` Establish the API-owned PostgreSQL Prisma boundary without changing the
+    prototype SQLite schema.
+  - `[x]` Add constrained identity-reference, organization, membership,
+    role-assignment, audit-event, idempotency, outbox, and inbox foundations.
+  - `[x]` Add explicit migration SQL, synthetic-only seed data, and production-safe
+    seed guards.
+  - `[x]` Add clean-install and representative upgrade migration verification.
+  - `[x]` Add a constrained API infrastructure boundary for future capability-owned
+    repositories; no generic CRUD repository was introduced.
+  - `[x]` Review first lookup/list indexes using representative PostgreSQL query
+    plans and record the evidence.
+  - `[x]` Rehearse rollback/repair, run all quality gates, and publish the Section 20
+    completion report.
+  - `[~]` Commit and push the completed increment to `origin/feat_prod`.
 - `[ ]` **Increment 04 — Managed identity and secure BFF session**
 - `[ ]` **Increment 05 — Policy engine and audit boundary**
 - `[ ]` **Increment 06 — Public discovery vertical slice**
@@ -99,3 +115,9 @@ is archived, so its pinned local source build is a flagged non-standard dependen
 must be reassessed before Increment 10. Docker Desktop is not currently running on the
 implementation host; Compose can be statically validated, while live dependency-stack
 evidence must be recorded when a Docker engine is available.
+
+Increment 03 was exercised against a disposable native PostgreSQL 18 instance because
+Docker Desktop remained unavailable. CI now repeats migration and query-plan checks
+against the pinned PostgreSQL 17.6 image. The prototype SQLite database remains
+quarantined inside `apps/web`; its destructive `db:push --accept-data-loss` script was
+removed and it is not a production data path.
