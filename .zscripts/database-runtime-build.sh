@@ -4,7 +4,7 @@ set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/home/z/my-project}"
 BUILD_DIR="${BUILD_DIR:?BUILD_DIR is required}"
-SOURCE_DB_DIR="$PROJECT_DIR/db"
+SOURCE_DB_DIR="$PROJECT_DIR/apps/web/db"
 SOURCE_DB_PATH="$SOURCE_DB_DIR/custom.db"
 TARGET_DB_DIR="$BUILD_DIR/db"
 TARGET_DB_PATH="$TARGET_DB_DIR/custom.db"
@@ -20,8 +20,8 @@ fi
 
 echo "🗄️  同步构建产物中的数据库结构..."
 (
-    cd "$PROJECT_DIR"
-    DATABASE_URL="file:$TARGET_DB_PATH" bun run db:push
+    cd "$PROJECT_DIR/apps/web"
+    DATABASE_URL="file:$TARGET_DB_PATH" pnpm run db:push
 )
 
 if [ ! -f "$TARGET_DB_PATH" ]; then

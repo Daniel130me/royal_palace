@@ -115,24 +115,24 @@ trap cleanup EXIT INT TERM
 
 cd "$PROJECT_DIR"
 
-if ! command -v bun >/dev/null 2>&1; then
-	echo "ERROR: bun is not installed or not in PATH"
+if ! command -v pnpm >/dev/null 2>&1; then
+	echo "ERROR: pnpm is not installed or not in PATH"
 	exit 1
 fi
 
-log_step_start "bun install"
-echo "[BUN] Installing dependencies..."
-bun install
-log_step_end "bun install"
+log_step_start "pnpm install"
+echo "[PNPM] Installing dependencies..."
+pnpm install --frozen-lockfile
+log_step_end "pnpm install"
 
-log_step_start "bun run db:push"
-echo "[BUN] Setting up database..."
-bun run db:push
-log_step_end "bun run db:push"
+log_step_start "pnpm db:push"
+echo "[PNPM] Setting up database..."
+pnpm --filter @royal-palace/web db:push
+log_step_end "pnpm db:push"
 
 log_step_start "Starting Next.js dev server"
-echo "[BUN] Starting development server..."
-bun run dev &
+echo "[PNPM] Starting development server..."
+pnpm --filter @royal-palace/web dev &
 DEV_PID=$!
 log_step_end "Starting Next.js dev server"
 
@@ -141,7 +141,7 @@ wait_for_service "localhost" "3000" "Next.js dev server"
 log_step_end "Waiting for Next.js dev server"
 
 log_step_start "Health check"
-echo "[BUN] Performing health check..."
+echo "[PNPM] Performing health check..."
 curl -fsS localhost:3000 >/dev/null
 echo "[BUN] Health check passed"
 log_step_end "Health check"

@@ -26,6 +26,7 @@ Every action updates the shared database and the change appears in every relevan
 | Layer | Technology |
 |---|---|
 | Framework | **Next.js 16** (App Router, Turbopack) |
+| Backend foundation | **NestJS + Fastify** modular API and worker shells |
 | Language | **TypeScript 5** (strict, no `any`) |
 | Styling | Tailwind CSS 4 + shadcn/ui (New York) |
 | Database | **Prisma ORM** + SQLite (prototype) |
@@ -42,25 +43,25 @@ Every action updates the shared database and the change appears in every relevan
 
 ```bash
 # install dependencies
-bun install
+corepack enable
+pnpm install --frozen-lockfile
 
-# push the Prisma schema to the SQLite database
-bun run db:push
+# prepare and seed the prototype SQLite database
+pnpm --filter @royal-palace/web db:push
+pnpm --filter @royal-palace/web db:seed
 
-# seed the database with the demo story
-bunx tsx prisma/seed.ts
-
-# start the dev server (http://localhost:3000)
-bun run dev
+# start web, API, and worker development processes
+pnpm dev
 ```
 
-Lint:
+Run all workspace quality gates:
 
 ```bash
-bun run lint
+pnpm verify
 ```
 
-> **Do not** run `bun run build` — the sandbox dev server runs on port 3000 only.
+The web interface remains available at `http://localhost:3000`. The API and worker
+health shells default to ports `4000` and `4001`.
 
 ---
 
@@ -114,11 +115,11 @@ A Manager is a business-relationship role: they acquire and onboard pharmacies a
 ### Running locally
 
 ```bash
-bun install
-DATABASE_URL="file:<abs-path>/db/custom.db" bun run db:push    # sandbox note: a global DATABASE_URL env may override .env
-DATABASE_URL="file:<abs-path>/db/custom.db" bun run db:seed    # idempotent demo data
-bun run dev                                                    # http://localhost:3000
-bun run test                                                   # vitest (24 unit/integration tests)
+pnpm install --frozen-lockfile
+pnpm --filter @royal-palace/web db:push
+pnpm --filter @royal-palace/web db:seed
+pnpm dev
+pnpm test
 ```
 
 > **Prototype limitation.** Authentication is simulated (session echoed from the client via `x-rp-session`), bank data is plaintext-but-masked-in-responses, and payouts are not disbursed to real banks. Production requires server-managed sessions, hashed credentials, CSRF protection, authorization middleware, encrypted secrets/tokenized payout recipients and PostgreSQL.
@@ -134,11 +135,11 @@ bun run test                                                   # vitest (24 unit
 ```
 React UI (portals)
    ↓
-Feature pages (src/features/<portal>/pages/)
+Feature pages (apps/web/src/features/<portal>/pages/)
    ↓
-Typed service layer (src/lib/services.ts)
+Typed service layer (apps/web/src/lib/services.ts)
    ↓
-API client (src/lib/api-client.ts)  →  fetch /api/*
+API client (apps/web/src/lib/api-client.ts)  →  fetch /api/*
    ↓
 Next.js API routes  (REST resources + business-logic actions)
    ↓
@@ -150,7 +151,19 @@ The UI **never** talks to Prisma directly. Replacing the mock API with a product
 ### Key directories
 
 ```
-src/
+apps/
+├── web/                      # Existing Next.js prototype, moved without a rewrite
+│   ├── src/
+│   ├── prisma/               # Prototype-only SQLite schema and synthetic seed
+│   └── tests/
+├── api/                      # NestJS + Fastify production API boundary
+└── worker/                   # NestJS + Fastify worker health/process boundary
+packages/
+├── config/                   # Shared TypeScript, ESLint, and test configuration
+├── contracts/                # Future OpenAPI-generated contract package
+└── testing/                  # Shared synthetic fixture/test helpers
+
+apps/web/src/
 ├── app/                      # Next.js App Router (single / route + /api/*)
 │   ├── page.tsx               # renders <AppRoot />
 │   └── api/
@@ -179,7 +192,7 @@ src/
 │   ├── serialize.ts           # JSON-string → typed object deserialisers
 │   └── audit.ts               # server-side audit() + notify() helpers
 └── types/index.ts             # full typed domain model
-prisma/
+apps/web/prisma/
 ├── schema.prisma              # ~30 interconnected domain models
 └── seed.ts                    # the complete Amina → Dr Tunde → MedLab → Grace → SwiftCare story
 ```
@@ -254,14 +267,15 @@ When the production Royal Palace API is introduced, only the `/api/*` routes nee
 | Mock file metadata | S3 / object storage |
 | DB `Notification` rows | SMS / email / push service |
 
-The typed service layer (`src/lib/services.ts`), domain types (`src/types/index.ts`) and all UI components remain untouched.
+The typed service layer (`apps/web/src/lib/services.ts`), domain types
+(`apps/web/src/types/index.ts`) and all UI components remain intact during the workspace move.
 
 ---
 
 ## Validation
 
 ```bash
-bun run lint   # → 0 errors
+pnpm verify
 ```
 
 The dev server runs on port 3000. Open the **Preview Panel** to explore the prototype (or click "Open in New Tab" for a separate browser window).

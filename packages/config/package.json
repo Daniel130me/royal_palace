@@ -1,0 +1,27 @@
+{
+  "name": "@royal-palace/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint/base": "./eslint/base.mjs",
+    "./eslint/next": "./eslint/next.mjs",
+    "./vitest/node": "./vitest/node.mjs",
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/nextjs.json": "./typescript/nextjs.json",
+    "./typescript/node.json": "./typescript/node.json"
+  },
+  "scripts": {
+    "build": "node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs",
+    "lint": "eslint .",
+    "test": "node --test",
+    "typecheck": "node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.2",
+    "eslint": "9.39.2",
+    "eslint-config-next": "16.1.3",
+    "globals": "16.4.0",
+    "typescript-eslint": "8.53.0"
+  }
+}

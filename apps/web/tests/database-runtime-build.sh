@@ -2,18 +2,18 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/../.zscripts" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/../../../.zscripts" && pwd)"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
 FAKE_BIN="$TEST_ROOT/bin"
 mkdir -p "$FAKE_BIN"
-cat >"$FAKE_BIN/bun" <<'EOF'
+cat >"$FAKE_BIN/pnpm" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
 if [ "$#" -ne 2 ] || [ "$1" != "run" ] || [ "$2" != "db:push" ]; then
-    echo "unexpected bun invocation: $*" >&2
+    echo "unexpected pnpm invocation: $*" >&2
     exit 1
 fi
 
@@ -39,7 +39,7 @@ if [ ! -f "$db_path" ]; then
 fi
 printf '%s\n' "$DATABASE_URL" >>"${DB_PUSH_CALLS:?}"
 EOF
-chmod +x "$FAKE_BIN/bun"
+chmod +x "$FAKE_BIN/pnpm"
 
 export PATH="$FAKE_BIN:$PATH"
 export DB_PUSH_CALLS="$TEST_ROOT/db-push-calls"
@@ -47,21 +47,21 @@ export DB_PUSH_CALLS="$TEST_ROOT/db-push-calls"
 # 没有 Preview 数据库时，应只在部署产物中初始化空库，不修改项目目录。
 EMPTY_PROJECT="$TEST_ROOT/empty-project"
 EMPTY_BUILD="$TEST_ROOT/empty-build"
-mkdir -p "$EMPTY_PROJECT"
+mkdir -p "$EMPTY_PROJECT/apps/web"
 
 PROJECT_DIR="$EMPTY_PROJECT" BUILD_DIR="$EMPTY_BUILD" \
     bash "$SCRIPT_DIR/database-runtime-build.sh"
 
 test -f "$EMPTY_BUILD/db/custom.db"
 test "$(cat "$EMPTY_BUILD/db/custom.db")" = "initialized"
-test ! -e "$EMPTY_PROJECT/db/custom.db"
+test ! -e "$EMPTY_PROJECT/apps/web/db/custom.db"
 
 # 有 Preview 数据库时，应保留数据和同目录文件，再对产物执行 schema 同步。
 EXISTING_PROJECT="$TEST_ROOT/existing-project"
 EXISTING_BUILD="$TEST_ROOT/existing-build"
-mkdir -p "$EXISTING_PROJECT/db"
-printf 'preview-data\n' >"$EXISTING_PROJECT/db/custom.db"
-printf 'sidecar\n' >"$EXISTING_PROJECT/db/README.txt"
+mkdir -p "$EXISTING_PROJECT/apps/web/db"
+printf 'preview-data\n' >"$EXISTING_PROJECT/apps/web/db/custom.db"
+printf 'sidecar\n' >"$EXISTING_PROJECT/apps/web/db/README.txt"
 
 PROJECT_DIR="$EXISTING_PROJECT" BUILD_DIR="$EXISTING_BUILD" \
     bash "$SCRIPT_DIR/database-runtime-build.sh"

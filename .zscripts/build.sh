@@ -9,8 +9,9 @@ set -e
 # 使用 $0 获取脚本路径（兼容 sh 和 bash）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Next.js 项目路径
-NEXTJS_PROJECT_DIR="/home/z/my-project"
+# Workspace and Next.js project paths
+WORKSPACE_DIR="/home/z/my-project"
+NEXTJS_PROJECT_DIR="$WORKSPACE_DIR/apps/web"
 
 # 检查 Next.js 项目目录是否存在
 if [ ! -d "$NEXTJS_PROJECT_DIR" ]; then
@@ -21,8 +22,8 @@ fi
 echo "🚀 开始构建 Next.js 应用和 mini-services..."
 echo "📁 Next.js 项目路径: $NEXTJS_PROJECT_DIR"
 
-# 切换到 Next.js 项目目录
-cd "$NEXTJS_PROJECT_DIR" || exit 1
+# Install from the workspace root so the single lockfile remains authoritative.
+cd "$WORKSPACE_DIR" || exit 1
 
 # 设置环境变量
 export NEXT_TELEMETRY_DISABLED=1
@@ -33,11 +34,12 @@ mkdir -p "$BUILD_DIR"
 
 # 安装依赖
 echo "📦 安装依赖..."
-bun install
+pnpm install --frozen-lockfile
 
 # 构建 Next.js 应用
 echo "🔨 构建 Next.js 应用..."
-bun run build
+cd "$NEXTJS_PROJECT_DIR" || exit 1
+pnpm run build
 
 # 校验 standalone 服务端入口是否生成（部署成功率守卫）。
 # Next 仅在 next.config 含 output:"standalone" 时产出 .next/standalone/server.js。
@@ -47,7 +49,7 @@ bun run build
 # 3000 → FC 健康检查 120s 超时失败（线上 warmup_412 / FunctionNotStarted 的主因）。
 # 这里做一次自愈：仅在确实缺失时，给 next.config 补回 output:"standalone" 并重建。
 # 正常项目（已生成 server.js）整段跳过，不读写任何用户文件。
-if [ ! -f ".next/standalone/server.js" ]; then
+if [ ! -f ".next/standalone/server.js" ] && [ ! -f ".next/standalone/apps/web/server.js" ]; then
     echo "⚠️  构建未产出 .next/standalone/server.js，开始自愈 next.config 的 output 配置..."
     NEXT_CONFIG_FILE="$(ls next.config.ts next.config.js next.config.mjs next.config.cjs 2>/dev/null | head -1)"
 
@@ -88,9 +90,9 @@ if [ ! -f ".next/standalone/server.js" ]; then
     fi
 
     echo "🔨 已注入 output:\"standalone\"，重新构建..."
-    bun run build
+    pnpm run build
 
-    if [ ! -f ".next/standalone/server.js" ]; then
+    if [ ! -f ".next/standalone/server.js" ] && [ ! -f ".next/standalone/apps/web/server.js" ]; then
         echo "❌ 注入 output:\"standalone\" 并重建后，仍未生成 .next/standalone/server.js。"
         exit 1
     fi
@@ -99,7 +101,7 @@ fi
 
 # 构建 mini-services
 # 检查 Next.js 项目目录下是否有 mini-services 目录
-if [ -d "$NEXTJS_PROJECT_DIR/mini-services" ]; then
+if [ -d "$WORKSPACE_DIR/mini-services" ]; then
     echo "🔨 构建 mini-services..."
     # 使用 workspace-agent 目录下的 mini-services 脚本
     sh "$SCRIPT_DIR/mini-services-install.sh"
@@ -117,38 +119,28 @@ fi
 echo "📦 收集构建产物到 $BUILD_DIR..."
 
 # 复制 Next.js standalone 构建输出
-if [ -d ".next/standalone" ]; then
-    echo "  - 复制 .next/standalone"
-    cp -r .next/standalone "$BUILD_DIR/next-service-dist/"
+STANDALONE_SERVER_DIR=".next/standalone/apps/web"
+if [ ! -d "$STANDALONE_SERVER_DIR" ]; then
+    STANDALONE_SERVER_DIR=".next/standalone"
 fi
-
-# 复制 Next.js 静态文件
-if [ -d ".next/static" ]; then
-    echo "  - 复制 .next/static"
-    mkdir -p "$BUILD_DIR/next-service-dist/.next"
-    cp -r .next/static "$BUILD_DIR/next-service-dist/.next/"
-fi
-
-# 复制 public 目录
-if [ -d "public" ]; then
-    echo "  - 复制 public"
-    cp -r public "$BUILD_DIR/next-service-dist/"
-fi
+echo "  - 复制 $STANDALONE_SERVER_DIR"
+mkdir -p "$BUILD_DIR/next-service-dist"
+cp -r "$STANDALONE_SERVER_DIR/." "$BUILD_DIR/next-service-dist/"
 
 # Python 不继承 workspace-agent 的 /home/z/.venv。若项目包含 Python 源码或
 # 依赖清单，在构建期将生产依赖固化到产物，并保持 Python 源码的项目相对路径。
-PROJECT_DIR="$NEXTJS_PROJECT_DIR" BUILD_DIR="$BUILD_DIR" \
+PROJECT_DIR="$WORKSPACE_DIR" BUILD_DIR="$BUILD_DIR" \
     bash "$SCRIPT_DIR/python-runtime-build.sh"
 
 # 有 Preview 数据库时复制现有数据；没有时直接在部署产物中初始化空库。
 # 模板源码不携带 db/custom.db，不能依赖 dev.sh 必须在 Deploy 前成功运行过。
-PROJECT_DIR="$NEXTJS_PROJECT_DIR" BUILD_DIR="$BUILD_DIR" \
+PROJECT_DIR="$WORKSPACE_DIR" BUILD_DIR="$BUILD_DIR" \
     bash "$SCRIPT_DIR/database-runtime-build.sh"
 
 # 复制 Caddyfile（如果存在）
-if [ -f "Caddyfile" ]; then
+if [ -f "$WORKSPACE_DIR/Caddyfile" ]; then
     echo "  - 复制 Caddyfile"
-    cp Caddyfile "$BUILD_DIR/"
+    cp "$WORKSPACE_DIR/Caddyfile" "$BUILD_DIR/"
 else
     echo "ℹ️  Caddyfile 不存在，跳过"
 fi

@@ -15,8 +15,8 @@ const dbPath = path.join(dir, "test.db");
 process.env.DATABASE_URL = `file:${dbPath}`;
 
 try {
-  execSync("bunx prisma db push --skip-generate", {
-    cwd: process.cwd(), // vitest always runs from the repository root
+  execSync("pnpm exec prisma db push --skip-generate", {
+    cwd: process.cwd(), // Vitest runs from apps/web in the workspace.
     env: { ...process.env, DATABASE_URL: `file:${dbPath}` },
     stdio: "ignore",
   });
