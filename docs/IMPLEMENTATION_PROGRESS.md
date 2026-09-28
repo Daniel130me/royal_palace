@@ -26,9 +26,10 @@ that completes an increment.
 - `[~]` **Phase 1 — Engineering and infrastructure foundation.** Increments 01–03 are
   complete. Managed cloud provisioning and deployment/restore
   evidence remain future work and require the relevant Phase 0 decisions.
-- `[~]` **Phase 2 — Identity, sessions, and authorization.** Increment 04A is active.
+- `[~]` **Phase 2 — Identity, sessions, and authorization.** Increment 04A is complete
+  and Increment 05 is next.
   Production-provider qualification is tracked separately as the deferred, mandatory
-  Increment 04B gate; Increment 05 may begin only after 04A is complete.
+  Increment 04B gate.
 - `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
   foundation; domain models will be extended by each later vertical slice.
 - `[ ]` **Phase 4 — Production vertical slices and frontend connection.** Delivered by
@@ -84,16 +85,19 @@ that completes an increment.
   - `[x]` Rehearse rollback/repair, run all quality gates, and publish the Section 20
     completion report.
   - `[x]` Commit and push the completed increment to `origin/feat_prod`.
-- `[~]` **Increment 04A — Vendor-neutral identity and secure BFF session foundation**
-  - `[~]` Record the provider-neutral architecture and the deferred qualification gate.
-  - `[ ]` Separate internal principals from external `(issuer, subject)` identities.
-  - `[ ]` Implement Authorization Code + PKCE behind a provider-neutral adapter.
-  - `[ ]` Implement encrypted server-managed BFF sessions, CSRF/origin protection,
+- `[x]` **Increment 04A — Vendor-neutral identity and secure BFF session foundation**
+  - Evidence:
+    [`increments/04a-vendor-neutral-identity-and-secure-sessions.md`](./increments/04a-vendor-neutral-identity-and-secure-sessions.md)
+  - Implementation commit: `e978076`
+  - `[x]` Record the provider-neutral architecture and the deferred qualification gate.
+  - `[x]` Separate internal principals from external `(issuer, subject)` identities.
+  - `[x]` Implement Authorization Code + PKCE behind a provider-neutral adapter.
+  - `[x]` Implement encrypted server-managed BFF sessions, CSRF/origin protection,
     refresh, logout, revocation, current-user, and step-up contracts.
-  - `[ ]` Enforce application-owned roles/memberships and authentication assurance.
-  - `[ ]` Remove plaintext/default credentials, browser identity authority, and
+  - `[x]` Enforce application-owned roles/memberships and authentication assurance.
+  - `[x]` Remove plaintext/default credentials, browser identity authority, and
     `x-rp-session` authorization from the active path.
-  - `[ ]` Pass conformance, security, migration, and repository quality gates; publish
+  - `[x]` Pass conformance, security, migration, and repository quality gates; publish
     the Section 20 completion report; commit and push.
 - `[!]` **Increment 04B — Production identity-provider qualification**
   - Intentionally deferred by the product owner on 2026-09-28 so synthetic-data
@@ -148,3 +152,9 @@ vendor-neutral trust boundary with synthetic identities. Increment 04B qualifies
 selected managed provider and remains visibly blocked on material human decisions.
 The block does not prevent Increments 05–11 from using synthetic data after 04A, but it
 does prevent real-user staging, identity migration, Increment 12, and public launch.
+
+Increment 04A completed in `e978076`. The local synthetic OIDC provider and local-HTTP
+cookie mode are test/development facilities only. Physical cleanup scheduling for
+expired identity records is explicitly carried into the durable worker/retention work;
+expired records are already rejected and indexed for cleanup. Increment 05 is the next
+implementation step; Increment 04B remains separately blocked and mandatory.
