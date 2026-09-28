@@ -26,8 +26,8 @@ that completes an increment.
 - `[~]` **Phase 1 — Engineering and infrastructure foundation.** Increments 01–03 are
   complete. Managed cloud provisioning and deployment/restore
   evidence remain future work and require the relevant Phase 0 decisions.
-- `[~]` **Phase 2 — Identity, sessions, and authorization.** Increment 04A is complete
-  and Increment 05 is next.
+- `[~]` **Phase 2 — Identity, sessions, and authorization.** Increments 04A and 05 are
+  complete.
   Production-provider qualification is tracked separately as the deferred, mandatory
   Increment 04B gate.
 - `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
@@ -106,7 +106,10 @@ that completes an increment.
     before any real-user identity migration, and before Increment 12 begins.
   - Still requires provider, tenant region, privacy/legal terms, MFA/recovery,
     infrastructure cost, operational ownership, and exit-plan approval.
-- `[~]` **Increment 05 — Policy engine and audit boundary**
+- `[x]` **Increment 05 — Policy engine and audit boundary**
+  - Evidence:
+    [`increments/05-policy-engine-and-audit-boundary.md`](./increments/05-policy-engine-and-audit-boundary.md)
+  - Implementation commit: `a2fbd29`
   - `[x]` Define strongly typed named RBAC/ABAC policies with default deny.
   - `[x]` Implement the Section 22 role, ownership, membership, consent, assignment,
     redaction, and manager-privacy rules in a provider-neutral policy engine.
@@ -118,7 +121,7 @@ that completes an increment.
     retaining them only for local/test prototype review.
   - `[x]` Add exhaustive table-driven role-policy, object-ownership, membership,
     consent, redaction, audit, and protected-route tests.
-  - `[~]` Complete full repository, migration, security, and remote CI validation;
+  - `[x]` Complete full repository, migration, security, and remote CI validation;
     publish the completion report; commit and push.
 - `[ ]` **Increment 06 — Public discovery vertical slice**
 - `[ ]` **Increment 07 — Onboarding and administrative verification**
@@ -169,5 +172,9 @@ does prevent real-user staging, identity migration, Increment 12, and public lau
 Increment 04A completed in `e978076`. The local synthetic OIDC provider and local-HTTP
 cookie mode are test/development facilities only. Physical cleanup scheduling for
 expired identity records is explicitly carried into the durable worker/retention work;
-expired records are already rejected and indexed for cleanup. Increment 05 is the next
-implementation step; Increment 04B remains separately blocked and mandatory.
+expired records are already rejected and indexed for cleanup. Increment 04B remains
+separately blocked and mandatory.
+
+Increment 05 completed in `a2fbd29`. Named policies now default deny and append every
+protected decision to the immutable audit store. All unmigrated prototype APIs fail
+closed in staging and production. Increment 06 is the next implementation step.
