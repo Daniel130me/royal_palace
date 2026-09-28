@@ -1,0 +1,272 @@
+import type { CurrentSession, PlatformRole } from "@royal-palace/contracts";
+import { describe, expect, it } from "vitest";
+
+import {
+  AUTHORIZATION_POLICY,
+  type AuthorizationPolicy,
+  type AuthorizationRequest,
+} from "../src/authorization/domain/authorization.types.js";
+import { PolicyEngine } from "../src/authorization/domain/policy-engine.js";
+import { createOpaqueId } from "../src/platform/identifiers.js";
+
+const ALL_ROLES: readonly PlatformRole[] = [
+  "PATIENT",
+  "MANAGER",
+  "ORGANIZATION_APPLICANT",
+  "ORGANIZATION_STAFF",
+  "PROVIDER",
+  "SUPPORT",
+  "ADMINISTRATOR",
+  "FINANCE",
+  "LOGISTICS",
+  "SYSTEM_WORKER",
+];
+
+const organizationId = createOpaqueId();
+const resourceId = createOpaqueId();
+const targetPrincipalId = createOpaqueId();
+
+function actor(
+  roles: readonly PlatformRole[],
+  options: { organizationRoles?: readonly PlatformRole[]; principalId?: string } = {},
+): CurrentSession {
+  return {
+    absoluteExpiresAt: "2099-01-01T00:00:00.000Z",
+    assuranceContext: "urn:royal-palace:assurance:mfa",
+    authenticatedAt: new Date().toISOString(),
+    authenticationMethods: ["pwd", "otp"],
+    idleExpiresAt: "2099-01-01T00:00:00.000Z",
+    memberships:
+      options.organizationRoles === undefined
+        ? []
+        : [{ organizationId, roles: options.organizationRoles }],
+    principalId: options.principalId ?? createOpaqueId(),
+    roles,
+    sessionId: createOpaqueId(),
+  };
+}
+
+function baselineRequest(
+  policy: AuthorizationPolicy,
+  session: CurrentSession,
+): AuthorizationRequest {
+  const base = { actor: session, policy };
+  switch (policy) {
+    case AUTHORIZATION_POLICY.VIEW_ORGANIZATION:
+      return {
+        ...base,
+        policy,
+        context: { organizationId, resourceId, resourceType: "organization" },
+      };
+    case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
+    case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
+      return {
+        ...base,
+        policy,
+        context: {
+          applicantPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "application",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_PATIENT:
+      return {
+        ...base,
+        policy,
+        context: {
+          hasActiveCareAssignment: false,
+          hasActiveConsent: false,
+          organizationId,
+          patientPrincipalId: targetPrincipalId,
+          patientScopeId: targetPrincipalId,
+          resourceId,
+          resourceType: "patient",
+          viewLevel: "OPERATIONAL",
+        },
+      };
+    case AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD:
+      return {
+        ...base,
+        policy,
+        context: {
+          accessLevel: "FULL",
+          hasActiveCareAssignment: false,
+          hasActiveConsent: false,
+          organizationId,
+          patientPrincipalId: targetPrincipalId,
+          patientRecordAuthorized: false,
+          patientScopeId: targetPrincipalId,
+          resourceId,
+          resourceType: "clinical_record",
+        },
+      };
+    case AUTHORIZATION_POLICY.ESCALATE_TICKET:
+      return {
+        ...base,
+        policy,
+        context: {
+          disclosureLevel: "MINIMAL",
+          resourceId,
+          resourceType: "support_ticket",
+          ticketOwnerPrincipalId: targetPrincipalId,
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_MANAGER_EARNINGS:
+      return {
+        ...base,
+        policy,
+        context: {
+          managerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "manager_earning",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT:
+      return {
+        ...base,
+        policy,
+        context: { patientPrincipalId: targetPrincipalId, resourceId, resourceType: "payment" },
+      };
+    case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
+      return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
+    case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
+      return { ...base, policy, context: { resourceId, resourceType: "identity_principal" } };
+  }
+}
+
+describe("PolicyEngine", () => {
+  const engine = new PolicyEngine();
+  const roleMatrix: Readonly<Record<AuthorizationPolicy, readonly PlatformRole[]>> = {
+    ACCESS_CLINICAL_RECORD: [],
+    ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
+    DECIDE_APPLICATION: ["ADMINISTRATOR"],
+    ESCALATE_TICKET: ["SUPPORT", "ADMINISTRATOR"],
+    REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
+    REVOKE_PRINCIPAL_SESSIONS: ["ADMINISTRATOR"],
+    VIEW_MANAGER_EARNINGS: ["FINANCE", "ADMINISTRATOR"],
+    VIEW_ORGANIZATION: ["SUPPORT", "ADMINISTRATOR"],
+    VIEW_PATIENT: ["SUPPORT", "ADMINISTRATOR"],
+    VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],
+  };
+
+  for (const [policy, allowedRoles] of Object.entries(roleMatrix) as [
+    AuthorizationPolicy,
+    readonly PlatformRole[],
+  ][]) {
+    for (const role of ALL_ROLES) {
+      it(`${policy} ${allowedRoles.includes(role) ? "allows" : "denies"} platform role ${role}`, () => {
+        expect(engine.evaluate(baselineRequest(policy, actor([role]))).allowed).toBe(
+          allowedRoles.includes(role),
+        );
+      });
+    }
+  }
+
+  it("defaults to deny for unauthenticated and unknown policies", () => {
+    const request = baselineRequest(AUTHORIZATION_POLICY.VIEW_ORGANIZATION, actor([]));
+    expect(engine.evaluate({ ...request, actor: null }).allowed).toBe(false);
+    expect(
+      engine.evaluate({ ...request, policy: "UNKNOWN_POLICY" } as unknown as AuthorizationRequest),
+    ).toMatchObject({ allowed: false, reasonCode: "unknown_policy_denied" });
+  });
+
+  it("requires the matching organization membership rather than a platform role", () => {
+    expect(
+      engine.evaluate(
+        baselineRequest(
+          AUTHORIZATION_POLICY.VIEW_ORGANIZATION,
+          actor([], { organizationRoles: ["ORGANIZATION_STAFF"] }),
+        ),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_ORGANIZATION, actor(["ORGANIZATION_STAFF"])),
+      ).allowed,
+    ).toBe(false);
+  });
+
+  it("allows clinical access only for the patient or assigned and consented clinician", () => {
+    const patient = actor(["PATIENT"], { principalId: targetPrincipalId });
+    const ownRecord = baselineRequest(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD, patient);
+    if (ownRecord.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
+    expect(
+      engine.evaluate({
+        ...ownRecord,
+        context: { ...ownRecord.context, patientRecordAuthorized: true },
+      }).allowed,
+    ).toBe(true);
+
+    const provider = actor([], { organizationRoles: ["PROVIDER"] });
+    const providerRequest = baselineRequest(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD, provider);
+    if (providerRequest.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
+    expect(
+      engine.evaluate({
+        ...providerRequest,
+        context: {
+          ...providerRequest.context,
+          hasActiveCareAssignment: true,
+          hasActiveConsent: true,
+        },
+      }).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate({
+        ...providerRequest,
+        context: {
+          ...providerRequest.context,
+          hasActiveCareAssignment: true,
+          hasActiveConsent: false,
+        },
+      }).allowed,
+    ).toBe(false);
+  });
+
+  it("limits support to redacted clinical access", () => {
+    const request = baselineRequest(
+      AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD,
+      actor(["SUPPORT"]),
+    );
+    if (request.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
+    expect(engine.evaluate(request).allowed).toBe(false);
+    expect(
+      engine.evaluate({ ...request, context: { ...request.context, accessLevel: "REDACTED" } })
+        .allowed,
+    ).toBe(true);
+  });
+
+  it("limits managers to their own minimal ticket and earnings views", () => {
+    const manager = actor(["MANAGER"]);
+    const ticket = baselineRequest(AUTHORIZATION_POLICY.ESCALATE_TICKET, manager);
+    const earnings = baselineRequest(AUTHORIZATION_POLICY.VIEW_MANAGER_EARNINGS, manager);
+    if (ticket.policy !== AUTHORIZATION_POLICY.ESCALATE_TICKET) throw new Error();
+    if (earnings.policy !== AUTHORIZATION_POLICY.VIEW_MANAGER_EARNINGS) throw new Error();
+
+    expect(
+      engine.evaluate({
+        ...ticket,
+        context: { ...ticket.context, ticketOwnerPrincipalId: manager.principalId },
+      }).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate({
+        ...ticket,
+        context: {
+          ...ticket.context,
+          disclosureLevel: "FULL",
+          ticketOwnerPrincipalId: manager.principalId,
+        },
+      }).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate({
+        ...earnings,
+        context: { ...earnings.context, managerPrincipalId: manager.principalId },
+      }).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT, manager))
+        .allowed,
+    ).toBe(false);
+  });
+});

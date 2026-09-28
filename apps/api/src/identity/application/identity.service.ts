@@ -10,6 +10,8 @@ import type {
 import { KeyRingSecretBox, randomSecret, sha256Hex } from "@royal-palace/security";
 import * as oidc from "openid-client";
 
+import { AuthorizationService } from "../../authorization/application/authorization.service.js";
+import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
 import type { IdentityRepository, OidcProvider } from "../domain/identity.types.js";
@@ -51,6 +53,7 @@ export class IdentityService {
     @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
     @Inject(IDENTITY_REPOSITORY) private readonly repository: IdentityRepository,
     @Inject(OIDC_PROVIDER) private readonly provider: OidcProvider,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
   ) {
     this.secrets = new KeyRingSecretBox(
       config.identity.encryptionKeys,
@@ -340,13 +343,15 @@ export class IdentityService {
     targetPrincipalId: string;
   }): Promise<{ revokedSessionCount: number }> {
     const actor = await this.currentSession(input.actorSessionId);
-    if (!actor.roles.includes("ADMINISTRATOR")) {
-      throw new IdentityFlowError(
-        "Administrator access is required",
-        403,
-        "administrator_access_required",
-      );
-    }
+    await this.authorization.authorize({
+      actor,
+      context: {
+        resourceId: input.targetPrincipalId,
+        resourceType: "identity_principal",
+      },
+      policy: AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS,
+      requestId: input.requestId,
+    });
     const revokedSessionCount = await this.repository.revokePrincipalSessions({
       actorPrincipalId: actor.principalId,
       now: new Date(),

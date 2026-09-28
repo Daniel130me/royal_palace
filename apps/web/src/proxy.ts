@@ -1,4 +1,4 @@
-import { loadWebConfig } from "@royal-palace/config/environment";
+import { type ApplicationEnvironment, loadWebConfig } from "@royal-palace/config/environment";
 import {
   REQUEST_ID_HEADER,
   resolveRequestContext,
@@ -8,6 +8,17 @@ import { timingSafeStringEqual } from "@royal-palace/security";
 import { type NextRequest, NextResponse } from "next/server";
 
 const webConfig = loadWebConfig();
+const PROTECTED_ENVIRONMENTS: ReadonlySet<ApplicationEnvironment> = new Set([
+  "staging",
+  "production",
+]);
+const ACTIVE_PRODUCTION_BFF_ROUTES = new Set([
+  "/api/bff/auth/callback",
+  "/api/bff/auth/login",
+  "/api/bff/auth/logout",
+  "/api/bff/auth/refresh",
+  "/api/bff/auth/session",
+]);
 
 export function proxy(request: NextRequest): NextResponse {
   const context = resolveRequestContext({
@@ -17,6 +28,33 @@ export function proxy(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(REQUEST_ID_HEADER, context.requestId);
   requestHeaders.set(TRACEPARENT_HEADER, context.traceparent);
+
+  if (!isApiRouteEnabled(webConfig.appEnvironment, request.nextUrl.pathname)) {
+    const response = NextResponse.json(
+      {
+        error: "prototype_route_disabled",
+        message: "This prototype route is not available in protected environments",
+      },
+      { status: 404 },
+    );
+    response.headers.set(REQUEST_ID_HEADER, context.requestId);
+    response.headers.set(TRACEPARENT_HEADER, context.traceparent);
+    console.warn(
+      JSON.stringify({
+        environment: webConfig.appEnvironment,
+        level: "warn",
+        message: "bff.prototype_route.denied",
+        method: request.method,
+        path: request.nextUrl.pathname,
+        requestId: context.requestId,
+        service: "web",
+        time: new Date().toISOString(),
+        traceId: context.traceId,
+        version: webConfig.appVersion,
+      }),
+    );
+    return response;
+  }
 
   if (requiresCsrfProtection(request)) {
     const csrfCookieName =
@@ -57,6 +95,11 @@ export function proxy(request: NextRequest): NextResponse {
   );
 
   return response;
+}
+
+export function isApiRouteEnabled(environment: ApplicationEnvironment, pathname: string): boolean {
+  if (!pathname.startsWith("/api/") || !PROTECTED_ENVIRONMENTS.has(environment)) return true;
+  return ACTIVE_PRODUCTION_BFF_ROUTES.has(pathname);
 }
 
 function requiresCsrfProtection(request: NextRequest): boolean {

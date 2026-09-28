@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-type ProxyHandler = typeof import("../../src/proxy.js").proxy;
+type ProxyModule = typeof import("../../src/proxy.js");
 
 describe("web request correlation", () => {
-  let proxy: ProxyHandler;
+  let proxy: ProxyModule["proxy"];
+  let isApiRouteEnabled: ProxyModule["isApiRouteEnabled"];
 
   beforeAll(async () => {
     vi.stubEnv("API_BASE_URL", "http://127.0.0.1:4000");
@@ -19,7 +20,7 @@ describe("web request correlation", () => {
     vi.stubEnv("BFF_API_TIMEOUT_MS", "5000");
     vi.stubEnv("LOG_LEVEL", "info");
     vi.stubEnv("WEB_ORIGIN", "http://127.0.0.1:3000");
-    ({ proxy } = await import("../../src/proxy.js"));
+    ({ isApiRouteEnabled, proxy } = await import("../../src/proxy.js"));
   });
 
   it("propagates safe correlation headers without logging query values", () => {
@@ -54,5 +55,13 @@ describe("web request correlation", () => {
 
     expect(response.status).toBe(403);
     expect(response.headers.get("content-type")).toContain("application/json");
+  });
+
+  it("fails closed for unmigrated prototype APIs in protected environments", () => {
+    expect(isApiRouteEnabled("production", "/api/actions/book-appointment")).toBe(false);
+    expect(isApiRouteEnabled("staging", "/api/resources/users")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/bff/auth/session")).toBe(true);
+    expect(isApiRouteEnabled("test", "/api/actions/book-appointment")).toBe(true);
+    expect(isApiRouteEnabled("production", "/patient/dashboard")).toBe(true);
   });
 });

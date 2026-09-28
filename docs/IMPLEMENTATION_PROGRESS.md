@@ -106,7 +106,20 @@ that completes an increment.
     before any real-user identity migration, and before Increment 12 begins.
   - Still requires provider, tenant region, privacy/legal terms, MFA/recovery,
     infrastructure cost, operational ownership, and exit-plan approval.
-- `[ ]` **Increment 05 — Policy engine and audit boundary**
+- `[~]` **Increment 05 — Policy engine and audit boundary**
+  - `[x]` Define strongly typed named RBAC/ABAC policies with default deny.
+  - `[x]` Implement the Section 22 role, ownership, membership, consent, assignment,
+    redaction, and manager-privacy rules in a provider-neutral policy engine.
+  - `[x]` Append every protected decision to the immutable audit store and fail closed
+    when that audit fact cannot be persisted.
+  - `[x]` Route administrative principal-session revocation through the named policy and
+    mark the controller operation for architectural inventory checks.
+  - `[x]` Disable unmigrated prototype Next.js APIs in staging and production while
+    retaining them only for local/test prototype review.
+  - `[x]` Add exhaustive table-driven role-policy, object-ownership, membership,
+    consent, redaction, audit, and protected-route tests.
+  - `[~]` Complete full repository, migration, security, and remote CI validation;
+    publish the completion report; commit and push.
 - `[ ]` **Increment 06 — Public discovery vertical slice**
 - `[ ]` **Increment 07 — Onboarding and administrative verification**
 - `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**

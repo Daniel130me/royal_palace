@@ -2,9 +2,11 @@ import { type DynamicModule, Module } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/config/readiness";
 
+import { AuthorizationModule } from "./authorization/authorization.module.js";
 import { HealthController } from "./health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
-import { DEPENDENCY_READINESS, SERVICE_CONFIG } from "./tokens.js";
+import { DatabaseModule } from "./platform/database/database.module.js";
+import { DEPENDENCY_READINESS } from "./tokens.js";
 
 @Module({})
 export class AppModule {
@@ -14,12 +16,9 @@ export class AppModule {
   ): DynamicModule {
     return {
       module: AppModule,
-      imports: [IdentityModule.register(config)],
+      imports: [DatabaseModule.register(config), AuthorizationModule, IdentityModule],
       controllers: [HealthController],
-      providers: [
-        { provide: SERVICE_CONFIG, useValue: config },
-        { provide: DEPENDENCY_READINESS, useValue: dependencies },
-      ],
+      providers: [{ provide: DEPENDENCY_READINESS, useValue: dependencies }],
     };
   }
 }

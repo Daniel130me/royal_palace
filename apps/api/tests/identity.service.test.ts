@@ -1,6 +1,7 @@
 import { KeyRingSecretBox, sha256Hex } from "@royal-palace/security";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AuthorizationService } from "../src/authorization/application/authorization.service.js";
 import { IdentityService } from "../src/identity/application/identity.service.js";
 import type { IdentityFlowError } from "../src/identity/application/identity.service.js";
 import type { IdentityRepository, OidcProvider } from "../src/identity/domain/identity.types.js";
@@ -46,6 +47,17 @@ function provider(overrides: Partial<OidcProvider> = {}): OidcProvider {
   };
 }
 
+function authorization(): AuthorizationService {
+  return {
+    authorize: vi.fn(async (input: { policy: string }) => ({
+      allowed: true,
+      effectiveRole: "ADMINISTRATOR" as const,
+      policy: input.policy,
+      reasonCode: "allowed_administrator",
+    })),
+  } as unknown as AuthorizationService;
+}
+
 describe("IdentityService", () => {
   beforeEach(() => vi.restoreAllMocks());
 
@@ -58,21 +70,22 @@ describe("IdentityService", () => {
       testConfig,
       repository({ createLoginTransaction }),
       oidcProvider,
+      authorization(),
     );
 
     const result = await service.beginLogin({ returnTo: "/#/patient/dashboard" });
 
     expect(result.authorizationUrl).toBe("http://identity.test/authorize");
     const stored = createLoginTransaction.mock.calls[0]?.[0];
-    const authorization = vi.mocked(oidcProvider.buildAuthorizationUrl).mock.calls[0]?.[0];
+    const authorizationRequest = vi.mocked(oidcProvider.buildAuthorizationUrl).mock.calls[0]?.[0];
     expect(stored?.stateHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(stored?.stateHash).toBe(sha256Hex(authorization?.state ?? ""));
-    expect(stored?.nonceCiphertext).not.toContain(authorization?.nonce ?? "missing");
+    expect(stored?.stateHash).toBe(sha256Hex(authorizationRequest?.state ?? ""));
+    expect(stored?.nonceCiphertext).not.toContain(authorizationRequest?.nonce ?? "missing");
     expect(stored?.pkceVerifierCiphertext).toContain("v1.test-key-1.");
   });
 
   it("rejects a callback when the single-use transaction is missing", async () => {
-    const service = new IdentityService(testConfig, repository(), provider());
+    const service = new IdentityService(testConfig, repository(), provider(), authorization());
     const callback = `${testConfig.identity.redirectUri}?code=code&state=state`;
 
     await expect(
@@ -104,6 +117,7 @@ describe("IdentityService", () => {
         })),
       }),
       provider(),
+      authorization(),
     );
 
     await expect(service.currentSession(createOpaqueId())).rejects.toMatchObject<
@@ -128,6 +142,7 @@ describe("IdentityService", () => {
         })),
       }),
       provider(),
+      authorization(),
     );
 
     await expect(service.currentSession(createOpaqueId())).rejects.toMatchObject<
@@ -151,6 +166,7 @@ describe("IdentityService", () => {
       testConfig,
       repository({ getCurrentSession: vi.fn(async () => current) }),
       provider(),
+      authorization(),
     );
 
     await expect(service.currentSession(createOpaqueId())).resolves.toEqual(current);
@@ -179,7 +195,12 @@ describe("IdentityService", () => {
         throw new Error("provider unavailable");
       }),
     });
-    const service = new IdentityService(testConfig, repository({ revokeSession }), oidcProvider);
+    const service = new IdentityService(
+      testConfig,
+      repository({ revokeSession }),
+      oidcProvider,
+      authorization(),
+    );
 
     await expect(service.logout({ requestId: "request-1", sessionId })).resolves.toEqual({
       endSessionUrl: null,
@@ -194,6 +215,7 @@ describe("IdentityService", () => {
     const revokePrincipalSessions = vi.fn<IdentityRepository["revokePrincipalSessions"]>(
       async () => 3,
     );
+    const authorizationService = authorization();
     const service = new IdentityService(
       testConfig,
       repository({
@@ -211,6 +233,7 @@ describe("IdentityService", () => {
         revokePrincipalSessions,
       }),
       provider(),
+      authorizationService,
     );
 
     await expect(
@@ -222,6 +245,13 @@ describe("IdentityService", () => {
     ).resolves.toEqual({ revokedSessionCount: 3 });
     expect(revokePrincipalSessions).toHaveBeenCalledWith(
       expect.objectContaining({ actorPrincipalId, targetPrincipalId }),
+    );
+    expect(authorizationService.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ principalId: actorPrincipalId }),
+        context: expect.objectContaining({ resourceId: targetPrincipalId }),
+        policy: "REVOKE_PRINCIPAL_SESSIONS",
+      }),
     );
   });
 });

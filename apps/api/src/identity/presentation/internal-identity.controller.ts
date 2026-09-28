@@ -8,6 +8,9 @@ import type {
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { AuthorizationDeniedError } from "../../authorization/application/authorization.service.js";
+import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
+import { PolicyProtected } from "../../authorization/presentation/policy-protected.decorator.js";
 import { IdentityFlowError, IdentityService } from "../application/identity.service.js";
 import { InternalRequestGuard } from "./internal-request.guard.js";
 
@@ -78,6 +81,7 @@ export class InternalIdentityController {
   }
 
   @Post("session/revoke-principal")
+  @PolicyProtected(AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS)
   revokePrincipalSessions(
     @Body() body: unknown,
     @Req() request: FastifyRequest,
@@ -97,6 +101,9 @@ export class InternalIdentityController {
     } catch (error) {
       if (error instanceof IdentityFlowError) {
         throw new HttpException({ error: error.code, message: error.message }, error.status);
+      }
+      if (error instanceof AuthorizationDeniedError) {
+        throw new HttpException({ error: "access_denied", message: "Access is denied" }, 403);
       }
       throw error;
     }
