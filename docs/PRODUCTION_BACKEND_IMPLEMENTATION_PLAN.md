@@ -259,7 +259,9 @@ Recommended migration order:
 
 **Work:**
 
-- Integrate a managed OIDC/OAuth 2.0 identity provider.
+- Implement a vendor-neutral OIDC/OAuth 2.0 boundary and qualify the selected managed
+  provider separately. Local and automated development uses a standards-compliant
+  synthetic identity provider; it is never a production fallback.
 - Implement verified email/phone flows, secure recovery, session expiration, refresh rotation, revocation, and device/session management.
 - Require MFA for privileged/workforce roles.
 - Implement secure BFF session cookies with CSRF protection where applicable.
@@ -269,7 +271,11 @@ Recommended migration order:
 - Replace plaintext passwords, `localStorage` session authority, and `x-rp-session` trust.
 - Remove all default/demo production credentials.
 
-**Exit gate:** independent tests prove that browser-controlled identity/role changes cannot elevate access; all privileged roles use MFA; authorization defaults to deny; session revocation works; no plaintext password or local-storage bearer/session credential remains.
+**Exit gate:** independent tests prove that browser-controlled identity/role changes
+cannot elevate access; all privileged roles use MFA; authorization defaults to deny;
+session revocation works; no plaintext password or local-storage bearer/session
+credential remains; and the selected production provider has passed the Increment
+04B qualification gate.
 
 ### Phase 3 — PostgreSQL domain foundation (2–4 weeks)
 
@@ -462,7 +468,8 @@ The agent builder must follow these instructions exactly:
 Public launch is prohibited until all of the following are true:
 
 - [ ] Approved launch scope and deferred-feature list.
-- [ ] Production identity provider, secure cookies, MFA, session revocation, and default-deny authorization.
+- [ ] Increment 04B production identity-provider qualification, secure cookies, MFA,
+      session revocation, and default-deny authorization.
 - [ ] No plaintext passwords, browser-trusted roles, generic public CRUD, demo credentials, or production mock data.
 - [ ] PostgreSQL constraints, migrations, indexes, backups, point-in-time recovery, and restore drill verified.
 - [ ] Private object storage, malware scanning, file authorization, and retention implemented.
@@ -519,25 +526,25 @@ This architecture prioritizes safety and maintainability without prematurely pay
 
 These decisions are intentionally specific so an implementation agent does not invent a different architecture halfway through the build. A change requires an ADR and human approval.
 
-| Concern | Required decision | Implementation rule |
-| --- | --- | --- |
-| Workspace | pnpm workspaces + Turborepo | Pin the package-manager version and Node.js LTS version at the repository root. Use one lockfile and reproducible frozen-lockfile installs in CI. |
-| Frontend | Existing Next.js application | Preserve the current interface where practical. Move it into `apps/web` only after the workspace build is green. |
-| Browser/backend boundary | Thin same-origin Next.js BFF | The browser talks to `/api/bff/*`; the BFF owns secure cookies and calls the API. Do not expose provider tokens to browser JavaScript. |
-| Core backend | NestJS with Fastify adapter | One modular monolith, organized by domain modules. Controllers never call Prisma directly. |
-| Background work | Separate Node.js worker application | Consume durable queue messages. HTTP requests must not wait for email, SMS, scanning, reconciliation, or report generation. |
-| Primary database | Managed PostgreSQL | Use supported PostgreSQL and Prisma versions pinned by lockfile. Enable automated backups and point-in-time recovery in staging and production. |
-| ORM/migrations | Prisma schema and migrations | Use `prisma migrate dev` locally and reviewed deploy migrations in controlled environments. Never run `db push` outside disposable local development. |
-| API contract | REST `/v1` + OpenAPI 3.1 | Generate a typed web client in `packages/contracts`. API implementation is authoritative; never duplicate hand-written frontend DTOs. |
-| Authentication | Managed OpenID Connect provider | Authorization Code flow with PKCE. The selected vendor and deployment region require Phase 0 approval. Do not build password storage or MFA from scratch. |
-| Authorization | Central policy service using RBAC + ABAC | Every use case calls a named policy. Database row-level security may add defense in depth, never replace the policy service. |
-| Cache/rate limits | Managed Redis | Cache only reproducible data with explicit TTL/invalidation. Never store financial or clinical source-of-truth state in Redis. |
-| Async transport | Managed durable queue | Use an outbox publisher and idempotent consumers. Select SQS or an equivalent managed service in the cloud ADR. |
-| Files | Private S3-compatible object storage | Browser uploads through short-lived presigned URLs; quarantine until validation and malware scanning succeed. |
-| Payments | Hosted provider checkout | Paystack or Flutterwave is selected by ADR. The verified webhook is authoritative; redirect pages only display pending/current status. |
-| Observability | OpenTelemetry + centralized logs/metrics/errors | All three applications emit correlated telemetry. Sensitive fields are denied by default. |
-| Infrastructure | Infrastructure as code | No manually created production resource is accepted without being imported into and represented by IaC. |
-| Delivery | Trunk-based, small reviewable changes | Protected `main`; short-lived branches; migration and deployment compatibility maintained during rolling releases. |
+| Concern                  | Required decision                                                   | Implementation rule                                                                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace                | pnpm workspaces + Turborepo                                         | Pin the package-manager version and Node.js LTS version at the repository root. Use one lockfile and reproducible frozen-lockfile installs in CI.                                                                                                                    |
+| Frontend                 | Existing Next.js application                                        | Preserve the current interface where practical. Move it into `apps/web` only after the workspace build is green.                                                                                                                                                     |
+| Browser/backend boundary | Thin same-origin Next.js BFF                                        | The browser talks to `/api/bff/*`; the BFF owns secure cookies and calls the API. Do not expose provider tokens to browser JavaScript.                                                                                                                               |
+| Core backend             | NestJS with Fastify adapter                                         | One modular monolith, organized by domain modules. Controllers never call Prisma directly.                                                                                                                                                                           |
+| Background work          | Separate Node.js worker application                                 | Consume durable queue messages. HTTP requests must not wait for email, SMS, scanning, reconciliation, or report generation.                                                                                                                                          |
+| Primary database         | Managed PostgreSQL                                                  | Use supported PostgreSQL and Prisma versions pinned by lockfile. Enable automated backups and point-in-time recovery in staging and production.                                                                                                                      |
+| ORM/migrations           | Prisma schema and migrations                                        | Use `prisma migrate dev` locally and reviewed deploy migrations in controlled environments. Never run `db push` outside disposable local development.                                                                                                                |
+| API contract             | REST `/v1` + OpenAPI 3.1                                            | Generate a typed web client in `packages/contracts`. API implementation is authoritative; never duplicate hand-written frontend DTOs.                                                                                                                                |
+| Authentication           | Vendor-neutral OpenID Connect boundary + qualified managed provider | Authorization Code flow with PKCE. Application principals, sessions, roles, and memberships remain provider-independent under ADR 0002. The selected vendor and deployment region require Increment 04B approval. Do not build password storage or MFA from scratch. |
+| Authorization            | Central policy service using RBAC + ABAC                            | Every use case calls a named policy. Database row-level security may add defense in depth, never replace the policy service.                                                                                                                                         |
+| Cache/rate limits        | Managed Redis                                                       | Cache only reproducible data with explicit TTL/invalidation. Never store financial or clinical source-of-truth state in Redis.                                                                                                                                       |
+| Async transport          | Managed durable queue                                               | Use an outbox publisher and idempotent consumers. Select SQS or an equivalent managed service in the cloud ADR.                                                                                                                                                      |
+| Files                    | Private S3-compatible object storage                                | Browser uploads through short-lived presigned URLs; quarantine until validation and malware scanning succeed.                                                                                                                                                        |
+| Payments                 | Hosted provider checkout                                            | Paystack or Flutterwave is selected by ADR. The verified webhook is authoritative; redirect pages only display pending/current status.                                                                                                                               |
+| Observability            | OpenTelemetry + centralized logs/metrics/errors                     | All three applications emit correlated telemetry. Sensitive fields are denied by default.                                                                                                                                                                            |
+| Infrastructure           | Infrastructure as code                                              | No manually created production resource is accepted without being imported into and represented by IaC.                                                                                                                                                              |
+| Delivery                 | Trunk-based, small reviewable changes                               | Protected `main`; short-lived branches; migration and deployment compatibility maintained during rolling releases.                                                                                                                                                   |
 
 ### Decisions the agent must not make alone
 
@@ -555,7 +562,11 @@ Stop and request human approval before selecting or changing:
 
 ## 19. Exact delivery sequence
 
-The following increments are the required implementation order. One increment may use several commits, but each increment must remain independently reviewable and must leave the repository buildable.
+The following increments are the required implementation order. One increment may use
+several commits, but each increment must remain independently reviewable and must
+leave the repository buildable. Increment 04B is the sole explicitly deferred gate:
+after 04A, synthetic-data work proceeds through Increments 05–11, then 04B must pass
+before Increment 12 begins.
 
 ### Increment 00 — Protect the current baseline
 
@@ -618,21 +629,63 @@ The following increments are the required implementation order. One increment ma
 
 **Acceptance:** clean migration, upgrade migration, rollback/repair rehearsal, constraints, and representative query plans are reviewed; no production path uses SQLite or `db push`.
 
-### Increment 04 — Managed identity and secure BFF session
+### Increment 04A — Vendor-neutral identity and secure BFF session foundation
 
 **Purpose:** replace the browser-trusted session before migrating protected data.
 
 **Required actions:**
 
-1. Integrate the approved OIDC provider using Authorization Code + PKCE.
+1. Implement a provider-neutral OpenID Connect boundary using Authorization Code +
+   PKCE. Provider SDK types and claims must not enter domain or authorization code.
 2. Implement login callback, logout, session refresh, revocation, current-user, and reauthentication/step-up flows in the BFF.
 3. Store only an opaque encrypted session reference in `HttpOnly`, `Secure`, appropriately scoped `SameSite` cookies.
 4. Protect state-changing BFF calls against CSRF and validate origin where applicable.
-5. Map the external subject to an internal principal and server-derived role/membership assignments.
-6. Add MFA enrollment/enforcement for privileged roles.
+5. Model internal principals separately from external identities. An internal principal
+   may link multiple `(issuer, subject)` identities; roles and memberships are always
+   derived from application-owned records, never provider groups or browser claims.
+6. Define and enforce a provider-neutral authentication-assurance contract for
+   privileged roles using validated `acr`/`amr` evidence. Test it with a local,
+   standards-compliant synthetic provider.
 7. Remove local-storage identity authority, plaintext password code, default passwords, and `x-rp-session` authorization.
 
-**Acceptance:** tampering with browser state or request payloads cannot alter identity, role, organization, or patient ownership; logout and administrative revocation invalidate the session; security events are audited.
+**Acceptance:** tampering with browser state or request payloads cannot alter identity,
+role, organization, or patient ownership; logout and administrative revocation
+invalidate the session; security events are audited; the conformance suite proves that
+authorization is independent of provider-specific roles and claims. Completion of 04A
+permits synthetic-data development of Increments 05–11, but does not authorize a
+production-like identity tenant or real-user testing.
+
+### Increment 04B — Production identity-provider qualification (deferred release gate)
+
+**Purpose:** qualify the real managed identity provider without coupling application
+identity or authorization to that vendor.
+
+**Timing:** this decision is intentionally deferred so Increments 05–11 can proceed
+against the 04A contract. Increment 04B must be completed before any protected shared
+staging environment accepts non-synthetic users and before Increment 12 release
+qualification begins. Deferral is not acceptance or completion.
+
+**Required actions:**
+
+1. Obtain product, security/privacy, and infrastructure-cost approval for the provider,
+   tenant region, data processing terms, account ownership, and recovery model.
+2. Configure isolated non-production and production tenants through version-controlled
+   infrastructure/configuration; no tenant, key, redirect URI, or secret is shared.
+3. Demonstrate Authorization Code + PKCE, issuer/audience/nonce validation, key
+   rotation, refresh-token rotation/reuse response, logout, administrative revocation,
+   account disablement, and secure recovery against the selected provider.
+4. Configure and independently test phishing-resistant MFA where supported, with an
+   approved fallback and recovery policy, for every privileged/workforce role.
+5. Map provider assurance evidence into the 04A `acr`/`amr` contract without consuming
+   provider groups or roles for application authorization.
+6. Run abuse, rate-limit, session, audit, failover, and provider-outage tests; record
+   operational runbooks and exit/migration procedures, including dual-issuer identity
+   linking for a future provider change.
+
+**Acceptance:** the selected provider passes the 04A conformance suite and security
+tests; privileged MFA and recovery are approved; regional/privacy/cost decisions are
+recorded; provider outage and exit procedures are rehearsed; no application policy or
+domain module imports a provider SDK.
 
 ### Increment 05 — Policy engine and audit boundary
 
@@ -827,18 +880,18 @@ Apply these conventions consistently across all models and contracts.
 
 This is the baseline. Phase 0 may further restrict access but must not broaden it without approval.
 
-| Role | Permitted visibility/actions | Explicitly forbidden |
-| --- | --- | --- |
-| Patient | Own profile, consents, appointments, authorized records, own orders/payments | Other patients; organization internal data; admin/support notes |
-| Manager | Own referral links, minimal referral status, own earning records/aggregates, restricted ticket escalation/follow-up | Gross patient payments, clinical data, full patient profile, full organization data, approval/rejection, organization administration |
-| Organization applicant | Own application and requested-information workflow | Verification decision, other applications, internal review notes |
-| Organization staff | Assigned organization operations within membership and job permissions | Other organizations; unrelated patient records; admin verification |
-| Provider/clinician | Assigned/consented patient clinical scope required for care | Unrelated patients; financial administration; hidden support notes |
-| Support | All enrolled patient/organization operational records needed for support, redacted clinical detail by default; application review preparation; ticket handling | Approve/reject applications; unrestricted clinical narrative; commission policy changes; ledger mutation |
-| Administrator | Verification decisions, role/membership administration, configured platform operations | Direct database bypass; silent clinical/ledger rewrite; unaudited privileged action |
-| Finance | Payment, ledger, settlement, reconciliation, approved payout operations | Clinical narrative; identity/role administration unless separately assigned |
-| Logistics | Assigned delivery data and minimum contact/location required to fulfill delivery | Clinical record, full payment data, unrelated orders |
-| System worker | Narrow service identity permissions for its queue task | Interactive login; broad administrator permissions |
+| Role                   | Permitted visibility/actions                                                                                                                                   | Explicitly forbidden                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Patient                | Own profile, consents, appointments, authorized records, own orders/payments                                                                                   | Other patients; organization internal data; admin/support notes                                                                      |
+| Manager                | Own referral links, minimal referral status, own earning records/aggregates, restricted ticket escalation/follow-up                                            | Gross patient payments, clinical data, full patient profile, full organization data, approval/rejection, organization administration |
+| Organization applicant | Own application and requested-information workflow                                                                                                             | Verification decision, other applications, internal review notes                                                                     |
+| Organization staff     | Assigned organization operations within membership and job permissions                                                                                         | Other organizations; unrelated patient records; admin verification                                                                   |
+| Provider/clinician     | Assigned/consented patient clinical scope required for care                                                                                                    | Unrelated patients; financial administration; hidden support notes                                                                   |
+| Support                | All enrolled patient/organization operational records needed for support, redacted clinical detail by default; application review preparation; ticket handling | Approve/reject applications; unrestricted clinical narrative; commission policy changes; ledger mutation                             |
+| Administrator          | Verification decisions, role/membership administration, configured platform operations                                                                         | Direct database bypass; silent clinical/ledger rewrite; unaudited privileged action                                                  |
+| Finance                | Payment, ledger, settlement, reconciliation, approved payout operations                                                                                        | Clinical narrative; identity/role administration unless separately assigned                                                          |
+| Logistics              | Assigned delivery data and minimum contact/location required to fulfill delivery                                                                               | Clinical record, full payment data, unrelated orders                                                                                 |
+| System worker          | Narrow service identity permissions for its queue task                                                                                                         | Interactive login; broad administrator permissions                                                                                   |
 
 Enforce separation of duties for high-risk actions. At minimum, payout initiation and approval must not be performed by the same principal above the approved threshold.
 

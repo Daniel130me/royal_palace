@@ -26,8 +26,9 @@ that completes an increment.
 - `[~]` **Phase 1 — Engineering and infrastructure foundation.** Increments 01–03 are
   complete. Managed cloud provisioning and deployment/restore
   evidence remain future work and require the relevant Phase 0 decisions.
-- `[ ]` **Phase 2 — Identity, sessions, and authorization.** Delivered primarily by
-  Increments 04–05.
+- `[~]` **Phase 2 — Identity, sessions, and authorization.** Increment 04A is active.
+  Production-provider qualification is tracked separately as the deferred, mandatory
+  Increment 04B gate; Increment 05 may begin only after 04A is complete.
 - `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
   foundation; domain models will be extended by each later vertical slice.
 - `[ ]` **Phase 4 — Production vertical slices and frontend connection.** Delivered by
@@ -83,7 +84,24 @@ that completes an increment.
   - `[x]` Rehearse rollback/repair, run all quality gates, and publish the Section 20
     completion report.
   - `[x]` Commit and push the completed increment to `origin/feat_prod`.
-- `[ ]` **Increment 04 — Managed identity and secure BFF session**
+- `[~]` **Increment 04A — Vendor-neutral identity and secure BFF session foundation**
+  - `[~]` Record the provider-neutral architecture and the deferred qualification gate.
+  - `[ ]` Separate internal principals from external `(issuer, subject)` identities.
+  - `[ ]` Implement Authorization Code + PKCE behind a provider-neutral adapter.
+  - `[ ]` Implement encrypted server-managed BFF sessions, CSRF/origin protection,
+    refresh, logout, revocation, current-user, and step-up contracts.
+  - `[ ]` Enforce application-owned roles/memberships and authentication assurance.
+  - `[ ]` Remove plaintext/default credentials, browser identity authority, and
+    `x-rp-session` authorization from the active path.
+  - `[ ]` Pass conformance, security, migration, and repository quality gates; publish
+    the Section 20 completion report; commit and push.
+- `[!]` **Increment 04B — Production identity-provider qualification**
+  - Intentionally deferred by the product owner on 2026-09-28 so synthetic-data
+    implementation can continue without vendor lock-in.
+  - This is a mandatory gate before protected staging accepts non-synthetic users,
+    before any real-user identity migration, and before Increment 12 begins.
+  - Still requires provider, tenant region, privacy/legal terms, MFA/recovery,
+    infrastructure cost, operational ownership, and exit-plan approval.
 - `[ ]` **Increment 05 — Policy engine and audit boundary**
 - `[ ]` **Increment 06 — Public discovery vertical slice**
 - `[ ]` **Increment 07 — Onboarding and administrative verification**
@@ -99,7 +117,9 @@ These are not implementation-agent choices. Stop before the affected production 
 
 - AWS deployment region, Nigerian data-residency/cross-border assessment, and final
   account/environment ownership.
-- Managed OIDC provider and privileged-user MFA policy.
+- Production OIDC provider, tenant region, commercial terms, and privileged-user
+  MFA/recovery policy (Increment 04B). The application identity boundary itself is
+  vendor-neutral under ADR 0002.
 - Managed durable queue and production observability providers.
 - Paystack versus Flutterwave, commercial terms, settlement model, refund/dispute
   operations, and commission eligibility policy.
@@ -122,3 +142,9 @@ Docker Desktop remained unavailable. CI now repeats migration and query-plan che
 against the pinned PostgreSQL 17.6 image. The prototype SQLite database remains
 quarantined inside `apps/web`; its destructive `db:push --accept-data-loss` script was
 removed and it is not a production data path.
+
+Increment 04 is deliberately split. Increment 04A establishes and tests the complete
+vendor-neutral trust boundary with synthetic identities. Increment 04B qualifies the
+selected managed provider and remains visibly blocked on material human decisions.
+The block does not prevent Increments 05–11 from using synthetic data after 04A, but it
+does prevent real-user staging, identity migration, Increment 12, and public launch.
