@@ -80,7 +80,6 @@ async function main() {
     data: {
       id: "USR-ADMIN",
       email: "admin@demo.com",
-      password: "demo123",
       role: "admin",
       status: "active",
       profileId: "ADM-001",
@@ -92,7 +91,6 @@ async function main() {
     data: {
       id: "USR-PAT-001",
       email: "amina@demo.com",
-      password: "demo123",
       role: "patient",
       status: "active",
       profileId: "PAT-001",
@@ -104,7 +102,6 @@ async function main() {
     data: {
       id: "USR-DOC-001",
       email: "doctor@demo.com",
-      password: "demo123",
       role: "doctor",
       status: "active",
       profileId: "PRO-001",
@@ -116,7 +113,6 @@ async function main() {
     data: {
       id: "USR-DOC-002",
       email: "doctor2@demo.com",
-      password: "demo123",
       role: "doctor",
       status: "active",
       profileId: "PRO-002",
@@ -128,7 +124,6 @@ async function main() {
     data: {
       id: "USR-DOC-003",
       email: "doctor3@demo.com",
-      password: "demo123",
       role: "doctor",
       status: "active",
       profileId: "PRO-003",
@@ -140,7 +135,6 @@ async function main() {
     data: {
       id: "USR-PHA-001",
       email: "pharmacy@demo.com",
-      password: "demo123",
       role: "pharmacy",
       status: "active",
       profileId: "PHA-001",
@@ -152,7 +146,6 @@ async function main() {
     data: {
       id: "USR-LAB-001",
       email: "lab@demo.com",
-      password: "demo123",
       role: "laboratory",
       status: "active",
       profileId: "LAB-001",
@@ -164,7 +157,6 @@ async function main() {
     data: {
       id: "USR-LOG-001",
       email: "logistics@demo.com",
-      password: "demo123",
       role: "logistics",
       status: "active",
       profileId: "LOG-001",
@@ -847,7 +839,7 @@ async function main() {
 
   // -----------------------------------------------------------------------
   // MANAGER MODULE STORY (plan §7)
-  // Deterministic demo: manager@demo.com / demo123 -> MGR-001 Oluwagbenga
+  // Deterministic synthetic profiles; authentication is owned by the OIDC test tenant.
   // Kosoko (MGR-00128, code MGR00128). A second manager (MGR-002, pending
   // verification) owns a reassigned pharmacy so reassignment history and
   // multi-manager rules are visible.
@@ -859,27 +851,25 @@ async function main() {
       {
         id: "USR-MGR-001",
         email: "manager@demo.com",
-        password: "demo123",
         role: "manager",
         status: "active",
         profileId: "MGR-001",
         name: "Oluwagbenga Kosoko",
       },
-      { id: "USR-SUPPORT-001", email: "support@demo.com", password: "demo123", role: "support", status: "active", name: "Royal Palace Support" },
+      { id: "USR-SUPPORT-001", email: "support@demo.com", role: "support", status: "active", name: "Royal Palace Support" },
       {
         id: "USR-MGR-002",
         email: "manager2@demo.com",
-        password: "demo123",
         role: "manager",
         status: "active",
         profileId: "MGR-002",
         name: "Adaeze Umeh",
       },
       // Users for the organizations created by the manager story below.
-      { id: "USR-PHA-002", email: "sunrise@demo.com", password: "demo123", role: "pharmacy", status: "active", profileId: "PHA-002", name: "Sunrise Pharmacy" },
-      { id: "USR-PHA-003", email: "wellness@demo.com", password: "demo123", role: "pharmacy", status: "active", profileId: "PHA-003", name: "WellnessPlus Pharmacy" },
-      { id: "USR-LAB-002", email: "ikejacentral@demo.com", password: "demo123", role: "laboratory", status: "active", profileId: "LAB-002", name: "Ikeja Central Laboratory" },
-      { id: "USR-HOS-001", email: "lagoonhospital@demo.com", password: "demo123", role: "hospital", status: "active", profileId: "HOS-001", name: "Lagoon Specialist Hospital" },
+      { id: "USR-PHA-002", email: "sunrise@demo.com", role: "pharmacy", status: "active", profileId: "PHA-002", name: "Sunrise Pharmacy" },
+      { id: "USR-PHA-003", email: "wellness@demo.com", role: "pharmacy", status: "active", profileId: "PHA-003", name: "WellnessPlus Pharmacy" },
+      { id: "USR-LAB-002", email: "ikejacentral@demo.com", role: "laboratory", status: "active", profileId: "LAB-002", name: "Ikeja Central Laboratory" },
+      { id: "USR-HOS-001", email: "lagoonhospital@demo.com", role: "hospital", status: "active", profileId: "HOS-001", name: "Lagoon Specialist Hospital" },
     ],
   });
 
@@ -1144,7 +1134,7 @@ async function main() {
       { id: "TKM-007", ticketId: "TKT-003", actorId: "PHA-003", actorRole: "pharmacy", actorName: "WellnessPlus Pharmacy", body: "Invoice amount differs from our plan price.", visibility: "shared" },
       { id: "TKM-008", ticketId: "TKT-003", actorId: "MGR-001", actorRole: "manager", actorName: "Oluwagbenga Kosoko", body: "Could you share the invoice PDF so I can verify the plan?", visibility: "shared" },
       { id: "TKM-009", ticketId: "TKT-004", actorId: "PHA-001", actorRole: "pharmacy", actorName: "Grace Community Pharmacy", body: "A staff member cannot log in.", visibility: "shared" },
-      { id: "TKM-010", ticketId: "TKT-004", actorId: "MGR-001", actorRole: "manager", actorName: "Oluwagbenga Kosoko", body: "Issued a password reset — resolved.", visibility: "shared" },
+      { id: "TKM-010", ticketId: "TKT-004", actorId: "MGR-001", actorRole: "manager", actorName: "Oluwagbenga Kosoko", body: "Guided the user through identity-provider recovery — resolved.", visibility: "shared" },
       { id: "TKM-011", ticketId: "TKT-005", actorId: "LAB-002", actorRole: "laboratory", actorName: "Ikeja Central Laboratory", body: "Which checks happen before our listing goes live?", visibility: "shared" },
     ],
   });

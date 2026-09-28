@@ -1,148 +1,176 @@
-// Client-side SPA view router. Because the prototype is served from a
-// single Next.js route ("/"), navigation between portals/pages is managed
-// here with a Zustand store + a lightweight hash router so deep links and
-// the browser back button still work.
+// Client-side view navigation. Identity is hydrated from the server-managed BFF
+// session; browser storage and URL state never grant a role or portal.
 
 "use client";
 
+import type { CurrentSession, PlatformRole } from "@royal-palace/contracts";
 import { create } from "zustand";
+
+import { authClient } from "@/lib/api-client";
 import type { Session, UserRole } from "@/types";
 
 export interface ViewState {
-  portal: "public" | "patient" | "provider" | "pharmacy" | "laboratory" | "hospital" | "logistics" | "manager" | "support" | "admin" | "login";
-  page: string; // e.g. "dashboard", "appointments", "encounter"
+  portal:
+    | "public"
+    | "patient"
+    | "provider"
+    | "pharmacy"
+    | "laboratory"
+    | "hospital"
+    | "logistics"
+    | "manager"
+    | "support"
+    | "admin"
+    | "login";
+  page: string;
   params: Record<string, string>;
 }
 
 interface NavState {
-  session: Session | null;
-  sessionName: string;
-  sessionEmail: string;
-  view: ViewState;
-  activePatientId: string | null; // for patient dependant switching
-  setSession: (s: Session & { name?: string; email?: string }) => void;
-  logout: () => void;
-  navigate: (portal: ViewState["portal"], page: string, params?: Record<string, string>) => void;
-  setActivePatient: (id: string) => void;
+  activePatientId: string | null;
   back: () => void;
-}
-
-const SESSION_KEY = "royalPalaceSession";
-
-function loadSession(): { session: Session | null; name: string; email: string } {
-  if (typeof window === "undefined") return { session: null, name: "", email: "" };
-  try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
-    if (!raw) return { session: null, name: "", email: "" };
-    const parsed = JSON.parse(raw);
-    return { session: parsed, name: parsed.name ?? "", email: parsed.email ?? "" };
-  } catch {
-    return { session: null, name: "", email: "" };
-  }
+  hydrateSession: () => Promise<void>;
+  logout: () => Promise<void>;
+  navigate: (portal: ViewState["portal"], page: string, params?: Record<string, string>) => void;
+  session: Session | null;
+  sessionEmail: string;
+  sessionHydrated: boolean;
+  sessionName: string;
+  setActivePatient: (id: string) => void;
+  view: ViewState;
 }
 
 function viewFromHash(): ViewState {
-  if (typeof window === "undefined") return { portal: "public", page: "home", params: {} };
-  const hash = window.location.hash.replace(/^#\/?/, ""); // e.g. patient/appointments?id=APT-002
-  if (!hash) return { portal: "public", page: "home", params: {} };
-  const [path, query] = hash.split("?");
-  const [portal, ...rest] = path.split("/");
-  const page = rest[0] ?? (portal as string);
+  if (typeof window === "undefined") return { page: "home", params: {}, portal: "public" };
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  if (!hash) return { page: "home", params: {}, portal: "public" };
+  const [path = "", query] = hash.split("?");
+  const [portal = "public", ...rest] = path.split("/");
   const params: Record<string, string> = {};
-  if (query) {
+  if (query !== undefined) {
     for (const pair of query.split("&")) {
-      const [k, v] = pair.split("=");
-      if (k) params[decodeURIComponent(k)] = decodeURIComponent(v ?? "");
+      const [key, value] = pair.split("=");
+      if (key !== undefined && key.length > 0) {
+        params[decodeURIComponent(key)] = decodeURIComponent(value ?? "");
+      }
     }
   }
-  return { portal: (portal as ViewState["portal"]) ?? "public", page: page || "home", params };
+  return { page: rest[0] ?? "home", params, portal: portal as ViewState["portal"] };
 }
 
-function hashFromView(v: ViewState): string {
-  const path = `${v.portal}/${v.page}`;
-  const qs = new URLSearchParams(v.params).toString();
-  return `#/${path}${qs ? `?${qs}` : ""}`;
+function hashFromView(view: ViewState): string {
+  const query = new URLSearchParams(view.params).toString();
+  return `#/${view.portal}/${view.page}${query.length > 0 ? `?${query}` : ""}`;
 }
 
 function authorizedView(session: Session | null, requested: ViewState): ViewState {
   if (requested.portal === "public" || requested.portal === "login") return requested;
-  if (!session) return { portal: "login", page: "login", params: {} };
-
-  const sessionPortal = rolePortal(session.role);
-  return requested.portal === sessionPortal
-    ? requested
-    : { portal: sessionPortal, page: "dashboard", params: {} };
+  if (session === null) return { page: "login", params: {}, portal: "login" };
+  const portal = rolePortal(session.role);
+  return requested.portal === portal ? requested : { page: "dashboard", params: {}, portal };
 }
 
-const initial = loadSession();
-const initialView: ViewState =
-  initial.session
-    ? { portal: initial.session.role as ViewState["portal"], page: "dashboard", params: {} }
-    : viewFromHash();
+function toLegacySession(session: CurrentSession): Session | null {
+  const role = selectPortalRole(session.roles);
+  return role === null ? null : { role, userId: session.principalId };
+}
+
+function selectPortalRole(roles: readonly PlatformRole[]): UserRole | null {
+  const precedence: readonly [PlatformRole, UserRole][] = [
+    ["ADMINISTRATOR", "admin"],
+    ["SUPPORT", "support"],
+    ["FINANCE", "admin"],
+    ["MANAGER", "manager"],
+    ["PROVIDER", "doctor"],
+    ["LOGISTICS", "logistics"],
+    ["PATIENT", "patient"],
+    ["ORGANIZATION_APPLICANT", "patient"],
+  ];
+  return precedence.find(([role]) => roles.includes(role))?.[1] ?? null;
+}
 
 export const useNav = create<NavState>((set, get) => ({
-  session: initial.session,
-  sessionName: initial.name,
-  sessionEmail: initial.email,
-  view: initialView,
-  activePatientId: initial.session?.role === "patient" ? initial.session.profileId ?? null : null,
-  setSession: (s) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    }
-    const portal = (s.role === "doctor" || s.role === "dentist" ? "provider" : s.role) as ViewState["portal"];
-    set({
-      session: { userId: s.userId, role: s.role, profileId: s.profileId },
-      sessionName: s.name ?? "",
-      sessionEmail: s.email ?? "",
-      view: { portal, page: "dashboard", params: {} },
-      activePatientId: s.role === "patient" ? s.profileId ?? null : null,
-    });
-    if (typeof window !== "undefined") {
-      window.location.hash = hashFromView({ portal, page: "dashboard", params: {} });
+  activePatientId: null,
+  back: () => window.history.back(),
+  hydrateSession: async () => {
+    try {
+      const serverSession = await authClient.current();
+      const session = toLegacySession(serverSession);
+      set({
+        activePatientId: session?.role === "patient" ? session.userId : null,
+        session,
+        sessionEmail: "",
+        sessionHydrated: true,
+        sessionName: "Account",
+        view: authorizedView(session, viewFromHash()),
+      });
+    } catch {
+      set({
+        activePatientId: null,
+        session: null,
+        sessionEmail: "",
+        sessionHydrated: true,
+        sessionName: "",
+        view: authorizedView(null, viewFromHash()),
+      });
     }
   },
-  logout: () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(SESSION_KEY);
+  logout: async () => {
+    try {
+      const result = await authClient.logout();
+      if (result.endSessionUrl !== null) window.location.assign(result.endSessionUrl);
+    } finally {
       window.location.hash = "";
+      set({
+        activePatientId: null,
+        session: null,
+        sessionEmail: "",
+        sessionName: "",
+        view: { page: "home", params: {}, portal: "public" },
+      });
     }
-    set({ session: null, sessionName: "", sessionEmail: "", view: { portal: "public", page: "home", params: {} }, activePatientId: null });
   },
   navigate: (portal, page, params = {}) => {
-    const view = authorizedView(get().session, { portal, page, params });
+    const view = authorizedView(get().session, { page, params, portal });
     set({ view });
-    if (typeof window !== "undefined") {
-      window.location.hash = hashFromView(view);
-      window.scrollTo({ top: 0, behavior: "instant" });
-    }
+    window.location.hash = hashFromView(view);
+    window.scrollTo({ behavior: "instant", top: 0 });
   },
+  session: null,
+  sessionEmail: "",
+  sessionHydrated: false,
+  sessionName: "",
   setActivePatient: (id) => set({ activePatientId: id }),
-  back: () => {
-    if (typeof window !== "undefined") window.history.back();
-  },
+  view: { page: "home", params: {}, portal: "public" },
 }));
 
-// Keep the store in sync with browser back/forward.
 if (typeof window !== "undefined") {
   window.addEventListener("hashchange", () => {
     const requested = viewFromHash();
     const { session, view: current } = useNav.getState();
-    const v = authorizedView(session, requested);
-    if (v.portal !== requested.portal || v.page !== requested.page) {
-      window.history.replaceState(null, "", hashFromView(v));
+    const view = authorizedView(session, requested);
+    if (view.portal !== requested.portal || view.page !== requested.page) {
+      window.history.replaceState(null, "", hashFromView(view));
     }
-    if (v.portal !== current.portal || v.page !== current.page || JSON.stringify(v.params) !== JSON.stringify(current.params)) {
-      useNav.setState({ view: v });
+    if (
+      view.portal !== current.portal ||
+      view.page !== current.page ||
+      JSON.stringify(view.params) !== JSON.stringify(current.params)
+    ) {
+      useNav.setState({ view });
     }
   });
 }
 
-export function navigate(portal: ViewState["portal"], page: string, params?: Record<string, string>) {
+export function navigate(
+  portal: ViewState["portal"],
+  page: string,
+  params?: Record<string, string>,
+): void {
   useNav.getState().navigate(portal, page, params);
 }
 
 export function rolePortal(role: UserRole): ViewState["portal"] {
   if (role === "doctor" || role === "dentist") return "provider";
-  return role as ViewState["portal"];
+  return role;
 }

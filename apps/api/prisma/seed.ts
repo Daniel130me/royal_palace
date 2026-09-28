@@ -26,21 +26,31 @@ async function main(): Promise<void> {
   });
 
   try {
-    const principal = await database.identityPrincipal.upsert({
+    const externalIdentity = await database.externalIdentity.findUnique({
       where: {
         issuer_subject: {
           issuer: SYNTHETIC_ISSUER,
           subject: "support-reviewer",
         },
       },
-      create: {
-        id: createOpaqueId(),
-        issuer: SYNTHETIC_ISSUER,
-        subject: "support-reviewer",
-      },
-      update: {},
-      select: { id: true },
+      select: { principalId: true },
     });
+    const principal =
+      externalIdentity === null
+        ? await database.identityPrincipal.create({
+            data: {
+              id: createOpaqueId(),
+              externalIdentities: {
+                create: {
+                  id: createOpaqueId(),
+                  issuer: SYNTHETIC_ISSUER,
+                  subject: "support-reviewer",
+                },
+              },
+            },
+            select: { id: true },
+          })
+        : { id: externalIdentity.principalId };
 
     await database.roleAssignment.upsert({
       where: { id: SYNTHETIC_SUPPORT_ROLE_ID },

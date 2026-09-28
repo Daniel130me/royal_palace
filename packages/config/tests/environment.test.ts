@@ -2,20 +2,37 @@ import { describe, expect, it } from "vitest";
 
 import { ConfigurationError, loadServiceConfig, loadWebConfig } from "../src/environment.js";
 
+const testKey = Buffer.alloc(32, 7).toString("base64");
 const validEnvironment = {
   APP_ENV: "test",
   APP_VERSION: "test-version",
+  BFF_INTERNAL_SECRET: testKey,
   CLAMAV_HOST: "127.0.0.1",
   CLAMAV_PORT: "3310",
   DATABASE_URL: "postgresql://test-user:test-password@127.0.0.1:5432/test-db",
   DEPENDENCY_TIMEOUT_MS: "1500",
   LOG_LEVEL: "info",
+  IDENTITY_ACTIVE_ENCRYPTION_KEY_ID: "test-key-1",
+  IDENTITY_ENCRYPTION_KEYS: JSON.stringify({ "test-key-1": testKey }),
+  LOGIN_TRANSACTION_TTL_SECONDS: "300",
   OBJECT_STORAGE_ACCESS_KEY: "test-access-key",
   OBJECT_STORAGE_BUCKET_QUARANTINE: "test-quarantine",
   OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000",
   OBJECT_STORAGE_SECRET_KEY: "test-secret-key",
+  OIDC_CLIENT_ID: "test-client",
+  OIDC_CLIENT_AUTH_METHOD: "none",
+  OIDC_ASSURANCE_CONTEXT_MAP: JSON.stringify({
+    "urn:test:mfa": "urn:royal-palace:aal2",
+  }),
+  OIDC_ISSUER_URL: "http://127.0.0.1:5556",
+  OIDC_REDIRECT_URI: "http://127.0.0.1:3000/api/bff/auth/callback",
+  OIDC_SCOPES: "openid profile email",
+  PRIVILEGED_ASSURANCE_CONTEXT: "urn:royal-palace:aal2",
+  PRIVILEGED_AUTH_MAX_AGE_SECONDS: "900",
   QUEUE_NAMESPACE: "royal-palace:test",
   REDIS_URL: "redis://127.0.0.1:6379/0",
+  SESSION_ABSOLUTE_TTL_SECONDS: "28800",
+  SESSION_IDLE_TTL_SECONDS: "1800",
 } satisfies NodeJS.ProcessEnv;
 
 describe("loadServiceConfig", () => {
@@ -78,27 +95,80 @@ describe("loadServiceConfig", () => {
         DATABASE_URL:
           "postgresql://test-user:test-password@database.example.test:5432/test-db?sslmode=verify-full",
         OBJECT_STORAGE_ENDPOINT: "https://objects.example.test",
+        OIDC_CLIENT_AUTH_METHOD: "client_secret_basic",
+        OIDC_CLIENT_SECRET: "test-client-secret",
+        OIDC_ISSUER_URL: "https://identity.example.test",
+        OIDC_REDIRECT_URI: "https://app.example.test/api/bff/auth/callback",
         REDIS_URL: "rediss://redis.example.test:6379/0",
       }),
     ).toMatchObject({ appEnvironment: "production", awsRegion: "approved-region-1" });
   });
+
+  it("fails fast when OIDC client authentication and secret configuration disagree", () => {
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        OIDC_CLIENT_AUTH_METHOD: "client_secret_basic",
+      }),
+    ).toThrow(/OIDC_CLIENT_SECRET/);
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        OIDC_CLIENT_SECRET: "unexpected-secret",
+      }),
+    ).toThrow(/OIDC_CLIENT_SECRET/);
+  });
 });
 
 describe("loadWebConfig", () => {
+  const validWebEnvironment = {
+    API_BASE_URL: "http://127.0.0.1:4000",
+    APP_ENV: "test",
+    APP_VERSION: "test-version",
+    BFF_ACTIVE_COOKIE_KEY_ID: "test-key-1",
+    BFF_COOKIE_ENCRYPTION_KEYS: JSON.stringify({ "test-key-1": testKey }),
+    BFF_INTERNAL_SECRET: testKey,
+    BFF_API_TIMEOUT_MS: "5000",
+    LOG_LEVEL: "info",
+    WEB_ORIGIN: "http://127.0.0.1:3000",
+  } satisfies NodeJS.ProcessEnv;
+
+  it("requires WEB_ORIGIN to be an origin rather than an application path", () => {
+    expect(() =>
+      loadWebConfig({ ...validWebEnvironment, WEB_ORIGIN: "https://app.example.test/path" }),
+    ).toThrow(/WEB_ORIGIN/);
+  });
+
   it("fails closed when the BFF API origin is missing", () => {
     expect(() =>
-      loadWebConfig({ APP_ENV: "test", APP_VERSION: "test-version", LOG_LEVEL: "info" }),
+      loadWebConfig({
+        APP_ENV: "test",
+        APP_VERSION: "test-version",
+        BFF_ACTIVE_COOKIE_KEY_ID: "test-key-1",
+        BFF_COOKIE_ENCRYPTION_KEYS: JSON.stringify({ "test-key-1": testKey }),
+        BFF_INTERNAL_SECRET: testKey,
+        BFF_API_TIMEOUT_MS: "5000",
+        LOG_LEVEL: "info",
+        WEB_ORIGIN: "http://127.0.0.1:3000",
+      }),
     ).toThrow(/API_BASE_URL/);
   });
 
   it("requires an HTTPS API origin in protected environments", () => {
     expect(() =>
       loadWebConfig({
+        ...validWebEnvironment,
         API_BASE_URL: "http://api.example.test",
         APP_ENV: "production",
-        APP_VERSION: "test-version",
-        LOG_LEVEL: "info",
+        WEB_ORIGIN: "https://web.example.test",
       }),
     ).toThrow(/API_BASE_URL.*https/s);
+  });
+
+  it("normalizes the BFF trust-boundary configuration", () => {
+    expect(loadWebConfig(validWebEnvironment)).toMatchObject({
+      apiBaseUrl: "http://127.0.0.1:4000",
+      webOrigin: "http://127.0.0.1:3000",
+    });
   });
 });

@@ -26,7 +26,7 @@ async function seedOrg(type: "pharmacy" | "laboratory") {
   const id = uniq(type === "pharmacy" ? "PHX" : "LBX");
   const userId = uniq("USR");
   await db.user.create({
-    data: { id: userId, email: `${id}@t.test`, password: "x", role: type, status: "active", profileId: id, name: id },
+    data: { id: userId, email: `${id}@t.test`, role: type, status: "active", profileId: id, name: id },
   });
   return type === "pharmacy"
     ? db.pharmacy.create({ data: { id, userId, pharmacyNumber: uniq("N"), name: `Pharmacy ${id}`, city: "Lagos", state: "Lagos", address: "a", phone: "p", email: `${id}@t.test` } })
@@ -37,7 +37,7 @@ async function seedManager() {
   const id = uniq("MGR");
   const userId = uniq("USR");
   await db.user.create({
-    data: { id: userId, email: `${id}@t.test`, password: "x", role: "manager", status: "active", profileId: id, name: id },
+    data: { id: userId, email: `${id}@t.test`, role: "manager", status: "active", profileId: id, name: id },
   });
   return db.manager.create({
     data: {

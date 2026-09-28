@@ -18,5 +18,6 @@ export default defineConfig({
     ...nodeTestDefaults,
     globalSetup: ["tests/global-setup.ts"],
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    setupFiles: ["tests/setup-environment.ts"],
   },
 });

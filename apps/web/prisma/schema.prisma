@@ -19,7 +19,6 @@ model User {
   id        String   @id
   email     String   @unique
   phone     String?
-  password  String
   role      String // patient | doctor | dentist | pharmacy | laboratory | hospital | logistics | manager | support | admin
   status    String   @default("active") // active | pending | suspended
   profileId String? // FK to the role-specific profile

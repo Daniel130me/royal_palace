@@ -35,6 +35,7 @@ async function bootstrap(): Promise<void> {
     {
       bufferLogs: true,
       logger: new StructuredLogger(serviceLogger),
+      rawBody: true,
     },
   );
   const server = app.getHttpAdapter().getInstance() as FastifyInstance;

@@ -7,6 +7,7 @@ const { Client } = pg;
 const ORGANIZATION_COUNT = 20_000;
 const AUDIT_EVENT_COUNT = 12_000;
 const OUTBOX_EVENT_COUNT = 10_000;
+const AUTH_SESSION_COUNT = 10_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   const databaseUrl = requireDisposableDatabase().toString();
   const client = new Client({ connectionString: databaseUrl });
   const principalId = v7();
+  const externalIdentityId = v7();
   const organizationIds = Array.from({ length: ORGANIZATION_COUNT }, () => v7());
   const targetOrganizationId = organizationIds[0];
   if (targetOrganizationId === undefined)
@@ -32,10 +34,30 @@ async function main(): Promise<void> {
   await client.connect();
   await client.query("BEGIN");
   try {
-    await loadRepresentativeData(client, principalId, organizationIds, targetOrganizationId);
+    const targetSessionId = await loadRepresentativeData(
+      client,
+      principalId,
+      externalIdentityId,
+      organizationIds,
+      targetOrganizationId,
+    );
     await client.query("ANALYZE");
 
     const evidence = [
+      await reviewPlan(
+        client,
+        "active session lookup",
+        `SELECT session."id", session."principal_id", session."csrf_secret_hash"
+           FROM "auth_sessions" AS session
+           JOIN "identity_principals" AS principal ON principal."id" = session."principal_id"
+          WHERE session."id" = $1
+            AND session."status" = 'ACTIVE'
+            AND session."idle_expires_at" > now()
+            AND session."absolute_expires_at" > now()
+            AND principal."status" = 'ACTIVE'`,
+        [targetSessionId],
+        "auth_sessions_pkey",
+      ),
       await reviewPlan(
         client,
         "hospital discovery",
@@ -84,12 +106,27 @@ async function main(): Promise<void> {
 async function loadRepresentativeData(
   client: pg.Client,
   principalId: string,
+  externalIdentityId: string,
   organizationIds: readonly string[],
   targetOrganizationId: string,
-): Promise<void> {
+): Promise<string> {
+  await client.query('INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())', [
+    principalId,
+  ]);
   await client.query(
-    'INSERT INTO "identity_principals" ("id", "issuer", "subject", "updated_at") VALUES ($1, $2, $3, now())',
-    [principalId, "https://plans.synthetic.invalid", "query-reviewer"],
+    'INSERT INTO "external_identities" ("id", "principal_id", "issuer", "subject") VALUES ($1, $2, $3, $4)',
+    [externalIdentityId, principalId, "https://plans.synthetic.invalid", "query-reviewer"],
+  );
+  const sessionIds = Array.from({ length: AUTH_SESSION_COUNT }, () => v7());
+  await client.query(
+    `INSERT INTO "auth_sessions" (
+       "id", "principal_id", "external_identity_id", "csrf_secret_hash",
+       "authenticated_at", "updated_at", "idle_expires_at", "absolute_expires_at"
+     )
+     SELECT input.id, $1, $2, repeat('a', 64), now(), now(),
+            now() + interval '15 minutes', now() + interval '8 hours'
+       FROM unnest($3::uuid[]) AS input(id)`,
+    [principalId, externalIdentityId, sessionIds],
   );
 
   const organizationTypes = organizationIds.map((_, index) =>
@@ -138,6 +175,10 @@ async function loadRepresentativeData(
             AS input(id, aggregate_id, available_at)`,
     [outboxIds, aggregateIds, availableTimes],
   );
+
+  const targetSessionId = sessionIds[0];
+  if (targetSessionId === undefined) throw new Error("Representative session set is empty");
+  return targetSessionId;
 }
 
 async function reviewPlan(
@@ -169,6 +210,7 @@ async function reviewPlan(
     executionTimeMs: document["Execution Time"],
     representativeRows: {
       auditEvents: AUDIT_EVENT_COUNT,
+      authSessions: AUTH_SESSION_COUNT,
       organizations: ORGANIZATION_COUNT,
       outboxEvents: OUTBOX_EVENT_COUNT,
     },

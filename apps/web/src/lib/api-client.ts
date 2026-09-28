@@ -1,3 +1,5 @@
+import type { CurrentSession, LogoutResponse } from "@royal-palace/contracts";
+
 // Client-side API client. All HTTP calls go through here so the backend
 // can be swapped (JSON Server -> production REST) without touching the UI.
 
@@ -31,20 +33,25 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => fetch(path).then(handle<T>),
+  get: <T>(path: string) => fetch(path, { credentials: "same-origin" }).then(handle<T>),
   post: <T>(path: string, body?: unknown) =>
     fetch(path, {
+      credentials: "same-origin",
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutationHeaders(),
       body: body == null ? undefined : JSON.stringify(body),
     }).then(handle<T>),
   patch: <T>(path: string, body?: unknown) =>
     fetch(path, {
+      credentials: "same-origin",
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: mutationHeaders(),
       body: body == null ? undefined : JSON.stringify(body),
     }).then(handle<T>),
-  delete: <T>(path: string) => fetch(path, { method: "DELETE" }).then(handle<T>),
+  delete: <T>(path: string) =>
+    fetch(path, { credentials: "same-origin", headers: mutationHeaders(), method: "DELETE" }).then(
+      handle<T>,
+    ),
 };
 
 // Generic resource helpers (REST-style over /api/resources/[collection]).
@@ -75,36 +82,50 @@ export const action = (name: string, body: unknown, method: "POST" | "PATCH" = "
     : api.post<{ data: unknown }>(`/api/actions/${name}`, body);
 
 // ---------------------------------------------------------------------------
-// Session-scoped calls (Manager module).
-// These attach the simulated session to the `x-rp-session` header so the
-// server can derive the caller's identity. A managerId from the browser is
-// never trusted — see src/lib/manager-access.ts.
+// Session-scoped calls use same-origin cookies. JavaScript can read the CSRF
+// token but never the encrypted HttpOnly session reference.
 // ---------------------------------------------------------------------------
 
-function sessionHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem("royalPalaceSession");
-    return raw ? { "x-rp-session": raw } : {};
-  } catch {
-    return {};
-  }
+function csrfToken(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const expectedName = window.location.protocol === "https:" ? "__Host-csrf" : "rp-dev-csrf";
+  return document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim().split("=", 2))
+    .find(([name]) => name === expectedName)?.[1];
+}
+
+function mutationHeaders(): Record<string, string> {
+  const token = csrfToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token === undefined ? {} : { "x-rp-csrf-token": decodeURIComponent(token) }),
+  };
 }
 
 export const sessionApi = {
-  get: <T>(path: string) => fetch(path, { headers: sessionHeaders() }).then(handle<T>),
+  get: <T>(path: string) =>
+    fetch(path, { credentials: "same-origin" }).then(handle<T>),
   post: <T>(path: string, body?: unknown) =>
     fetch(path, {
+      credentials: "same-origin",
       method: "POST",
-      headers: { "Content-Type": "application/json", ...sessionHeaders() },
+      headers: mutationHeaders(),
       body: body == null ? undefined : JSON.stringify(body),
     }).then(handle<T>),
   patch: <T>(path: string, body?: unknown) =>
     fetch(path, {
+      credentials: "same-origin",
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...sessionHeaders() },
+      headers: mutationHeaders(),
       body: body == null ? undefined : JSON.stringify(body),
     }).then(handle<T>),
+};
+
+export const authClient = {
+  current: () => api.get<CurrentSession>("/api/bff/auth/session"),
+  logout: () => api.post<LogoutResponse>("/api/bff/auth/logout"),
+  refresh: () => api.post<{ refreshed: true }>("/api/bff/auth/refresh"),
 };
 
 export interface Paginated<T> {

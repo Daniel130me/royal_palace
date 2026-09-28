@@ -4,6 +4,7 @@ import {
   resolveRequestContext,
   TRACEPARENT_HEADER,
 } from "@royal-palace/config/observability";
+import { timingSafeStringEqual } from "@royal-palace/security";
 import { type NextRequest, NextResponse } from "next/server";
 
 const webConfig = loadWebConfig();
@@ -16,6 +17,24 @@ export function proxy(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(REQUEST_ID_HEADER, context.requestId);
   requestHeaders.set(TRACEPARENT_HEADER, context.traceparent);
+
+  if (requiresCsrfProtection(request)) {
+    const csrfCookieName =
+      new URL(webConfig.webOrigin).protocol === "https:" ? "__Host-csrf" : "rp-dev-csrf";
+    const csrfCookie = request.cookies.get(csrfCookieName)?.value;
+    const csrfHeader = request.headers.get("x-rp-csrf-token");
+    if (
+      request.headers.get("origin") !== webConfig.webOrigin ||
+      csrfCookie === undefined ||
+      csrfHeader === null ||
+      !timingSafeStringEqual(csrfCookie, csrfHeader)
+    ) {
+      return NextResponse.json(
+        { error: "invalid_csrf_token", message: "CSRF validation failed" },
+        { status: 403 },
+      );
+    }
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(REQUEST_ID_HEADER, context.requestId);
@@ -38,6 +57,13 @@ export function proxy(request: NextRequest): NextResponse {
   );
 
   return response;
+}
+
+function requiresCsrfProtection(request: NextRequest): boolean {
+  return (
+    request.nextUrl.pathname.startsWith("/api/") &&
+    !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+  );
 }
 
 export const config = {

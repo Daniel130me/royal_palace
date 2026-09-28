@@ -39,7 +39,6 @@ import type {
   SupportTicket,
   SupportTicketMessage,
   User,
-  UserRole,
   CarePlan,
   AuditLog,
   Complaint,
@@ -50,20 +49,6 @@ import type {
   EncounterDocumentation,
   UploadedPrescription,
 } from "@/types";
-
-// --- auth ---
-export const authService = {
-  login: (email: string, password: string) =>
-    api.post<{ session: { userId: string; role: UserRole; profileId?: string; name: string; email: string } }>(
-      "/api/auth/login",
-      { email, password }
-    ).then((r) => r.session),
-  signup: (body: Record<string, unknown>) =>
-    api.post<{ session: { userId: string; role: string; profileId?: string; name: string; email: string }; patient: Patient; pendingReview: boolean }>(
-      "/api/actions/signup",
-      body
-    ),
-};
 
 // --- generic fetchers (deserialize JSON string fields handled by API) ---
 export const patientService = {
@@ -351,7 +336,7 @@ export const managerService = {
 
   // --- mutations go through dedicated action endpoints ---
   // sessionApi (not plain action) so the server can derive the caller
-  // identity from the x-rp-session header — body-sent identities are never
+  // identity from the server-managed session — body-sent identities are never
   // trusted for manager/admin actions.
   submitApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-onboard-organization", body),
   requestPayout: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-request-payout", body),

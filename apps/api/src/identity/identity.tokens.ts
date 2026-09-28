@@ -1,0 +1,2 @@
+export const OIDC_PROVIDER = Symbol("OIDC_PROVIDER");
+export const IDENTITY_REPOSITORY = Symbol("IDENTITY_REPOSITORY");

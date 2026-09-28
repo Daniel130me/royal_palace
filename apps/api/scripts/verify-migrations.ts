@@ -116,13 +116,19 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const principalId = v7();
   const organizationId = v7();
   const membershipId = v7();
+  const externalIdentityId = v7();
+  const sessionId = v7();
   const auditId = v7();
 
   await client.connect();
   try {
     await client.query(
-      'INSERT INTO "identity_principals" ("id", "issuer", "subject", "updated_at") VALUES ($1, $2, $3, now())',
-      [principalId, "https://verification.synthetic.invalid", "principal"],
+      'INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())',
+      [principalId],
+    );
+    await client.query(
+      'INSERT INTO "external_identities" ("id", "principal_id", "issuer", "subject") VALUES ($1, $2, $3, $4)',
+      [externalIdentityId, principalId, "https://verification.synthetic.invalid", "principal"],
     );
     await client.query(
       'INSERT INTO "organizations" ("id", "type", "legal_name", "display_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
@@ -135,6 +141,12 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
 
     await expectSqlState(
       client,
+      'INSERT INTO "external_identities" ("id", "principal_id", "issuer", "subject") VALUES ($1, $2, $3, $4)',
+      [v7(), principalId, "https://verification.synthetic.invalid", "principal"],
+      "23505",
+    );
+    await expectSqlState(
+      client,
       'INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at") VALUES ($1, $2, $3, now())',
       [v7(), organizationId, principalId],
       "23505",
@@ -143,6 +155,19 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       client,
       'INSERT INTO "idempotency_keys" ("id", "principal_id", "operation", "key", "request_hash", "updated_at", "expires_at") VALUES ($1, $2, $3, $4, $5, now(), now() + interval \'1 hour\')',
       [v7(), principalId, "verification", "key", "not-a-sha256-hash"],
+      "23514",
+    );
+    await client.query(
+      `INSERT INTO "auth_sessions" (
+         "id", "principal_id", "external_identity_id", "csrf_secret_hash",
+         "authenticated_at", "updated_at", "idle_expires_at", "absolute_expires_at"
+       ) VALUES ($1, $2, $3, $4, now(), now(), now() + interval '15 minutes', now() + interval '8 hours')`,
+      [sessionId, principalId, externalIdentityId, "a".repeat(64)],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "auth_sessions" SET "status" = \'REVOKED\', "updated_at" = now() WHERE "id" = $1',
+      [sessionId],
       "23514",
     );
     await client.query(
@@ -191,6 +216,7 @@ async function assertMigrationsAreTransactional(): Promise<void> {
   const migrations = [
     "20260928120000_foundation_identity_and_organizations",
     "20260928121000_foundation_reliability_records",
+    "20260928143000_vendor_neutral_identity_sessions",
   ];
   for (const migration of migrations) {
     const sql = (await readFile(join(prismaRoot, "migrations", migration, "migration.sql"), "utf8"))

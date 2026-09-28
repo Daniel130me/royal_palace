@@ -6,7 +6,6 @@ import { PublicSite } from "@/features/public/public-site";
 import { LoginPage } from "@/features/auth/login-page";
 import { SignupPage } from "@/features/auth/signup-page";
 import { OrganizationSignupPage } from "@/features/auth/organization-signup-page";
-import { PersonaSwitcher } from "@/features/auth/persona-switcher";
 import { PatientPortal } from "@/features/patient/patient-portal";
 import { ProviderPortal } from "@/features/provider/provider-portal";
 import { PharmacyPortal } from "@/features/pharmacy/pharmacy-portal";
@@ -18,15 +17,18 @@ import { ManagerPortal } from "@/features/manager/manager-portal";
 import { SupportPortal } from "@/features/support/support-portal";
 
 export function AppRoot() {
-  const { session, view } = useNav();
+  const { hydrateSession, session, sessionHydrated, view } = useNav();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    void hydrateSession();
+  }, [hydrateSession]);
 
   // Guard: any portal other than public/login requires a session.
   const needsAuth = view.portal !== "public" && view.portal !== "login";
   const showLogin = needsAuth && !session;
 
-  if (!mounted) {
+  if (!mounted || !sessionHydrated) {
     // Avoid SSR/CSR mismatch on hash-derived state.
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -64,7 +66,6 @@ export function AppRoot() {
       ) : (
         <PublicSite />
       )}
-      <PersonaSwitcher />
     </>
   );
 }

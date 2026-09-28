@@ -54,7 +54,6 @@ export async function POST(req: Request) {
         data: {
           id: userId,
           email: application.contactEmail,
-          password: "demo123", // prototype only — production must hash credentials
           role: application.organizationType,
           status: "active",
           profileId: orgId,

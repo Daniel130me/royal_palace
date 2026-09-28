@@ -10,7 +10,15 @@ describe("web request correlation", () => {
     vi.stubEnv("API_BASE_URL", "http://127.0.0.1:4000");
     vi.stubEnv("APP_ENV", "test");
     vi.stubEnv("APP_VERSION", "test-version");
+    vi.stubEnv("BFF_ACTIVE_COOKIE_KEY_ID", "test-key-1");
+    vi.stubEnv(
+      "BFF_COOKIE_ENCRYPTION_KEYS",
+      JSON.stringify({ "test-key-1": Buffer.alloc(32, 1).toString("base64") }),
+    );
+    vi.stubEnv("BFF_INTERNAL_SECRET", Buffer.alloc(32, 2).toString("base64"));
+    vi.stubEnv("BFF_API_TIMEOUT_MS", "5000");
     vi.stubEnv("LOG_LEVEL", "info");
+    vi.stubEnv("WEB_ORIGIN", "http://127.0.0.1:3000");
     ({ proxy } = await import("../../src/proxy.js"));
   });
 
@@ -34,5 +42,17 @@ describe("web request correlation", () => {
     expect(log.mock.calls[0]?.[0]).not.toContain("must-not-be-logged");
 
     log.mockRestore();
+  });
+
+  it("rejects state-changing API calls without same-origin CSRF proof", () => {
+    const request = new NextRequest("http://127.0.0.1:3000/api/actions/example", {
+      headers: { origin: "https://attacker.invalid" },
+      method: "POST",
+    });
+
+    const response = proxy(request);
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("content-type")).toContain("application/json");
   });
 });

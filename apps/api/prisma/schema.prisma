@@ -19,6 +19,16 @@ enum PrincipalStatus {
   DISABLED
 }
 
+enum ExternalIdentityStatus {
+  ACTIVE
+  UNLINKED
+}
+
+enum AuthSessionStatus {
+  ACTIVE
+  REVOKED
+}
+
 enum OrganizationType {
   HOSPITAL
   PHARMACY
@@ -70,22 +80,93 @@ enum InboxStatus {
 }
 
 model IdentityPrincipal {
-  id              String           @id @db.Uuid
-  issuer          String           @db.VarChar(255)
-  subject         String           @db.VarChar(255)
-  status          PrincipalStatus  @default(ACTIVE)
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version         Int              @default(1)
-  memberships     Membership[]
-  roleAssignments RoleAssignment[] @relation("RoleAssignee")
-  grantedRoles    RoleAssignment[] @relation("RoleGrantor")
-  auditEvents     AuditEvent[]     @relation("AuditActor")
-  idempotencyKeys IdempotencyKey[]
+  id                 String             @id @db.Uuid
+  status             PrincipalStatus    @default(ACTIVE)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                @default(1)
+  externalIdentities ExternalIdentity[] @relation("ExternalIdentityOwner")
+  linkedIdentities   ExternalIdentity[] @relation("ExternalIdentityLinker")
+  sessions           AuthSession[]
+  memberships        Membership[]
+  roleAssignments    RoleAssignment[]   @relation("RoleAssignee")
+  grantedRoles       RoleAssignment[]   @relation("RoleGrantor")
+  auditEvents        AuditEvent[]       @relation("AuditActor")
+  idempotencyKeys    IdempotencyKey[]
 
-  @@unique([issuer, subject], map: "identity_principals_issuer_subject_key")
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
+}
+
+model ExternalIdentity {
+  id                  String                 @id @db.Uuid
+  principalId         String                 @map("principal_id") @db.Uuid
+  issuer              String                 @db.VarChar(255)
+  subject             String                 @db.VarChar(255)
+  status              ExternalIdentityStatus @default(ACTIVE)
+  linkedByPrincipalId String?                @map("linked_by_principal_id") @db.Uuid
+  linkedAt            DateTime               @default(now()) @map("linked_at") @db.Timestamptz(6)
+  lastAuthenticatedAt DateTime?              @map("last_authenticated_at") @db.Timestamptz(6)
+  unlinkedAt          DateTime?              @map("unlinked_at") @db.Timestamptz(6)
+  version             Int                    @default(1)
+  principal           IdentityPrincipal      @relation("ExternalIdentityOwner", fields: [principalId], references: [id], onDelete: Restrict)
+  linkedByPrincipal   IdentityPrincipal?     @relation("ExternalIdentityLinker", fields: [linkedByPrincipalId], references: [id], onDelete: Restrict)
+  sessions            AuthSession[]
+
+  @@unique([issuer, subject], map: "external_identities_issuer_subject_key")
+  @@index([principalId, status, id], map: "external_identities_principal_status_id_idx")
+  @@map("external_identities")
+}
+
+model OidcLoginTransaction {
+  id                      String       @id @db.Uuid
+  issuer                  String       @db.VarChar(255)
+  stateHash               String       @unique(map: "oidc_login_transactions_state_hash_key") @map("state_hash") @db.Char(64)
+  nonceCiphertext         String       @map("nonce_ciphertext") @db.Text
+  pkceVerifierCiphertext  String       @map("pkce_verifier_ciphertext") @db.Text
+  encryptionKeyId         String       @map("encryption_key_id") @db.VarChar(64)
+  redirectUri             String       @map("redirect_uri") @db.VarChar(2048)
+  returnTo                String       @map("return_to") @db.VarChar(2048)
+  requestedAssurance      String?      @map("requested_assurance") @db.VarChar(255)
+  reauthenticateSessionId String?      @map("reauthenticate_session_id") @db.Uuid
+  createdAt               DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt               DateTime     @map("expires_at") @db.Timestamptz(6)
+  consumedAt              DateTime?    @map("consumed_at") @db.Timestamptz(6)
+  reauthenticateSession   AuthSession? @relation(fields: [reauthenticateSessionId], references: [id], onDelete: Restrict)
+
+  @@index([expiresAt, id], map: "oidc_login_transactions_expiry_id_idx")
+  @@index([reauthenticateSessionId], map: "oidc_login_transactions_reauth_session_idx")
+  @@map("oidc_login_transactions")
+}
+
+model AuthSession {
+  id                             String                 @id @db.Uuid
+  principalId                    String                 @map("principal_id") @db.Uuid
+  externalIdentityId             String                 @map("external_identity_id") @db.Uuid
+  status                         AuthSessionStatus      @default(ACTIVE)
+  csrfSecretHash                 String                 @map("csrf_secret_hash") @db.Char(64)
+  providerRefreshTokenCiphertext String?                @map("provider_refresh_token_ciphertext") @db.Text
+  providerIdTokenCiphertext      String?                @map("provider_id_token_ciphertext") @db.Text
+  encryptionKeyId                String?                @map("encryption_key_id") @db.VarChar(64)
+  providerSessionId              String?                @map("provider_session_id") @db.VarChar(255)
+  authenticatedAt                DateTime               @map("authenticated_at") @db.Timestamptz(6)
+  assuranceContext               String?                @map("assurance_context") @db.VarChar(255)
+  authenticationMethods          String[]               @default([]) @map("authentication_methods") @db.VarChar(64)
+  createdAt                      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSeenAt                     DateTime               @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  idleExpiresAt                  DateTime               @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt              DateTime               @map("absolute_expires_at") @db.Timestamptz(6)
+  revokedAt                      DateTime?              @map("revoked_at") @db.Timestamptz(6)
+  revocationReason               String?                @map("revocation_reason") @db.VarChar(100)
+  version                        Int                    @default(1)
+  principal                      IdentityPrincipal      @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  externalIdentity               ExternalIdentity       @relation(fields: [externalIdentityId], references: [id], onDelete: Restrict)
+  reauthenticationTransactions   OidcLoginTransaction[]
+
+  @@index([principalId, status, absoluteExpiresAt, id], map: "auth_sessions_principal_status_expiry_id_idx")
+  @@index([status, idleExpiresAt, id], map: "auth_sessions_status_idle_expiry_id_idx")
+  @@map("auth_sessions")
 }
 
 model Organization {
