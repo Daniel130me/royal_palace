@@ -16,11 +16,19 @@ describe("SecretBox", () => {
   it("rejects modified ciphertext", () => {
     const box = new SecretBox(key, "test-key");
     const sealed = box.seal("session-id", "session-cookie");
-    const replacement = sealed.endsWith("A") ? "B" : "A";
+    const parts = sealed.split(".");
+    const tag = Buffer.from(parts[4]!, "base64url");
+    tag[0] = tag[0]! ^ 1;
+    parts[4] = tag.toString("base64url");
 
-    expect(() => box.open(`${sealed.slice(0, -1)}${replacement}`, "session-cookie")).toThrow(
-      SecretBoxError,
-    );
+    expect(() => box.open(parts.join("."), "session-cookie")).toThrow(SecretBoxError);
+  });
+
+  it("rejects non-canonical envelope encoding", () => {
+    const box = new SecretBox(key, "test-key");
+    const sealed = box.seal("session-id", "session-cookie");
+
+    expect(() => box.open(`${sealed}=`, "session-cookie")).toThrow(SecretBoxError);
   });
 
   it("keeps old values readable during key rotation", () => {

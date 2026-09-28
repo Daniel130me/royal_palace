@@ -97,7 +97,7 @@ shape, not production latency promises; CI repeats the checks on PostgreSQL 17.6
 
 **Tests and validation:**
 
-- `pnpm verify` — passed format, zero-warning lint, strict type checks, 67 automated
+- `pnpm verify` — passed format, zero-warning lint, strict type checks, 68 automated
   tests, all package builds, the 49-route Next.js production build, standalone asset
   packaging, and both Prisma schema validations.
 - API identity tests cover encrypted/hashed transaction material, single-use rejection,
@@ -119,6 +119,10 @@ shape, not production latency promises; CI repeats the checks on PostgreSQL 17.6
 - GitHub Actions run
   [`36418392274`](https://github.com/Daniel130me/royal_palace/actions/runs/36418392274)
   passed for implementation commit `e978076`.
+- A later CI replay exposed a probabilistic ciphertext-tamper assertion: changing the
+  final Base64URL character can preserve the decoded bytes. The regression now flips an
+  authenticated-tag byte deterministically, and the production parser additionally
+  rejects non-canonical encodings, invalid IV/tag lengths, and unsafe key identifiers.
 
 **Telemetry and alerts added:** Identity session creation and revocation write immutable
 audit events with request IDs. Existing structured request logging carries request and
