@@ -29,7 +29,7 @@ export async function proxyPublicGet(request: NextRequest, apiPath: string): Pro
     });
   } catch {
     return NextResponse.json(
-      { error: "discovery_service_unavailable", message: "Hospital discovery is unavailable" },
+      { error: "discovery_service_unavailable", message: "Public discovery is unavailable" },
       { status: 503 },
     );
   }

@@ -46,15 +46,16 @@ describe("public discovery HTTP boundary", () => {
   it("accepts bounded filters and delegates them to the application service", async () => {
     const response = await app.inject({
       method: "GET",
-      url: "/v1/public/hospitals?service=emergency-care&state=Lagos&limit=25",
+      url: "/v1/public/hospitals?service=emergency-care&country=ng&location=Lagos&limit=25",
     });
 
     expect(response.statusCode).toBe(200);
     expect(repository.listOrganizations).toHaveBeenCalledWith({
+      countryCode: "NG",
       limit: 25,
+      location: "Lagos",
       organizationType: "HOSPITAL",
       serviceCode: "emergency-care",
-      state: "Lagos",
     });
   });
 
@@ -62,13 +63,17 @@ describe("public discovery HTTP boundary", () => {
     ["pharmacies", "PHARMACY"],
     ["laboratories", "LABORATORY"],
   ] as const)("maps /%s to the correct organization type", async (path, organizationType) => {
-    const response = await app.inject({ method: "GET", url: `/v1/public/${path}?state=Lagos` });
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/public/${path}?country=ca&location=Toronto`,
+    });
 
     expect(response.statusCode).toBe(200);
     expect(repository.listOrganizations).toHaveBeenLastCalledWith({
+      countryCode: "CA",
       limit: 20,
+      location: "Toronto",
       organizationType,
-      state: "Lagos",
     });
   });
 
@@ -77,8 +82,9 @@ describe("public discovery HTTP boundary", () => {
       app.inject({ method: "GET", url: "/v1/public/hospitals?unknown=value" }),
       app.inject({ method: "GET", url: "/v1/public/hospitals?emergencyAvailable=maybe" }),
       app.inject({ method: "GET", url: "/v1/public/hospitals?limit=51" }),
+      app.inject({ method: "GET", url: "/v1/public/hospitals?country=NGA" }),
     ]);
 
-    expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400]);
+    expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400]);
   });
 });

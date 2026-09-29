@@ -56,6 +56,34 @@ All code written must be:
 - New features must be addable by extending an owning module rather than editing
   unrelated modules or duplicating policy, validation, persistence, or telemetry.
 
+## Global product and localization
+
+- Treat Royal Palace as a global platform. Nigeria or any other country may be a
+  launch market, test fixture, or deployment profile, but must never become an
+  application-wide domain default.
+- Do not hard-code a country, currency, locale, language, time zone, calling code,
+  address shape, regulator, clinical taxonomy, tax rule, payment provider, cloud
+  region, or data-residency rule into reusable domain or application logic.
+- Represent geography and localization with governed standards and data: ISO 3166
+  country codes, ISO 4217 currency codes and currency-specific minor-unit metadata,
+  BCP 47 language tags, IANA time-zone identifiers, and E.164 phone numbers where a
+  telephone number can be normalized internationally.
+- Store timestamps as UTC instants and store the relevant IANA time zone separately
+  when local civil time affects scheduling, deadlines, or reporting. Format dates,
+  numbers, names, addresses, and money only at presentation boundaries using the
+  requested locale.
+- Jurisdiction-specific legal, privacy, retention, credentialing, tax, payment, and
+  clinical rules belong in versioned policy/configuration or governed reference data
+  with provenance and effective dates. They must not be scattered through feature
+  code.
+- Controlled catalogues (including professions, specialties, services, regulators,
+  and credential types) must be database-backed, auditable, additive, and safely
+  deactivatable. User interfaces must consume the catalogue API rather than duplicate
+  hard-coded option lists.
+- Tests and synthetic seeds must cover more than one country, currency, time zone, and
+  locale whenever the changed capability handles those concepts. A country-specific
+  fixture never establishes a production default.
+
 ## Database and data integrity
 
 - PostgreSQL is the production system of record. The prototype SQLite database must

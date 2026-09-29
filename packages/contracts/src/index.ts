@@ -55,14 +55,15 @@ export interface PublicService {
 }
 
 export interface PublicFacilityLocation {
-  addressLine1: string;
+  addressLine1: string | null;
   addressLine2: string | null;
-  city: string;
+  administrativeArea: string | null;
   countryCode: string;
   id: string;
   label: string;
+  locality: string | null;
+  postalCode: string | null;
   publicPhone: string | null;
-  state: string;
 }
 
 export type PublicOrganizationType = "HOSPITAL" | "PHARMACY" | "LABORATORY";
@@ -92,14 +93,16 @@ export interface PublicHospitalDetail extends PublicOrganizationDetail {
   organizationType: "HOSPITAL";
 }
 
-export interface PublicHospitalFilters {
-  city?: string;
+export interface PublicOrganizationFilters {
+  countryCode?: string;
   emergencyAvailable?: boolean;
+  location?: string;
   openTwentyFourHours?: boolean;
   query?: string;
   serviceCode?: string;
-  state?: string;
 }
+
+export type PublicHospitalFilters = PublicOrganizationFilters;
 
 export interface PublicHospitalListResponse {
   data: readonly PublicHospitalSummary[];

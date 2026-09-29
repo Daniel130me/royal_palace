@@ -136,7 +136,12 @@ These rules apply to every phase and every implementation agent.
 - Return a consistent RFC 7807-style error shape with a request/correlation ID.
 - Use cursor pagination for large and growing datasets.
 - Represent money as integer minor units plus an ISO currency code. Never use floating point.
+- Resolve currency fraction digits from governed ISO 4217 metadata; never assume every
+  currency has two minor-unit digits or use one market's unit name in domain code.
 - Store timestamps in UTC and localize only at display boundaries.
+- Store IANA time-zone identifiers where local civil time affects schedules or reports;
+  use ISO 3166 country codes, BCP 47 language tags, and internationally normalized
+  telephone numbers. Country-specific formats and rules belong at validated boundaries.
 - Use explicit database enums or constrained lookup values for bounded lifecycle states.
 - Add database foreign keys, uniqueness rules, check constraints, and indexes that enforce domain invariants.
 - Use transactions for multi-record state changes and an outbox/inbox pattern for reliable asynchronous side effects.
@@ -229,6 +234,10 @@ Recommended migration order:
 - Define initial launch scope and explicit deferred features.
 - Produce a threat model and abuse-case review for each role and public endpoint.
 - Begin Nigeria Data Protection Act readiness work: controller/processor roles, lawful bases, DPIA, records of processing, retention schedule, DSAR, breach response, processor/vendor agreements, and cross-border transfer assessment.
+- Establish a jurisdiction register and repeat the applicable privacy, clinical,
+  credentialing, tax, payment, retention, and cross-border assessment for every market
+  before it accepts real data. NDPA work is the Nigeria market profile, not a global
+  application assumption.
 - Confirm clinical governance and obtain qualified legal/privacy and clinical-safety review.
 - Define SLOs, RTO/RPO, environments, deployment region, data residency, backup, and support/on-call ownership.
 - Write ADRs for architecture, identity provider, database, cloud, payment provider, object storage, queue, and observability.
@@ -851,9 +860,30 @@ Apply these conventions consistently across all models and contracts.
 ### Money and ledger
 
 - Store `amountMinor` as a 64-bit integer and `currency` as a validated ISO 4217 code.
+- Resolve display precision and conversion/display rules from versioned currency
+  metadata. Do not assume two decimal places, silently convert currencies, or combine
+  unlike currencies in one total.
 - Ledger transactions contain balanced debit and credit entries and an immutable business reference.
 - Provider payment, internal ledger transaction, earning, settlement, and payout are separate concepts with separate statuses.
 - Never recalculate historical earnings using the current commission policy. Store the policy version and calculation inputs used.
+
+### Globalization and jurisdiction
+
+- The application domain has no implicit country, currency, locale, language, time
+  zone, calling code, regulator, clinical taxonomy, payment provider, or cloud region.
+- Use ISO 3166 country codes, ISO 4217 currencies, BCP 47 language tags, IANA time-zone
+  identifiers, and E.164 phone numbers where normalization is possible. Preserve a
+  safe original value when a globally lossless normalization is not possible.
+- Model postal addresses as country-aware structured data with optional fields; do not
+  require a `state`, postal code, or one fixed line layout in every country.
+- Localize names, dates, numbers, addresses, and money at presentation boundaries.
+  Persist canonical facts rather than preformatted display strings.
+- Jurisdiction-specific rules are versioned, effective-dated, auditable policies or
+  governed reference data. Adding a market must not require rewriting unrelated domain
+  modules.
+- Controlled profession, specialty, service, regulator, and credential catalogues are
+  database-backed and carry source/provenance. Administrators may extend or deactivate
+  entries without deleting historical references.
 
 ### State machines
 

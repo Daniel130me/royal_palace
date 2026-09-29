@@ -118,14 +118,14 @@ async function main(): Promise<void> {
         "hospital location filter",
         `SELECT location."organization_id", location."id"
            FROM "facility_locations" AS location
-          WHERE location."state" ILIKE 'Lagos'
-            AND location."city" ILIKE 'Ikeja'
+          WHERE location."administrative_area" ILIKE 'Lagos'
+            AND location."locality" ILIKE 'Ikeja'
             AND location."is_public" = true
             AND location."status" = 'ACTIVE'
           ORDER BY location."organization_id", location."id"
           LIMIT 50`,
         [],
-        "facility_locations_state_city_trgm_idx",
+        "facility_locations_region_trgm_idx",
         { forceIndexEligibility: true },
       ),
       await reviewPlan(
@@ -235,17 +235,19 @@ async function loadRepresentativeData(
   );
 
   const locationIds = hospitalIds.map(() => v7());
-  const states = hospitalIds.map((_, index) => (index % 100 === 0 ? "Lagos" : "Ogun"));
-  const cities = hospitalIds.map((_, index) => (index % 100 === 0 ? "Ikeja" : "Abeokuta"));
+  const administrativeAreas = hospitalIds.map((_, index) =>
+    index % 100 === 0 ? "Lagos" : "Ontario",
+  );
+  const localities = hospitalIds.map((_, index) => (index % 100 === 0 ? "Ikeja" : "Toronto"));
   await client.query(
     `INSERT INTO "facility_locations"
-       ("id", "organization_id", "label", "address_line_1", "city", "state", "country_code",
+       ("id", "organization_id", "label", "address_line_1", "locality", "administrative_area", "country_code",
         "is_primary", "is_public", "updated_at")
-     SELECT input.id, input.organization_id, 'Main facility', 'Synthetic address', input.city,
-            input.state, 'NG', true, true, now()
+     SELECT input.id, input.organization_id, 'Main facility', 'Synthetic address', input.locality,
+            input.administrative_area, 'ZZ', true, true, now()
        FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[])
-            AS input(id, organization_id, state, city)`,
-    [locationIds, hospitalIds, states, cities],
+            AS input(id, organization_id, administrative_area, locality)`,
+    [locationIds, hospitalIds, administrativeAreas, localities],
   );
 
   const discoveryServiceIds = Array.from({ length: 50 }, () => v7());

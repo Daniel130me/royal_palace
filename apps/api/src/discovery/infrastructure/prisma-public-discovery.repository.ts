@@ -22,14 +22,15 @@ const publicOrganizationSelect = {
   facilityLocations: {
     orderBy: [{ isPrimary: "desc" as const }, { label: "asc" as const }, { id: "asc" as const }],
     select: {
+      administrativeArea: true,
       addressLine1: true,
       addressLine2: true,
-      city: true,
       countryCode: true,
       id: true,
       label: true,
+      locality: true,
+      postalCode: true,
       publicPhone: true,
-      state: true,
     },
     where: { isPublic: true, status: "ACTIVE" as const },
   },
@@ -130,19 +131,22 @@ function availableAtPublicFacilityWhere() {
 }
 
 function organizationWhere(query: ListOrganizationsQuery) {
-  const locationFilter = {
+  const basePublicLocationFilter = {
     isPublic: true,
     status: "ACTIVE" as const,
-    ...(query.city === undefined
+    ...(query.countryCode === undefined ? {} : { countryCode: query.countryCode }),
+  };
+  const publicLocationFilter = {
+    ...basePublicLocationFilter,
+    ...(query.location === undefined
       ? {}
-      : { city: { equals: query.city, mode: "insensitive" as const } }),
-    ...(query.state === undefined
-      ? {}
-      : { state: { equals: query.state, mode: "insensitive" as const } }),
+      : {
+          OR: publicLocationTextPredicates(query.location),
+        }),
   };
   const filters = {
     ...basePublicOrganizationWhere(query.organizationType),
-    facilityLocations: { some: locationFilter },
+    facilityLocations: { some: publicLocationFilter },
     ...(query.emergencyAvailable === undefined
       ? {}
       : {
@@ -181,24 +185,8 @@ function organizationWhere(query: ListOrganizationsQuery) {
             {
               facilityLocations: {
                 some: {
-                  ...locationFilter,
-                  city: { contains: query.query, mode: "insensitive" as const },
-                },
-              },
-            },
-            {
-              facilityLocations: {
-                some: {
-                  ...locationFilter,
-                  state: { contains: query.query, mode: "insensitive" as const },
-                },
-              },
-            },
-            {
-              facilityLocations: {
-                some: {
-                  ...locationFilter,
-                  addressLine1: { contains: query.query, mode: "insensitive" as const },
+                  ...basePublicLocationFilter,
+                  OR: publicLocationTextPredicates(query.query),
                 },
               },
             },
@@ -227,6 +215,17 @@ function organizationWhere(query: ListOrganizationsQuery) {
         }),
   };
   return filters;
+}
+
+function publicLocationTextPredicates(value: string) {
+  const contains = { contains: value, mode: "insensitive" as const };
+  return [
+    { addressLine1: contains },
+    { addressLine2: contains },
+    { administrativeArea: contains },
+    { locality: contains },
+    { postalCode: contains },
+  ];
 }
 
 function mapOrganizationSummary(record: PublicOrganizationRecord): PublicOrganizationSummary {

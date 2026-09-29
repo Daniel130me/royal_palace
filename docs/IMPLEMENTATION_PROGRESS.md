@@ -153,8 +153,9 @@ that completes an increment.
 
 These are not implementation-agent choices. Stop before the affected production work:
 
-- AWS deployment region, Nigerian data-residency/cross-border assessment, and final
-  account/environment ownership.
+- Production hosting region(s), every applicable jurisdiction/data-residency and
+  cross-border assessment, and final account/environment ownership. Nigeria is one
+  market profile, not an application-wide default.
 - Production OIDC provider, tenant region, commercial terms, and privileged-user
   MFA/recovery policy (Increment 04B). The application identity boundary itself is
   vendor-neutral under ADR 0002.
@@ -200,6 +201,11 @@ closed in staging and production. Increment 06 is the next implementation step.
 Increment 06 uses only explicitly synthetic discovery labels until the clinical/service
 taxonomy is approved. The generic taxonomy model is production-capable, but its seed
 terms are demonstration data and must not be promoted as a clinically governed catalogue.
+ADR 0003 now makes global deployability a standing invariant. Country-specific values
+in prototype screens, legacy SQLite models, tests, or synthetic fixtures are not
+production defaults and must be removed or routed through governed localization data as
+each vertical slice migrates. New production work must not introduce an implicit
+country, currency, locale, language, time zone, regulator, or regional provider.
 The deferred Increment 04B identity-provider decision remains a mandatory gate before
 protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
 it does not block synthetic implementation and validation of Increments 06–11.

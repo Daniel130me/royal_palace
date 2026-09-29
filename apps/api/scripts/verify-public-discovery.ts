@@ -32,13 +32,13 @@ async function main(): Promise<void> {
 
     queryCount = 0;
     const lagos = await discovery.listOrganizations({
-      filters: { state: "Lagos" },
+      filters: { countryCode: "NG", location: "Lagos" },
       organizationType: "HOSPITAL",
     });
-    assert(lagos.data.length === 1, "State filter returned an unexpected hospital count");
+    assert(lagos.data.length === 1, "Location filter returned an unexpected hospital count");
     assert(
       lagos.data[0]?.slug === "synthetic-lagoon-hospital",
-      "State filter returned the wrong hospital",
+      "Location filter returned the wrong hospital",
     );
     const listQueryCount = queryCount;
     assert(
@@ -57,14 +57,14 @@ async function main(): Promise<void> {
     );
 
     const pharmacies = await discovery.listOrganizations({
-      filters: { serviceCode: "prescription-dispensing", state: "Lagos" },
+      filters: { countryCode: "CA", serviceCode: "prescription-dispensing" },
       organizationType: "PHARMACY",
     });
     assert(pharmacies.data.length === 1, "Pharmacy discovery returned an unexpected result");
     assert(pharmacies.data[0]?.organizationType === "PHARMACY", "Pharmacy type was not preserved");
 
     const laboratories = await discovery.listOrganizations({
-      filters: { serviceCode: "diagnostic-testing", state: "Lagos" },
+      filters: { countryCode: "SG", serviceCode: "diagnostic-testing" },
       organizationType: "LABORATORY",
     });
     assert(laboratories.data.length === 1, "Laboratory discovery returned an unexpected result");

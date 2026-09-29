@@ -14,9 +14,12 @@ offerings, and facility-specific availability. Composite foreign keys prevent a 
 from advertising another organization's offering. Database checks enforce publication
 timestamps, verification timestamps, normalized slugs/codes, coordinate pairs and
 ranges, version values, and nonblank location data. A partial unique index permits one
-primary facility per organization. PostgreSQL `pg_trgm` GIN indexes back the
-case-insensitive name, summary, address, service-name, city, and state search patterns;
-ordered B-tree indexes continue to support stable catalogue pagination.
+primary facility per organization. A follow-up global-address migration replaces the
+single-market `city/state` assumption with optional locality, administrative-area,
+postal-code, address-line, country-code, and coordinate facts. PostgreSQL `pg_trgm` GIN
+indexes back the case-insensitive name, summary, address, service-name, locality, and
+administrative-area search patterns; ordered B-tree indexes continue to support stable
+catalogue pagination.
 
 The API is a capability-owned Nest module with domain ports, an application service, a
 Prisma adapter, and presentation validation. It exposes bounded hospital, pharmacy,
@@ -75,7 +78,8 @@ pipeline or the controlling plan is explicitly amended.
 
 The implementation is capability-scoped, readable, normalized, constraint-backed,
 query-bounded, public-projection-only, exact-route allowlisted, and reusable across three
-organization types. It adds no provider, cloud, identity-vendor, payment, or clinical
-terminology assumption. Synthetic catalogue labels are explicitly non-production data.
+organization types. It adds no country, currency, provider, cloud, identity-vendor,
+payment, or clinical-terminology default. Synthetic catalogue and location values are
+explicitly non-production data and now exercise multiple countries.
 No broad generic CRUD endpoint, client-side authorization, N+1 query, unpublished-data
 fallback, hard-coded production credential, or silent plan deviation was introduced.

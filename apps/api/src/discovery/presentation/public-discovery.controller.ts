@@ -19,10 +19,16 @@ const optionalBoolean = z
   .optional();
 const querySchema = z
   .object({
-    city: z.string().trim().min(1).max(100).optional(),
+    country: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{2}$/)
+      .transform((value) => value.toUpperCase())
+      .optional(),
     cursor: z.string().min(1).max(2048).optional(),
     emergencyAvailable: optionalBoolean,
     limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+    location: z.string().trim().min(1).max(200).optional(),
     openTwentyFourHours: optionalBoolean,
     q: z.string().trim().min(1).max(100).optional(),
     service: z
@@ -31,7 +37,6 @@ const querySchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
       .max(80)
       .optional(),
-    state: z.string().trim().min(1).max(100).optional(),
   })
   .strict();
 const hospitalIdSchema = z.uuid();
@@ -88,12 +93,12 @@ export class PublicDiscoveryController {
       this.discovery.listOrganizations({
         cursor: query.cursor,
         filters: {
-          city: query.city,
+          countryCode: query.country,
           emergencyAvailable: query.emergencyAvailable,
+          location: query.location,
           openTwentyFourHours: query.openTwentyFourHours,
           query: query.q,
           serviceCode: query.service,
-          state: query.state,
         },
         limit: query.limit,
         organizationType,

@@ -7,14 +7,15 @@ const publicRecord = {
   displayName: "Synthetic Hospital",
   facilityLocations: [
     {
+      administrativeArea: "Lagos",
       addressLine1: "1 Example Road",
       addressLine2: null,
-      city: "Ikeja",
       countryCode: "NG",
       id: "0199a18e-a400-7000-8000-000000000211",
       label: "Main facility",
+      locality: "Ikeja",
+      postalCode: "100001",
       publicPhone: null,
-      state: "Lagos",
     },
   ],
   id: "0199a18e-a400-7000-8000-000000000201",
@@ -47,11 +48,11 @@ describe("PrismaPublicDiscoveryRepository", () => {
     } as unknown as PrismaService);
 
     const result = await repository.listOrganizations({
-      city: "Ikeja",
+      countryCode: "NG",
       limit: 1,
+      location: "Ikeja",
       organizationType: "HOSPITAL",
       serviceCode: "emergency-care",
-      state: "Lagos",
     });
 
     const query = findMany.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -61,8 +62,8 @@ describe("PrismaPublicDiscoveryRepository", () => {
     expect(query.where).toMatchObject({
       facilityLocations: {
         some: {
-          city: { equals: "Ikeja", mode: "insensitive" },
-          state: { equals: "Lagos", mode: "insensitive" },
+          countryCode: "NG",
+          OR: expect.arrayContaining([{ locality: { contains: "Ikeja", mode: "insensitive" } }]),
         },
       },
       organizationServices: {

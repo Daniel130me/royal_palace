@@ -38,16 +38,16 @@ describe("PublicDiscoveryService", () => {
     const service = new PublicDiscoveryService(repository);
 
     const page = await service.listOrganizations({
-      filters: { serviceCode: "emergency-care", state: " Lagos " },
+      filters: { location: " Lagos ", serviceCode: "emergency-care" },
       limit: 10_000,
       organizationType: "HOSPITAL",
     });
 
     expect(repository.listOrganizations).toHaveBeenCalledWith({
       limit: MAX_PAGE_SIZE,
+      location: "Lagos",
       organizationType: "HOSPITAL",
       serviceCode: "emergency-care",
-      state: "Lagos",
     });
     expect(page.pageInfo.endCursor).toEqual(expect.any(String));
     expect(page.pageInfo.endCursor).not.toContain(hospital.displayName);
@@ -57,14 +57,14 @@ describe("PublicDiscoveryService", () => {
     const repository = createRepository();
     const service = new PublicDiscoveryService(repository);
     const firstPage = await service.listOrganizations({
-      filters: { state: "Lagos" },
+      filters: { location: "Lagos" },
       organizationType: "HOSPITAL",
     });
 
     await expect(
       service.listOrganizations({
         cursor: firstPage.pageInfo.endCursor ?? undefined,
-        filters: { state: "Ogun" },
+        filters: { location: "Ontario" },
         organizationType: "HOSPITAL",
       }),
     ).rejects.toBeInstanceOf(InvalidDiscoveryCursorError);

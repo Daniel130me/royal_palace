@@ -165,8 +165,14 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
     );
     await expectSqlState(
       client,
-      'INSERT INTO "facility_locations" ("id", "organization_id", "label", "address_line_1", "city", "state", "country_code", "latitude", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
+      'INSERT INTO "facility_locations" ("id", "organization_id", "label", "address_line_1", "locality", "administrative_area", "country_code", "latitude", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
       [v7(), verifiedOrganizationId, "Main", "Address", "Ikeja", "Lagos", "NG", 6.5],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "facility_locations" ("id", "organization_id", "label", "country_code", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [v7(), verifiedOrganizationId, "Location without an address", "CH"],
       "23514",
     );
     await client.query(

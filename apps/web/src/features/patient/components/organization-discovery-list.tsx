@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { initials } from "@/lib/format";
+import { formatPublicLocation, publicLocationLabel } from "@/lib/public-location";
 import { publicDiscoveryService } from "@/lib/services";
 
 const PAGE_SIZE = 20;
@@ -47,9 +48,9 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
   const [items, setItems] = useState<readonly PublicOrganizationSummary[]>([]);
   const [services, setServices] = useState<readonly PublicService[]>([]);
   const [query, setQuery] = useState("");
-  const [state, setState] = useState("");
+  const [location, setLocation] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [debouncedState, setDebouncedState] = useState("");
+  const [debouncedLocation, setDebouncedLocation] = useState("");
   const [service, setService] = useState("all");
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,10 +61,10 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
-      setDebouncedState(state.trim());
+      setDebouncedLocation(location.trim());
     }, FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [query, state]);
+  }, [location, query]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -83,7 +84,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
     publicDiscoveryService
       .organizations(
         RESOURCE_BY_TYPE[props.organizationType],
-        listParameters({ debouncedQuery, debouncedState, service }),
+        listParameters({ debouncedLocation, debouncedQuery, service }),
         controller.signal,
       )
       .then((response) => {
@@ -97,7 +98,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [debouncedQuery, debouncedState, props.organizationType, reloadKey, service]);
+  }, [debouncedLocation, debouncedQuery, props.organizationType, reloadKey, service]);
 
   const loadMore = useCallback(async () => {
     if (cursor === null || loadingMore) return;
@@ -106,7 +107,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
     try {
       const response = await publicDiscoveryService.organizations(
         RESOURCE_BY_TYPE[props.organizationType],
-        { ...listParameters({ debouncedQuery, debouncedState, service }), cursor },
+        { ...listParameters({ debouncedLocation, debouncedQuery, service }), cursor },
       );
       setItems((current) => [...current, ...response.data]);
       setCursor(response.pageInfo.hasNextPage ? response.pageInfo.endCursor : null);
@@ -115,7 +116,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, debouncedQuery, debouncedState, loadingMore, props.organizationType, service]);
+  }, [cursor, debouncedLocation, debouncedQuery, loadingMore, props.organizationType, service]);
 
   const Icon = props.icon;
   return (
@@ -146,11 +147,11 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
           </SelectContent>
         </Select>
         <Input
-          aria-label="Filter by state"
-          maxLength={100}
-          placeholder="State"
-          value={state}
-          onChange={(event) => setState(event.target.value)}
+          aria-label="Filter by location"
+          maxLength={200}
+          placeholder="City, region or postal code"
+          value={location}
+          onChange={(event) => setLocation(event.target.value)}
         />
       </div>
       <div aria-live="polite" className="sr-only">
@@ -186,11 +187,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
                   </Avatar>
                 }
                 title={item.displayName}
-                subtitle={
-                  location === undefined
-                    ? undefined
-                    : `${location.addressLine1}, ${location.city}, ${location.state}`
-                }
+                subtitle={location === undefined ? undefined : formatPublicLocation(location)}
                 trailing={
                   <div className="flex max-w-64 flex-wrap justify-end gap-1">
                     <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
@@ -206,7 +203,7 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
                     {location === undefined ? null : (
                       <Badge variant="outline">
                         <MapPin className="mr-1 h-3 w-3" />
-                        {location.city}
+                        {publicLocationLabel(location)}
                       </Badge>
                     )}
                   </div>
@@ -228,15 +225,15 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
 }
 
 function listParameters(input: {
+  debouncedLocation: string;
   debouncedQuery: string;
-  debouncedState: string;
   service: string;
 }) {
   return {
     limit: PAGE_SIZE,
     q: input.debouncedQuery || undefined,
     service: input.service === "all" ? undefined : input.service,
-    state: input.debouncedState || undefined,
+    location: input.debouncedLocation || undefined,
   };
 }
 

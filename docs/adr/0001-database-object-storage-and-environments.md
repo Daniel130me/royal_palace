@@ -4,8 +4,9 @@
 - **Supersedes:** none
 - **Superseded by:** none
 - **Context inputs:** `docs/PRODUCTION_BACKEND_IMPLEMENTATION_PLAN.md` §18 (locked
-  decisions), §25 (environment contract), §26 (stop conditions); Nigeria Data
-  Protection Act 2023 (NDPA) cross-border transfer obligations
+  decisions), §25 (environment contract), §26 (stop conditions); ADR 0003
+  (globalization and jurisdiction-neutral domain); applicable cross-border transfer
+  obligations, including NDPA when Nigeria is enabled
 - **Review required before production use:** security/privacy owner sign-off on the
   two open decision points in §5
 
@@ -24,6 +25,12 @@ and RTO ≤ 4 hours (plan §11).
 This ADR records the concrete per-environment service choices and the explicitly
 deferred/open decisions so that infrastructure work in later increments proceeds
 against a single agreed reference.
+
+These AWS selections are one deployment architecture, not application-domain
+dependencies or global location defaults. Application integrations use PostgreSQL and
+S3-compatible/provider-neutral boundaries, infrastructure parameters remain explicit,
+and enabling any production geography requires its own jurisdiction and residency
+approval under ADR 0003.
 
 ## 2. Decision — environment matrix
 
@@ -64,19 +71,18 @@ encryption key, identity tenant, webhook secret, or queue with production.
 2. **AWS region is an approval-gated decision** (plan §26: cloud provider, deployment
    region, and cross-border data location are human decisions). Infrastructure-as-code
    must parameterize the region; no default region may be baked into application code.
-3. **Nigerian cross-border data-transfer assessment remains open.** NDPA lawful-basis
-   and cross-border transfer analysis (controller/processor roles, DPIA, vendor
-   agreements) must be completed and signed off by the privacy owner before any
-   production data is stored in a non-Nigerian region. Until then, region selection
-   should prefer in-country or nearest-compliant options, and this ADR records the
-   constraint without resolving it.
+3. **Per-market residency and cross-border assessments remain open.** The applicable
+   lawful-basis and transfer analysis (controller/processor roles, impact assessment,
+   vendor agreements, and local hosting restrictions) must be completed and signed off
+   before a market's real data is stored or transferred. NDPA applies to the Nigeria
+   market profile; it is not used as the global platform default.
 
 ## 5. Open decision points (blocking production, not development/staging)
 
 | # | Decision | Owner | Blocking |
 | --- | --- | --- | --- |
-| 1 | AWS region for production workloads | Product owner + engineering lead (with privacy counsel) | Production provisioning |
-| 2 | NDPA cross-border transfer assessment sign-off | Privacy/DPO owner | Production provisioning |
+| 1 | AWS region(s) for approved production market profiles | Product owner + engineering lead (with privacy counsel) | Production provisioning |
+| 2 | Applicable residency and cross-border assessment for each enabled market (including NDPA for Nigeria) | Privacy/DPO owner | Market activation and production provisioning |
 
 ## 6. Consequences
 

@@ -236,10 +236,11 @@ model FacilityLocation {
   organizationId   String            @map("organization_id") @db.Uuid
   status           CatalogueStatus   @default(ACTIVE)
   label            String            @db.VarChar(120)
-  addressLine1     String            @map("address_line_1") @db.VarChar(200)
+  addressLine1     String?           @map("address_line_1") @db.VarChar(200)
   addressLine2     String?           @map("address_line_2") @db.VarChar(200)
-  city             String            @db.VarChar(100)
-  state            String            @db.VarChar(100)
+  locality         String?           @db.VarChar(100)
+  administrativeArea String?         @map("administrative_area") @db.VarChar(100)
+  postalCode       String?           @map("postal_code") @db.VarChar(32)
   countryCode      String            @map("country_code") @db.Char(2)
   latitude         Decimal?          @db.Decimal(9, 6)
   longitude        Decimal?          @db.Decimal(9, 6)
@@ -254,8 +255,9 @@ model FacilityLocation {
 
   @@unique([organizationId, id], map: "facility_locations_org_id_key")
   @@index([organizationId, isPublic, status, id], map: "facility_locations_org_public_idx")
-  @@index([state(ops: raw("gin_trgm_ops")), city(ops: raw("gin_trgm_ops"))], type: Gin, map: "facility_locations_state_city_trgm_idx")
+  @@index([administrativeArea(ops: raw("gin_trgm_ops")), locality(ops: raw("gin_trgm_ops"))], type: Gin, map: "facility_locations_region_trgm_idx")
   @@index([addressLine1(ops: raw("gin_trgm_ops"))], type: Gin, map: "facility_locations_address_trgm_idx")
+  @@index([countryCode, postalCode, organizationId, id], map: "facility_locations_country_postal_idx")
   @@map("facility_locations")
 }
 

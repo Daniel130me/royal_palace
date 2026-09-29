@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { publicDiscoveryService } from "@/lib/services";
+import { formatPublicLocation } from "@/lib/public-location";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -27,8 +28,8 @@ export function PatientHospitals() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [service, setService] = useState("all");
-  const [state, setState] = useState("");
-  const [debouncedState, setDebouncedState] = useState("");
+  const [location, setLocation] = useState("");
+  const [debouncedLocation, setDebouncedLocation] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -38,10 +39,10 @@ export function PatientHospitals() {
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
-      setDebouncedState(state.trim());
+      setDebouncedLocation(location.trim());
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [query, state]);
+  }, [location, query]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,7 +63,7 @@ export function PatientHospitals() {
     setError(null);
     publicDiscoveryService
       .hospitals(
-        discoveryParameters({ debouncedQuery, debouncedState, service }),
+        discoveryParameters({ debouncedLocation, debouncedQuery, service }),
         controller.signal,
       )
       .then((response) => {
@@ -76,7 +77,7 @@ export function PatientHospitals() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [debouncedQuery, debouncedState, reloadKey, service]);
+  }, [debouncedLocation, debouncedQuery, reloadKey, service]);
 
   const loadMore = useCallback(async () => {
     if (cursor === null || loadingMore) return;
@@ -84,7 +85,7 @@ export function PatientHospitals() {
     setError(null);
     try {
       const response = await publicDiscoveryService.hospitals({
-        ...discoveryParameters({ debouncedQuery, debouncedState, service }),
+        ...discoveryParameters({ debouncedLocation, debouncedQuery, service }),
         cursor,
       });
       setHospitals((current) => [...current, ...response.data]);
@@ -94,7 +95,7 @@ export function PatientHospitals() {
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, debouncedQuery, debouncedState, loadingMore, service]);
+  }, [cursor, debouncedLocation, debouncedQuery, loadingMore, service]);
 
   return (
     <div className="space-y-5">
@@ -127,11 +128,11 @@ export function PatientHospitals() {
           </SelectContent>
         </Select>
         <Input
-          aria-label="Filter by state"
-          maxLength={100}
-          placeholder="State"
-          value={state}
-          onChange={(event) => setState(event.target.value)}
+          aria-label="Filter by location"
+          maxLength={200}
+          placeholder="City, region or postal code"
+          value={location}
+          onChange={(event) => setLocation(event.target.value)}
         />
       </div>
       <div aria-live="polite" className="sr-only">
@@ -154,7 +155,7 @@ export function PatientHospitals() {
         <EmptyState
           icon={Building2}
           title="No matching hospitals"
-          description="Try another service, state or search term."
+          description="Try another service, location or search term."
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -185,7 +186,7 @@ function HospitalCard({ hospital }: { hospital: PublicOrganizationSummary }) {
             {location === undefined ? null : (
               <p className="flex items-center gap-1 text-sm text-muted-foreground">
                 <MapPin className="h-3.5 w-3.5" />
-                {location.addressLine1}, {location.city}, {location.state}
+                {formatPublicLocation(location)}
               </p>
             )}
           </div>
@@ -225,15 +226,15 @@ function HospitalCard({ hospital }: { hospital: PublicOrganizationSummary }) {
 }
 
 function discoveryParameters(input: {
+  debouncedLocation: string;
   debouncedQuery: string;
-  debouncedState: string;
   service: string;
 }) {
   return {
     limit: PAGE_SIZE,
     q: input.debouncedQuery || undefined,
     service: input.service === "all" ? undefined : input.service,
-    state: input.debouncedState || undefined,
+    location: input.debouncedLocation || undefined,
   };
 }
 
