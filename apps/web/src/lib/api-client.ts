@@ -33,7 +33,8 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => fetch(path, { credentials: "same-origin" }).then(handle<T>),
+  get: <T>(path: string, init?: Pick<RequestInit, "signal">) =>
+    fetch(path, { credentials: "same-origin", ...init }).then(handle<T>),
   post: <T>(path: string, body?: unknown) =>
     fetch(path, {
       credentials: "same-origin",
@@ -104,8 +105,7 @@ function mutationHeaders(): Record<string, string> {
 }
 
 export const sessionApi = {
-  get: <T>(path: string) =>
-    fetch(path, { credentials: "same-origin" }).then(handle<T>),
+  get: <T>(path: string) => fetch(path, { credentials: "same-origin" }).then(handle<T>),
   post: <T>(path: string, body?: unknown) =>
     fetch(path, {
       credentials: "same-origin",

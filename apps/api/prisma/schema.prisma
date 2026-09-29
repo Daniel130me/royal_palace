@@ -41,6 +41,24 @@ enum OrganizationStatus {
   CLOSED
 }
 
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  SUSPENDED
+  REVOKED
+}
+
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CatalogueStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum RoleScope {
   PLATFORM
   ORGANIZATION
@@ -170,19 +188,129 @@ model AuthSession {
 }
 
 model Organization {
-  id          String             @id @db.Uuid
-  type        OrganizationType
-  status      OrganizationStatus @default(ACTIVE)
-  legalName   String             @map("legal_name") @db.VarChar(200)
-  displayName String             @map("display_name") @db.VarChar(120)
-  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version     Int                @default(1)
-  memberships Membership[]
-  auditEvents AuditEvent[]
+  id                   String                     @id @db.Uuid
+  type                 OrganizationType
+  status               OrganizationStatus         @default(ACTIVE)
+  verificationStatus   VerificationStatus         @default(PENDING) @map("verification_status")
+  verifiedAt           DateTime?                  @map("verified_at") @db.Timestamptz(6)
+  legalName            String                     @map("legal_name") @db.VarChar(200)
+  displayName          String                     @map("display_name") @db.VarChar(120)
+  createdAt            DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                        @default(1)
+  memberships          Membership[]
+  auditEvents          AuditEvent[]
+  publicProfile        OrganizationPublicProfile?
+  facilityLocations    FacilityLocation[]
+  organizationServices OrganizationService[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
+  @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "organizations_display_name_trgm_idx")
   @@map("organizations")
+}
+
+model OrganizationPublicProfile {
+  organizationId      String            @id @map("organization_id") @db.Uuid
+  slug                String            @unique @db.VarChar(120)
+  status              PublicationStatus @default(DRAFT)
+  summary             String?           @db.VarChar(1000)
+  websiteUrl          String?           @map("website_url") @db.VarChar(2048)
+  publicPhone         String?           @map("public_phone") @db.VarChar(32)
+  acceptingPatients   Boolean           @default(false) @map("accepting_patients")
+  emergencyAvailable  Boolean           @default(false) @map("emergency_available")
+  openTwentyFourHours Boolean           @default(false) @map("open_twenty_four_hours")
+  publishedAt         DateTime?         @map("published_at") @db.Timestamptz(6)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int               @default(1)
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([status, publishedAt(sort: Desc), organizationId], map: "organization_public_profiles_status_published_idx")
+  @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "organization_public_profiles_summary_trgm_idx")
+  @@map("organization_public_profiles")
+}
+
+model FacilityLocation {
+  id               String            @id @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  status           CatalogueStatus   @default(ACTIVE)
+  label            String            @db.VarChar(120)
+  addressLine1     String            @map("address_line_1") @db.VarChar(200)
+  addressLine2     String?           @map("address_line_2") @db.VarChar(200)
+  city             String            @db.VarChar(100)
+  state            String            @db.VarChar(100)
+  countryCode      String            @map("country_code") @db.Char(2)
+  latitude         Decimal?          @db.Decimal(9, 6)
+  longitude        Decimal?          @db.Decimal(9, 6)
+  publicPhone      String?           @map("public_phone") @db.VarChar(32)
+  isPrimary        Boolean           @default(false) @map("is_primary")
+  isPublic         Boolean           @default(false) @map("is_public")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version          Int               @default(1)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  facilityServices FacilityService[]
+
+  @@unique([organizationId, id], map: "facility_locations_org_id_key")
+  @@index([organizationId, isPublic, status, id], map: "facility_locations_org_public_idx")
+  @@index([state(ops: raw("gin_trgm_ops")), city(ops: raw("gin_trgm_ops"))], type: Gin, map: "facility_locations_state_city_trgm_idx")
+  @@index([addressLine1(ops: raw("gin_trgm_ops"))], type: Gin, map: "facility_locations_address_trgm_idx")
+  @@map("facility_locations")
+}
+
+model ServiceTaxonomy {
+  id                   String                @id @db.Uuid
+  code                 String                @unique @db.VarChar(80)
+  name                 String                @db.VarChar(120)
+  category             String                @db.VarChar(100)
+  description          String?               @db.VarChar(500)
+  status               CatalogueStatus       @default(ACTIVE)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                   @default(1)
+  organizationServices OrganizationService[]
+
+  @@index([status, category, name, id], map: "service_taxonomies_status_category_name_idx")
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "service_taxonomies_name_trgm_idx")
+  @@map("service_taxonomies")
+}
+
+model OrganizationService {
+  id               String            @id @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  serviceId        String            @map("service_id") @db.Uuid
+  status           CatalogueStatus   @default(ACTIVE)
+  description      String?           @db.VarChar(500)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version          Int               @default(1)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  service          ServiceTaxonomy   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  facilityServices FacilityService[]
+
+  @@unique([organizationId, serviceId], map: "organization_services_org_service_key")
+  @@unique([organizationId, id], map: "organization_services_org_id_key")
+  @@index([serviceId, status, organizationId, id], map: "organization_services_service_status_org_idx")
+  @@index([organizationId, status, serviceId, id], map: "organization_services_org_status_service_idx")
+  @@map("organization_services")
+}
+
+model FacilityService {
+  id                    String              @id @db.Uuid
+  organizationId        String              @map("organization_id") @db.Uuid
+  locationId            String              @map("location_id") @db.Uuid
+  organizationServiceId String              @map("organization_service_id") @db.Uuid
+  status                CatalogueStatus     @default(ACTIVE)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                 @default(1)
+  location              FacilityLocation    @relation(fields: [organizationId, locationId], references: [organizationId, id], onDelete: Restrict)
+  organizationService   OrganizationService @relation(fields: [organizationId, organizationServiceId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([locationId, organizationServiceId], map: "facility_services_location_service_key")
+  @@index([organizationServiceId, status, locationId, id], map: "facility_services_offering_status_location_idx")
+  @@map("facility_services")
 }
 
 model Membership {

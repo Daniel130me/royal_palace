@@ -61,6 +61,13 @@ describe("web request correlation", () => {
     expect(isApiRouteEnabled("production", "/api/actions/book-appointment")).toBe(false);
     expect(isApiRouteEnabled("staging", "/api/resources/users")).toBe(false);
     expect(isApiRouteEnabled("production", "/api/bff/auth/session")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/hospitals")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/pharmacies")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/laboratories")).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/public/hospitals/0199a18e-a400-7000-8000-000000000201"),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/hospitals/not-a-uuid")).toBe(false);
     expect(isApiRouteEnabled("test", "/api/actions/book-appointment")).toBe(true);
     expect(isApiRouteEnabled("production", "/patient/dashboard")).toBe(true);
   });

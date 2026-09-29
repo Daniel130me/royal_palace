@@ -6,6 +6,7 @@ import { AuthorizationModule } from "./authorization/authorization.module.js";
 import { HealthController } from "./health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { DatabaseModule } from "./platform/database/database.module.js";
+import { PublicDiscoveryModule } from "./discovery/public-discovery.module.js";
 import { DEPENDENCY_READINESS } from "./tokens.js";
 
 @Module({})
@@ -16,7 +17,12 @@ export class AppModule {
   ): DynamicModule {
     return {
       module: AppModule,
-      imports: [DatabaseModule.register(config), AuthorizationModule, IdentityModule],
+      imports: [
+        DatabaseModule.register(config),
+        AuthorizationModule,
+        IdentityModule,
+        PublicDiscoveryModule,
+      ],
       controllers: [HealthController],
       providers: [{ provide: DEPENDENCY_READINESS, useValue: dependencies }],
     };

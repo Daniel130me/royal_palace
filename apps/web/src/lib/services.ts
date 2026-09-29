@@ -3,6 +3,7 @@
 // backend can be replaced without touching components (see spec section 58).
 
 import { api, resource, action, sessionApi, type Paginated } from "./api-client";
+import type { PublicOrganizationDetail, PublicOrganizationListResponse, PublicOrganizationType, PublicServiceListResponse } from "@royal-palace/contracts";
 import type {
   Appointment,
   ClinicalEncounter,
@@ -93,6 +94,33 @@ export const enrollmentService = {
 export const hospitalService = {
   list: (params?: Record<string, string>) => resource.list<Hospital>("hospital", params),
   get: (id: string) => resource.get<Hospital>("hospital", id),
+};
+
+function listPublicOrganizations(
+  resourceName: "hospitals" | "pharmacies" | "laboratories",
+  params: Record<string, string | number | boolean | undefined>,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+  return api.get<PublicOrganizationListResponse>(`/api/public/${resourceName}${suffix}`, { signal });
+}
+
+export const publicDiscoveryService = {
+  organizations: listPublicOrganizations,
+  hospitals: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+    listPublicOrganizations("hospitals", params, signal),
+  pharmacies: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+    listPublicOrganizations("pharmacies", params, signal),
+  laboratories: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+    listPublicOrganizations("laboratories", params, signal),
+  hospital: (id: string, signal?: AbortSignal) =>
+    api.get<PublicOrganizationDetail>(`/api/public/hospitals/${encodeURIComponent(id)}`, { signal }),
+  services: (organizationType: PublicOrganizationType = "HOSPITAL", signal?: AbortSignal) =>
+    api.get<PublicServiceListResponse>(`/api/public/services?organizationType=${organizationType}`, { signal }),
 };
 
 export const logisticsService = {

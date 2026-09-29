@@ -84,6 +84,7 @@ jobs:
           --health-timeout 3s
           --health-retries 12
     env:
+      ALLOW_SYNTHETIC_SEED: "true"
       APP_ENV: test
       DATABASE_MIGRATION_VERIFY: "true"
       DATABASE_URL: postgresql://royal_palace_ci:synthetic-ci-password@127.0.0.1:5432/royal_palace_ci
@@ -115,6 +116,14 @@ jobs:
 
       - name: Reject Prisma schema drift
         run: pnpm --filter @royal-palace/api db:drift:check
+
+      - name: Verify idempotent synthetic seed
+        run: |
+          pnpm --filter @royal-palace/api db:seed
+          pnpm --filter @royal-palace/api db:seed
+
+      - name: Verify public discovery against PostgreSQL
+        run: pnpm --filter @royal-palace/api db:discovery:verify
 
       - name: Review representative query plans
         run: pnpm db:query-plans

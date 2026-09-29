@@ -61,15 +61,72 @@ async function main(): Promise<void> {
       await reviewPlan(
         client,
         "hospital discovery",
-        `SELECT "id", "display_name"
-           FROM "organizations"
-          WHERE "type" = 'HOSPITAL'
-            AND "status" = 'ACTIVE'
-            AND ("display_name", "id") > ($1, $2)
-          ORDER BY "display_name", "id"
+        `SELECT organization."id", organization."display_name"
+           FROM "organizations" AS organization
+           JOIN "organization_public_profiles" AS profile
+             ON profile."organization_id" = organization."id"
+            AND profile."status" = 'PUBLISHED'
+          WHERE organization."type" = 'HOSPITAL'
+            AND organization."status" = 'ACTIVE'
+            AND organization."verification_status" = 'VERIFIED'
+            AND (organization."display_name", organization."id") > ($1, $2)
+          ORDER BY organization."display_name", organization."id"
           LIMIT 50`,
         ["Synthetic Hospital 000000", "00000000-0000-0000-0000-000000000000"],
-        "organizations_type_status_name_id_idx",
+        "organizations_public_discovery_idx",
+      ),
+      await reviewPlan(
+        client,
+        "hospital service filter",
+        `SELECT offering."organization_id"
+           FROM "organization_services" AS offering
+           JOIN "service_taxonomies" AS service ON service."id" = offering."service_id"
+          WHERE service."code" = 'query-plan-service-000'
+            AND service."status" = 'ACTIVE'
+            AND offering."status" = 'ACTIVE'
+          ORDER BY offering."organization_id", offering."id"
+          LIMIT 50`,
+        [],
+        "organization_services_service_status_org_idx",
+      ),
+      await reviewPlan(
+        client,
+        "hospital name search",
+        `SELECT organization."id", organization."display_name"
+           FROM "organizations" AS organization
+          WHERE organization."display_name" ILIKE '%Hospital 010000%'
+          ORDER BY organization."display_name", organization."id"
+          LIMIT 50`,
+        [],
+        "organizations_display_name_trgm_idx",
+        { forceIndexEligibility: true },
+      ),
+      await reviewPlan(
+        client,
+        "service name search",
+        `SELECT service."id", service."name"
+           FROM "service_taxonomies" AS service
+          WHERE service."name" ILIKE '%plan-service-000%'
+          ORDER BY service."name", service."id"
+          LIMIT 50`,
+        [],
+        "service_taxonomies_name_trgm_idx",
+        { forceIndexEligibility: true },
+      ),
+      await reviewPlan(
+        client,
+        "hospital location filter",
+        `SELECT location."organization_id", location."id"
+           FROM "facility_locations" AS location
+          WHERE location."state" ILIKE 'Lagos'
+            AND location."city" ILIKE 'Ikeja'
+            AND location."is_public" = true
+            AND location."status" = 'ACTIVE'
+          ORDER BY location."organization_id", location."id"
+          LIMIT 50`,
+        [],
+        "facility_locations_state_city_trgm_idx",
+        { forceIndexEligibility: true },
       ),
       await reviewPlan(
         client,
@@ -135,6 +192,10 @@ async function loadRepresentativeData(
   const organizationStatuses = organizationIds.map((_, index) =>
     index % 17 === 0 ? "SUSPENDED" : "ACTIVE",
   );
+  const verificationStatuses = organizationTypes.map((type) =>
+    type === "HOSPITAL" ? "VERIFIED" : "PENDING",
+  );
+  const verifiedAt = organizationTypes.map((type) => (type === "HOSPITAL" ? new Date() : null));
   const legalNames = organizationIds.map(
     (_, index) => `Synthetic Organization ${String(index).padStart(6, "0")} Limited`,
   );
@@ -143,12 +204,71 @@ async function loadRepresentativeData(
   );
   await client.query(
     `INSERT INTO "organizations"
-       ("id", "type", "status", "legal_name", "display_name", "updated_at")
-     SELECT input.id, input.type, input.status, input.legal_name, input.display_name, now()
+       ("id", "type", "status", "verification_status", "verified_at", "legal_name", "display_name", "updated_at")
+     SELECT input.id, input.type, input.status, input.verification_status, input.verified_at,
+            input.legal_name, input.display_name, now()
        FROM unnest(
-         $1::uuid[], $2::"OrganizationType"[], $3::"OrganizationStatus"[], $4::text[], $5::text[]
-       ) AS input(id, type, status, legal_name, display_name)`,
-    [organizationIds, organizationTypes, organizationStatuses, legalNames, displayNames],
+         $1::uuid[], $2::"OrganizationType"[], $3::"OrganizationStatus"[],
+         $4::"VerificationStatus"[], $5::timestamptz[], $6::text[], $7::text[]
+       ) AS input(id, type, status, verification_status, verified_at, legal_name, display_name)`,
+    [
+      organizationIds,
+      organizationTypes,
+      organizationStatuses,
+      verificationStatuses,
+      verifiedAt,
+      legalNames,
+      displayNames,
+    ],
+  );
+
+  const hospitalIds = organizationIds.filter((_, index) => organizationTypes[index] === "HOSPITAL");
+  const profileSlugs = hospitalIds.map(
+    (_, index) => `synthetic-hospital-${String(index).padStart(6, "0")}`,
+  );
+  await client.query(
+    `INSERT INTO "organization_public_profiles"
+       ("organization_id", "slug", "status", "published_at", "updated_at")
+     SELECT input.organization_id, input.slug, 'PUBLISHED', now(), now()
+       FROM unnest($1::uuid[], $2::text[]) AS input(organization_id, slug)`,
+    [hospitalIds, profileSlugs],
+  );
+
+  const locationIds = hospitalIds.map(() => v7());
+  const states = hospitalIds.map((_, index) => (index % 100 === 0 ? "Lagos" : "Ogun"));
+  const cities = hospitalIds.map((_, index) => (index % 100 === 0 ? "Ikeja" : "Abeokuta"));
+  await client.query(
+    `INSERT INTO "facility_locations"
+       ("id", "organization_id", "label", "address_line_1", "city", "state", "country_code",
+        "is_primary", "is_public", "updated_at")
+     SELECT input.id, input.organization_id, 'Main facility', 'Synthetic address', input.city,
+            input.state, 'NG', true, true, now()
+       FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[])
+            AS input(id, organization_id, state, city)`,
+    [locationIds, hospitalIds, states, cities],
+  );
+
+  const discoveryServiceIds = Array.from({ length: 50 }, () => v7());
+  const discoveryServiceCodes = discoveryServiceIds.map(
+    (_, index) => `query-plan-service-${String(index).padStart(3, "0")}`,
+  );
+  await client.query(
+    `INSERT INTO "service_taxonomies" ("id", "code", "name", "category", "updated_at")
+     SELECT input.id, input.code, input.code, 'Query plan fixtures', now()
+       FROM unnest($1::uuid[], $2::text[]) AS input(id, code)`,
+    [discoveryServiceIds, discoveryServiceCodes],
+  );
+  const offeringIds = hospitalIds.map(() => v7());
+  const offeringServiceIds = hospitalIds.map(
+    (_, index) => discoveryServiceIds[index % discoveryServiceIds.length],
+  );
+  await client.query(
+    `INSERT INTO "organization_services"
+       ("id", "organization_id", "service_id", "updated_at")
+     SELECT input.id, input.organization_id, input.service_id, now()
+       FROM unnest($1::uuid[], $2::uuid[], $3::uuid[])
+            AS input(id, organization_id, service_id)`,
+    [offeringIds, hospitalIds, offeringServiceIds],
   );
 
   const auditIds = Array.from({ length: AUDIT_EVENT_COUNT }, () => v7());
@@ -187,11 +307,28 @@ async function reviewPlan(
   sql: string,
   values: readonly unknown[],
   requiredIndex: string,
+  options: { forceIndexEligibility?: boolean } = {},
 ): Promise<Record<string, unknown>> {
-  const result = await client.query<{ "QUERY PLAN": ExplainDocument[] }>(
-    `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`,
-    [...values],
-  );
+  if (options.forceIndexEligibility === true) {
+    // Small fixtures can legitimately make a sequential scan cheaper. Disabling it
+    // and ordered B-tree scans for this statement proves the ILIKE operator can use
+    // the intended trigram index; it is not presented as the planner's natural
+    // production choice.
+    await client.query("SET LOCAL enable_seqscan = off");
+    await client.query("SET LOCAL enable_indexscan = off");
+    await client.query("SET LOCAL enable_indexonlyscan = off");
+  }
+  const result = await client
+    .query<{ "QUERY PLAN": ExplainDocument[] }>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`, [
+      ...values,
+    ])
+    .finally(async () => {
+      if (options.forceIndexEligibility === true) {
+        await client.query("SET LOCAL enable_seqscan TO DEFAULT");
+        await client.query("SET LOCAL enable_indexscan TO DEFAULT");
+        await client.query("SET LOCAL enable_indexonlyscan TO DEFAULT");
+      }
+    });
   const document = result.rows[0]?.["QUERY PLAN"]?.[0];
   if (document === undefined) throw new Error(`PostgreSQL returned no plan for ${query}`);
 
@@ -205,6 +342,10 @@ async function reviewPlan(
   return {
     query,
     requiredIndex,
+    accessMode:
+      options.forceIndexEligibility === true
+        ? "forced eligibility proof; not the natural small-fixture plan"
+        : "natural representative plan",
     observedIndexes: [...indexes].sort(),
     planningTimeMs: document["Planning Time"],
     executionTimeMs: document["Execution Time"],

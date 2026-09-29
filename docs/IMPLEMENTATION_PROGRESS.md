@@ -123,7 +123,25 @@ that completes an increment.
     consent, redaction, audit, and protected-route tests.
   - `[x]` Complete full repository, migration, security, and remote CI validation;
     publish the completion report; commit and push.
-- `[ ]` **Increment 06 — Public discovery vertical slice**
+- `[~]` **Increment 06 — Public discovery vertical slice**
+  - `[x]` Add normalized organization public profiles, facility locations, service
+    taxonomy, organization offerings, and facility-specific availability with
+    database constraints and discovery indexes.
+  - `[x]` Add public-safe hospital, pharmacy, laboratory, and service contracts plus a
+    bounded, stable cursor API that excludes unverified, unpublished, suspended, and
+    private data.
+  - `[x]` Add narrowly allowlisted BFF routes and connect the patient hospital,
+    pharmacy, and laboratory finders to server-side search, service/location filters,
+    accessible retry states, and pagination.
+  - `[x]` Complete PostgreSQL migration, repeatable synthetic seed, zero-drift,
+    clean-upgrade/repair, bounded-query, query-plan, API/web test, and production-build
+    evidence for organization discovery.
+  - `[!]` Provider discovery is intentionally not modelled as an organization. It
+    requires approved provider-affiliation, public credential, specialty taxonomy,
+    independent-practice, and public-field rules before its durable schema is created.
+  - `[ ]` Introduce the generated API client required by the controlling plan, connect
+    provider discovery after the material decisions above, then publish the Increment
+    06 completion report.
 - `[ ]` **Increment 07 — Onboarding and administrative verification**
 - `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
@@ -178,3 +196,10 @@ separately blocked and mandatory.
 Increment 05 completed in `a2fbd29`. Named policies now default deny and append every
 protected decision to the immutable audit store. All unmigrated prototype APIs fail
 closed in staging and production. Increment 06 is the next implementation step.
+
+Increment 06 uses only explicitly synthetic discovery labels until the clinical/service
+taxonomy is approved. The generic taxonomy model is production-capable, but its seed
+terms are demonstration data and must not be promoted as a clinically governed catalogue.
+The deferred Increment 04B identity-provider decision remains a mandatory gate before
+protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
+it does not block synthetic implementation and validation of Increments 06–11.

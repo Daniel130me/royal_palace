@@ -1,4 +1,4 @@
-import { cp, mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -119,6 +119,7 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const externalIdentityId = v7();
   const sessionId = v7();
   const auditId = v7();
+  const verifiedOrganizationId = v7();
 
   await client.connect();
   try {
@@ -133,6 +134,40 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
     await client.query(
       'INSERT INTO "organizations" ("id", "type", "legal_name", "display_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
       [organizationId, "HOSPITAL", "Synthetic Hospital Limited", "Synthetic Hospital"],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "organizations" ("id", "type", "verification_status", "legal_name", "display_name", "updated_at") VALUES ($1, $2, $3, $4, $5, now())',
+      [
+        verifiedOrganizationId,
+        "HOSPITAL",
+        "VERIFIED",
+        "Invalid Hospital Limited",
+        "Invalid Hospital",
+      ],
+      "23514",
+    );
+    await client.query(
+      'INSERT INTO "organizations" ("id", "type", "verification_status", "verified_at", "legal_name", "display_name", "updated_at") VALUES ($1, $2, $3, now(), $4, $5, now())',
+      [
+        verifiedOrganizationId,
+        "HOSPITAL",
+        "VERIFIED",
+        "Verified Synthetic Hospital Limited",
+        "Verified Synthetic Hospital",
+      ],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "organization_public_profiles" ("organization_id", "slug", "status", "updated_at") VALUES ($1, $2, $3, now())',
+      [verifiedOrganizationId, "missing-published-at", "PUBLISHED"],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "facility_locations" ("id", "organization_id", "label", "address_line_1", "city", "state", "country_code", "latitude", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
+      [v7(), verifiedOrganizationId, "Main", "Address", "Ikeja", "Lagos", "NG", 6.5],
+      "23514",
     );
     await client.query(
       'INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at") VALUES ($1, $2, $3, now())',
@@ -213,13 +248,13 @@ function isPostgresError(error: unknown): error is Error & { code: string } {
 }
 
 async function assertMigrationsAreTransactional(): Promise<void> {
-  const migrations = [
-    "20260928120000_foundation_identity_and_organizations",
-    "20260928121000_foundation_reliability_records",
-    "20260928143000_vendor_neutral_identity_sessions",
-  ];
+  const migrationsRoot = join(prismaRoot, "migrations");
+  const migrations = (await readdir(migrationsRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
   for (const migration of migrations) {
-    const sql = (await readFile(join(prismaRoot, "migrations", migration, "migration.sql"), "utf8"))
+    const sql = (await readFile(join(migrationsRoot, migration, "migration.sql"), "utf8"))
       .trim()
       .toUpperCase();
     if (!sql.startsWith("BEGIN;") || !sql.endsWith("COMMIT;")) {

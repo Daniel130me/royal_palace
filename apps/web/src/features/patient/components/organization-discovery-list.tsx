@@ -1,13 +1,19 @@
 "use client";
 
-import type { PublicOrganizationSummary, PublicService } from "@royal-palace/contracts";
-import { Building2, Clock3, MapPin, Search, ShieldCheck, Siren, Stethoscope } from "lucide-react";
+import type {
+  PublicOrganizationSummary,
+  PublicOrganizationType,
+  PublicService,
+} from "@royal-palace/contracts";
+import type { LucideIcon } from "lucide-react";
+import { MapPin, Search, ShieldCheck, Stethoscope } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import { EmptyState, PageHeader, SkeletonGrid } from "@/components/healthcare/page-header";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -16,19 +22,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { initials } from "@/lib/format";
 import { publicDiscoveryService } from "@/lib/services";
 
 const PAGE_SIZE = 20;
-const SEARCH_DEBOUNCE_MS = 300;
+const FILTER_DEBOUNCE_MS = 300;
+const RESOURCE_BY_TYPE = {
+  LABORATORY: "laboratories",
+  PHARMACY: "pharmacies",
+} as const;
 
-export function PatientHospitals() {
-  const [hospitals, setHospitals] = useState<readonly PublicOrganizationSummary[]>([]);
+interface OrganizationDiscoveryListProps {
+  accentClassName: string;
+  description: string;
+  emptyDescription: string;
+  emptyTitle: string;
+  icon: LucideIcon;
+  organizationType: "PHARMACY" | "LABORATORY";
+  searchPlaceholder: string;
+  title: string;
+}
+
+export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps) {
+  const [items, setItems] = useState<readonly PublicOrganizationSummary[]>([]);
   const [services, setServices] = useState<readonly PublicService[]>([]);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [service, setService] = useState("all");
   const [state, setState] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [debouncedState, setDebouncedState] = useState("");
+  const [service, setService] = useState("all");
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -39,76 +61,73 @@ export function PatientHospitals() {
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
       setDebouncedState(state.trim());
-    }, SEARCH_DEBOUNCE_MS);
+    }, FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
   }, [query, state]);
 
   useEffect(() => {
     const controller = new AbortController();
     publicDiscoveryService
-      .services("HOSPITAL", controller.signal)
+      .services(props.organizationType, controller.signal)
       .then((response) => setServices(response.data))
       .catch((reason: unknown) => {
-        if (!isAbort(reason)) {
-          setError("Services could not be loaded. You can still search hospitals.");
-        }
+        if (!isAbort(reason)) setError("Service filters could not be loaded.");
       });
     return () => controller.abort();
-  }, []);
+  }, [props.organizationType]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
     publicDiscoveryService
-      .hospitals(
-        discoveryParameters({ debouncedQuery, debouncedState, service }),
+      .organizations(
+        RESOURCE_BY_TYPE[props.organizationType],
+        listParameters({ debouncedQuery, debouncedState, service }),
         controller.signal,
       )
       .then((response) => {
-        setHospitals(response.data);
+        setItems(response.data);
         setCursor(response.pageInfo.hasNextPage ? response.pageInfo.endCursor : null);
       })
       .catch((reason: unknown) => {
-        if (!isAbort(reason)) setError("Hospitals could not be loaded. Please try again.");
+        if (!isAbort(reason)) setError("Organizations could not be loaded. Please try again.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [debouncedQuery, debouncedState, reloadKey, service]);
+  }, [debouncedQuery, debouncedState, props.organizationType, reloadKey, service]);
 
   const loadMore = useCallback(async () => {
     if (cursor === null || loadingMore) return;
     setLoadingMore(true);
     setError(null);
     try {
-      const response = await publicDiscoveryService.hospitals({
-        ...discoveryParameters({ debouncedQuery, debouncedState, service }),
-        cursor,
-      });
-      setHospitals((current) => [...current, ...response.data]);
+      const response = await publicDiscoveryService.organizations(
+        RESOURCE_BY_TYPE[props.organizationType],
+        { ...listParameters({ debouncedQuery, debouncedState, service }), cursor },
+      );
+      setItems((current) => [...current, ...response.data]);
       setCursor(response.pageInfo.hasNextPage ? response.pageInfo.endCursor : null);
     } catch {
-      setError("More hospitals could not be loaded. Please try again.");
+      setError("More organizations could not be loaded. Please try again.");
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, debouncedQuery, debouncedState, loadingMore, service]);
+  }, [cursor, debouncedQuery, debouncedState, loadingMore, props.organizationType, service]);
 
+  const Icon = props.icon;
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Find a hospital"
-        description="Filter verified hospitals by the care or service you need."
-      />
+      <PageHeader title={props.title} description={props.description} />
       <div className="grid gap-2 md:grid-cols-[1fr_220px_180px]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="Search hospitals"
+            aria-label={`Search ${props.title.toLowerCase()}`}
             className="pl-9"
-            placeholder="Search hospital, location or service…"
+            placeholder={props.searchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -135,7 +154,7 @@ export function PatientHospitals() {
         />
       </div>
       <div aria-live="polite" className="sr-only">
-        {loading ? "Loading hospitals" : `${hospitals.length} hospitals shown`}
+        {loading ? "Loading organizations" : `${items.length} organizations shown`}
       </div>
       {error === null ? null : (
         <div
@@ -150,23 +169,57 @@ export function PatientHospitals() {
       )}
       {loading ? (
         <SkeletonGrid count={4} />
-      ) : hospitals.length === 0 ? (
-        <EmptyState
-          icon={Building2}
-          title="No matching hospitals"
-          description="Try another service, state or search term."
-        />
+      ) : items.length === 0 ? (
+        <EmptyState icon={Icon} title={props.emptyTitle} description={props.emptyDescription} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {hospitals.map((hospital) => (
-            <HospitalCard key={hospital.id} hospital={hospital} />
-          ))}
+        <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-card">
+          {items.map((item) => {
+            const location = item.locations[0];
+            return (
+              <CompactListItem
+                key={item.id}
+                leading={
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className={props.accentClassName}>
+                      {initials(item.displayName)}
+                    </AvatarFallback>
+                  </Avatar>
+                }
+                title={item.displayName}
+                subtitle={
+                  location === undefined
+                    ? undefined
+                    : `${location.addressLine1}, ${location.city}, ${location.state}`
+                }
+                trailing={
+                  <div className="flex max-w-64 flex-wrap justify-end gap-1">
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
+                      <ShieldCheck className="mr-1 h-3 w-3" />
+                      Verified
+                    </Badge>
+                    {item.services.slice(0, 2).map((offering) => (
+                      <Badge key={offering.id} variant="secondary">
+                        <Stethoscope className="mr-1 h-3 w-3" />
+                        {offering.name}
+                      </Badge>
+                    ))}
+                    {location === undefined ? null : (
+                      <Badge variant="outline">
+                        <MapPin className="mr-1 h-3 w-3" />
+                        {location.city}
+                      </Badge>
+                    )}
+                  </div>
+                }
+              />
+            );
+          })}
         </div>
       )}
       {!loading && cursor !== null ? (
         <div className="flex justify-center">
           <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore ? "Loading…" : "Load more hospitals"}
+            {loadingMore ? "Loading…" : "Load more"}
           </Button>
         </div>
       ) : null}
@@ -174,57 +227,7 @@ export function PatientHospitals() {
   );
 }
 
-function HospitalCard({ hospital }: { hospital: PublicOrganizationSummary }) {
-  const location = hospital.locations[0];
-  return (
-    <Card>
-      <CardContent className="space-y-3 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">{hospital.displayName}</h2>
-            {location === undefined ? null : (
-              <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" />
-                {location.addressLine1}, {location.city}, {location.state}
-              </p>
-            )}
-          </div>
-          <Badge className="bg-emerald-50 text-emerald-700">
-            <ShieldCheck className="mr-1 h-3 w-3" />
-            Verified
-          </Badge>
-        </div>
-        {hospital.summary === null ? null : (
-          <p className="text-sm text-muted-foreground">{hospital.summary}</p>
-        )}
-        <div className="flex flex-wrap gap-1.5">
-          {hospital.services.map((item) => (
-            <Badge key={item.id} variant="outline">
-              <Stethoscope className="mr-1 h-3 w-3" />
-              {item.name}
-            </Badge>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          {hospital.openTwentyFourHours ? (
-            <span className="flex items-center gap-1">
-              <Clock3 className="h-3.5 w-3.5" />
-              Open 24 hours
-            </span>
-          ) : null}
-          {hospital.emergencyAvailable ? (
-            <span className="flex items-center gap-1 text-rose-600">
-              <Siren className="h-3.5 w-3.5" />
-              Emergency care
-            </span>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function discoveryParameters(input: {
+function listParameters(input: {
   debouncedQuery: string;
   debouncedState: string;
   service: string;

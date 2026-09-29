@@ -18,7 +18,15 @@ const ACTIVE_PRODUCTION_BFF_ROUTES = new Set([
   "/api/bff/auth/logout",
   "/api/bff/auth/refresh",
   "/api/bff/auth/session",
+  "/api/public/hospitals",
+  "/api/public/laboratories",
+  "/api/public/pharmacies",
+  "/api/public/services",
 ]);
+const ACTIVE_DYNAMIC_BFF_ROUTES = [
+  /^\/api\/public\/hospitals\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  /^\/api\/public\/(?:laboratories|pharmacies)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+] as const;
 
 export function proxy(request: NextRequest): NextResponse {
   const context = resolveRequestContext({
@@ -99,7 +107,10 @@ export function proxy(request: NextRequest): NextResponse {
 
 export function isApiRouteEnabled(environment: ApplicationEnvironment, pathname: string): boolean {
   if (!pathname.startsWith("/api/") || !PROTECTED_ENVIRONMENTS.has(environment)) return true;
-  return ACTIVE_PRODUCTION_BFF_ROUTES.has(pathname);
+  return (
+    ACTIVE_PRODUCTION_BFF_ROUTES.has(pathname) ||
+    ACTIVE_DYNAMIC_BFF_ROUTES.some((pattern) => pattern.test(pathname))
+  );
 }
 
 function requiresCsrfProtection(request: NextRequest): boolean {
