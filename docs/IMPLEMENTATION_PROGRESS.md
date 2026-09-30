@@ -150,9 +150,18 @@ that completes an increment.
     adopt it in the frontend service boundary and connect the patient practitioner finder.
   - `[x]` Publish the completion report and pass the complete repository, migration,
     discovery, query-plan, generated-client, build, and dependency-audit gates.
-- `[~]` **Increment 07 — Onboarding and administrative verification**
+- `[x]` **Increment 07 — Onboarding and administrative verification**
   - Evidence:
     [`increments/07-onboarding-and-administrative-verification.md`](./increments/07-onboarding-and-administrative-verification.md)
+  - Implementation commits: `13915dc`, `40090f4`
+  - `[x]` Add normalized patient, organization, and independent-practitioner application
+    aggregates with a constraint-backed seven-state lifecycle and append-only history.
+  - `[x]` Enforce applicant ownership, support review-only access, administrator-only
+    decisions, manager exclusion, and facility-independent practitioner approval.
+  - `[x]` Connect applicant, support, administrator, and governed clinical-catalogue
+    interfaces through exact CSRF-protected BFF routes and generated API contracts.
+  - `[x]` Pass clean/upgrade/repair migration, constraint, drift, repeatable seed,
+    bounded-query, representative index-plan, repository, audit, and secret-scan gates.
 - `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
@@ -219,7 +228,13 @@ in prototype screens, legacy SQLite models, tests, or synthetic fixtures are not
 production defaults and must be removed or routed through governed localization data as
 each vertical slice migrates. New production work must not introduce an implicit
 country, currency, locale, language, time zone, regulator, or regional provider.
-Increment 07 is the next implementation step.
+Increment 07 completed in `13915dc` and `40090f4`. Its production onboarding and
+administrative-verification path uses normalized application aggregates, append-only
+history, administrator-only decisions, support review-only access, manager exclusion,
+bounded keyset queues, exact BFF allowlisting, and generated contracts. Real document
+upload/release remains fail-closed until Increment 10; qualified clinical catalogue
+governance remains mandatory before real-data launch. Increment 08 is the next
+implementation step.
 The deferred Increment 04B identity-provider decision remains a mandatory gate before
 protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
 it does not block synthetic implementation and validation of Increments 06–11.

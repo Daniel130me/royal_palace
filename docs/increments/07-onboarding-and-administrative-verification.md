@@ -2,10 +2,10 @@
 
 ## Status
 
-**Implementation complete; remote database/CI evidence pending.** This is the checked
-execution record for Increment 07. A checked item means the implementation and its
-focused evidence exist. The increment is not closed until the exact pushed commit passes
-the PostgreSQL and repository CI gates.
+**Complete.** This is the checked execution record for Increment 07. The implementation
+commits are `13915dc` and `40090f4`. The exact replacement workflow for `40090f4` passed
+the repository verification/audit, PostgreSQL 17.6 migration/query-plan, and full-history
+secret-scan jobs: [GitHub Actions run 36714439558](https://github.com/Daniel130me/royal_palace/actions/runs/36714439558).
 
 ## Architecture checklist
 
@@ -56,7 +56,7 @@ the PostgreSQL and repository CI gates.
       dependency-audit gates pass.
 - [x] Completion report records deployment order, rollback procedure, deferred work, and
       the required maintainability/security/performance walkthrough.
-- [ ] Conventional commits are pushed to `origin/feat_prod` and the exact remote CI run
+- [x] Conventional commits are pushed to `origin/feat_prod` and the exact remote CI run
       succeeds.
 
 ## Non-negotiable carried boundaries
@@ -193,5 +193,5 @@ the deferred typed-detail trigger; the trigger was corrected and the entire disp
 database pipeline was rerun successfully instead of suppressing or bypassing the invariant.
 
 **Approval gate requested:** None. The product owner previously authorized autonomous
-delivery through the approved sequence. Increment 07 will be marked complete only after the
-implementation commit is pushed and its exact remote CI run succeeds.
+delivery through the approved sequence. Increment 07 is complete; Increment 08 is the next
+approved implementation step.
