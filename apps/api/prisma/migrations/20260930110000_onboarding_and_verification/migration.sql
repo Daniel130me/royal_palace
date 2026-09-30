@@ -509,30 +509,38 @@ CREATE TRIGGER "onboarding_applications_identity_immutable"
 CREATE OR REPLACE FUNCTION enforce_application_typed_detail()
 RETURNS trigger AS $$
 DECLARE
-  application_id uuid;
+  target_application_id uuid;
   application_kind "OnboardingApplicationKind";
   patient_count integer;
   organization_count integer;
   practitioner_count integer;
 BEGIN
   IF TG_TABLE_NAME = 'onboarding_applications' THEN
-    application_id := COALESCE(NEW."id", OLD."id");
+    IF TG_OP = 'DELETE' THEN
+      target_application_id := OLD."id";
+    ELSE
+      target_application_id := NEW."id";
+    END IF;
   ELSE
-    application_id := COALESCE(NEW."application_id", OLD."application_id");
+    IF TG_OP = 'DELETE' THEN
+      target_application_id := OLD."application_id";
+    ELSE
+      target_application_id := NEW."application_id";
+    END IF;
   END IF;
 
   SELECT "kind" INTO application_kind
-    FROM "onboarding_applications" WHERE "id" = application_id;
+    FROM "onboarding_applications" WHERE "id" = target_application_id;
   IF application_kind IS NULL THEN
     RETURN NULL;
   END IF;
 
   SELECT count(*) INTO patient_count
-    FROM "patient_application_details" WHERE "application_id" = application_id;
+    FROM "patient_application_details" WHERE "application_id" = target_application_id;
   SELECT count(*) INTO organization_count
-    FROM "organization_application_details" WHERE "application_id" = application_id;
+    FROM "organization_application_details" WHERE "application_id" = target_application_id;
   SELECT count(*) INTO practitioner_count
-    FROM "practitioner_application_details" WHERE "application_id" = application_id;
+    FROM "practitioner_application_details" WHERE "application_id" = target_application_id;
 
   IF patient_count + organization_count + practitioner_count <> 1
     OR (application_kind = 'PATIENT' AND patient_count <> 1)

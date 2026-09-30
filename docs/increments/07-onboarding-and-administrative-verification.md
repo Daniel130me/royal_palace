@@ -43,13 +43,13 @@ the PostgreSQL and repository CI gates.
 
 ## Evidence checklist
 
-- [ ] Migration clean-install, prior-schema upgrade, rollback/repair, constraints, and
+- [x] Migration clean-install, prior-schema upgrade, rollback/repair, constraints, and
       zero-drift checks pass.
 - [x] Authorization matrix proves applicant ownership, support review-only access,
       administrator-only decisions, and manager exclusion.
 - [x] Illegal/concurrent transitions fail atomically and every successful decision is
       auditable.
-- [ ] List queries are bounded, scope predicates execute in PostgreSQL, query counts are
+- [x] List queries are bounded, scope predicates execute in PostgreSQL, query counts are
       fixed, and representative plans use intended indexes.
 - [x] API, generated-client, BFF, and frontend state tests pass.
 - [x] Repository format, lint, strict type-check, test, production build, Prisma, and
@@ -133,16 +133,18 @@ applicant history use bounded keyset pagination with fixed projection shapes. Th
 index follows `status, createdAt DESC, id DESC`; applicant history uses the application/time
 index. Catalogue lists are bounded to 100 records and hierarchy checks use narrow indexed
 lookups. Approval validates selected catalogue records in bounded queries inside the same
-transaction. The PostgreSQL CI gate seeds 10,000 applications and verifies representative
-review and applicant-history plans; exact remote evidence is intentionally left unchecked
-until the pushed commit passes.
+transaction. The local PostgreSQL gate seeded 10,000 applications and both the review and
+applicant-history queries naturally used their intended indexes. The exact PostgreSQL 17.6
+remote evidence is intentionally left unchecked until the pushed repair passes.
 
 **Tests run with exact command and result:** `pnpm verify` passed locally after the final
 dependency resolution: formatting; eight-package lint and strict type-check; API tests
 (19 files, 175 tests); web tests (5 files, 33 tests); worker and shared-package tests; all
 eight production builds; generated-client drift checks; 56 Next.js routes and standalone
 packaging; and both Prisma schema validations. `pnpm audit --audit-level moderate` reported
-`No known vulnerabilities found`.
+`No known vulnerabilities found`. The PostgreSQL commands `pnpm db:migrate:verify`,
+`db:migrate:deploy`, `db:drift:check`, two `db:seed` executions, `db:discovery:verify`, and
+`pnpm db:query-plans` passed against a disposable native PostgreSQL 18 database.
 
 **Build/lint/type-check result:** Passed with zero lint, type, generated-client, build, or
 schema-validation failures.
@@ -172,8 +174,9 @@ remaining presentation review and must be removed as its owning vertical slices 
 appointments/payments to Increment 09; object storage, malware scanning, notifications, and
 durable workers to Increment 10; production identity-provider qualification to mandatory
 Increment 04B; and real catalogue/public-credential use remains gated by clinical, privacy,
-and legal approval. Local Docker/PostgreSQL was unavailable, so database migration and plan
-evidence must come from the exact PostgreSQL 17.6 CI run before this increment is closed.
+and legal approval. Docker Desktop remains unavailable, but the complete database pipeline
+passed against a disposable native PostgreSQL 18 database. The exact PostgreSQL 17.6 CI run
+must still pass before this increment is closed.
 
 **Maintainability review:** Confirmed. Names and module boundaries are readable; domain
 transitions and database invariants are centralized; non-obvious security and constraint
@@ -185,7 +188,9 @@ client-authoritative identity checks were added. Security is fail-closed, querie
 bounded/indexed, audit history is append-only, and the dependency audit is clean. The
 deliberately incomplete storage/scanning, provider qualification, clinical governance, and
 legacy-prototype retirement boundaries are explicitly flagged rather than presented as
-production-ready.
+production-ready. The first remote run also found a PL/pgSQL variable/column collision in
+the deferred typed-detail trigger; the trigger was corrected and the entire disposable
+database pipeline was rerun successfully instead of suppressing or bypassing the invariant.
 
 **Approval gate requested:** None. The product owner previously authorized autonomous
 delivery through the approved sequence. Increment 07 will be marked complete only after the
