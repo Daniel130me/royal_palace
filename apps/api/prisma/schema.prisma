@@ -68,6 +68,35 @@ enum ConsultationMode {
   HOME_VISIT
 }
 
+enum OnboardingApplicationKind {
+  PATIENT
+  ORGANIZATION
+  PRACTITIONER
+}
+
+enum OnboardingApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  MORE_INFORMATION_REQUIRED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationNoteVisibility {
+  APPLICANT
+  INTERNAL
+}
+
+enum ApplicationDocumentStatus {
+  AWAITING_UPLOAD
+  QUARANTINED
+  SCANNING
+  CLEAN
+  REJECTED
+}
+
 enum RoleScope {
   PLATFORM
   ORGANIZATION
@@ -121,9 +150,34 @@ model IdentityPrincipal {
   auditEvents        AuditEvent[]       @relation("AuditActor")
   idempotencyKeys    IdempotencyKey[]
   practitioner       Practitioner?
+  patient                    Patient?
+  onboardingApplications     OnboardingApplication[]       @relation("OnboardingApplicant")
+  startedApplicationReviews  OnboardingApplication[]       @relation("OnboardingReviewStarter")
+  decidedApplications        OnboardingApplication[]       @relation("OnboardingDecider")
+  applicationStatusHistory   ApplicationStatusHistory[]    @relation("ApplicationHistoryActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
+}
+
+model Patient {
+  id                  String                @id @db.Uuid
+  principalId         String                @unique @map("principal_id") @db.Uuid
+  givenName           String                @map("given_name") @db.VarChar(100)
+  familyName          String                @map("family_name") @db.VarChar(100)
+  dateOfBirth         DateTime?             @map("date_of_birth") @db.Date
+  phoneE164           String?               @map("phone_e164") @db.VarChar(16)
+  countryCode         String?               @map("country_code") @db.Char(2)
+  preferredLanguage   String?               @map("preferred_language") @db.VarChar(35)
+  onboardedAt         DateTime              @default(now()) @map("onboarded_at") @db.Timestamptz(6)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                   @default(1)
+  principal           IdentityPrincipal     @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  approvedApplication OnboardingApplication? @relation("ApprovedPatientApplication")
+
+  @@index([familyName, givenName, id], map: "patients_name_id_idx")
+  @@map("patients")
 }
 
 model ExternalIdentity {
@@ -214,6 +268,9 @@ model Organization {
   facilityLocations        FacilityLocation[]
   organizationServices     OrganizationService[]
   practitionerAffiliations PractitionerAffiliation[]
+  approvedApplication      OnboardingApplication?          @relation("ApprovedOrganizationApplication")
+  practitionerApplicationSelections PractitionerApplicationDetail[]
+  registrations            OrganizationRegistration[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -240,6 +297,23 @@ model OrganizationPublicProfile {
   @@index([status, publishedAt(sort: Desc), organizationId], map: "organization_public_profiles_status_published_idx")
   @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "organization_public_profiles_summary_trgm_idx")
   @@map("organization_public_profiles")
+}
+
+model OrganizationRegistration {
+  id                 String       @id @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  registrationNumber String       @map("registration_number") @db.VarChar(160)
+  authorityName      String       @map("authority_name") @db.VarChar(200)
+  jurisdictionCode   String       @map("jurisdiction_code") @db.VarChar(16)
+  verifiedAt         DateTime?    @map("verified_at") @db.Timestamptz(6)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int          @default(1)
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([authorityName, jurisdictionCode, registrationNumber], map: "organization_registrations_authority_jurisdiction_number_key")
+  @@index([organizationId, verifiedAt, id], map: "organization_registrations_org_verified_idx")
+  @@map("organization_registrations")
 }
 
 model FacilityLocation {
@@ -283,6 +357,7 @@ model ServiceTaxonomy {
   updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
   version              Int                   @default(1)
   organizationServices OrganizationService[]
+  applicationRequests  OrganizationApplicationService[]
 
   @@index([status, category, name, id], map: "service_taxonomies_status_category_name_idx")
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "service_taxonomies_name_trgm_idx")
@@ -340,6 +415,7 @@ model ProfessionTaxonomy {
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                 Int                      @default(1)
   practitionerProfessions PractitionerProfession[]
+  applicationRequests     PractitionerApplicationProfession[]
 
   @@index([status, name, id], map: "profession_taxonomies_status_name_idx")
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "profession_taxonomies_name_trgm_idx")
@@ -364,6 +440,7 @@ model SpecialtyTaxonomy {
   parent                  SpecialtyTaxonomy?      @relation("SpecialtyHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children                SpecialtyTaxonomy[]     @relation("SpecialtyHierarchy")
   practitionerSpecialties PractitionerSpecialty[]
+  applicationRequests     PractitionerApplicationSpecialty[]
 
   @@index([status, category, name, id], map: "specialty_taxonomies_status_category_name_idx")
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "specialty_taxonomies_name_trgm_idx")
@@ -391,6 +468,8 @@ model Practitioner {
   languages          PractitionerLanguage[]
   affiliations       PractitionerAffiliation[]
   publicCredentials  PractitionerPublicCredential[]
+  credentials        PractitionerCredential[]
+  approvedApplication OnboardingApplication? @relation("ApprovedPractitionerApplication")
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -531,6 +610,192 @@ model PractitionerPublicCredential {
 
   @@index([practitionerId, isPublic, verifiedAt, id], map: "practitioner_credentials_public_idx")
   @@map("practitioner_public_credentials")
+}
+
+model PractitionerCredential {
+  id                 String             @id @db.Uuid
+  practitionerId     String             @map("practitioner_id") @db.Uuid
+  credentialType     String             @map("credential_type") @db.VarChar(80)
+  registrationNumber String             @map("registration_number") @db.VarChar(160)
+  issuerName         String             @map("issuer_name") @db.VarChar(200)
+  jurisdictionCode   String             @map("jurisdiction_code") @db.VarChar(16)
+  verifiedAt         DateTime?          @map("verified_at") @db.Timestamptz(6)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                @default(1)
+  practitioner       Practitioner       @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@unique([issuerName, jurisdictionCode, registrationNumber], map: "practitioner_credentials_issuer_jurisdiction_registration_key")
+  @@index([practitionerId, verifiedAt, id], map: "practitioner_credentials_practitioner_verified_idx")
+  @@map("practitioner_credentials")
+}
+
+model OnboardingApplication {
+  id                       String                      @id @db.Uuid
+  kind                     OnboardingApplicationKind
+  applicantPrincipalId     String                      @map("applicant_principal_id") @db.Uuid
+  status                   OnboardingApplicationStatus @default(DRAFT)
+  reviewStartedByPrincipalId String?                   @map("review_started_by_principal_id") @db.Uuid
+  decidedByPrincipalId     String?                     @map("decided_by_principal_id") @db.Uuid
+  submittedAt              DateTime?                   @map("submitted_at") @db.Timestamptz(6)
+  reviewStartedAt          DateTime?                   @map("review_started_at") @db.Timestamptz(6)
+  decidedAt                DateTime?                   @map("decided_at") @db.Timestamptz(6)
+  withdrawnAt              DateTime?                   @map("withdrawn_at") @db.Timestamptz(6)
+  approvedPatientId        String?                     @unique @map("approved_patient_id") @db.Uuid
+  approvedOrganizationId   String?                     @unique @map("approved_organization_id") @db.Uuid
+  approvedPractitionerId   String?                     @unique @map("approved_practitioner_id") @db.Uuid
+  createdAt                DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                         @default(1)
+  applicant                IdentityPrincipal           @relation("OnboardingApplicant", fields: [applicantPrincipalId], references: [id], onDelete: Restrict)
+  reviewStartedBy          IdentityPrincipal?          @relation("OnboardingReviewStarter", fields: [reviewStartedByPrincipalId], references: [id], onDelete: Restrict)
+  decidedBy                IdentityPrincipal?          @relation("OnboardingDecider", fields: [decidedByPrincipalId], references: [id], onDelete: Restrict)
+  approvedPatient          Patient?                    @relation("ApprovedPatientApplication", fields: [approvedPatientId], references: [id], onDelete: Restrict)
+  approvedOrganization     Organization?               @relation("ApprovedOrganizationApplication", fields: [approvedOrganizationId], references: [id], onDelete: Restrict)
+  approvedPractitioner     Practitioner?               @relation("ApprovedPractitionerApplication", fields: [approvedPractitionerId], references: [id], onDelete: Restrict)
+  patientDetail            PatientApplicationDetail?
+  organizationDetail       OrganizationApplicationDetail?
+  practitionerDetail       PractitionerApplicationDetail?
+  documents                ApplicationDocument[]
+  statusHistory            ApplicationStatusHistory[]
+
+  @@index([applicantPrincipalId, kind, status, createdAt(sort: Desc), id(sort: Desc)], map: "onboarding_applications_applicant_kind_status_created_idx")
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)], map: "onboarding_applications_review_queue_idx")
+  @@map("onboarding_applications")
+}
+
+model PatientApplicationDetail {
+  applicationId     String                 @id @map("application_id") @db.Uuid
+  givenName         String                 @map("given_name") @db.VarChar(100)
+  familyName        String                 @map("family_name") @db.VarChar(100)
+  dateOfBirth       DateTime?              @map("date_of_birth") @db.Date
+  phoneE164         String?                @map("phone_e164") @db.VarChar(16)
+  countryCode       String?                @map("country_code") @db.Char(2)
+  preferredLanguage String?                @map("preferred_language") @db.VarChar(35)
+  application       OnboardingApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@map("patient_application_details")
+}
+
+model OrganizationApplicationDetail {
+  applicationId          String                @id @map("application_id") @db.Uuid
+  organizationType       OrganizationType      @map("organization_type")
+  legalName              String                @map("legal_name") @db.VarChar(200)
+  displayName            String                @map("display_name") @db.VarChar(120)
+  registrationNumber     String                @map("registration_number") @db.VarChar(160)
+  registrationAuthority  String                @map("registration_authority") @db.VarChar(200)
+  jurisdictionCode       String                @map("jurisdiction_code") @db.VarChar(16)
+  contactName            String                @map("contact_name") @db.VarChar(160)
+  contactEmail           String                @map("contact_email") @db.VarChar(320)
+  contactPhoneE164       String?               @map("contact_phone_e164") @db.VarChar(16)
+  addressLine1           String?               @map("address_line_1") @db.VarChar(200)
+  addressLine2           String?               @map("address_line_2") @db.VarChar(200)
+  locality               String?               @db.VarChar(100)
+  administrativeArea     String?               @map("administrative_area") @db.VarChar(100)
+  postalCode             String?               @map("postal_code") @db.VarChar(32)
+  countryCode            String                @map("country_code") @db.Char(2)
+  application            OnboardingApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  requestedServices      OrganizationApplicationService[]
+  @@index([registrationAuthority, jurisdictionCode, registrationNumber], map: "organization_application_details_registration_idx")
+  @@index([countryCode, administrativeArea, locality], map: "organization_application_details_location_idx")
+  @@map("organization_application_details")
+}
+
+model OrganizationApplicationService {
+  applicationId String                        @map("application_id") @db.Uuid
+  serviceId     String                        @map("service_id") @db.Uuid
+  application   OrganizationApplicationDetail @relation(fields: [applicationId], references: [applicationId], onDelete: Restrict)
+  service       ServiceTaxonomy               @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@id([applicationId, serviceId])
+  @@index([serviceId, applicationId], map: "organization_application_services_service_idx")
+  @@map("organization_application_services")
+}
+
+model PractitionerApplicationDetail {
+  applicationId          String                @id @map("application_id") @db.Uuid
+  givenName              String                @map("given_name") @db.VarChar(100)
+  familyName             String                @map("family_name") @db.VarChar(100)
+  honorific              String?               @db.VarChar(40)
+  biography              String?               @db.VarChar(3000)
+  credentialType         String                @map("credential_type") @db.VarChar(80)
+  registrationNumber     String                @map("registration_number") @db.VarChar(160)
+  registrationAuthority  String                @map("registration_authority") @db.VarChar(200)
+  jurisdictionCode       String                @map("jurisdiction_code") @db.VarChar(16)
+  selectedOrganizationId String?               @map("selected_organization_id") @db.Uuid
+  facilityName           String?               @map("facility_name") @db.VarChar(200)
+  application            OnboardingApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  selectedOrganization   Organization?         @relation(fields: [selectedOrganizationId], references: [id], onDelete: Restrict)
+  requestedProfessions   PractitionerApplicationProfession[]
+  requestedSpecialties   PractitionerApplicationSpecialty[]
+
+  @@index([registrationAuthority, jurisdictionCode, registrationNumber], map: "practitioner_application_details_registration_idx")
+  @@index([selectedOrganizationId, applicationId], map: "practitioner_application_details_organization_idx")
+  @@map("practitioner_application_details")
+}
+
+model PractitionerApplicationProfession {
+  applicationId String                         @map("application_id") @db.Uuid
+  professionId  String                         @map("profession_id") @db.Uuid
+  isPrimary     Boolean                        @default(false) @map("is_primary")
+  application   PractitionerApplicationDetail  @relation(fields: [applicationId], references: [applicationId], onDelete: Restrict)
+  profession    ProfessionTaxonomy             @relation(fields: [professionId], references: [id], onDelete: Restrict)
+
+  @@id([applicationId, professionId])
+  @@index([professionId, applicationId], map: "practitioner_application_professions_profession_idx")
+  @@map("practitioner_application_professions")
+}
+
+model PractitionerApplicationSpecialty {
+  applicationId String                         @map("application_id") @db.Uuid
+  specialtyId   String                         @map("specialty_id") @db.Uuid
+  isPrimary     Boolean                        @default(false) @map("is_primary")
+  application   PractitionerApplicationDetail  @relation(fields: [applicationId], references: [applicationId], onDelete: Restrict)
+  specialty     SpecialtyTaxonomy              @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@id([applicationId, specialtyId])
+  @@index([specialtyId, applicationId], map: "practitioner_application_specialties_specialty_idx")
+  @@map("practitioner_application_specialties")
+}
+
+model ApplicationDocument {
+  id                  String                    @id @db.Uuid
+  applicationId       String                    @map("application_id") @db.Uuid
+  purpose             String                    @db.VarChar(80)
+  originalFilename    String                    @map("original_filename") @db.VarChar(255)
+  declaredContentType String                    @map("declared_content_type") @db.VarChar(127)
+  declaredSizeBytes   Int                       @map("declared_size_bytes")
+  declaredSha256      String                    @map("declared_sha256") @db.Char(64)
+  storageObjectKey    String?                   @unique @map("storage_object_key") @db.VarChar(1024)
+  status              ApplicationDocumentStatus @default(AWAITING_UPLOAD)
+  statusReasonCode    String?                   @map("status_reason_code") @db.VarChar(100)
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                       @default(1)
+  application         OnboardingApplication     @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, status, createdAt, id], map: "application_documents_application_status_idx")
+  @@map("application_documents")
+}
+
+model ApplicationStatusHistory {
+  id               String                      @id @db.Uuid
+  applicationId    String                      @map("application_id") @db.Uuid
+  fromStatus       OnboardingApplicationStatus? @map("from_status")
+  toStatus         OnboardingApplicationStatus  @map("to_status")
+  actorPrincipalId String?                     @map("actor_principal_id") @db.Uuid
+  reasonCategory   String                      @map("reason_category") @db.VarChar(100)
+  note             String?                     @db.VarChar(2000)
+  noteVisibility   ApplicationNoteVisibility   @map("note_visibility")
+  requestId        String                      @map("request_id") @db.VarChar(128)
+  correlationId    String?                     @map("correlation_id") @db.VarChar(128)
+  occurredAt       DateTime                    @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  application      OnboardingApplication       @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  actor            IdentityPrincipal?          @relation("ApplicationHistoryActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, occurredAt, id], map: "application_status_history_application_occurred_idx")
+  @@index([actorPrincipalId, occurredAt(sort: Desc), id(sort: Desc)], map: "application_status_history_actor_occurred_idx")
+  @@map("application_status_history")
 }
 
 model Membership {

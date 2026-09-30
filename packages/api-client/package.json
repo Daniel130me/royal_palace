@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "generate": "openapi-typescript openapi/public-discovery.yaml -o src/generated/public-discovery.ts",
+    "generate": "openapi-typescript openapi/public-discovery.yaml -o src/generated/public-discovery.ts && openapi-typescript openapi/onboarding.yaml -o src/generated/onboarding.ts",
     "generate:check": "node scripts/check-generated.mjs",
     "lint": "eslint .",
     "test": "vitest run",

@@ -60,6 +60,7 @@ function baselineRequest(
       };
     case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
     case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
+    case AUTHORIZATION_POLICY.MANAGE_OWN_APPLICATION:
       return {
         ...base,
         policy,
@@ -128,6 +129,7 @@ function baselineRequest(
         context: { patientPrincipalId: targetPrincipalId, resourceId, resourceType: "payment" },
       };
     case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
+    case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
       return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
     case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
       return { ...base, policy, context: { resourceId, resourceType: "identity_principal" } };
@@ -138,9 +140,11 @@ describe("PolicyEngine", () => {
   const engine = new PolicyEngine();
   const roleMatrix: Readonly<Record<AuthorizationPolicy, readonly PlatformRole[]>> = {
     ACCESS_CLINICAL_RECORD: [],
+    ADMINISTER_CATALOGUE: ["ADMINISTRATOR"],
     ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
     DECIDE_APPLICATION: ["ADMINISTRATOR"],
     ESCALATE_TICKET: ["SUPPORT", "ADMINISTRATOR"],
+    MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
     REVOKE_PRINCIPAL_SESSIONS: ["ADMINISTRATOR"],
     VIEW_MANAGER_EARNINGS: ["FINANCE", "ADMINISTRATOR"],
@@ -168,6 +172,19 @@ describe("PolicyEngine", () => {
     expect(
       engine.evaluate({ ...request, policy: "UNKNOWN_POLICY" } as unknown as AuthorizationRequest),
     ).toMatchObject({ allowed: false, reasonCode: "unknown_policy_denied" });
+  });
+
+  it("allows an authenticated applicant to manage only their own application", () => {
+    const applicant = actor([]);
+    const request = baselineRequest(AUTHORIZATION_POLICY.MANAGE_OWN_APPLICATION, applicant);
+    if (request.policy !== AUTHORIZATION_POLICY.MANAGE_OWN_APPLICATION) throw new Error();
+    expect(
+      engine.evaluate({
+        ...request,
+        context: { ...request.context, applicantPrincipalId: applicant.principalId },
+      }).allowed,
+    ).toBe(true);
+    expect(engine.evaluate(request).allowed).toBe(false);
   });
 
   it("requires the matching organization membership rather than a platform role", () => {

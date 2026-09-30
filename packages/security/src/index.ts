@@ -1,5 +1,6 @@
 export {
   createInternalRequestHeaders,
+  INTERNAL_SESSION_REFERENCE_HEADER,
   verifyInternalRequest,
   type InternalRequestInput,
 } from "./internal-request.js";

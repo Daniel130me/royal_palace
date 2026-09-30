@@ -6,6 +6,7 @@ import { IDENTITY_REPOSITORY, OIDC_PROVIDER } from "./identity.tokens.js";
 import { OpenIdClientAdapter } from "./infrastructure/openid-client.adapter.js";
 import { PrismaIdentityRepository } from "./infrastructure/prisma-identity.repository.js";
 import { InternalIdentityController } from "./presentation/internal-identity.controller.js";
+import { AuthenticatedInternalRequestGuard } from "./presentation/authenticated-internal-request.guard.js";
 import { InternalRequestGuard } from "./presentation/internal-request.guard.js";
 
 @Module({
@@ -13,10 +14,11 @@ import { InternalRequestGuard } from "./presentation/internal-request.guard.js";
   controllers: [InternalIdentityController],
   providers: [
     IdentityService,
+    AuthenticatedInternalRequestGuard,
     InternalRequestGuard,
     { provide: IDENTITY_REPOSITORY, useClass: PrismaIdentityRepository },
     { provide: OIDC_PROVIDER, useClass: OpenIdClientAdapter },
   ],
-  exports: [IdentityService],
+  exports: [AuthenticatedInternalRequestGuard, IdentityService],
 })
 export class IdentityModule {}

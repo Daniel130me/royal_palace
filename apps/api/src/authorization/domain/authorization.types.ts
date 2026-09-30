@@ -2,9 +2,11 @@ import type { CurrentSession, PlatformRole } from "@royal-palace/contracts";
 
 export const AUTHORIZATION_POLICY = {
   ACCESS_CLINICAL_RECORD: "ACCESS_CLINICAL_RECORD",
+  ADMINISTER_CATALOGUE: "ADMINISTER_CATALOGUE",
   ADMINISTER_ROLE_ASSIGNMENT: "ADMINISTER_ROLE_ASSIGNMENT",
   DECIDE_APPLICATION: "DECIDE_APPLICATION",
   ESCALATE_TICKET: "ESCALATE_TICKET",
+  MANAGE_OWN_APPLICATION: "MANAGE_OWN_APPLICATION",
   REVIEW_APPLICATION: "REVIEW_APPLICATION",
   REVOKE_PRINCIPAL_SESSIONS: "REVOKE_PRINCIPAL_SESSIONS",
   VIEW_MANAGER_EARNINGS: "VIEW_MANAGER_EARNINGS",
@@ -14,7 +16,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 1;
+export const AUTHORIZATION_POLICY_VERSION = 2;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -35,12 +37,14 @@ export interface AuthorizationPolicyContexts {
     organizationId: string;
     patientScopeId: string;
   };
+  ADMINISTER_CATALOGUE: ResourceReference;
   ADMINISTER_ROLE_ASSIGNMENT: ResourceReference;
   DECIDE_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   ESCALATE_TICKET: ResourceReference & {
     disclosureLevel: "MINIMAL" | "FULL";
     ticketOwnerPrincipalId: string;
   };
+  MANAGE_OWN_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVIEW_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVOKE_PRINCIPAL_SESSIONS: ResourceReference;
   VIEW_MANAGER_EARNINGS: ResourceReference & { managerPrincipalId: string };

@@ -87,7 +87,7 @@ export const action = (name: string, body: unknown, method: "POST" | "PATCH" = "
 // token but never the encrypted HttpOnly session reference.
 // ---------------------------------------------------------------------------
 
-function csrfToken(): string | undefined {
+export function csrfToken(): string | undefined {
   if (typeof document === "undefined") return undefined;
   const expectedName = window.location.protocol === "https:" ? "__Host-csrf" : "rp-dev-csrf";
   return document.cookie

@@ -38,4 +38,22 @@ describe("internal request signatures", () => {
     expect(verifyInternalRequest({ ...signed, body: "{}" }, secret, now)).toBe(false);
     expect(verifyInternalRequest(signed, secret, new Date(now.getTime() + 61_000))).toBe(false);
   });
+
+  it("binds the optional session reference into the signature", () => {
+    const sessionInput = { ...input, sessionReference: "session-a" };
+    const headers = createInternalRequestHeaders(sessionInput, secret, now);
+    expect(headers["x-rp-session-reference"]).toBe("session-a");
+    expect(
+      verifyInternalRequest(
+        {
+          ...sessionInput,
+          sessionReference: "session-b",
+          signature: headers["x-rp-internal-signature"],
+          timestamp: headers["x-rp-internal-timestamp"],
+        },
+        secret,
+        now,
+      ),
+    ).toBe(false);
+  });
 });

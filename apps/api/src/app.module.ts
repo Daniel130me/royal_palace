@@ -5,6 +5,7 @@ import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/con
 import { AuthorizationModule } from "./authorization/authorization.module.js";
 import { HealthController } from "./health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
+import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { DatabaseModule } from "./platform/database/database.module.js";
 import { PublicDiscoveryModule } from "./discovery/public-discovery.module.js";
 import { DEPENDENCY_READINESS } from "./tokens.js";
@@ -21,6 +22,7 @@ export class AppModule {
         DatabaseModule.register(config),
         AuthorizationModule,
         IdentityModule,
+        OnboardingModule,
         PublicDiscoveryModule,
       ],
       controllers: [HealthController],

@@ -1,0 +1,643 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Onboarding API
+  version: 1.0.0
+  description: Authenticated applicant onboarding and bounded support/administrator review through the same-origin BFF.
+servers:
+  - url: /
+security:
+  - sessionCookie: []
+paths:
+  /api/applications:
+    get:
+      operationId: listOwnApplications
+      parameters: &listParameters
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/ApplicationKind"
+        - $ref: "#/components/parameters/ApplicationStatus"
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationList" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/patients:
+    post:
+      operationId: createPatientApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody: { $ref: "#/components/requestBodies/PatientData" }
+      responses:
+        "201": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/patients/{applicationId}:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    get:
+      operationId: getPatientApplication
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePatientApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/VersionedCommand"
+                - type: object
+                  required: [values]
+                  properties: { values: { $ref: "#/components/schemas/PatientApplicationData" } }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/organizations:
+    post:
+      operationId: createOrganizationApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody: { $ref: "#/components/requestBodies/OrganizationData" }
+      responses:
+        "201": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/organizations/{applicationId}:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    get:
+      operationId: getOrganizationApplication
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateOrganizationApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/VersionedCommand"
+                - type: object
+                  required: [values]
+                  properties:
+                    { values: { $ref: "#/components/schemas/OrganizationApplicationData" } }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/practitioners:
+    post:
+      operationId: createPractitionerApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody: { $ref: "#/components/requestBodies/PractitionerData" }
+      responses:
+        "201": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/practitioners/{applicationId}:
+    parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+    get:
+      operationId: getPractitionerApplication
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePractitionerApplication
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/VersionedCommand"
+                - type: object
+                  required: [values]
+                  properties:
+                    { values: { $ref: "#/components/schemas/PractitionerApplicationData" } }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/{applicationId}/documents/upload-intents:
+    post:
+      operationId: reserveApplicationDocument
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentIntentRequest" }
+      responses:
+        "201":
+          description: Metadata reservation. Real upload remains unavailable until the qualified storage increment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentIntentResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/{applicationId}/submit:
+    post:
+      operationId: submitApplication
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody: { $ref: "#/components/requestBodies/VersionedCommand" }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/{applicationId}/withdraw:
+    post:
+      operationId: withdrawApplication
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/VersionedCommand"
+                - type: object
+                  properties: { note: { type: string, maxLength: 2000 } }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/support/applications:
+    get:
+      operationId: listSupportApplications
+      parameters: *listParameters
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationList" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/support/applications/{applicationId}:
+    get:
+      operationId: getSupportApplication
+      parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/support/applications/{applicationId}/start-review:
+    post:
+      operationId: startApplicationReview
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody: { $ref: "#/components/requestBodies/VersionedCommand" }
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/applications:
+    get:
+      operationId: listAdminApplications
+      parameters: *listParameters
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationList" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/applications/{applicationId}:
+    get:
+      operationId: getAdminApplication
+      parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
+      responses:
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/applications/{applicationId}/approve:
+    post:
+      operationId: approveApplication
+      parameters: &decisionParameters
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody: { $ref: "#/components/requestBodies/Decision" }
+      responses: &decisionResponses
+        "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/applications/{applicationId}/reject:
+    post:
+      operationId: rejectApplication
+      parameters: *decisionParameters
+      requestBody: { $ref: "#/components/requestBodies/Decision" }
+      responses: *decisionResponses
+  /api/admin/applications/{applicationId}/request-information:
+    post:
+      operationId: requestApplicationInformation
+      parameters: *decisionParameters
+      requestBody: { $ref: "#/components/requestBodies/Decision" }
+      responses: *decisionResponses
+  /api/admin/catalogue/professions:
+    get:
+      operationId: listAdminProfessions
+      parameters: &catalogueListParameters
+        - { $ref: "#/components/parameters/CatalogueCursor" }
+        - { $ref: "#/components/parameters/CatalogueLimit" }
+        - { $ref: "#/components/parameters/CatalogueStatus" }
+      responses:
+        "200": { $ref: "#/components/responses/CatalogueList" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAdminProfession
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody: { $ref: "#/components/requestBodies/CatalogueCreate" }
+      responses:
+        "201": { $ref: "#/components/responses/CatalogueEntry" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/catalogue/professions/{catalogueId}:
+    patch:
+      operationId: updateAdminProfession
+      parameters:
+        - $ref: "#/components/parameters/CatalogueId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody: { $ref: "#/components/requestBodies/CatalogueUpdate" }
+      responses:
+        "200": { $ref: "#/components/responses/CatalogueEntry" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/catalogue/specialties:
+    get:
+      operationId: listAdminSpecialties
+      parameters: *catalogueListParameters
+      responses:
+        "200": { $ref: "#/components/responses/CatalogueList" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAdminSpecialty
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody: { $ref: "#/components/requestBodies/CatalogueCreate" }
+      responses:
+        "201": { $ref: "#/components/responses/CatalogueEntry" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/catalogue/specialties/{catalogueId}:
+    patch:
+      operationId: updateAdminSpecialty
+      parameters:
+        - $ref: "#/components/parameters/CatalogueId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody: { $ref: "#/components/requestBodies/CatalogueUpdate" }
+      responses:
+        "200": { $ref: "#/components/responses/CatalogueEntry" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+  parameters:
+    ApplicationId:
+      in: path
+      name: applicationId
+      required: true
+      schema: { type: string, format: uuid }
+    ApplicationKind:
+      in: query
+      name: kind
+      schema: { $ref: "#/components/schemas/ApplicationKind" }
+    ApplicationStatus:
+      in: query
+      name: status
+      schema: { $ref: "#/components/schemas/ApplicationStatus" }
+    CatalogueId:
+      in: path
+      name: catalogueId
+      required: true
+      schema: { type: string, format: uuid }
+    CatalogueCursor:
+      in: query
+      name: cursor
+      schema: { type: string, maxLength: 2048 }
+    CatalogueLimit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100 }
+    CatalogueStatus:
+      in: query
+      name: status
+      schema: { type: string, enum: [ACTIVE, INACTIVE] }
+    Csrf:
+      in: header
+      name: x-rp-csrf-token
+      required: true
+      schema: { type: string, minLength: 1 }
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string, maxLength: 2048 }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 50 }
+  requestBodies:
+    PatientData:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PatientApplicationData" }
+    OrganizationData:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/OrganizationApplicationData" }
+    PractitionerData:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PractitionerApplicationData" }
+    VersionedCommand:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/VersionedCommand" }
+    Decision:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/DecisionCommand" }
+    CatalogueCreate:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CatalogueCreate" }
+    CatalogueUpdate:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CatalogueUpdate" }
+  responses:
+    ApplicationDetail:
+      description: Onboarding application detail.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApplicationDetail" }
+    ApplicationList:
+      description: Bounded onboarding application page.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApplicationListResponse" }
+    Error:
+      description: Safe API error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    CatalogueEntry:
+      description: Governed clinical catalogue entry.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CatalogueEntry" }
+    CatalogueList:
+      description: Bounded clinical catalogue administration page.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CatalogueListResponse" }
+  schemas:
+    ApplicationKind:
+      type: string
+      enum: [PATIENT, ORGANIZATION, PRACTITIONER]
+    ApplicationStatus:
+      type: string
+      enum:
+        [DRAFT, SUBMITTED, UNDER_REVIEW, MORE_INFORMATION_REQUIRED, APPROVED, REJECTED, WITHDRAWN]
+    OrganizationType:
+      type: string
+      enum: [HOSPITAL, PHARMACY, LABORATORY]
+    VersionedCommand:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties: { expectedVersion: { type: integer, minimum: 1 } }
+    DecisionCommand:
+      allOf:
+        - $ref: "#/components/schemas/VersionedCommand"
+        - type: object
+          required: [reasonCategory]
+          properties:
+            note: { type: string, maxLength: 2000 }
+            reasonCategory: { type: string, maxLength: 100 }
+    PatientApplicationData:
+      type: object
+      additionalProperties: false
+      required: [countryCode, dateOfBirth, familyName, givenName, phoneE164, preferredLanguage]
+      properties:
+        countryCode: { type: [string, "null"] }
+        dateOfBirth: { type: [string, "null"], format: date }
+        familyName: { type: string, maxLength: 100 }
+        givenName: { type: string, maxLength: 100 }
+        phoneE164: { type: [string, "null"] }
+        preferredLanguage: { type: [string, "null"] }
+    OrganizationApplicationData:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          addressLine1,
+          addressLine2,
+          administrativeArea,
+          contactEmail,
+          contactName,
+          contactPhoneE164,
+          countryCode,
+          displayName,
+          jurisdictionCode,
+          legalName,
+          locality,
+          organizationType,
+          postalCode,
+          registrationAuthority,
+          registrationNumber,
+          serviceIds,
+        ]
+      properties:
+        addressLine1: { type: [string, "null"] }
+        addressLine2: { type: [string, "null"] }
+        administrativeArea: { type: [string, "null"] }
+        contactEmail: { type: string, format: email }
+        contactName: { type: string }
+        contactPhoneE164: { type: [string, "null"] }
+        countryCode: { type: string }
+        displayName: { type: string }
+        jurisdictionCode: { type: string }
+        legalName: { type: string }
+        locality: { type: [string, "null"] }
+        organizationType: { $ref: "#/components/schemas/OrganizationType" }
+        postalCode: { type: [string, "null"] }
+        registrationAuthority: { type: string }
+        registrationNumber: { type: string }
+        serviceIds: { type: array, maxItems: 250, items: { type: string, format: uuid } }
+    PractitionerApplicationData:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          biography,
+          credentialType,
+          facilityName,
+          familyName,
+          givenName,
+          honorific,
+          jurisdictionCode,
+          professionIds,
+          registrationAuthority,
+          registrationNumber,
+          selectedOrganizationId,
+          specialtyIds,
+        ]
+      properties:
+        biography: { type: [string, "null"] }
+        credentialType: { type: string }
+        facilityName: { type: [string, "null"] }
+        familyName: { type: string }
+        givenName: { type: string }
+        honorific: { type: [string, "null"] }
+        jurisdictionCode: { type: string }
+        professionIds: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        registrationAuthority: { type: string }
+        registrationNumber: { type: string }
+        selectedOrganizationId: { type: [string, "null"], format: uuid }
+        specialtyIds: { type: array, maxItems: 100, items: { type: string, format: uuid } }
+    ApplicationData:
+      oneOf:
+        - type: object
+          required: [kind, values]
+          properties:
+            kind: { type: string, const: PATIENT }
+            values: { $ref: "#/components/schemas/PatientApplicationData" }
+        - type: object
+          required: [kind, values]
+          properties:
+            kind: { type: string, const: ORGANIZATION }
+            values: { $ref: "#/components/schemas/OrganizationApplicationData" }
+        - type: object
+          required: [kind, values]
+          properties:
+            kind: { type: string, const: PRACTITIONER }
+            values: { $ref: "#/components/schemas/PractitionerApplicationData" }
+    ApplicationSummary:
+      type: object
+      additionalProperties: false
+      required: [createdAt, displayName, id, kind, status, submittedAt, updatedAt, version]
+      properties:
+        createdAt: { type: string, format: date-time }
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ApplicationKind" }
+        status: { $ref: "#/components/schemas/ApplicationStatus" }
+        submittedAt: { type: [string, "null"], format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    ApplicationDetail:
+      allOf:
+        - $ref: "#/components/schemas/ApplicationSummary"
+        - type: object
+          required: [approvedResourceId, data, documents, history]
+          properties:
+            approvedResourceId: { type: [string, "null"], format: uuid }
+            data: { $ref: "#/components/schemas/ApplicationData" }
+            documents:
+              type: array
+              items: { $ref: "#/components/schemas/DocumentMetadata" }
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/StatusHistory" }
+    ApplicationListResponse:
+      type: object
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ApplicationSummary" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+    PageInfo:
+      type: object
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    DocumentIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [declaredContentType, declaredSha256, declaredSizeBytes, originalFilename, purpose]
+      properties:
+        declaredContentType: { type: string }
+        declaredSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        declaredSizeBytes: { type: integer, minimum: 1, maximum: 26214400 }
+        originalFilename: { type: string }
+        purpose: { type: string }
+    DocumentMetadata:
+      allOf:
+        - $ref: "#/components/schemas/DocumentIntentRequest"
+        - type: object
+          required: [id, status, statusReasonCode]
+          properties:
+            id: { type: string, format: uuid }
+            status:
+              { type: string, enum: [AWAITING_UPLOAD, QUARANTINED, SCANNING, CLEAN, REJECTED] }
+            statusReasonCode: { type: [string, "null"] }
+    DocumentIntentResponse:
+      type: object
+      required: [document, uploadAvailable]
+      properties:
+        document: { $ref: "#/components/schemas/DocumentMetadata" }
+        uploadAvailable: { type: boolean, const: false }
+    StatusHistory:
+      type: object
+      required: [fromStatus, id, note, noteVisibility, occurredAt, reasonCategory, toStatus]
+      properties:
+        fromStatus:
+          { oneOf: [{ $ref: "#/components/schemas/ApplicationStatus" }, { type: "null" }] }
+        id: { type: string, format: uuid }
+        note: { type: [string, "null"] }
+        noteVisibility: { type: string, enum: [APPLICANT, INTERNAL] }
+        occurredAt: { type: string, format: date-time }
+        reasonCategory: { type: string }
+        toStatus: { $ref: "#/components/schemas/ApplicationStatus" }
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    CatalogueEntry:
+      type: object
+      required:
+        [
+          category,
+          code,
+          description,
+          id,
+          name,
+          parentId,
+          sourceSystem,
+          sourceUri,
+          sourceVersion,
+          status,
+          version,
+        ]
+      properties:
+        category: { type: [string, "null"] }
+        code: { type: string }
+        description: { type: [string, "null"] }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        parentId: { type: [string, "null"], format: uuid }
+        sourceSystem: { type: string }
+        sourceUri: { type: [string, "null"], format: uri }
+        sourceVersion: { type: [string, "null"] }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        version: { type: integer, minimum: 1 }
+    CatalogueListResponse:
+      type: object
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueEntry" }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+    CatalogueCreate:
+      type: object
+      additionalProperties: false
+      required: [code, description, name, sourceUri]
+      properties:
+        category: { type: string }
+        code: { type: string }
+        description: { type: [string, "null"] }
+        name: { type: string }
+        parentId: { type: [string, "null"], format: uuid }
+        sourceUri: { type: [string, "null"], format: uri }
+    CatalogueUpdate:
+      type: object
+      additionalProperties: false
+      required: [description, expectedVersion, name, status]
+      properties:
+        category: { type: string }
+        description: { type: [string, "null"] }
+        expectedVersion: { type: integer, minimum: 1 }
+        name: { type: string }
+        parentId: { type: [string, "null"], format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }

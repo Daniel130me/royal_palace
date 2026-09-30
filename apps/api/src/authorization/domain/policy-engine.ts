@@ -28,9 +28,14 @@ export class PolicyEngine {
     switch (request.policy) {
       case AUTHORIZATION_POLICY.VIEW_ORGANIZATION:
         return this.canViewOrganization(request.actor, request.context.organizationId);
+      case AUTHORIZATION_POLICY.MANAGE_OWN_APPLICATION:
+        return request.actor.principalId === request.context.applicantPrincipalId
+          ? this.allow(request.policy, this.firstActorRole(request.actor), ALLOW.OWNER)
+          : this.deny(request.policy, "application_ownership_required");
       case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
+      case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
       case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
       case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
@@ -187,6 +192,10 @@ export class PolicyEngine {
     return roles.find((role) => actor.roles.includes(role)) ?? null;
   }
 
+  private firstActorRole(actor: CurrentSession): PlatformRole | null {
+    return actor.roles[0] ?? actor.memberships[0]?.roles[0] ?? null;
+  }
+
   private firstOrganizationRole(
     actor: CurrentSession,
     organizationId: string,
@@ -206,7 +215,7 @@ export class PolicyEngine {
 
   private allow(
     policy: AuthorizationDecision["policy"],
-    effectiveRole: PlatformRole,
+    effectiveRole: PlatformRole | null,
     reasonCode: string,
   ): AuthorizationDecision {
     return { allowed: true, effectiveRole, policy, reasonCode };

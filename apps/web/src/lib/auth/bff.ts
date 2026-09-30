@@ -71,6 +71,68 @@ export async function callIdentityApi<T>(
   return result as T;
 }
 
+export async function callAuthenticatedApi<T>(
+  request: NextRequest,
+  apiPath: string,
+  options: { body?: unknown; method?: "GET" | "PATCH" | "POST" } = {},
+): Promise<T> {
+  const sessionReference = readSessionId(request);
+  const method = options.method ?? "GET";
+  const body = options.body === undefined ? "" : JSON.stringify(options.body);
+  const id = requestId(request);
+  const traceparent = request.headers.get("traceparent");
+  const upstreamUrl = new URL(apiPath, config.apiBaseUrl);
+  const signatureHeaders = createInternalRequestHeaders(
+    { body, method, path: upstreamUrl.pathname, requestId: id, sessionReference },
+    config.bffInternalSecret,
+  );
+  let response: Response;
+  try {
+    response = await fetch(upstreamUrl, {
+      body: body.length === 0 ? undefined : body,
+      cache: "no-store",
+      headers: {
+        ...(body.length === 0 ? {} : { "content-type": "application/json" }),
+        ...(traceparent === null ? {} : { traceparent }),
+        "x-request-id": id,
+        ...signatureHeaders,
+      },
+      method,
+      signal: AbortSignal.timeout(config.bffApiTimeoutMs),
+    });
+  } catch {
+    throw new BffAuthError("Application service is unavailable", 503, "service_unavailable");
+  }
+
+  const result: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = asErrorResponse(result);
+    throw new BffAuthError(error.message, response.status, error.code);
+  }
+  return result as T;
+}
+
+/**
+ * Shared protected-route adapter. Mutations are checked again at the route boundary
+ * even though the application proxy also rejects cross-site requests.
+ */
+export async function proxyAuthenticatedApi(
+  request: NextRequest,
+  apiPath: string,
+  method: "GET" | "PATCH" | "POST",
+): Promise<NextResponse> {
+  try {
+    if (method !== "GET") requireCsrf(request);
+    const body = method === "GET" ? undefined : await request.json().catch(() => null);
+    const result = await callAuthenticatedApi<unknown>(request, apiPath, { body, method });
+    return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    const response = authErrorResponse(error);
+    if (response.status === 401) clearAuthCookies(response);
+    return response;
+  }
+}
+
 export function readSessionId(request: NextRequest): string {
   const value = request.cookies.get(SESSION_COOKIE)?.value;
   if (value === undefined) throw new BffAuthError("Session is required", 401, "missing_session");
@@ -167,7 +229,7 @@ export function authErrorResponse(error: unknown): NextResponse {
     );
   }
   return NextResponse.json(
-    { error: "identity_request_failed", message: "Identity request failed" },
+    { error: "upstream_request_failed", message: "Upstream request failed" },
     { status: 500 },
   );
 }
@@ -192,7 +254,7 @@ function asErrorResponse(value: unknown): { code: string; message: string } {
     const message = "message" in value && typeof value.message === "string" ? value.message : null;
     if (error !== null && message !== null) return { code: error, message };
   }
-  return { code: "identity_request_failed", message: "Identity request failed" };
+  return { code: "upstream_request_failed", message: "Upstream request failed" };
 }
 
 function readCookie(header: string | null, expectedName: string): string | undefined {

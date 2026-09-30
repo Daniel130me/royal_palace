@@ -6,6 +6,7 @@ import { PROFESSION_SEEDS, SPECIALTY_SEEDS } from "./seed-data/practitioner-cata
 
 const SYNTHETIC_ISSUER = "https://identity.synthetic.invalid";
 const SYNTHETIC_SUPPORT_ROLE_ID = "0199a18e-a400-7000-8000-000000000001";
+const SYNTHETIC_ADMIN_ROLE_ID = "0199a18e-a400-7000-8000-000000000002";
 const SYNTHETIC_SERVICES = [
   {
     id: "0199a18e-a400-7000-8000-000000000101",
@@ -260,10 +261,133 @@ async function main(): Promise<void> {
       update: {},
       select: { id: true },
     });
+    const adminIdentity = await database.externalIdentity.findUnique({
+      where: {
+        issuer_subject: { issuer: SYNTHETIC_ISSUER, subject: "administrator-reviewer" },
+      },
+      select: { principalId: true },
+    });
+    const administrator =
+      adminIdentity === null
+        ? await database.identityPrincipal.create({
+            data: {
+              id: createOpaqueId(),
+              externalIdentities: {
+                create: {
+                  id: createOpaqueId(),
+                  issuer: SYNTHETIC_ISSUER,
+                  subject: "administrator-reviewer",
+                },
+              },
+            },
+            select: { id: true },
+          })
+        : { id: adminIdentity.principalId };
+    await database.roleAssignment.upsert({
+      where: { id: SYNTHETIC_ADMIN_ROLE_ID },
+      create: {
+        id: SYNTHETIC_ADMIN_ROLE_ID,
+        principalId: administrator.id,
+        role: "ADMINISTRATOR",
+        scope: "PLATFORM",
+      },
+      update: {},
+      select: { id: true },
+    });
     await seedPublicDiscovery(database);
     await seedPractitionerDiscovery(database);
+    await seedOnboardingApplications(database);
   } finally {
     await database.$disconnect();
+  }
+}
+
+async function seedOnboardingApplications(database: PrismaClient): Promise<void> {
+  const applicationFixtures = [
+    {
+      applicationId: "0199a18e-a400-7000-8000-000000000701",
+      applicantId: "0199a18e-a400-7000-8000-000000000711",
+      kind: "PATIENT" as const,
+      detail: {
+        patientDetail: {
+          create: {
+            countryCode: "CA",
+            familyName: "Applicant",
+            givenName: "Synthetic Patient",
+            preferredLanguage: "en-CA",
+          },
+        },
+      },
+    },
+    {
+      applicationId: "0199a18e-a400-7000-8000-000000000702",
+      applicantId: "0199a18e-a400-7000-8000-000000000712",
+      kind: "ORGANIZATION" as const,
+      detail: {
+        organizationDetail: {
+          create: {
+            administrativeArea: "Ontario",
+            contactEmail: "organization-applicant@synthetic.invalid",
+            contactName: "Synthetic Operator",
+            countryCode: "CA",
+            displayName: "Synthetic Applicant Hospital",
+            jurisdictionCode: "CA-ON",
+            legalName: "Synthetic Applicant Hospital Incorporated",
+            locality: "Toronto",
+            organizationType: "HOSPITAL" as const,
+            registrationAuthority: "Synthetic Ontario Health Regulator",
+            registrationNumber: "SYNTHETIC-ORG-001",
+            requestedServices: {
+              create: { serviceId: SYNTHETIC_SERVICES[0].id },
+            },
+          },
+        },
+      },
+    },
+  ] as const;
+
+  for (const fixture of applicationFixtures) {
+    await database.identityPrincipal.upsert({
+      where: { id: fixture.applicantId },
+      create: { id: fixture.applicantId },
+      update: {},
+      select: { id: true },
+    });
+    const existing = await database.onboardingApplication.findUnique({
+      select: { id: true },
+      where: { id: fixture.applicationId },
+    });
+    if (existing !== null) continue;
+    await database.onboardingApplication.create({
+      data: {
+        applicantPrincipalId: fixture.applicantId,
+        id: fixture.applicationId,
+        kind: fixture.kind,
+        status: "SUBMITTED",
+        submittedAt: new Date("2026-09-30T00:00:00.000Z"),
+        statusHistory: {
+          create: [
+            {
+              id: createOpaqueId(),
+              noteVisibility: "APPLICANT",
+              reasonCategory: "APPLICATION_CREATED",
+              requestId: "synthetic-seed-create",
+              toStatus: "DRAFT",
+            },
+            {
+              fromStatus: "DRAFT",
+              id: createOpaqueId(),
+              noteVisibility: "APPLICANT",
+              reasonCategory: "APPLICANT_SUBMITTED",
+              requestId: "synthetic-seed-submit",
+              toStatus: "SUBMITTED",
+            },
+          ],
+        },
+        ...fixture.detail,
+      },
+      select: { id: true },
+    });
   }
 }
 

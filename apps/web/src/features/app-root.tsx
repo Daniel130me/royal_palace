@@ -6,6 +6,7 @@ import { PublicSite } from "@/features/public/public-site";
 import { LoginPage } from "@/features/auth/login-page";
 import { SignupPage } from "@/features/auth/signup-page";
 import { OrganizationSignupPage } from "@/features/auth/organization-signup-page";
+import { PractitionerSignupPage } from "@/features/auth/practitioner-signup-page";
 import { PatientPortal } from "@/features/patient/patient-portal";
 import { ProviderPortal } from "@/features/provider/provider-portal";
 import { PharmacyPortal } from "@/features/pharmacy/pharmacy-portal";
@@ -44,7 +45,15 @@ export function AppRoot() {
       ) : view.portal === "public" ? (
         <PublicSite />
       ) : view.portal === "login" ? (
-        view.page === "signup" ? <SignupPage /> : view.page === "organization-signup" ? <OrganizationSignupPage /> : <LoginPage />
+        view.page === "signup" ? (
+          <SignupPage />
+        ) : view.page === "organization-signup" ? (
+          <OrganizationSignupPage />
+        ) : view.page === "practitioner-signup" ? (
+          <PractitionerSignupPage />
+        ) : (
+          <LoginPage />
+        )
       ) : view.portal === "patient" ? (
         <PatientPortal />
       ) : view.portal === "provider" ? (

@@ -121,6 +121,10 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const auditId = v7();
   const verifiedOrganizationId = v7();
   const practitionerId = v7();
+  const applicationId = v7();
+  const applicationHistoryId = v7();
+  const parentSpecialtyId = v7();
+  const childSpecialtyId = v7();
 
   await client.connect();
   try {
@@ -256,6 +260,81 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       client,
       'UPDATE "audit_events" SET "action" = $1 WHERE "id" = $2',
       ["verification.changed", auditId],
+      "P0001",
+    );
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "onboarding_applications" ("id", "kind", "applicant_principal_id", "updated_at") VALUES ($1, $2, $3, now())',
+      [applicationId, "PATIENT", principalId],
+    );
+    await client.query(
+      'INSERT INTO "patient_application_details" ("application_id", "given_name", "family_name", "country_code") VALUES ($1, $2, $3, $4)',
+      [applicationId, "Synthetic", "Applicant", "GB"],
+    );
+    await client.query(
+      'INSERT INTO "application_status_history" ("id", "application_id", "to_status", "reason_category", "note_visibility", "request_id") VALUES ($1, $2, $3, $4, $5, $6)',
+      [applicationHistoryId, applicationId, "DRAFT", "APPLICATION_CREATED", "APPLICANT", v7()],
+    );
+    await client.query("COMMIT");
+    await expectSqlState(
+      client,
+      'UPDATE "application_status_history" SET "reason_category" = $1 WHERE "id" = $2',
+      ["MUTATED", applicationHistoryId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'DELETE FROM "application_status_history" WHERE "id" = $1',
+      [applicationHistoryId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "onboarding_applications" SET "kind" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["ORGANIZATION", applicationId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "onboarding_applications" ("id", "kind", "applicant_principal_id", "updated_at") VALUES ($1, $2, $3, now())',
+      [v7(), "PATIENT", principalId],
+      "23505",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "application_documents" ("id", "application_id", "purpose", "original_filename", "declared_content_type", "declared_size_bytes", "declared_sha256", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
+      [v7(), applicationId, "IDENTITY", "identity.pdf", "application/pdf", 100, "invalid"],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "onboarding_applications" SET "status" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["SUBMITTED", applicationId],
+      "23514",
+    );
+    await client.query(
+      'INSERT INTO "specialty_taxonomies" ("id", "code", "name", "category", "source_system", "updated_at") VALUES ($1, $2, $3, $4, $5, now()), ($6, $7, $8, $9, $10, now())',
+      [
+        parentSpecialtyId,
+        `parent-${parentSpecialtyId}`,
+        "Synthetic Parent Specialty",
+        "Synthetic",
+        "MIGRATION_VERIFICATION",
+        childSpecialtyId,
+        `child-${childSpecialtyId}`,
+        "Synthetic Child Specialty",
+        "Synthetic",
+        "MIGRATION_VERIFICATION",
+      ],
+    );
+    await client.query(
+      'UPDATE "specialty_taxonomies" SET "parent_id" = $1, "updated_at" = now() WHERE "id" = $2',
+      [parentSpecialtyId, childSpecialtyId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "specialty_taxonomies" SET "parent_id" = $1, "updated_at" = now() WHERE "id" = $2',
+      [childSpecialtyId, parentSpecialtyId],
       "P0001",
     );
   } finally {

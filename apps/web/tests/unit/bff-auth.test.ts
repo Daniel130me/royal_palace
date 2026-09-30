@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   CSRF_COOKIE,
   CSRF_HEADER,
+  callAuthenticatedApi,
   readSessionId,
   requireCsrf,
   SESSION_COOKIE,
@@ -33,6 +34,40 @@ describe("BFF authentication boundary", () => {
       headers: { cookie: `${SESSION_COOKIE}=${tampered}` },
     });
     expect(() => readSessionId(tamperedRequest)).toThrow("Session is invalid");
+  });
+
+  it("binds the server-held session reference into signed upstream requests", async () => {
+    const sessionId = "0199a18e-a400-7000-8000-000000000001";
+    const cookieResponse = NextResponse.json({ ok: true });
+    setAuthenticatedCookies(cookieResponse, sessionId, "csrf-token");
+    const encryptedSession = cookieResponse.cookies.get(SESSION_COOKIE)?.value ?? "";
+    const request = new NextRequest("http://127.0.0.1:3000/api/applications", {
+      headers: {
+        cookie: `${SESSION_COOKIE}=${encryptedSession}`,
+        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      },
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      ),
+    );
+
+    await callAuthenticatedApi(request, "/v1/applications");
+
+    const upstream = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(upstream?.headers).get("x-rp-session-reference")).toBe(sessionId);
+    expect(new Headers(upstream?.headers).get("traceparent")).toBe(
+      "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    );
+    expect(new Headers(upstream?.headers).get("x-rp-internal-signature")).toMatch(
+      /^[A-Za-z0-9_-]{43}$/,
+    );
+    fetchMock.mockRestore();
   });
 
   it("requires both an exact origin and matching double-submit token", () => {

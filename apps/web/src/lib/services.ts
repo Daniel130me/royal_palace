@@ -2,9 +2,26 @@
 // The UI consumes these functions instead of performing raw fetches, so the
 // backend can be replaced without touching components (see spec section 58).
 
-import { createPublicDiscoveryClient } from "@royal-palace/api-client";
-import type { PublicOrganizationType } from "@royal-palace/contracts";
-import { api, ApiError, resource, action, sessionApi, type Paginated } from "./api-client";
+import { createOnboardingClient, createPublicDiscoveryClient } from "@royal-palace/api-client";
+import type {
+  OnboardingApplicationDetail,
+  OnboardingApplicationListResponse,
+  ClinicalCatalogueEntry,
+  ClinicalCatalogueListResponse,
+  OrganizationApplicationData,
+  PatientApplicationData,
+  PractitionerApplicationData,
+  PublicOrganizationType,
+} from "@royal-palace/contracts";
+import {
+  api,
+  ApiError,
+  resource,
+  action,
+  csrfToken,
+  sessionApi,
+  type Paginated,
+} from "./api-client";
 import type {
   Appointment,
   ClinicalEncounter,
@@ -71,10 +88,13 @@ export const pharmacyService = {
   list: () => resource.list<Pharmacy>("pharmacy"),
   get: (id: string) => resource.get<Pharmacy>("pharmacy", id),
   update: (id: string, data: Partial<Pharmacy>) => resource.update<Pharmacy>("pharmacy", id, data),
-  products: (pharmacyId: string) => resource.list<PharmacyProduct>("pharmacyProduct", { pharmacyId }),
+  products: (pharmacyId: string) =>
+    resource.list<PharmacyProduct>("pharmacyProduct", { pharmacyId }),
   product: (id: string) => resource.get<PharmacyProduct>("pharmacyProduct", id),
-  createProduct: (data: Partial<PharmacyProduct>) => resource.create<PharmacyProduct>("pharmacyProduct", data),
-  updateProduct: (id: string, data: Partial<PharmacyProduct>) => resource.update<PharmacyProduct>("pharmacyProduct", id, data),
+  createProduct: (data: Partial<PharmacyProduct>) =>
+    resource.create<PharmacyProduct>("pharmacyProduct", data),
+  updateProduct: (id: string, data: Partial<PharmacyProduct>) =>
+    resource.update<PharmacyProduct>("pharmacyProduct", id, data),
   orders: (pharmacyId: string) => resource.list<PharmacyOrder>("pharmacyOrder", { pharmacyId }),
   order: (id: string) => resource.get<PharmacyOrder>("pharmacyOrder", id),
 };
@@ -82,14 +102,22 @@ export const pharmacyService = {
 export const laboratoryService = {
   list: () => resource.list<Laboratory>("laboratory"),
   get: (id: string) => resource.get<Laboratory>("laboratory", id),
-  requests: (laboratoryId?: string) => resource.list<LaboratoryRequest>("laboratoryRequest", laboratoryId ? { laboratoryId } : {}),
-  bookings: (laboratoryId: string) => resource.list<LaboratoryBooking>("laboratoryBooking", { laboratoryId }),
-  results: (laboratoryId: string) => resource.list<LaboratoryResult>("laboratoryResult", { laboratoryId }),
+  requests: (laboratoryId?: string) =>
+    resource.list<LaboratoryRequest>("laboratoryRequest", laboratoryId ? { laboratoryId } : {}),
+  bookings: (laboratoryId: string) =>
+    resource.list<LaboratoryBooking>("laboratoryBooking", { laboratoryId }),
+  results: (laboratoryId: string) =>
+    resource.list<LaboratoryResult>("laboratoryResult", { laboratoryId }),
 };
 
 export const enrollmentService = {
   submitOrganization: (body: Record<string, unknown>) =>
-    api.post<{ data: { applicationNumber: string; status: string } }>("/api/actions/submit-manager-enrollment", body).then((r) => r.data),
+    api
+      .post<{ data: { applicationNumber: string; status: string } }>(
+        "/api/actions/submit-manager-enrollment",
+        body,
+      )
+      .then((r) => r.data),
 };
 
 export const hospitalService = {
@@ -98,6 +126,124 @@ export const hospitalService = {
 };
 
 const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
+const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
+
+export const onboardingService = {
+  listOwn: () => generatedOnboardingClient.GET("/api/applications").then(unwrapGeneratedResponse),
+  createPatient: (values: PatientApplicationData) =>
+    generatedOnboardingClient
+      .POST("/api/applications/patients", {
+        body: values,
+        params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  createOrganization: (values: OrganizationApplicationData) =>
+    generatedOnboardingClient
+      .POST("/api/applications/organizations", {
+        body: { ...values, serviceIds: [...values.serviceIds] },
+        params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  createPractitioner: (values: PractitionerApplicationData) =>
+    generatedOnboardingClient
+      .POST("/api/applications/practitioners", {
+        body: {
+          ...values,
+          professionIds: [...values.professionIds],
+          specialtyIds: [...values.specialtyIds],
+        },
+        params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  submit: (applicationId: string, expectedVersion: number) =>
+    generatedOnboardingClient
+      .POST("/api/applications/{applicationId}/submit", {
+        body: { expectedVersion },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  listForSupport: (cursor?: string) => listApplicationReviewQueue("support", cursor),
+  getForSupport: (applicationId: string) =>
+    sessionApi.get<OnboardingApplicationDetail>(`/api/support/applications/${applicationId}`),
+  startReview: (applicationId: string, expectedVersion: number) =>
+    sessionApi.post<OnboardingApplicationDetail>(
+      `/api/support/applications/${applicationId}/start-review`,
+      { expectedVersion },
+    ),
+  listForAdmin: (cursor?: string) => listApplicationReviewQueue("admin", cursor),
+  getForAdmin: (applicationId: string) =>
+    sessionApi.get<OnboardingApplicationDetail>(`/api/admin/applications/${applicationId}`),
+  decide: (
+    applicationId: string,
+    command: "approve" | "reject" | "request-information",
+    input: { expectedVersion: number; note?: string; reasonCategory: string },
+  ) =>
+    sessionApi.post<OnboardingApplicationDetail>(
+      `/api/admin/applications/${applicationId}/${command}`,
+      input,
+    ),
+};
+
+function listApplicationReviewQueue(authority: "admin" | "support", cursor?: string) {
+  const query = new URLSearchParams({ limit: "50" });
+  if (cursor !== undefined) query.set("cursor", cursor);
+  return sessionApi.get<OnboardingApplicationListResponse>(
+    `/api/${authority}/applications?${query.toString()}`,
+  );
+}
+
+export const clinicalCatalogueService = {
+  list: (kind: "professions" | "specialties", cursor?: string) => {
+    const query = new URLSearchParams({ limit: "100" });
+    if (cursor !== undefined) query.set("cursor", cursor);
+    return sessionApi.get<ClinicalCatalogueListResponse>(
+      `/api/admin/catalogue/${kind}?${query.toString()}`,
+    );
+  },
+  create: (
+    kind: "professions" | "specialties",
+    input: {
+      category?: string;
+      code: string;
+      description: string | null;
+      name: string;
+      parentId?: string | null;
+      sourceUri: string | null;
+    },
+  ) => sessionApi.post<ClinicalCatalogueEntry>(`/api/admin/catalogue/${kind}`, input),
+  update: (
+    kind: "professions" | "specialties",
+    entry: ClinicalCatalogueEntry,
+    status: "ACTIVE" | "INACTIVE",
+  ) =>
+    sessionApi.patch<ClinicalCatalogueEntry>(`/api/admin/catalogue/${kind}/${entry.id}`, {
+      ...(entry.category === null ? {} : { category: entry.category }),
+      description: entry.description,
+      expectedVersion: entry.version,
+      name: entry.name,
+      ...(entry.parentId === null ? {} : { parentId: entry.parentId }),
+      status,
+    }),
+};
+
+async function authenticatedGeneratedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const request = new Request(input, init);
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) {
+    const token = csrfToken();
+    if (token !== undefined) {
+      const headers = new Headers(request.headers);
+      headers.set("x-rp-csrf-token", decodeURIComponent(token));
+      return fetch(new Request(request, { headers }));
+    }
+  }
+  return fetch(request);
+}
 
 type PublicOrganizationQuery = {
   country?: string;
@@ -198,7 +344,8 @@ function unwrapGeneratedResponse<T>(result: {
 export const logisticsService = {
   list: () => resource.list<LogisticsProvider>("logisticsProvider"),
   get: (id: string) => resource.get<LogisticsProvider>("logisticsProvider", id),
-  deliveries: (logisticsProviderId: string) => resource.list<Delivery>("delivery", { logisticsProviderId }),
+  deliveries: (logisticsProviderId: string) =>
+    resource.list<Delivery>("delivery", { logisticsProviderId }),
   delivery: (id: string) => resource.get<Delivery>("delivery", id),
 };
 
@@ -214,45 +361,63 @@ export const pricingService = {
 export const appointmentService = {
   list: (params?: Record<string, string>) => resource.list<Appointment>("appointment", params),
   get: (id: string) => resource.get<Appointment>("appointment", id),
-  update: (id: string, data: Partial<Appointment>) => resource.update<Appointment>("appointment", id, data),
-  book: (body: Record<string, unknown>) => action("book-appointment", body).then((r) => r.data as Appointment & { payment: Payment }),
+  update: (id: string, data: Partial<Appointment>) =>
+    resource.update<Appointment>("appointment", id, data),
+  book: (body: Record<string, unknown>) =>
+    action("book-appointment", body).then((r) => r.data as Appointment & { payment: Payment }),
   progress: (appointmentId: string, status: string, actorId: string, actorRole: string) =>
-    action("progress-appointment", { appointmentId, status, actorId, actorRole }).then((r) => r.data as Appointment),
+    action("progress-appointment", { appointmentId, status, actorId, actorRole }).then(
+      (r) => r.data as Appointment,
+    ),
 };
 
 export const encounterService = {
   get: (id: string) => resource.get<ClinicalEncounter>("clinicalEncounter", id),
-  byAppointment: (appointmentId: string) => resource.list<ClinicalEncounter>("clinicalEncounter", { appointmentId }).then((r) => r[0] ?? null),
+  byAppointment: (appointmentId: string) =>
+    resource
+      .list<ClinicalEncounter>("clinicalEncounter", { appointmentId })
+      .then((r) => r[0] ?? null),
   update: (id: string, documentation: Partial<EncounterDocumentation>) =>
-    resource.update<ClinicalEncounter>("clinicalEncounter", id, { documentation: JSON.stringify(documentation) }),
+    resource.update<ClinicalEncounter>("clinicalEncounter", id, {
+      documentation: JSON.stringify(documentation),
+    }),
   start: (appointmentId: string, actorId: string) =>
     action("start-encounter", { appointmentId, actorId }).then((r) => r.data as ClinicalEncounter),
   complete: (encounterId: string, documentation: EncounterDocumentation, actorId: string) =>
-    action("complete-encounter", { encounterId, documentation, actorId }, "PATCH").then((r) => r.data as ClinicalEncounter),
+    action("complete-encounter", { encounterId, documentation, actorId }, "PATCH").then(
+      (r) => r.data as ClinicalEncounter,
+    ),
 };
 
 export const prescriptionService = {
   list: (params?: Record<string, string>) => resource.list<Prescription>("prescription", params),
   get: (id: string) => resource.get<Prescription>("prescription", id),
-  issue: (body: Record<string, unknown>) => action("issue-prescription", body).then((r) => r.data as Prescription),
+  issue: (body: Record<string, unknown>) =>
+    action("issue-prescription", body).then((r) => r.data as Prescription),
 };
 
 export const labRequestService = {
-  list: (params?: Record<string, string>) => resource.list<LaboratoryRequest>("laboratoryRequest", params),
+  list: (params?: Record<string, string>) =>
+    resource.list<LaboratoryRequest>("laboratoryRequest", params),
   get: (id: string) => resource.get<LaboratoryRequest>("laboratoryRequest", id),
-  create: (body: Record<string, unknown>) => action("create-lab-request", body).then((r) => r.data as LaboratoryRequest),
-  book: (body: Record<string, unknown>) => action("book-lab", body).then((r) => r.data as LaboratoryBooking),
+  create: (body: Record<string, unknown>) =>
+    action("create-lab-request", body).then((r) => r.data as LaboratoryRequest),
+  book: (body: Record<string, unknown>) =>
+    action("book-lab", body).then((r) => r.data as LaboratoryBooking),
   progress: (bookingId: string, status: string, actorId: string) =>
     action("progress-lab", { bookingId, status, actorId }).then((r) => r.data as LaboratoryBooking),
-  publishResult: (body: Record<string, unknown>) => action("publish-lab-result", body).then((r) => r.data as LaboratoryResult),
+  publishResult: (body: Record<string, unknown>) =>
+    action("publish-lab-result", body).then((r) => r.data as LaboratoryResult),
 };
 
 export const pharmacyOrderService = {
   list: (params?: Record<string, string>) => resource.list<PharmacyOrder>("pharmacyOrder", params),
   get: (id: string) => resource.get<PharmacyOrder>("pharmacyOrder", id),
-  create: (body: Record<string, unknown>) => action("create-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
+  create: (body: Record<string, unknown>) =>
+    action("create-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
   // Direct OTC order — no prescription required (uncontrolled meds only)
-  directOrder: (body: Record<string, unknown>) => action("direct-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
+  directOrder: (body: Record<string, unknown>) =>
+    action("direct-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
   progress: (orderId: string, status: string, actorId: string) =>
     action("progress-order", { orderId, status, actorId }).then((r) => r.data as PharmacyOrder),
 };
@@ -261,19 +426,24 @@ export const deliveryService = {
   list: (params?: Record<string, string>) => resource.list<Delivery>("delivery", params),
   get: (id: string) => resource.get<Delivery>("delivery", id),
   progress: (deliveryId: string, status: string, verificationCode: string, actorId: string) =>
-    action("progress-delivery", { deliveryId, status, verificationCode, actorId }).then((r) => r.data as Delivery),
+    action("progress-delivery", { deliveryId, status, verificationCode, actorId }).then(
+      (r) => r.data as Delivery,
+    ),
 };
 
 export const referralService = {
   list: (params?: Record<string, string>) => resource.list<Referral>("referral", params),
   get: (id: string) => resource.get<Referral>("referral", id),
-  create: (body: Record<string, unknown>) => action("create-referral", body).then((r) => r.data as Referral),
+  create: (body: Record<string, unknown>) =>
+    action("create-referral", body).then((r) => r.data as Referral),
 };
 
 export const consentService = {
-  grants: (patientId: string) => resource.list<RecordAccessGrant>("recordAccessGrant", { patientId }),
+  grants: (patientId: string) =>
+    resource.list<RecordAccessGrant>("recordAccessGrant", { patientId }),
   consents: (patientId: string) => resource.list<Consent>("consent", { patientId }),
-  revoke: (grantId: string, actorId: string) => action("revoke-access", { grantId, actorId }).then((r) => r.data),
+  revoke: (grantId: string, actorId: string) =>
+    action("revoke-access", { grantId, actorId }).then((r) => r.data),
 };
 
 export const notificationService = {
@@ -306,9 +476,12 @@ export const applicationService = {
 };
 
 export const auditService = {
-  list: () => resource.list<AuditLog>("auditLog", {}, ).then((r) =>
-    [...r].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  ),
+  list: () =>
+    resource
+      .list<AuditLog>("auditLog", {})
+      .then((r) =>
+        [...r].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+      ),
 };
 
 export const complaintService = {
@@ -321,10 +494,26 @@ export const userService = {
 
 // --- admin actions ---
 export const adminService = {
-  verifyProvider: (providerId: string, act: "approve" | "reject" | "request_info" | "suspend" | "reactivate", notes?: string, actorId?: string) =>
-    action("admin-verify-provider", { providerId, action: act, notes, actorId }),
-  updatePricing: (serviceId: string, patientPrice: number, providerPayout: number, effectiveFrom?: string, actorId?: string) =>
-    action("admin-update-pricing", { serviceId, patientPrice, providerPayout, effectiveFrom, actorId }),
+  verifyProvider: (
+    providerId: string,
+    act: "approve" | "reject" | "request_info" | "suspend" | "reactivate",
+    notes?: string,
+    actorId?: string,
+  ) => action("admin-verify-provider", { providerId, action: act, notes, actorId }),
+  updatePricing: (
+    serviceId: string,
+    patientPrice: number,
+    providerPayout: number,
+    effectiveFrom?: string,
+    actorId?: string,
+  ) =>
+    action("admin-update-pricing", {
+      serviceId,
+      patientPrice,
+      providerPayout,
+      effectiveFrom,
+      actorId,
+    }),
   updateCommission: (pharmacyId: string, percentage: number, actorId?: string) =>
     action("admin-pharmacy-commission", { pharmacyId, percentage, actorId }),
 };
@@ -335,18 +524,23 @@ export const payoutService = {
   listForEntity: (entityType: string, entityId: string) =>
     resource.list<PayoutRequest>("payoutRequest", { entityType, entityId }),
   listAll: () => resource.list<PayoutRequest>("payoutRequest"),
-  request: (body: Record<string, unknown>) => action("request-payout", body).then((r) => r.data as PayoutRequest),
-  update: (id: string, data: Partial<PayoutRequest>) => resource.update<PayoutRequest>("payoutRequest", id, data),
+  request: (body: Record<string, unknown>) =>
+    action("request-payout", body).then((r) => r.data as PayoutRequest),
+  update: (id: string, data: Partial<PayoutRequest>) =>
+    resource.update<PayoutRequest>("payoutRequest", id, data),
 };
 
 // --- uploaded prescriptions (patient-supplied paper Rx) ---
 export const uploadedPrescriptionService = {
-  list: (patientId: string) => resource.list<UploadedPrescription>("uploadedPrescription", { patientId }),
+  list: (patientId: string) =>
+    resource.list<UploadedPrescription>("uploadedPrescription", { patientId }),
   listForPharmacy: (pharmacyId: string) =>
     resource.list<UploadedPrescription>("uploadedPrescription", { pharmacyId }),
   get: (id: string) => resource.get<UploadedPrescription>("uploadedPrescription", id),
-  upload: (body: Record<string, unknown>) => action("upload-prescription", body).then((r) => r.data as UploadedPrescription),
-  update: (id: string, data: Partial<UploadedPrescription>) => resource.update<UploadedPrescription>("uploadedPrescription", id, data),
+  upload: (body: Record<string, unknown>) =>
+    action("upload-prescription", body).then((r) => r.data as UploadedPrescription),
+  update: (id: string, data: Partial<UploadedPrescription>) =>
+    resource.update<UploadedPrescription>("uploadedPrescription", id, data),
 };
 
 export type { ProviderVerificationStatus };
@@ -378,7 +572,8 @@ export interface ManagerOrganizationDetail {
 
 export interface ManagerMePayload {
   manager: Manager;
-  bankAccount: (Omit<ManagerBankAccount, "accountNumberMasked"> & { accountNumberMasked: string }) | null;
+  bankAccount:
+    (Omit<ManagerBankAccount, "accountNumberMasked"> & { accountNumberMasked: string }) | null;
   stats: {
     enrollmentCount: number;
     acquiredCount: number;
@@ -390,9 +585,14 @@ export interface ManagerMePayload {
 export const managerService = {
   me: () => sessionApi.get<{ data: ManagerMePayload }>("/api/manager/me").then((r) => r.data),
   dashboard: () =>
-    sessionApi.get<{ data: ManagerDashboardSummary & { notifications: Notification[]; manager: { id: string; managerNumber: string; onboardingCode: string; name: string } } }>(
-      "/api/manager/dashboard"
-    ).then((r) => r.data),
+    sessionApi
+      .get<{
+        data: ManagerDashboardSummary & {
+          notifications: Notification[];
+          manager: { id: string; managerNumber: string; onboardingCode: string; name: string };
+        };
+      }>("/api/manager/dashboard")
+      .then((r) => r.data),
   organizations: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
     return sessionApi
@@ -419,9 +619,17 @@ export const managerService = {
     sessionApi
       .get<{
         data: {
-          payouts: (PayoutRequest & { allocatedEarnings?: { earningNumber: string; amount: number }[] })[];
+          payouts: (PayoutRequest & {
+            allocatedEarnings?: { earningNumber: string; amount: number }[];
+          })[];
           availableBalance: number;
-          bankAccount: { id: string; bankName: string; accountName: string; accountNumberMasked: string; verificationStatus: string } | null;
+          bankAccount: {
+            id: string;
+            bankName: string;
+            accountName: string;
+            accountNumberMasked: string;
+            verificationStatus: string;
+          } | null;
         };
       }>("/api/manager/payouts")
       .then((r) => r.data),
@@ -432,23 +640,36 @@ export const managerService = {
       .then((r) => r as Paginated<SupportTicket>);
   },
   ticket: (id: string) =>
-    sessionApi.get<{ data: SupportTicket & { messages: SupportTicketMessage[] } }>(`/api/manager/support/${id}`).then((r) => r.data),
+    sessionApi
+      .get<{ data: SupportTicket & { messages: SupportTicketMessage[] } }>(
+        `/api/manager/support/${id}`,
+      )
+      .then((r) => r.data),
 
   // --- mutations go through dedicated action endpoints ---
   // sessionApi (not plain action) so the server can derive the caller
   // identity from the server-managed session — body-sent identities are never
   // trusted for manager/admin actions.
-  submitApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-onboard-organization", body),
-  requestPayout: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-request-payout", body),
-  updateTicket: (body: Record<string, unknown>) => sessionApi.post("/api/actions/manager-update-ticket", body),
-  confirmPayment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/confirm-organization-payment", body),
-  refundPayment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/refund-organization-payment", body),
+  submitApplication: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/manager-onboard-organization", body),
+  requestPayout: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/manager-request-payout", body),
+  updateTicket: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/manager-update-ticket", body),
+  confirmPayment: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/confirm-organization-payment", body),
+  refundPayment: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/refund-organization-payment", body),
 
   // --- admin-side manager methods (plan §3.8) ---
-  adminReviewApplication: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-review-manager-application", body),
-  adminReviewPatientEnrollment: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-review-patient-enrollment", body),
-  adminAssignManager: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-assign-manager", body),
-  adminManagerRule: (body: Record<string, unknown>) => sessionApi.post("/api/actions/admin-manager-rule", body),
+  adminReviewApplication: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/admin-review-manager-application", body),
+  adminReviewPatientEnrollment: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/admin-review-patient-enrollment", body),
+  adminAssignManager: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/admin-assign-manager", body),
+  adminManagerRule: (body: Record<string, unknown>) =>
+    sessionApi.post("/api/actions/admin-manager-rule", body),
 };
 
 export type { ManagerRevenueShareRule };

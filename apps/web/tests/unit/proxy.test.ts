@@ -67,6 +67,29 @@ describe("web request correlation", () => {
     expect(isApiRouteEnabled("production", "/api/public/practitioners")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/professions")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/specialties")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/applications/organizations")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/admin/applications/0199a18e-a400-7000-8000-000000000201/approve",
+      ),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/support/applications/0199a18e-a400-7000-8000-000000000201/approve",
+      ),
+    ).toBe(false);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/admin/applications/0199a18e-a400-7000-8000-000000000201/start-review",
+      ),
+    ).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/support/enrollments")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/applications/organizations/not-a-uuid")).toBe(
+      false,
+    );
     expect(
       isApiRouteEnabled("production", "/api/public/hospitals/0199a18e-a400-7000-8000-000000000201"),
     ).toBe(true);

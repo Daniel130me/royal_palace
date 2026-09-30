@@ -28,6 +28,7 @@ export interface ViewState {
 
 interface NavState {
   activePatientId: string | null;
+  authenticated: boolean;
   back: () => void;
   hydrateSession: () => Promise<void>;
   logout: () => Promise<void>;
@@ -91,6 +92,7 @@ function selectPortalRole(roles: readonly PlatformRole[]): UserRole | null {
 
 export const useNav = create<NavState>((set, get) => ({
   activePatientId: null,
+  authenticated: false,
   back: () => window.history.back(),
   hydrateSession: async () => {
     try {
@@ -98,6 +100,7 @@ export const useNav = create<NavState>((set, get) => ({
       const session = toLegacySession(serverSession);
       set({
         activePatientId: session?.role === "patient" ? session.userId : null,
+        authenticated: true,
         session,
         sessionEmail: "",
         sessionHydrated: true,
@@ -107,6 +110,7 @@ export const useNav = create<NavState>((set, get) => ({
     } catch {
       set({
         activePatientId: null,
+        authenticated: false,
         session: null,
         sessionEmail: "",
         sessionHydrated: true,
@@ -123,6 +127,7 @@ export const useNav = create<NavState>((set, get) => ({
       window.location.hash = "";
       set({
         activePatientId: null,
+        authenticated: false,
         session: null,
         sessionEmail: "",
         sessionName: "",

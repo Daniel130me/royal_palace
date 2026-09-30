@@ -150,7 +150,9 @@ that completes an increment.
     adopt it in the frontend service boundary and connect the patient practitioner finder.
   - `[x]` Publish the completion report and pass the complete repository, migration,
     discovery, query-plan, generated-client, build, and dependency-audit gates.
-- `[ ]` **Increment 07 — Onboarding and administrative verification**
+- `[~]` **Increment 07 — Onboarding and administrative verification**
+  - Evidence:
+    [`increments/07-onboarding-and-administrative-verification.md`](./increments/07-onboarding-and-administrative-verification.md)
 - `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**

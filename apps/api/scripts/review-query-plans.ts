@@ -9,6 +9,7 @@ const AUDIT_EVENT_COUNT = 12_000;
 const OUTBOX_EVENT_COUNT = 10_000;
 const AUTH_SESSION_COUNT = 10_000;
 const PRACTITIONER_COUNT = 12_000;
+const ONBOARDING_APPLICATION_COUNT = 10_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -176,6 +177,30 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "onboarding review queue",
+        `SELECT "id", "kind", "status", "created_at"
+           FROM "onboarding_applications"
+          WHERE "status" = 'SUBMITTED'
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [],
+        "onboarding_applications_review_queue_idx",
+      ),
+      await reviewPlan(
+        client,
+        "applicant application history",
+        `SELECT "id", "kind", "status", "created_at"
+           FROM "onboarding_applications"
+          WHERE "applicant_principal_id" = $1
+            AND "kind" = 'PATIENT'
+            AND "status" = 'REJECTED'
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [principalId],
+        "onboarding_applications_applicant_kind_status_created_idx",
+      ),
+      await reviewPlan(
+        client,
         "organization audit cursor",
         `SELECT "id", "occurred_at", "action", "result"
            FROM "audit_events"
@@ -231,6 +256,33 @@ async function loadRepresentativeData(
             now() + interval '15 minutes', now() + interval '8 hours'
        FROM unnest($3::uuid[]) AS input(id)`,
     [principalId, externalIdentityId, sessionIds],
+  );
+
+  const onboardingPrincipalIds = Array.from({ length: ONBOARDING_APPLICATION_COUNT }, () => v7());
+  const onboardingApplicationIds = onboardingPrincipalIds.map(() => v7());
+  await client.query(
+    `INSERT INTO "identity_principals" ("id", "updated_at")
+     SELECT input.id, now() FROM unnest($1::uuid[]) AS input(id)`,
+    [onboardingPrincipalIds],
+  );
+  await client.query(
+    `INSERT INTO "onboarding_applications"
+       ("id", "kind", "applicant_principal_id", "status", "submitted_at", "updated_at")
+     SELECT input.id, 'PRACTITIONER', input.principal_id, 'SUBMITTED',
+            now() - (input.ordinality * interval '1 second'), now()
+       FROM unnest($1::uuid[], $2::uuid[]) WITH ORDINALITY
+            AS input(id, principal_id, ordinality)`,
+    [onboardingApplicationIds, onboardingPrincipalIds],
+  );
+  const rejectedApplicationIds = Array.from({ length: 500 }, () => v7());
+  await client.query(
+    `INSERT INTO "onboarding_applications"
+       ("id", "kind", "applicant_principal_id", "status", "submitted_at",
+        "decided_at", "decided_by_principal_id", "created_at", "updated_at")
+     SELECT input.id, 'PATIENT', $1, 'REJECTED', now(), now(), $1,
+            now() - (input.ordinality * interval '1 minute'), now()
+       FROM unnest($2::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
+    [principalId, rejectedApplicationIds],
   );
 
   const organizationTypes = organizationIds.map((_, index) =>

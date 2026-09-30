@@ -1,14 +1,30 @@
 import createClient from "openapi-fetch";
 
 import type { paths } from "./generated/public-discovery.js";
+import type { paths as OnboardingPaths } from "./generated/onboarding.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
+export type {
+  components as OnboardingComponents,
+  paths as OnboardingPaths,
+} from "./generated/onboarding.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<paths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createOnboardingClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<OnboardingPaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

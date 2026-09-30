@@ -26,7 +26,18 @@ const ACTIVE_PRODUCTION_BFF_ROUTES = new Set([
   "/api/public/services",
   "/api/public/specialties",
 ]);
+const UUID_PATH_SEGMENT = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const ACTIVE_DYNAMIC_BFF_ROUTES = [
+  new RegExp(
+    `^/api/applications(?:/(?:patients|organizations|practitioners)(?:/${UUID_PATH_SEGMENT})?|/${UUID_PATH_SEGMENT}/(?:submit|withdraw|documents/upload-intents))?$`,
+    "i",
+  ),
+  new RegExp(
+    `^/api/admin/applications(?:/${UUID_PATH_SEGMENT}(?:/(?:approve|reject|request-information))?)?$`,
+    "i",
+  ),
+  new RegExp(`^/api/support/applications(?:/${UUID_PATH_SEGMENT}(?:/start-review)?)?$`, "i"),
+  new RegExp(`^/api/admin/catalogue/(?:professions|specialties)(?:/${UUID_PATH_SEGMENT})?$`, "i"),
   /^\/api\/public\/hospitals\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   /^\/api\/public\/(?:laboratories|pharmacies)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   /^\/api\/public\/practitioners\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
