@@ -32,8 +32,9 @@ that completes an increment.
   Increment 04B gate.
 - `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
   foundation; domain models will be extended by each later vertical slice.
-- `[ ]` **Phase 4 — Production vertical slices and frontend connection.** Delivered by
-  Increments 06–09 and 11.
+- `[~]` **Phase 4 — Production vertical slices and frontend connection.** Increment 06
+  is complete. The remaining production slices are delivered by Increments 07–09 and
+  11.
 - `[ ]` **Phase 5 — Payments, files, and asynchronous integrations.** Delivered by
   Increments 09–10 and relevant Increment 11 slices.
 - `[ ]` **Phase 6 — Clinical integrity and privacy operations.** Delivered by the
@@ -123,7 +124,10 @@ that completes an increment.
     consent, redaction, audit, and protected-route tests.
   - `[x]` Complete full repository, migration, security, and remote CI validation;
     publish the completion report; commit and push.
-- `[~]` **Increment 06 — Public discovery vertical slice**
+- `[x]` **Increment 06 — Public discovery vertical slice**
+  - Evidence:
+    [`increments/06-public-organization-discovery-checkpoint.md`](./increments/06-public-organization-discovery-checkpoint.md)
+  - Implementation commit: `6a6fdfe`
   - `[x]` Add normalized organization public profiles, facility locations, service
     taxonomy, organization offerings, and facility-specific availability with
     database constraints and discovery indexes.
@@ -136,12 +140,16 @@ that completes an increment.
   - `[x]` Complete PostgreSQL migration, repeatable synthetic seed, zero-drift,
     clean-upgrade/repair, bounded-query, query-plan, API/web test, and production-build
     evidence for organization discovery.
-  - `[!]` Provider discovery is intentionally not modelled as an organization. It
-    requires approved provider-affiliation, public credential, specialty taxonomy,
-    independent-practice, and public-field rules before its durable schema is created.
-  - `[ ]` Introduce the generated API client required by the controlling plan, connect
-    provider discovery after the material decisions above, then publish the Increment
-    06 completion report.
+  - `[x]` Model practitioners as independent aggregates with optional, non-authoritative
+    facility affiliations, governed profession/specialty catalogues, public credentials,
+    global locations, languages, and consultation modes.
+  - `[x]` Add public-safe practitioner discovery and catalogue APIs with bounded filters,
+    stable cursors, single-query projections, privacy tests, and representative index
+    plan evidence.
+  - `[x]` Introduce the generated OpenAPI client with deterministic drift verification;
+    adopt it in the frontend service boundary and connect the patient practitioner finder.
+  - `[x]` Publish the completion report and pass the complete repository, migration,
+    discovery, query-plan, generated-client, build, and dependency-audit gates.
 - `[ ]` **Increment 07 — Onboarding and administrative verification**
 - `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
@@ -196,16 +204,20 @@ separately blocked and mandatory.
 
 Increment 05 completed in `a2fbd29`. Named policies now default deny and append every
 protected decision to the immutable audit store. All unmigrated prototype APIs fail
-closed in staging and production. Increment 06 is the next implementation step.
+closed in staging and production.
 
-Increment 06 uses only explicitly synthetic discovery labels until the clinical/service
-taxonomy is approved. The generic taxonomy model is production-capable, but its seed
-terms are demonstration data and must not be promoted as a clinically governed catalogue.
+Increment 06 completed in `6a6fdfe`. Organization and practitioner discovery now use
+durable PostgreSQL models, bounded public projections, stable cursor pagination,
+representative query-plan gates, exact BFF allowlisting, and a generated OpenAPI client.
+The practitioner profession/specialty seed is a broad canonical starting catalogue with
+source metadata, not a substitute for qualified clinical governance; administrators can
+extend and deactivate its records through the audited workflow delivered in Increment 07.
 ADR 0003 now makes global deployability a standing invariant. Country-specific values
 in prototype screens, legacy SQLite models, tests, or synthetic fixtures are not
 production defaults and must be removed or routed through governed localization data as
 each vertical slice migrates. New production work must not introduce an implicit
 country, currency, locale, language, time zone, regulator, or regional provider.
+Increment 07 is the next implementation step.
 The deferred Increment 04B identity-provider decision remains a mandatory gate before
 protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
 it does not block synthetic implementation and validation of Increments 06–11.
