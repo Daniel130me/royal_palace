@@ -7,6 +7,7 @@ generator client {
   generatedFileExtension = "ts"
   importFileExtension    = "js"
   engineType             = "client"
+  previewFeatures        = ["relationJoins"]
 }
 
 datasource db {
@@ -57,6 +58,14 @@ enum PublicationStatus {
 enum CatalogueStatus {
   ACTIVE
   INACTIVE
+}
+
+enum ConsultationMode {
+  VIDEO
+  AUDIO
+  CHAT
+  IN_PERSON
+  HOME_VISIT
 }
 
 enum RoleScope {
@@ -111,6 +120,7 @@ model IdentityPrincipal {
   grantedRoles       RoleAssignment[]   @relation("RoleGrantor")
   auditEvents        AuditEvent[]       @relation("AuditActor")
   idempotencyKeys    IdempotencyKey[]
+  practitioner       Practitioner?
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -188,21 +198,22 @@ model AuthSession {
 }
 
 model Organization {
-  id                   String                     @id @db.Uuid
-  type                 OrganizationType
-  status               OrganizationStatus         @default(ACTIVE)
-  verificationStatus   VerificationStatus         @default(PENDING) @map("verification_status")
-  verifiedAt           DateTime?                  @map("verified_at") @db.Timestamptz(6)
-  legalName            String                     @map("legal_name") @db.VarChar(200)
-  displayName          String                     @map("display_name") @db.VarChar(120)
-  createdAt            DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version              Int                        @default(1)
-  memberships          Membership[]
-  auditEvents          AuditEvent[]
-  publicProfile        OrganizationPublicProfile?
-  facilityLocations    FacilityLocation[]
-  organizationServices OrganizationService[]
+  id                       String                     @id @db.Uuid
+  type                     OrganizationType
+  status                   OrganizationStatus         @default(ACTIVE)
+  verificationStatus       VerificationStatus         @default(PENDING) @map("verification_status")
+  verifiedAt               DateTime?                  @map("verified_at") @db.Timestamptz(6)
+  legalName                String                     @map("legal_name") @db.VarChar(200)
+  displayName              String                     @map("display_name") @db.VarChar(120)
+  createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                        @default(1)
+  memberships              Membership[]
+  auditEvents              AuditEvent[]
+  publicProfile            OrganizationPublicProfile?
+  facilityLocations        FacilityLocation[]
+  organizationServices     OrganizationService[]
+  practitionerAffiliations PractitionerAffiliation[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -232,26 +243,26 @@ model OrganizationPublicProfile {
 }
 
 model FacilityLocation {
-  id               String            @id @db.Uuid
-  organizationId   String            @map("organization_id") @db.Uuid
-  status           CatalogueStatus   @default(ACTIVE)
-  label            String            @db.VarChar(120)
-  addressLine1     String?           @map("address_line_1") @db.VarChar(200)
-  addressLine2     String?           @map("address_line_2") @db.VarChar(200)
-  locality         String?           @db.VarChar(100)
-  administrativeArea String?         @map("administrative_area") @db.VarChar(100)
-  postalCode       String?           @map("postal_code") @db.VarChar(32)
-  countryCode      String            @map("country_code") @db.Char(2)
-  latitude         Decimal?          @db.Decimal(9, 6)
-  longitude        Decimal?          @db.Decimal(9, 6)
-  publicPhone      String?           @map("public_phone") @db.VarChar(32)
-  isPrimary        Boolean           @default(false) @map("is_primary")
-  isPublic         Boolean           @default(false) @map("is_public")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version          Int               @default(1)
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  facilityServices FacilityService[]
+  id                 String            @id @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  status             CatalogueStatus   @default(ACTIVE)
+  label              String            @db.VarChar(120)
+  addressLine1       String?           @map("address_line_1") @db.VarChar(200)
+  addressLine2       String?           @map("address_line_2") @db.VarChar(200)
+  locality           String?           @db.VarChar(100)
+  administrativeArea String?           @map("administrative_area") @db.VarChar(100)
+  postalCode         String?           @map("postal_code") @db.VarChar(32)
+  countryCode        String            @map("country_code") @db.Char(2)
+  latitude           Decimal?          @db.Decimal(9, 6)
+  longitude          Decimal?          @db.Decimal(9, 6)
+  publicPhone        String?           @map("public_phone") @db.VarChar(32)
+  isPrimary          Boolean           @default(false) @map("is_primary")
+  isPublic           Boolean           @default(false) @map("is_public")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int               @default(1)
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  facilityServices   FacilityService[]
 
   @@unique([organizationId, id], map: "facility_locations_org_id_key")
   @@index([organizationId, isPublic, status, id], map: "facility_locations_org_public_idx")
@@ -313,6 +324,213 @@ model FacilityService {
   @@unique([locationId, organizationServiceId], map: "facility_services_location_service_key")
   @@index([organizationServiceId, status, locationId, id], map: "facility_services_offering_status_location_idx")
   @@map("facility_services")
+}
+
+model ProfessionTaxonomy {
+  id                      String                   @id @db.Uuid
+  code                    String                   @unique @db.VarChar(80)
+  name                    String                   @db.VarChar(160)
+  description             String?                  @db.VarChar(1000)
+  sourceSystem            String                   @map("source_system") @db.VarChar(255)
+  sourceVersion           String?                  @map("source_version") @db.VarChar(80)
+  sourceCode              String?                  @map("source_code") @db.VarChar(120)
+  sourceUri               String?                  @map("source_uri") @db.VarChar(2048)
+  status                  CatalogueStatus          @default(ACTIVE)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int                      @default(1)
+  practitionerProfessions PractitionerProfession[]
+
+  @@index([status, name, id], map: "profession_taxonomies_status_name_idx")
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "profession_taxonomies_name_trgm_idx")
+  @@map("profession_taxonomies")
+}
+
+model SpecialtyTaxonomy {
+  id                      String                  @id @db.Uuid
+  code                    String                  @unique @db.VarChar(100)
+  name                    String                  @db.VarChar(180)
+  category                String                  @db.VarChar(120)
+  description             String?                 @db.VarChar(1000)
+  parentId                String?                 @map("parent_id") @db.Uuid
+  sourceSystem            String                  @map("source_system") @db.VarChar(255)
+  sourceVersion           String?                 @map("source_version") @db.VarChar(80)
+  sourceCode              String?                 @map("source_code") @db.VarChar(120)
+  sourceUri               String?                 @map("source_uri") @db.VarChar(2048)
+  status                  CatalogueStatus         @default(ACTIVE)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int                     @default(1)
+  parent                  SpecialtyTaxonomy?      @relation("SpecialtyHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children                SpecialtyTaxonomy[]     @relation("SpecialtyHierarchy")
+  practitionerSpecialties PractitionerSpecialty[]
+
+  @@index([status, category, name, id], map: "specialty_taxonomies_status_category_name_idx")
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "specialty_taxonomies_name_trgm_idx")
+  @@map("specialty_taxonomies")
+}
+
+model Practitioner {
+  id                 String                         @id @db.Uuid
+  principalId        String?                        @unique @map("principal_id") @db.Uuid
+  displayName        String                         @map("display_name") @db.VarChar(160)
+  givenName          String                         @map("given_name") @db.VarChar(100)
+  familyName         String                         @map("family_name") @db.VarChar(100)
+  honorific          String?                        @db.VarChar(40)
+  verificationStatus VerificationStatus             @default(PENDING) @map("verification_status")
+  verifiedAt         DateTime?                      @map("verified_at") @db.Timestamptz(6)
+  createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                            @default(1)
+  principal          IdentityPrincipal?             @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  publicProfile      PractitionerPublicProfile?
+  professions        PractitionerProfession[]
+  specialties        PractitionerSpecialty[]
+  locations          PractitionerLocation[]
+  serviceModes       PractitionerServiceMode[]
+  languages          PractitionerLanguage[]
+  affiliations       PractitionerAffiliation[]
+  publicCredentials  PractitionerPublicCredential[]
+
+  @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
+  @@map("practitioners")
+}
+
+model PractitionerPublicProfile {
+  practitionerId    String            @id @map("practitioner_id") @db.Uuid
+  slug              String            @unique @db.VarChar(160)
+  status            PublicationStatus @default(DRAFT)
+  headline          String?           @db.VarChar(240)
+  biography         String?           @db.VarChar(3000)
+  photoUrl          String?           @map("photo_url") @db.VarChar(2048)
+  yearsExperience   Int?              @map("years_experience")
+  acceptingPatients Boolean           @default(false) @map("accepting_patients")
+  publishedAt       DateTime?         @map("published_at") @db.Timestamptz(6)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version           Int               @default(1)
+  practitioner      Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@index([status, publishedAt(sort: Desc), practitionerId], map: "practitioner_public_profiles_status_published_idx")
+  @@index([headline(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioner_public_profiles_headline_trgm_idx")
+  @@map("practitioner_public_profiles")
+}
+
+model PractitionerProfession {
+  id             String             @id @db.Uuid
+  practitionerId String             @map("practitioner_id") @db.Uuid
+  professionId   String             @map("profession_id") @db.Uuid
+  isPrimary      Boolean            @default(false) @map("is_primary")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  practitioner   Practitioner       @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  profession     ProfessionTaxonomy @relation(fields: [professionId], references: [id], onDelete: Restrict)
+
+  @@unique([practitionerId, professionId], map: "practitioner_professions_practitioner_profession_key")
+  @@index([professionId, practitionerId, id], map: "practitioner_professions_profession_practitioner_idx")
+  @@map("practitioner_professions")
+}
+
+model PractitionerSpecialty {
+  id             String            @id @db.Uuid
+  practitionerId String            @map("practitioner_id") @db.Uuid
+  specialtyId    String            @map("specialty_id") @db.Uuid
+  isPrimary      Boolean           @default(false) @map("is_primary")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  practitioner   Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  specialty      SpecialtyTaxonomy @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@unique([practitionerId, specialtyId], map: "practitioner_specialties_practitioner_specialty_key")
+  @@index([specialtyId, practitionerId, id], map: "practitioner_specialties_specialty_practitioner_idx")
+  @@map("practitioner_specialties")
+}
+
+model PractitionerLocation {
+  id                 String          @id @db.Uuid
+  practitionerId     String          @map("practitioner_id") @db.Uuid
+  status             CatalogueStatus @default(ACTIVE)
+  label              String          @db.VarChar(120)
+  addressLine1       String?         @map("address_line_1") @db.VarChar(200)
+  addressLine2       String?         @map("address_line_2") @db.VarChar(200)
+  locality           String?         @db.VarChar(100)
+  administrativeArea String?         @map("administrative_area") @db.VarChar(100)
+  postalCode         String?         @map("postal_code") @db.VarChar(32)
+  countryCode        String          @map("country_code") @db.Char(2)
+  latitude           Decimal?        @db.Decimal(9, 6)
+  longitude          Decimal?        @db.Decimal(9, 6)
+  isPrimary          Boolean         @default(false) @map("is_primary")
+  isPublic           Boolean         @default(false) @map("is_public")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int             @default(1)
+  practitioner       Practitioner    @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@index([practitionerId, isPublic, status, id], map: "practitioner_locations_practitioner_public_idx")
+  @@index([countryCode, postalCode, practitionerId, id], map: "practitioner_locations_country_postal_idx")
+  @@index([administrativeArea(ops: raw("gin_trgm_ops")), locality(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioner_locations_region_trgm_idx")
+  @@map("practitioner_locations")
+}
+
+model PractitionerServiceMode {
+  id             String           @id @db.Uuid
+  practitionerId String           @map("practitioner_id") @db.Uuid
+  mode           ConsultationMode
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  practitioner   Practitioner     @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@unique([practitionerId, mode], map: "practitioner_service_modes_practitioner_mode_key")
+  @@index([mode, practitionerId, id], map: "practitioner_service_modes_mode_practitioner_idx")
+  @@map("practitioner_service_modes")
+}
+
+model PractitionerLanguage {
+  id             String       @id @db.Uuid
+  practitionerId String       @map("practitioner_id") @db.Uuid
+  languageTag    String       @map("language_tag") @db.VarChar(35)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@unique([practitionerId, languageTag], map: "practitioner_languages_practitioner_language_key")
+  @@index([languageTag, practitionerId, id], map: "practitioner_languages_language_practitioner_idx")
+  @@map("practitioner_languages")
+}
+
+model PractitionerAffiliation {
+  id             String        @id @db.Uuid
+  practitionerId String        @map("practitioner_id") @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  facilityName   String        @map("facility_name") @db.VarChar(200)
+  roleTitle      String?       @map("role_title") @db.VarChar(160)
+  isPublic       Boolean       @default(false) @map("is_public")
+  startsAt       DateTime?     @map("starts_at") @db.Date
+  endsAt         DateTime?     @map("ends_at") @db.Date
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version        Int           @default(1)
+  practitioner   Practitioner  @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([practitionerId, isPublic, id], map: "practitioner_affiliations_practitioner_public_idx")
+  @@index([organizationId, practitionerId, id], map: "practitioner_affiliations_organization_idx")
+  @@map("practitioner_affiliations")
+}
+
+model PractitionerPublicCredential {
+  id               String       @id @db.Uuid
+  practitionerId   String       @map("practitioner_id") @db.Uuid
+  title            String       @db.VarChar(180)
+  issuerName       String       @map("issuer_name") @db.VarChar(200)
+  jurisdictionCode String?      @map("jurisdiction_code") @db.VarChar(16)
+  awardedYear      Int?         @map("awarded_year")
+  isPublic         Boolean      @default(false) @map("is_public")
+  verifiedAt       DateTime?    @map("verified_at") @db.Timestamptz(6)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version          Int          @default(1)
+  practitioner     Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+
+  @@index([practitionerId, isPublic, verifiedAt, id], map: "practitioner_credentials_public_idx")
+  @@map("practitioner_public_credentials")
 }
 
 model Membership {

@@ -1,7 +1,11 @@
 import type { PublicFacilityLocation } from "@royal-palace/contracts";
 import { describe, expect, it } from "vitest";
 
-import { formatPublicLocation, publicLocationLabel } from "@/lib/public-location";
+import {
+  formatPractitionerLocation,
+  formatPublicLocation,
+  publicLocationLabel,
+} from "@/lib/public-location";
 
 const location: PublicFacilityLocation = {
   addressLine1: "12 Example Street",
@@ -29,5 +33,18 @@ describe("public location formatting", () => {
         locality: null,
       }),
     ).toBe("CH");
+  });
+
+  it("formats the deliberately reduced public practitioner location projection", () => {
+    expect(
+      formatPractitionerLocation({
+        administrativeArea: "Ontario",
+        countryCode: "CA",
+        id: "0199a18e-a400-7000-8000-000000000611",
+        label: "Practice area",
+        locality: "Toronto",
+        postalCode: "M5V 1A1",
+      }),
+    ).toBe("Toronto, Ontario, M5V 1A1, CA");
   });
 });

@@ -21,11 +21,15 @@ const ACTIVE_PRODUCTION_BFF_ROUTES = new Set([
   "/api/public/hospitals",
   "/api/public/laboratories",
   "/api/public/pharmacies",
+  "/api/public/practitioners",
+  "/api/public/professions",
   "/api/public/services",
+  "/api/public/specialties",
 ]);
 const ACTIVE_DYNAMIC_BFF_ROUTES = [
   /^\/api\/public\/hospitals\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   /^\/api\/public\/(?:laboratories|pharmacies)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  /^\/api\/public\/practitioners\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
 ] as const;
 
 export function proxy(request: NextRequest): NextResponse {

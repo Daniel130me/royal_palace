@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@royal-palace/api-client": "workspace:*",
     "@royal-palace/config": "workspace:*",
     "@royal-palace/contracts": "workspace:*",
     "@royal-palace/security": "workspace:*",

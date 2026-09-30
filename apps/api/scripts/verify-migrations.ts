@@ -120,6 +120,7 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const sessionId = v7();
   const auditId = v7();
   const verifiedOrganizationId = v7();
+  const practitionerId = v7();
 
   await client.connect();
   try {
@@ -173,6 +174,34 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       client,
       'INSERT INTO "facility_locations" ("id", "organization_id", "label", "country_code", "updated_at") VALUES ($1, $2, $3, $4, now())',
       [v7(), verifiedOrganizationId, "Location without an address", "CH"],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "practitioners" ("id", "display_name", "given_name", "family_name", "verification_status", "updated_at") VALUES ($1, $2, $3, $4, $5, now())',
+      [practitionerId, "Invalid Verified Person", "Invalid", "Person", "VERIFIED"],
+      "23514",
+    );
+    await client.query(
+      'INSERT INTO "practitioners" ("id", "display_name", "given_name", "family_name", "verification_status", "verified_at", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), now())',
+      [practitionerId, "Verified Synthetic Person", "Synthetic", "Person", "VERIFIED"],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "practitioner_public_profiles" ("practitioner_id", "slug", "status", "updated_at") VALUES ($1, $2, $3, now())',
+      [practitionerId, "missing-practitioner-published-at", "PUBLISHED"],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "practitioner_locations" ("id", "practitioner_id", "label", "locality", "country_code", "updated_at") VALUES ($1, $2, $3, $4, $5, now())',
+      [v7(), practitionerId, "Invalid country", "Toronto", "ca"],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "practitioner_languages" ("id", "practitioner_id", "language_tag") VALUES ($1, $2, $3)',
+      [v7(), practitionerId, "not_a_bcp47_tag"],
       "23514",
     );
     await client.query(

@@ -1,14 +1,18 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PublicDiscoveryService } from "../src/discovery/application/public-discovery.service.js";
+import { PublicPractitionerDiscoveryService } from "../src/discovery/application/public-practitioner-discovery.service.js";
 import { PrismaPublicDiscoveryRepository } from "../src/discovery/infrastructure/prisma-public-discovery.repository.js";
+import { PrismaPublicPractitionerDiscoveryRepository } from "../src/discovery/infrastructure/prisma-public-practitioner-discovery.repository.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import type { PrismaService } from "../src/platform/database/prisma.service.js";
 import { requireDisposableDatabase } from "./database-safety.js";
 
-// Prisma batches the root, one-to-one profile, locations, offerings, and taxonomy
-// reads. This remains five queries regardless of page size and prevents N+1 growth.
-const MAX_LIST_QUERY_COUNT = 5;
+// PostgreSQL relation joins aggregate the bounded public projection in one round trip.
+// The small allowance detects accidental N+1 regressions without coupling this gate to
+// harmless metadata statements emitted by a future driver version.
+const MAX_LIST_QUERY_COUNT = 2;
+const MAX_PRACTITIONER_LIST_QUERY_COUNT = 2;
 
 async function main(): Promise<void> {
   const databaseUrl = requireDisposableDatabase().toString();
@@ -22,6 +26,9 @@ async function main(): Promise<void> {
   });
   const repository = new PrismaPublicDiscoveryRepository(database as unknown as PrismaService);
   const discovery = new PublicDiscoveryService(repository);
+  const practitionerDiscovery = new PublicPractitionerDiscoveryService(
+    new PrismaPublicPractitionerDiscoveryRepository(database as unknown as PrismaService),
+  );
 
   try {
     const services = await discovery.listServices("HOSPITAL");
@@ -91,17 +98,51 @@ async function main(): Promise<void> {
       "Cursor pagination returned a duplicate",
     );
 
+    const professions = await practitionerDiscovery.listProfessions();
+    const specialties = await practitionerDiscovery.listSpecialties();
+    assert(professions.data.length >= 15, "Practitioner profession catalogue is incomplete");
+    assert(specialties.data.length >= 100, "Practitioner specialty catalogue is incomplete");
+
+    queryCount = 0;
+    const practitioners = await practitionerDiscovery.listPractitioners({
+      filters: {
+        countryCode: "CA",
+        languageTag: "en",
+        professionCode: "medicine",
+        serviceMode: "VIDEO",
+        specialtyCode: "cardiology",
+      },
+    });
+    assert(practitioners.data.length === 1, "Practitioner filters returned an unexpected count");
+    assert(
+      practitioners.data[0]?.slug === "synthetic-maya-chen",
+      "Practitioner filters returned the wrong profile",
+    );
+    const practitionerListQueryCount = queryCount;
+    assert(
+      practitionerListQueryCount <= MAX_PRACTITIONER_LIST_QUERY_COUNT,
+      `Practitioner list used ${practitionerListQueryCount} database queries; limit is ${MAX_PRACTITIONER_LIST_QUERY_COUNT}`,
+    );
+
     const serialized = JSON.stringify([
       ...lagos.data,
       ...maternalCare.data,
       ...pharmacies.data,
       ...laboratories.data,
+      ...practitioners.data,
     ]);
-    for (const privateField of ["legalName", "verificationStatus", "verifiedAt"] as const) {
+    for (const privateField of [
+      "legalName",
+      "verificationStatus",
+      "verifiedAt",
+      "principalId",
+      "givenName",
+      "familyName",
+    ] as const) {
       assert(!serialized.includes(privateField), `Public projection leaked ${privateField}`);
     }
     process.stdout.write(
-      `Public discovery verification passed with ${listQueryCount} queries per list request.\n`,
+      `Public discovery verification passed with ${listQueryCount} organization queries and ${practitionerListQueryCount} practitioner queries per list request.\n`,
     );
   } finally {
     await database.$disconnect();

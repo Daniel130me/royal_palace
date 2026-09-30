@@ -8,6 +8,7 @@ const ORGANIZATION_COUNT = 20_000;
 const AUDIT_EVENT_COUNT = 12_000;
 const OUTBOX_EVENT_COUNT = 10_000;
 const AUTH_SESSION_COUNT = 10_000;
+const PRACTITIONER_COUNT = 12_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   const principalId = v7();
   const externalIdentityId = v7();
   const organizationIds = Array.from({ length: ORGANIZATION_COUNT }, () => v7());
+  const practitionerIds = Array.from({ length: PRACTITIONER_COUNT }, () => v7());
   const targetOrganizationId = organizationIds[0];
   if (targetOrganizationId === undefined)
     throw new Error("Representative organization set is empty");
@@ -39,6 +41,7 @@ async function main(): Promise<void> {
       principalId,
       externalIdentityId,
       organizationIds,
+      practitionerIds,
       targetOrganizationId,
     );
     await client.query("ANALYZE");
@@ -130,6 +133,49 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "practitioner discovery",
+        `SELECT practitioner."id", practitioner."display_name"
+           FROM "practitioners" AS practitioner
+           JOIN "practitioner_public_profiles" AS profile
+             ON profile."practitioner_id" = practitioner."id"
+            AND profile."status" = 'PUBLISHED'
+          WHERE practitioner."verification_status" = 'VERIFIED'
+            AND (practitioner."display_name", practitioner."id") > ($1, $2)
+          ORDER BY practitioner."display_name", practitioner."id"
+          LIMIT 50`,
+        ["Synthetic Practitioner 000000", "00000000-0000-0000-0000-000000000000"],
+        "practitioners_public_discovery_idx",
+      ),
+      await reviewPlan(
+        client,
+        "practitioner specialty filter",
+        `SELECT link."practitioner_id"
+           FROM "practitioner_specialties" AS link
+           JOIN "specialty_taxonomies" AS specialty ON specialty."id" = link."specialty_id"
+          WHERE specialty."code" = 'query-plan-specialty'
+            AND specialty."status" = 'ACTIVE'
+          ORDER BY link."practitioner_id", link."id"
+          LIMIT 50`,
+        [],
+        "practitioner_specialties_specialty_practitioner_idx",
+      ),
+      await reviewPlan(
+        client,
+        "practitioner location filter",
+        `SELECT location."practitioner_id", location."id"
+           FROM "practitioner_locations" AS location
+          WHERE location."administrative_area" ILIKE 'Ontario'
+            AND location."locality" ILIKE 'Toronto'
+            AND location."is_public" = true
+            AND location."status" = 'ACTIVE'
+          ORDER BY location."practitioner_id", location."id"
+          LIMIT 50`,
+        [],
+        "practitioner_locations_region_trgm_idx",
+        { forceIndexEligibility: true },
+      ),
+      await reviewPlan(
+        client,
         "organization audit cursor",
         `SELECT "id", "occurred_at", "action", "result"
            FROM "audit_events"
@@ -165,6 +211,7 @@ async function loadRepresentativeData(
   principalId: string,
   externalIdentityId: string,
   organizationIds: readonly string[],
+  practitionerIds: readonly string[],
   targetOrganizationId: string,
 ): Promise<string> {
   await client.query('INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())', [
@@ -273,6 +320,79 @@ async function loadRepresentativeData(
     [offeringIds, hospitalIds, offeringServiceIds],
   );
 
+  const professionId = v7();
+  const specialtyIds = Array.from({ length: 20 }, () => v7());
+  const specialtyCodes = specialtyIds.map((_, index) =>
+    index === 0 ? "query-plan-specialty" : `query-plan-specialty-${String(index).padStart(3, "0")}`,
+  );
+  await client.query(
+    `INSERT INTO "profession_taxonomies"
+       ("id", "code", "name", "source_system", "updated_at")
+     VALUES ($1, 'query-plan-profession', 'Query Plan Profession', 'synthetic', now())`,
+    [professionId],
+  );
+  await client.query(
+    `INSERT INTO "specialty_taxonomies"
+       ("id", "code", "name", "category", "source_system", "updated_at")
+     SELECT input.id, input.code, input.code, 'Synthetic', 'synthetic', now()
+       FROM unnest($1::uuid[], $2::text[]) AS input(id, code)`,
+    [specialtyIds, specialtyCodes],
+  );
+  const practitionerDisplayNames = practitionerIds.map(
+    (_, index) => `Synthetic Practitioner ${String(index).padStart(6, "0")}`,
+  );
+  await client.query(
+    `INSERT INTO "practitioners"
+       ("id", "display_name", "given_name", "family_name", "verification_status", "verified_at", "updated_at")
+     SELECT input.id, input.display_name, 'Synthetic', 'Practitioner', 'VERIFIED', now(), now()
+       FROM unnest($1::uuid[], $2::text[]) AS input(id, display_name)`,
+    [practitionerIds, practitionerDisplayNames],
+  );
+  const practitionerSlugs = practitionerIds.map(
+    (_, index) => `synthetic-practitioner-${String(index).padStart(6, "0")}`,
+  );
+  await client.query(
+    `INSERT INTO "practitioner_public_profiles"
+       ("practitioner_id", "slug", "status", "published_at", "updated_at")
+     SELECT input.practitioner_id, input.slug, 'PUBLISHED', now(), now()
+       FROM unnest($1::uuid[], $2::text[]) AS input(practitioner_id, slug)`,
+    [practitionerIds, practitionerSlugs],
+  );
+  const practitionerSpecialtyIds = practitionerIds.map(() => v7());
+  const practitionerSpecialtyTaxonomyIds = practitionerIds.map(
+    (_, index) => specialtyIds[index % specialtyIds.length],
+  );
+  await client.query(
+    `INSERT INTO "practitioner_specialties"
+       ("id", "practitioner_id", "specialty_id", "is_primary")
+     SELECT input.id, input.practitioner_id, input.specialty_id, true
+       FROM unnest($1::uuid[], $2::uuid[], $3::uuid[])
+            AS input(id, practitioner_id, specialty_id)`,
+    [practitionerSpecialtyIds, practitionerIds, practitionerSpecialtyTaxonomyIds],
+  );
+  const practitionerLocationIds = practitionerIds.map(() => v7());
+  const practitionerAdministrativeAreas = practitionerIds.map((_, index) =>
+    index % 100 === 0 ? "Ontario" : "Zurich",
+  );
+  const practitionerLocalities = practitionerIds.map((_, index) =>
+    index % 100 === 0 ? "Toronto" : "Zurich",
+  );
+  await client.query(
+    `INSERT INTO "practitioner_locations"
+       ("id", "practitioner_id", "label", "locality", "administrative_area", "country_code",
+        "is_primary", "is_public", "updated_at")
+     SELECT input.id, input.practitioner_id, 'Primary area', input.locality,
+            input.administrative_area, 'ZZ', true, true, now()
+       FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[])
+            AS input(id, practitioner_id, administrative_area, locality)`,
+    [
+      practitionerLocationIds,
+      practitionerIds,
+      practitionerAdministrativeAreas,
+      practitionerLocalities,
+    ],
+  );
+
   const auditIds = Array.from({ length: AUDIT_EVENT_COUNT }, () => v7());
   const auditTimes = auditIds.map((_, index) => new Date(Date.now() - index * 1_000));
   await client.query(
@@ -356,6 +476,7 @@ async function reviewPlan(
       authSessions: AUTH_SESSION_COUNT,
       organizations: ORGANIZATION_COUNT,
       outboxEvents: OUTBOX_EVENT_COUNT,
+      practitioners: PRACTITIONER_COUNT,
     },
   };
 }

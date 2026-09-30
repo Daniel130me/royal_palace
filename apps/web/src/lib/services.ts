@@ -2,8 +2,9 @@
 // The UI consumes these functions instead of performing raw fetches, so the
 // backend can be replaced without touching components (see spec section 58).
 
-import { api, resource, action, sessionApi, type Paginated } from "./api-client";
-import type { PublicOrganizationDetail, PublicOrganizationListResponse, PublicOrganizationType, PublicServiceListResponse } from "@royal-palace/contracts";
+import { createPublicDiscoveryClient } from "@royal-palace/api-client";
+import type { PublicOrganizationType } from "@royal-palace/contracts";
+import { api, ApiError, resource, action, sessionApi, type Paginated } from "./api-client";
 import type {
   Appointment,
   ClinicalEncounter,
@@ -96,32 +97,103 @@ export const hospitalService = {
   get: (id: string) => resource.get<Hospital>("hospital", id),
 };
 
+const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
+
+type PublicOrganizationQuery = {
+  country?: string;
+  cursor?: string;
+  emergencyAvailable?: boolean;
+  limit?: number;
+  location?: string;
+  openTwentyFourHours?: boolean;
+  q?: string;
+  service?: string;
+};
+
 function listPublicOrganizations(
   resourceName: "hospitals" | "pharmacies" | "laboratories",
-  params: Record<string, string | number | boolean | undefined>,
+  params: PublicOrganizationQuery,
   signal?: AbortSignal,
 ) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") query.set(key, String(value));
+  if (resourceName === "hospitals") {
+    return generatedPublicDiscoveryClient
+      .GET("/api/public/hospitals", { params: { query: params }, signal })
+      .then(unwrapGeneratedResponse);
   }
-  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
-  return api.get<PublicOrganizationListResponse>(`/api/public/${resourceName}${suffix}`, { signal });
+  if (resourceName === "pharmacies") {
+    return generatedPublicDiscoveryClient
+      .GET("/api/public/pharmacies", { params: { query: params }, signal })
+      .then(unwrapGeneratedResponse);
+  }
+  return generatedPublicDiscoveryClient
+    .GET("/api/public/laboratories", { params: { query: params }, signal })
+    .then(unwrapGeneratedResponse);
 }
 
 export const publicDiscoveryService = {
   organizations: listPublicOrganizations,
-  hospitals: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+  hospitals: (params: PublicOrganizationQuery, signal?: AbortSignal) =>
     listPublicOrganizations("hospitals", params, signal),
-  pharmacies: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+  pharmacies: (params: PublicOrganizationQuery, signal?: AbortSignal) =>
     listPublicOrganizations("pharmacies", params, signal),
-  laboratories: (params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
+  laboratories: (params: PublicOrganizationQuery, signal?: AbortSignal) =>
     listPublicOrganizations("laboratories", params, signal),
   hospital: (id: string, signal?: AbortSignal) =>
-    api.get<PublicOrganizationDetail>(`/api/public/hospitals/${encodeURIComponent(id)}`, { signal }),
+    generatedPublicDiscoveryClient
+      .GET("/api/public/hospitals/{organizationId}", {
+        params: { path: { organizationId: id } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
   services: (organizationType: PublicOrganizationType = "HOSPITAL", signal?: AbortSignal) =>
-    api.get<PublicServiceListResponse>(`/api/public/services?organizationType=${organizationType}`, { signal }),
+    generatedPublicDiscoveryClient
+      .GET("/api/public/services", { params: { query: { organizationType } }, signal })
+      .then(unwrapGeneratedResponse),
+  professions: (signal?: AbortSignal) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/professions", { signal })
+      .then(unwrapGeneratedResponse),
+  specialties: (signal?: AbortSignal) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/specialties", { signal })
+      .then(unwrapGeneratedResponse),
+  practitioners: (
+    params: {
+      country?: string;
+      cursor?: string;
+      language?: string;
+      limit?: number;
+      location?: string;
+      mode?: "VIDEO" | "AUDIO" | "CHAT" | "IN_PERSON" | "HOME_VISIT";
+      profession?: string;
+      q?: string;
+      specialty?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/practitioners", { params: { query: params }, signal })
+      .then(unwrapGeneratedResponse),
+  practitioner: (id: string, signal?: AbortSignal) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/practitioners/{practitionerId}", {
+        params: { path: { practitionerId: id } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
 };
+
+function unwrapGeneratedResponse<T>(result: {
+  data?: T;
+  error?: { error?: string; message?: string };
+  response: Response;
+}): T {
+  if (result.data !== undefined) return result.data;
+  throw new ApiError(
+    result.error?.message ?? result.error?.error ?? "Public discovery request failed",
+    result.response.status,
+  );
+}
 
 export const logisticsService = {
   list: () => resource.list<LogisticsProvider>("logisticsProvider"),

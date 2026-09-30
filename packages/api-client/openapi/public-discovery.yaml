@@ -1,0 +1,456 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Public Discovery API
+  version: 1.0.0
+  description: Public-safe organization and practitioner discovery through the same-origin BFF.
+servers:
+  - url: /
+paths:
+  /api/public/services:
+    get:
+      operationId: listPublicServices
+      parameters:
+        - in: query
+          name: organizationType
+          schema:
+            $ref: "#/components/schemas/OrganizationType"
+      responses:
+        "200":
+          description: Active services offered by published organizations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicServiceListResponse"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/public/hospitals:
+    get:
+      operationId: listPublicHospitals
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Country"
+        - $ref: "#/components/parameters/Location"
+        - $ref: "#/components/parameters/Service"
+        - in: query
+          name: emergencyAvailable
+          schema: { type: boolean }
+        - in: query
+          name: openTwentyFourHours
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Published and verified hospitals.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/pharmacies:
+    get:
+      operationId: listPublicPharmacies
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Country"
+        - $ref: "#/components/parameters/Location"
+        - $ref: "#/components/parameters/Service"
+      responses:
+        "200":
+          description: Published and verified pharmacies.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/laboratories:
+    get:
+      operationId: listPublicLaboratories
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Country"
+        - $ref: "#/components/parameters/Location"
+        - $ref: "#/components/parameters/Service"
+      responses:
+        "200":
+          description: Published and verified laboratories.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/hospitals/{organizationId}:
+    get:
+      operationId: getPublicHospital
+      parameters:
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Public hospital detail.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/pharmacies/{organizationId}:
+    get:
+      operationId: getPublicPharmacy
+      parameters:
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Public pharmacy detail.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/laboratories/{organizationId}:
+    get:
+      operationId: getPublicLaboratory
+      parameters:
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Public laboratory detail.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicOrganizationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/professions:
+    get:
+      operationId: listPublicProfessions
+      responses:
+        "200":
+          description: Active practitioner professions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicProfessionListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/specialties:
+    get:
+      operationId: listPublicSpecialties
+      responses:
+        "200":
+          description: Active practitioner specialties.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicSpecialtyListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/practitioners:
+    get:
+      operationId: listPublicPractitioners
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Query"
+        - $ref: "#/components/parameters/Country"
+        - $ref: "#/components/parameters/Location"
+        - in: query
+          name: profession
+          schema: { $ref: "#/components/schemas/CatalogueCode" }
+        - in: query
+          name: specialty
+          schema: { $ref: "#/components/schemas/CatalogueCode" }
+        - in: query
+          name: language
+          schema:
+            type: string
+            maxLength: 35
+            pattern: "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$"
+        - in: query
+          name: mode
+          schema: { $ref: "#/components/schemas/ConsultationMode" }
+      responses:
+        "200":
+          description: Published and independently verified practitioners.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPractitionerListResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/public/practitioners/{practitionerId}:
+    get:
+      operationId: getPublicPractitioner
+      parameters:
+        - in: path
+          name: practitionerId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Public practitioner detail.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPractitionerDetail" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  parameters:
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string, maxLength: 2048 }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    Query:
+      in: query
+      name: q
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    Country:
+      in: query
+      name: country
+      schema: { type: string, pattern: "^[A-Z]{2}$" }
+    Location:
+      in: query
+      name: location
+      schema: { type: string, minLength: 1, maxLength: 200 }
+    Service:
+      in: query
+      name: service
+      schema: { $ref: "#/components/schemas/CatalogueCode" }
+    OrganizationId:
+      in: path
+      name: organizationId
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Request failed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+  schemas:
+    CatalogueCode:
+      type: string
+      maxLength: 100
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    OrganizationType:
+      type: string
+      enum: [HOSPITAL, PHARMACY, LABORATORY]
+    ConsultationMode:
+      type: string
+      enum: [VIDEO, AUDIO, CHAT, IN_PERSON, HOME_VISIT]
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    CursorPageInfo:
+      type: object
+      additionalProperties: false
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    PublicService:
+      type: object
+      additionalProperties: false
+      required: [category, code, id, name]
+      properties:
+        category: { type: string }
+        code: { type: string }
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PublicFacilityLocation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          addressLine1,
+          addressLine2,
+          administrativeArea,
+          countryCode,
+          id,
+          label,
+          locality,
+          postalCode,
+          publicPhone,
+        ]
+      properties:
+        addressLine1: { type: [string, "null"] }
+        addressLine2: { type: [string, "null"] }
+        administrativeArea: { type: [string, "null"] }
+        countryCode: { type: string }
+        id: { type: string, format: uuid }
+        label: { type: string }
+        locality: { type: [string, "null"] }
+        postalCode: { type: [string, "null"] }
+        publicPhone: { type: [string, "null"] }
+    PublicOrganizationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acceptingPatients,
+          displayName,
+          emergencyAvailable,
+          id,
+          locations,
+          openTwentyFourHours,
+          organizationType,
+          services,
+          slug,
+          summary,
+        ]
+      properties:
+        acceptingPatients: { type: boolean }
+        displayName: { type: string }
+        emergencyAvailable: { type: boolean }
+        id: { type: string, format: uuid }
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/PublicFacilityLocation" }
+        openTwentyFourHours: { type: boolean }
+        organizationType: { $ref: "#/components/schemas/OrganizationType" }
+        services:
+          type: array
+          items: { $ref: "#/components/schemas/PublicService" }
+        slug: { type: string }
+        summary: { type: [string, "null"] }
+    PublicOrganizationDetail:
+      allOf:
+        - $ref: "#/components/schemas/PublicOrganizationSummary"
+        - type: object
+          required: [websiteUrl]
+          properties:
+            websiteUrl: { type: [string, "null"] }
+    PublicOrganizationListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicOrganizationSummary" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PublicServiceListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicService" }
+    PublicProfession:
+      type: object
+      additionalProperties: false
+      required: [code, id, name]
+      properties:
+        code: { type: string }
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PublicSpecialty:
+      type: object
+      additionalProperties: false
+      required: [category, code, id, name]
+      properties:
+        category: { type: string }
+        code: { type: string }
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PublicPractitionerLocation:
+      type: object
+      additionalProperties: false
+      required: [administrativeArea, countryCode, id, label, locality, postalCode]
+      properties:
+        administrativeArea: { type: [string, "null"] }
+        countryCode: { type: string }
+        id: { type: string, format: uuid }
+        label: { type: string }
+        locality: { type: [string, "null"] }
+        postalCode: { type: [string, "null"] }
+    PublicPractitionerSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acceptingPatients,
+          displayName,
+          headline,
+          id,
+          languages,
+          locations,
+          professions,
+          serviceModes,
+          slug,
+          specialties,
+          yearsExperience,
+        ]
+      properties:
+        acceptingPatients: { type: boolean }
+        displayName: { type: string }
+        headline: { type: [string, "null"] }
+        id: { type: string, format: uuid }
+        languages:
+          type: array
+          items: { type: string }
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPractitionerLocation" }
+        professions:
+          type: array
+          items: { $ref: "#/components/schemas/PublicProfession" }
+        serviceModes:
+          type: array
+          items: { $ref: "#/components/schemas/ConsultationMode" }
+        slug: { type: string }
+        specialties:
+          type: array
+          items: { $ref: "#/components/schemas/PublicSpecialty" }
+        yearsExperience: { type: [integer, "null"] }
+    PublicPractitionerAffiliation:
+      type: object
+      additionalProperties: false
+      required: [facilityName, roleTitle]
+      properties:
+        facilityName: { type: string }
+        roleTitle: { type: [string, "null"] }
+    PublicPractitionerCredential:
+      type: object
+      additionalProperties: false
+      required: [awardedYear, issuerName, jurisdictionCode, title]
+      properties:
+        awardedYear: { type: [integer, "null"] }
+        issuerName: { type: string }
+        jurisdictionCode: { type: [string, "null"] }
+        title: { type: string }
+    PublicPractitionerDetail:
+      allOf:
+        - $ref: "#/components/schemas/PublicPractitionerSummary"
+        - type: object
+          required: [affiliations, biography, credentials]
+          properties:
+            affiliations:
+              type: array
+              items: { $ref: "#/components/schemas/PublicPractitionerAffiliation" }
+            biography: { type: [string, "null"] }
+            credentials:
+              type: array
+              items: { $ref: "#/components/schemas/PublicPractitionerCredential" }
+    PublicPractitionerListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPractitionerSummary" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PublicProfessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicProfession" }
+    PublicSpecialtyListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicSpecialty" }

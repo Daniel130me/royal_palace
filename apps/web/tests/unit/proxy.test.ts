@@ -64,10 +64,20 @@ describe("web request correlation", () => {
     expect(isApiRouteEnabled("production", "/api/public/hospitals")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/pharmacies")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/laboratories")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/practitioners")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/professions")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/specialties")).toBe(true);
     expect(
       isApiRouteEnabled("production", "/api/public/hospitals/0199a18e-a400-7000-8000-000000000201"),
     ).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/hospitals/not-a-uuid")).toBe(false);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/public/practitioners/0199a18e-a400-7000-8000-000000000601",
+      ),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/public/practitioners/not-a-uuid")).toBe(false);
     expect(isApiRouteEnabled("test", "/api/actions/book-appointment")).toBe(true);
     expect(isApiRouteEnabled("production", "/patient/dashboard")).toBe(true);
   });

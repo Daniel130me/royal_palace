@@ -6,15 +6,10 @@ import type {
   PublicService,
 } from "@royal-palace/contracts";
 
-export interface HospitalCursor {
-  displayName: string;
-  filterHash: string;
-  id: string;
-  version: 1;
-}
+import type { DiscoveryCursor } from "../application/discovery-cursor.js";
 
 export interface ListOrganizationsQuery extends PublicHospitalFilters {
-  cursor?: HospitalCursor;
+  cursor?: DiscoveryCursor;
   limit: number;
   organizationType: PublicOrganizationType;
 }

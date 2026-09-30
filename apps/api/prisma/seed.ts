@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
+import { PROFESSION_SEEDS, SPECIALTY_SEEDS } from "./seed-data/practitioner-catalogues.js";
 
 const SYNTHETIC_ISSUER = "https://identity.synthetic.invalid";
 const SYNTHETIC_SUPPORT_ROLE_ID = "0199a18e-a400-7000-8000-000000000001";
@@ -133,6 +134,74 @@ const SYNTHETIC_ORGANIZATIONS = [
     ],
   },
 ] as const;
+const SYNTHETIC_PRACTITIONERS = [
+  {
+    id: "0199a18e-a400-7000-8000-000000000601",
+    displayName: "Dr. Maya Chen",
+    givenName: "Maya",
+    familyName: "Chen",
+    honorific: "Dr.",
+    slug: "synthetic-maya-chen",
+    headline: "Synthetic cardiology practitioner profile",
+    professionCode: "medicine",
+    specialtyCodes: ["cardiology", "internal-medicine"],
+    modes: ["VIDEO", "IN_PERSON"],
+    languages: ["en", "zh-Hans"],
+    location: {
+      id: "0199a18e-a400-7000-8000-000000000611",
+      label: "Toronto practice area",
+      locality: "Toronto",
+      administrativeArea: "Ontario",
+      postalCode: "M5V 1A1",
+      countryCode: "CA",
+    },
+    yearsExperience: 12,
+  },
+  {
+    id: "0199a18e-a400-7000-8000-000000000602",
+    displayName: "Dr. Sofia Keller",
+    givenName: "Sofia",
+    familyName: "Keller",
+    honorific: "Dr.",
+    slug: "synthetic-sofia-keller",
+    headline: "Synthetic clinical psychology practitioner profile",
+    professionCode: "psychology",
+    specialtyCodes: ["clinical-psychology"],
+    modes: ["VIDEO", "AUDIO", "IN_PERSON"],
+    languages: ["de-CH", "en"],
+    location: {
+      id: "0199a18e-a400-7000-8000-000000000612",
+      label: "Zurich practice area",
+      locality: "Zurich",
+      administrativeArea: null,
+      postalCode: "8001",
+      countryCode: "CH",
+    },
+    yearsExperience: 9,
+  },
+  {
+    id: "0199a18e-a400-7000-8000-000000000603",
+    displayName: "Aisha Rahman",
+    givenName: "Aisha",
+    familyName: "Rahman",
+    honorific: null,
+    slug: "synthetic-aisha-rahman",
+    headline: "Synthetic neurological physiotherapy practitioner profile",
+    professionCode: "physiotherapy",
+    specialtyCodes: ["neurological-physiotherapy"],
+    modes: ["IN_PERSON", "HOME_VISIT"],
+    languages: ["en", "ms"],
+    location: {
+      id: "0199a18e-a400-7000-8000-000000000613",
+      label: "Singapore practice area",
+      locality: "Singapore",
+      administrativeArea: null,
+      postalCode: "018956",
+      countryCode: "SG",
+    },
+    yearsExperience: 7,
+  },
+] as const;
 
 function assertSyntheticSeedIsAllowed(): void {
   if (process.env.APP_ENV === "production") {
@@ -192,8 +261,140 @@ async function main(): Promise<void> {
       select: { id: true },
     });
     await seedPublicDiscovery(database);
+    await seedPractitionerDiscovery(database);
   } finally {
     await database.$disconnect();
+  }
+}
+
+async function seedPractitionerDiscovery(database: PrismaClient): Promise<void> {
+  const professionIds = new Map<string, string>();
+  for (const profession of PROFESSION_SEEDS) {
+    const record = await database.professionTaxonomy.upsert({
+      where: { code: profession.code },
+      create: { id: createOpaqueId(), ...profession },
+      update: { ...profession, status: "ACTIVE" },
+      select: { code: true, id: true },
+    });
+    professionIds.set(record.code, record.id);
+  }
+
+  const specialtyIds = new Map<string, string>();
+  for (const specialty of SPECIALTY_SEEDS) {
+    const record = await database.specialtyTaxonomy.upsert({
+      where: { code: specialty.code },
+      create: { id: createOpaqueId(), ...specialty },
+      update: { ...specialty, status: "ACTIVE" },
+      select: { code: true, id: true },
+    });
+    specialtyIds.set(record.code, record.id);
+  }
+
+  for (const fixture of SYNTHETIC_PRACTITIONERS) {
+    await database.practitioner.upsert({
+      where: { id: fixture.id },
+      create: {
+        id: fixture.id,
+        displayName: fixture.displayName,
+        familyName: fixture.familyName,
+        givenName: fixture.givenName,
+        honorific: fixture.honorific,
+        verificationStatus: "VERIFIED",
+        verifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      update: {
+        displayName: fixture.displayName,
+        familyName: fixture.familyName,
+        givenName: fixture.givenName,
+        honorific: fixture.honorific,
+        verificationStatus: "VERIFIED",
+        verifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      select: { id: true },
+    });
+    await database.practitionerPublicProfile.upsert({
+      where: { practitionerId: fixture.id },
+      create: {
+        practitionerId: fixture.id,
+        acceptingPatients: true,
+        biography: "Synthetic demonstration profile. Not a real healthcare practitioner.",
+        headline: fixture.headline,
+        publishedAt: new Date("2026-01-01T00:00:00.000Z"),
+        slug: fixture.slug,
+        status: "PUBLISHED",
+        yearsExperience: fixture.yearsExperience,
+      },
+      update: {
+        acceptingPatients: true,
+        headline: fixture.headline,
+        status: "PUBLISHED",
+        yearsExperience: fixture.yearsExperience,
+      },
+      select: { practitionerId: true },
+    });
+    await database.practitionerLocation.upsert({
+      where: { id: fixture.location.id },
+      create: {
+        ...fixture.location,
+        isPrimary: true,
+        isPublic: true,
+        practitionerId: fixture.id,
+      },
+      update: { ...fixture.location, isPrimary: true, isPublic: true, status: "ACTIVE" },
+      select: { id: true },
+    });
+
+    const professionId = professionIds.get(fixture.professionCode);
+    if (professionId === undefined)
+      throw new Error(`Unknown synthetic profession: ${fixture.professionCode}`);
+    await database.practitionerProfession.upsert({
+      where: {
+        practitionerId_professionId: { practitionerId: fixture.id, professionId },
+      },
+      create: {
+        id: createOpaqueId(),
+        isPrimary: true,
+        practitionerId: fixture.id,
+        professionId,
+      },
+      update: { isPrimary: true },
+      select: { id: true },
+    });
+
+    for (const [index, specialtyCode] of fixture.specialtyCodes.entries()) {
+      const specialtyId = specialtyIds.get(specialtyCode);
+      if (specialtyId === undefined)
+        throw new Error(`Unknown synthetic specialty: ${specialtyCode}`);
+      await database.practitionerSpecialty.upsert({
+        where: {
+          practitionerId_specialtyId: { practitionerId: fixture.id, specialtyId },
+        },
+        create: {
+          id: createOpaqueId(),
+          isPrimary: index === 0,
+          practitionerId: fixture.id,
+          specialtyId,
+        },
+        update: { isPrimary: index === 0 },
+        select: { id: true },
+      });
+    }
+    for (const mode of fixture.modes) {
+      await database.practitionerServiceMode.upsert({
+        where: { practitionerId_mode: { mode, practitionerId: fixture.id } },
+        create: { id: createOpaqueId(), mode, practitionerId: fixture.id },
+        update: {},
+        select: { id: true },
+      });
+    }
+    for (const languageTag of fixture.languages) {
+      await database.practitionerLanguage.upsert({
+        where: { practitionerId_languageTag: { languageTag, practitionerId: fixture.id } },
+        create: { id: createOpaqueId(), languageTag, practitionerId: fixture.id },
+        update: {},
+        select: { id: true },
+      });
+    }
   }
 }
 

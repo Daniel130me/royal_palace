@@ -117,3 +117,82 @@ export interface PublicOrganizationListResponse {
 export interface PublicServiceListResponse {
   data: readonly PublicService[];
 }
+
+export type PublicConsultationMode = "VIDEO" | "AUDIO" | "CHAT" | "IN_PERSON" | "HOME_VISIT";
+
+export interface PublicProfession {
+  code: string;
+  id: string;
+  name: string;
+}
+
+export interface PublicSpecialty {
+  category: string;
+  code: string;
+  id: string;
+  name: string;
+}
+
+export interface PublicPractitionerLocation {
+  administrativeArea: string | null;
+  countryCode: string;
+  id: string;
+  label: string;
+  locality: string | null;
+  postalCode: string | null;
+}
+
+export interface PublicPractitionerAffiliation {
+  facilityName: string;
+  roleTitle: string | null;
+}
+
+export interface PublicPractitionerCredential {
+  awardedYear: number | null;
+  issuerName: string;
+  jurisdictionCode: string | null;
+  title: string;
+}
+
+export interface PublicPractitionerSummary {
+  acceptingPatients: boolean;
+  displayName: string;
+  headline: string | null;
+  id: string;
+  languages: readonly string[];
+  locations: readonly PublicPractitionerLocation[];
+  professions: readonly PublicProfession[];
+  serviceModes: readonly PublicConsultationMode[];
+  slug: string;
+  specialties: readonly PublicSpecialty[];
+  yearsExperience: number | null;
+}
+
+export interface PublicPractitionerDetail extends PublicPractitionerSummary {
+  affiliations: readonly PublicPractitionerAffiliation[];
+  biography: string | null;
+  credentials: readonly PublicPractitionerCredential[];
+}
+
+export interface PublicPractitionerFilters {
+  countryCode?: string;
+  languageTag?: string;
+  location?: string;
+  professionCode?: string;
+  query?: string;
+  serviceMode?: PublicConsultationMode;
+  specialtyCode?: string;
+}
+
+export interface PublicPractitionerListResponse {
+  data: readonly PublicPractitionerSummary[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface PublicProfessionListResponse {
+  data: readonly PublicProfession[];
+}
+
+export interface PublicSpecialtyListResponse {
+  data: readonly PublicSpecialty[];
+}

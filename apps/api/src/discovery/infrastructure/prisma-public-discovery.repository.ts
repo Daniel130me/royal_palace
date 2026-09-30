@@ -77,6 +77,7 @@ export class PrismaPublicDiscoveryRepository implements PublicDiscoveryRepositor
   async listOrganizations(query: ListOrganizationsQuery): Promise<PublicOrganizationListResponse> {
     const records = await this.database.organization.findMany({
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      relationLoadStrategy: "join",
       select: publicOrganizationSelect,
       take: query.limit + 1,
       where: organizationWhere(query),
@@ -94,6 +95,7 @@ export class PrismaPublicDiscoveryRepository implements PublicDiscoveryRepositor
     organizationType: PublicOrganizationType,
   ): Promise<PublicOrganizationDetail | null> {
     const record = await this.database.organization.findFirst({
+      relationLoadStrategy: "join",
       select: publicOrganizationSelect,
       where: { id, ...basePublicOrganizationWhere(organizationType) },
     });
