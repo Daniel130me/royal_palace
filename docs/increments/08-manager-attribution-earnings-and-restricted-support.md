@@ -2,9 +2,8 @@
 
 ## Status
 
-**Implementation complete; remote close pending.** The production implementation and local
-acceptance evidence are complete. The increment remains open until the implementation commit
-is pushed and the exact remote CI run succeeds.
+**Complete.** The production implementation, local acceptance evidence, implementation
+commit, and exact remote CI run are complete.
 
 ## Architecture checklist
 
@@ -60,7 +59,7 @@ is pushed and the exact remote CI run succeeds.
       audit, and secret scan gates pass.
 - [x] Section 20 completion evidence and the maintainability/security/performance walkthrough
       are recorded.
-- [ ] Conventional commits are pushed to `origin/feat_prod` and the exact remote CI run
+- [x] Conventional commits are pushed to `origin/feat_prod` and the exact remote CI run
       succeeds.
 
 ## Explicit financial boundary
@@ -178,6 +177,8 @@ enabling the feature. Roll back on privacy leakage, signature/auth regression, i
 reconciliation failure, schema drift, migration failure, or material latency/error-budget
 regression.
 
-**Remote close:** The local implementation and evidence are complete. Push the conventional
-implementation commit, require both GitHub Actions jobs to pass for that exact head, then mark
-the final checklist item and Increment 08 tracker entry complete in a closeout commit.
+**Remote close:** Implementation commit `286f6d2` was pushed to `origin/feat_prod`. GitHub
+Actions run `36804345725` passed all three exact-head jobs: workspace verification and
+dependency audit, PostgreSQL migrations/query plans, and committed-history secret scanning.
+No approval gate is requested; Increment 09 is the next approved implementation step, subject
+to the already-recorded material payment decisions before live-provider activation.

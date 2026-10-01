@@ -162,9 +162,22 @@ that completes an increment.
     interfaces through exact CSRF-protected BFF routes and generated API contracts.
   - `[x]` Pass clean/upgrade/repair migration, constraint, drift, repeatable seed,
     bounded-query, representative index-plan, repository, audit, and secret-scan gates.
-- `[~]` **Increment 08 — Manager attribution, earnings, and restricted support**
+- `[x]` **Increment 08 — Manager attribution, earnings, and restricted support**
   - Evidence:
     [`increments/08-manager-attribution-earnings-and-restricted-support.md`](./increments/08-manager-attribution-earnings-and-restricted-support.md)
+  - Implementation commit: `286f6d2`
+  - `[x]` Add purpose-scoped signed referral links and atomic applicant-controlled
+    patient/organization attribution without manager access to private applications.
+  - `[x]` Preserve immutable attribution history and governed effective-dated commission
+    policy with optimistic concurrency and privileged step-up checks.
+  - `[x]` Add private settled-activity ingestion and manager-only commission projections
+    using integer minor units, per-currency totals, and explicit time zones.
+  - `[x]` Add restricted manager support tickets with manager-visible and internal notes,
+    controlled transitions, and minimal identifying information.
+  - `[x]` Connect exact generated contracts, BFF routes, manager/support/admin interfaces,
+    and fail closed the replaced prototype routes in protected environments.
+  - `[x]` Pass repository, migration, drift, seed, query-plan, audit, secret-scan, build,
+    and exact-head remote CI gates; publish the Section 20 completion report.
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**
@@ -235,8 +248,13 @@ administrative-verification path uses normalized application aggregates, append-
 history, administrator-only decisions, support review-only access, manager exclusion,
 bounded keyset queues, exact BFF allowlisting, and generated contracts. Real document
 upload/release remains fail-closed until Increment 10; qualified clinical catalogue
-governance remains mandatory before real-data launch. Increment 08 is the next
-implementation step.
+governance remains mandatory before real-data launch. Increment 08 completed in
+`286f6d2`. It provides signed referral attribution, append-only corrections, governed
+commission policy, privacy-safe earnings, and restricted support without manager access to
+patient, payment, application, or organization private data. No live commission policy,
+payment provider, payout workflow, banking data, or country/currency default was activated.
+Increment 09 is the next implementation step; its vendor and financial-product choices remain
+material approval gates before live integration.
 The deferred Increment 04B identity-provider decision remains a mandatory gate before
 protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
 it does not block synthetic implementation and validation of Increments 06–11.
