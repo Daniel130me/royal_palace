@@ -307,6 +307,115 @@ export interface ApplicationDocumentIntentResponse {
   uploadAvailable: false;
 }
 
+export type ManagerProfileStatus = "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
+export type ReferralAudience = "PATIENT" | "ORGANIZATION";
+export type ReferralLinkStatus = "ACTIVE" | "PAUSED" | "REVOKED";
+export type PatientActivityType = "CONSULTATION" | "HOSPITAL" | "PHARMACY" | "LABORATORY";
+export type CommissionPolicyStatus = "DRAFT" | "ACTIVE" | "RETIRED";
+export type ManagerTicketCategory = "ONBOARDING" | "ACCOUNT" | "TECHNICAL" | "SERVICE" | "OTHER";
+export type ManagerTicketStatus =
+  "ESCALATED" | "IN_REVIEW" | "WAITING_MANAGER" | "RESOLVED" | "CLOSED";
+
+export interface ManagerProfileResponse {
+  displayName: string;
+  id: string;
+  status: ManagerProfileStatus;
+}
+
+export interface ManagerReferralLinkResponse {
+  audience: ReferralAudience;
+  id: string;
+  label: string;
+  organizationType: PublicOrganizationType | null;
+  referralToken: string;
+  status: ReferralLinkStatus;
+  validFrom: string;
+  validUntil: string | null;
+}
+
+export interface ManagerReferralStatusResponse {
+  applicationKind: OnboardingApplicationKind;
+  applicationStatus: OnboardingApplicationStatus;
+  attributionId: string;
+  createdAt: string;
+  decidedAt: string | null;
+  submittedAt: string | null;
+}
+
+export interface CommissionPolicyResponse {
+  activityType: PatientActivityType;
+  currency: string;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  id: string;
+  managerProfileId: string;
+  minimumGrossMinor: string | null;
+  rateBps: number;
+  status: CommissionPolicyStatus;
+  version: number;
+}
+
+export interface ReferralAttributionCorrectionResponse {
+  applicationId: string;
+  eventId: string;
+  eventType: "CORRECTED" | "REMOVED";
+  managerProfileId: string | null;
+  referralLinkId: string | null;
+  version: number;
+}
+
+export interface CurrencyAmount {
+  amountMinor: string;
+  currency: string;
+}
+
+export interface ManagerEarningBucket extends CurrencyAmount {
+  periodStart: string;
+}
+
+export interface ManagerEarningEntryResponse extends CurrencyAmount {
+  activityType: PatientActivityType;
+  id: string;
+  occurredAt: string;
+  status: "AVAILABLE" | "PAID" | "REVERSED";
+}
+
+export interface ManagerEarningsReportResponse {
+  buckets: ManagerEarningBucket[];
+  entries: ManagerEarningEntryResponse[];
+  pageInfo: CursorPageInfo;
+  range: { from: string; timeZone: string; to: string };
+  totals: CurrencyAmount[];
+}
+
+export interface ManagerTicketFollowUpResponse {
+  body: string;
+  createdAt: string;
+  id: string;
+}
+
+export interface SupportManagerTicketFollowUpResponse extends ManagerTicketFollowUpResponse {
+  visibility: "MANAGER" | "INTERNAL";
+}
+
+export interface SupportManagerTicketResponse extends Omit<ManagerTicketResponse, "followUps"> {
+  followUps: SupportManagerTicketFollowUpResponse[];
+  managerProfileId: string;
+}
+
+export interface ManagerTicketResponse {
+  category: ManagerTicketCategory;
+  createdAt: string;
+  followUps: ManagerTicketFollowUpResponse[];
+  id: string;
+  status: ManagerTicketStatus;
+  subjectDisplayName: string;
+  subjectReference: string | null;
+  ticketNumber: string;
+  updatedAt: string;
+  version: number;
+}
+
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";
 export type CatalogueEntryStatus = "ACTIVE" | "INACTIVE";
 

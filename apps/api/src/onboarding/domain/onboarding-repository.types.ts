@@ -53,6 +53,7 @@ export interface OnboardingRepository {
     applicantPrincipalId: string;
     correlationId?: string;
     data: OnboardingApplicationData;
+    referral?: { linkId: string; managerProfileId: string };
     requestId: string;
   }): Promise<StoredOnboardingApplication>;
   findApplicationById(

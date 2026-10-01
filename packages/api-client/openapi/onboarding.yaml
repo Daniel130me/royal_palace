@@ -321,12 +321,12 @@ components:
       required: true
       content:
         application/json:
-          schema: { $ref: "#/components/schemas/PatientApplicationData" }
+          schema: { $ref: "#/components/schemas/PatientApplicationCreate" }
     OrganizationData:
       required: true
       content:
         application/json:
-          schema: { $ref: "#/components/schemas/OrganizationApplicationData" }
+          schema: { $ref: "#/components/schemas/OrganizationApplicationCreate" }
     PractitionerData:
       required: true
       content:
@@ -413,6 +413,18 @@ components:
         givenName: { type: string, maxLength: 100 }
         phoneE164: { type: [string, "null"] }
         preferredLanguage: { type: [string, "null"] }
+    PatientApplicationCreate:
+      type: object
+      additionalProperties: false
+      required: [countryCode, dateOfBirth, familyName, givenName, phoneE164, preferredLanguage]
+      properties:
+        countryCode: { type: [string, "null"] }
+        dateOfBirth: { type: [string, "null"], format: date }
+        familyName: { type: string, maxLength: 100 }
+        givenName: { type: string, maxLength: 100 }
+        phoneE164: { type: [string, "null"] }
+        preferredLanguage: { type: [string, "null"] }
+        referralToken: { type: string, minLength: 1, maxLength: 512 }
     OrganizationApplicationData:
       type: object
       additionalProperties: false
@@ -449,6 +461,46 @@ components:
         locality: { type: [string, "null"] }
         organizationType: { $ref: "#/components/schemas/OrganizationType" }
         postalCode: { type: [string, "null"] }
+        registrationAuthority: { type: string }
+        registrationNumber: { type: string }
+        serviceIds: { type: array, maxItems: 250, items: { type: string, format: uuid } }
+    OrganizationApplicationCreate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          addressLine1,
+          addressLine2,
+          administrativeArea,
+          contactEmail,
+          contactName,
+          contactPhoneE164,
+          countryCode,
+          displayName,
+          jurisdictionCode,
+          legalName,
+          locality,
+          organizationType,
+          postalCode,
+          registrationAuthority,
+          registrationNumber,
+          serviceIds,
+        ]
+      properties:
+        addressLine1: { type: [string, "null"] }
+        addressLine2: { type: [string, "null"] }
+        administrativeArea: { type: [string, "null"] }
+        contactEmail: { type: string, format: email }
+        contactName: { type: string }
+        contactPhoneE164: { type: [string, "null"] }
+        countryCode: { type: string }
+        displayName: { type: string }
+        jurisdictionCode: { type: string }
+        legalName: { type: string }
+        locality: { type: [string, "null"] }
+        organizationType: { $ref: "#/components/schemas/OrganizationType" }
+        postalCode: { type: [string, "null"] }
+        referralToken: { type: string, minLength: 1, maxLength: 512 }
         registrationAuthority: { type: string }
         registrationNumber: { type: string }
         serviceIds: { type: array, maxItems: 250, items: { type: string, format: uuid } }

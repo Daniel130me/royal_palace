@@ -25,27 +25,69 @@ export async function GET(req: Request) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        select: { id: true, applicationNumber: true, organizationType: true, status: true, submittedAt: true, createdAt: true, reviewedAt: true, reviewerNote: true },
+        select: {
+          id: true,
+          applicationNumber: true,
+          organizationType: true,
+          status: true,
+          submittedAt: true,
+          createdAt: true,
+          reviewedAt: true,
+          reviewerNote: true,
+        },
       }),
-      db.managerPatientApplication.findMany({ where: { managerId: manager.id, ...(status === "all" ? {} : { status }) }, orderBy: { createdAt: "desc" }, take: pageSize, select: { id: true, applicationNumber: true, status: true, submittedAt: true, createdAt: true, reviewedAt: true, reviewerNote: true } }),
+      db.managerPatientApplication.findMany({
+        where: { managerId: manager.id, ...(status === "all" ? {} : { status }) },
+        orderBy: { createdAt: "desc" },
+        take: pageSize,
+        select: {
+          id: true,
+          applicationNumber: true,
+          status: true,
+          submittedAt: true,
+          createdAt: true,
+          reviewedAt: true,
+          reviewerNote: true,
+        },
+      }),
       db.managerOrganizationApplication.count({ where }),
-      db.managerPatientApplication.count({ where: { managerId: manager.id, ...(status === "all" ? {} : { status }) } }),
+      db.managerPatientApplication.count({
+        where: { managerId: manager.id, ...(status === "all" ? {} : { status }) },
+      }),
       db.managerOrganizationApplication.groupBy({
         by: ["status"],
         where: { managerId: manager.id },
         _count: { _all: true },
       }),
-      db.managerPatientApplication.groupBy({ by: ["status"], where: { managerId: manager.id }, _count: { _all: true } }),
+      db.managerPatientApplication.groupBy({
+        by: ["status"],
+        where: { managerId: manager.id },
+        _count: { _all: true },
+      }),
     ]);
 
     const statusCounts: Record<string, number> = {};
-    for (const row of [...counts, ...patientCounts]) statusCounts[row.status] = (statusCounts[row.status] ?? 0) + row._count._all;
+    for (const row of [...counts, ...patientCounts])
+      statusCounts[row.status] = (statusCounts[row.status] ?? 0) + row._count._all;
     const data = [
-      ...items.map((item) => ({ ...item, submittedAt: item.submittedAt ?? item.createdAt, enrollmentType: item.organizationType })),
-      ...patientItems.map((item) => ({ ...item, submittedAt: item.submittedAt ?? item.createdAt, enrollmentType: "patient" })),
-    ].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()).slice(0, pageSize);
+      ...items.map((item) => ({
+        ...item,
+        submittedAt: item.submittedAt ?? item.createdAt,
+        enrollmentType: item.organizationType,
+      })),
+      ...patientItems.map((item) => ({
+        ...item,
+        submittedAt: item.submittedAt ?? item.createdAt,
+        enrollmentType: "patient",
+      })),
+    ]
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      .slice(0, pageSize);
 
-    return NextResponse.json({ data, meta: { page, pageSize, total: total + patientTotal, statusCounts } });
+    return NextResponse.json({
+      data,
+      meta: { page, pageSize, total: total + patientTotal, statusCounts },
+    });
   } catch (error) {
     if (error instanceof ManagerAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

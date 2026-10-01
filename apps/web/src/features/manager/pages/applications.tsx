@@ -1,25 +1,63 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { managerService } from "@/lib/services";
-import { PageHeader, LoadingState, ErrorState } from "@/components/healthcare/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ManagerStatusBadge } from "../components/manager-shared";
-import { formatDate } from "@/lib/format";
+import type { ManagerReferralStatusResponse } from "@royal-palace/contracts";
 import { RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-type SafeApplication = { id: string; applicationNumber: string; enrollmentType: string; status: string; submittedAt: string; reviewedAt?: string | null; reviewerNote?: string | null };
-type Response = { data: SafeApplication[]; meta: { total: number; statusCounts: Record<string, number> } };
+import { ErrorState, LoadingState, PageHeader } from "@/components/healthcare/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/format";
+import { managerPortalService } from "@/lib/services";
+
+import { ManagerStatusBadge } from "../components/manager-shared";
 
 export function ManagerApplications() {
-  const [res, setRes] = useState<Response | null>(null); const [error, setError] = useState<string | null>(null); const [status, setStatus] = useState("all");
-  const load = useCallback(() => managerService.applications({ status, pageSize: "50" }).then((v) => setRes(v as unknown as Response)).catch((e) => setError(e instanceof Error ? e.message : "Failed to load enrollment status.")), [status]);
-  useEffect(() => { void load(); }, [load]);
-  if (error) return <ErrorState message={error} onRetry={load} />; if (!res) return <LoadingState label="Loading enrollment status…" />;
-  return <div><PageHeader title="Enrollment status" description="Track applications by reference only. Admin and support staff retain the submitted personal and organization details." actions={<Button variant="outline" size="sm" onClick={() => void load()}><RefreshCw className="h-4 w-4" />Refresh</Button>} />
-    <div className="flex gap-2 flex-wrap mb-4">{["all", "submitted", "under_review", "information_required", "approved", "rejected"].map((s) => <Button key={s} size="sm" variant={status === s ? "default" : "outline"} onClick={() => setStatus(s)} className="capitalize">{s.replaceAll("_", " ")} ({s === "all" ? res.meta.total : res.meta.statusCounts[s] ?? 0})</Button>)}</div>
-    <div className="grid md:grid-cols-2 gap-3">{res.data.map((item) => <Card key={item.id}><CardContent className="p-4 flex items-start justify-between gap-3"><div><p className="font-semibold">{item.applicationNumber}</p><p className="text-sm capitalize">{item.enrollmentType.replaceAll("_", " ")}</p><p className="text-xs text-muted-foreground">Submitted {formatDate(item.submittedAt)}</p>{item.reviewerNote ? <p className="text-xs mt-2">Admin note: {item.reviewerNote}</p> : null}</div><ManagerStatusBadge status={item.status} /></CardContent></Card>)}</div>
-    {!res.data.length ? <p className="text-sm text-muted-foreground text-center p-8">No enrollment applications match this filter.</p> : null}
-  </div>;
+  const [items, setItems] = useState<ManagerReferralStatusResponse[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    setError(null);
+    void managerPortalService
+      .referrals({ limit: 50 })
+      .then((result) => setItems(result.data))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Referral status could not be loaded."),
+      );
+  }, []);
+  useEffect(load, [load]);
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (items === null) return <LoadingState label="Loading referral status…" />;
+  return (
+    <div>
+      <PageHeader
+        actions={
+          <Button onClick={load} size="sm" variant="outline">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </Button>
+        }
+        description="Only application type, lifecycle status, and timestamps are available. Applicant and reviewer data remain private."
+        title="Enrollment status"
+      />
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <Card key={item.attributionId}>
+            <CardContent className="flex items-start justify-between gap-3 p-4">
+              <div>
+                <p className="font-semibold">{item.applicationKind}</p>
+                <p className="text-xs text-muted-foreground">
+                  Created {formatDate(item.createdAt)}
+                </p>
+              </div>
+              <ManagerStatusBadge status={item.applicationStatus} />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {items.length === 0 ? (
+        <p className="p-8 text-center text-sm text-muted-foreground">
+          No attributed applications yet.
+        </p>
+      ) : null}
+    </div>
+  );
 }

@@ -12,7 +12,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ManagerStatusBadge, ManagerEmptyState } from "../components/manager-shared";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { Landmark, Wallet, ShieldCheck, Clock3 } from "lucide-react";
@@ -35,7 +43,13 @@ interface PayoutRow {
 interface PayoutsPayload {
   payouts: PayoutRow[];
   availableBalance: number;
-  bankAccount: { id: string; bankName: string; accountName: string; accountNumberMasked: string; verificationStatus: string } | null;
+  bankAccount: {
+    id: string;
+    bankName: string;
+    accountName: string;
+    accountNumberMasked: string;
+    verificationStatus: string;
+  } | null;
 }
 
 export function ManagerPayouts() {
@@ -88,24 +102,43 @@ export function ManagerPayouts() {
   if (error) return <ErrorState message={error} onRetry={() => void load()} />;
   if (!data) return null;
 
-  const hasPending = data.payouts.some((p) => p.status === "requested" || p.status === "processing");
+  const hasPending = data.payouts.some(
+    (p) => p.status === "requested" || p.status === "processing",
+  );
 
   return (
     <div>
-      <PageHeader title="Payouts" description="Request payouts of your available Manager Earnings. Requests are validated against your balance and reviewed by Royal Palace." />
+      <PageHeader
+        title="Payouts"
+        description="Request payouts of your available Manager Earnings. Requests are validated against your balance and reviewed by Royal Palace."
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        <MetricCard label="Available balance" value={formatCurrency(data.availableBalance)} hint="Unallocated, matured earnings" icon={Wallet} tone="success" />
+        <MetricCard
+          label="Available balance"
+          value={formatCurrency(data.availableBalance)}
+          hint="Unallocated, matured earnings"
+          icon={Wallet}
+          tone="success"
+        />
         <Card>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-primary/10 p-2"><Landmark className="h-5 w-5 text-primary" /></div>
+              <div className="rounded-xl bg-primary/10 p-2">
+                <Landmark className="h-5 w-5 text-primary" />
+              </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Payout account</p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Payout account
+                </p>
                 {data.bankAccount ? (
                   <>
-                    <p className="mt-1 font-semibold text-lg leading-none">{data.bankAccount.accountNumberMasked}</p>
-                    <p className="mt-1 text-xs text-muted-foreground truncate">{data.bankAccount.bankName} · {data.bankAccount.accountName}</p>
+                    <p className="mt-1 font-semibold text-lg leading-none">
+                      {data.bankAccount.accountNumberMasked}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground truncate">
+                      {data.bankAccount.bankName} · {data.bankAccount.accountName}
+                    </p>
                   </>
                 ) : (
                   <p className="mt-1 text-sm text-muted-foreground">No bank account on file yet.</p>
@@ -117,11 +150,23 @@ export function ManagerPayouts() {
         <Card>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-emerald-50 p-2"><ShieldCheck className="h-5 w-5 text-emerald-600" /></div>
+              <div className="rounded-xl bg-emerald-50 p-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+              </div>
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Verification</p>
-                <p className="mt-1 text-sm font-semibold">{data.bankAccount ? (data.bankAccount.verificationStatus === "verified" ? "Account verified" : data.bankAccount.verificationStatus) : "Pending"}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">Account numbers are always masked.</p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Verification
+                </p>
+                <p className="mt-1 text-sm font-semibold">
+                  {data.bankAccount
+                    ? data.bankAccount.verificationStatus === "verified"
+                      ? "Account verified"
+                      : data.bankAccount.verificationStatus
+                    : "Pending"}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Account numbers are always masked.
+                </p>
               </div>
             </div>
           </CardContent>
@@ -140,21 +185,35 @@ export function ManagerPayouts() {
             <DialogHeader>
               <DialogTitle>Request a payout</DialogTitle>
               <DialogDescription>
-                Available balance: <strong>{formatCurrency(data.availableBalance)}</strong>. Royal Palace reviews requests and disburses to your verified account.
+                Available balance: <strong>{formatCurrency(data.availableBalance)}</strong>. Royal
+                Palace reviews requests and disburses to your verified account.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="payout-amount">Amount (₦, whole naira)</Label>
-                <Input id="payout-amount" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="10000" />
+                <Input
+                  id="payout-amount"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="10000"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="payout-notes">Notes (optional)</Label>
-                <Input id="payout-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the finance team should know" />
+                <Input
+                  id="payout-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Anything the finance team should know"
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
               <Button onClick={() => void submit()} disabled={submitting || !amount}>
                 {submitting ? "Submitting…" : "Submit request"}
               </Button>
@@ -173,12 +232,17 @@ export function ManagerPayouts() {
       ) : (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Clock3 className="h-4 w-4 text-primary" /> History</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-primary" /> History
+            </CardTitle>
             <CardDescription>Requested, processing, paid and rejected payouts</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {data.payouts.map((p) => (
-              <div key={p.id} className="rounded-xl border border-border/60 p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <div
+                key={p.id}
+                className="rounded-xl border border-border/60 p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold">{p.payoutNumber}</p>
@@ -193,7 +257,11 @@ export function ManagerPayouts() {
                       Allocations: {p.allocatedEarnings.map((a) => a.earningNumber).join(", ")}
                     </p>
                   ) : null}
-                  {p.adminNote ? <p className="text-[11px] text-muted-foreground mt-0.5">Admin note: {p.adminNote}</p> : null}
+                  {p.adminNote ? (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Admin note: {p.adminNote}
+                    </p>
+                  ) : null}
                 </div>
                 <p className="font-bold text-right">{formatCurrency(p.amountRequested)}</p>
               </div>

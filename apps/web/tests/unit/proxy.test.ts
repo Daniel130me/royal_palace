@@ -87,6 +87,20 @@ describe("web request correlation", () => {
       ),
     ).toBe(false);
     expect(isApiRouteEnabled("production", "/api/support/enrollments")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/manager/dashboard")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/manager/organizations")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/manager/profile")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/manager/referral-links")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/manager/earnings")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/manager/tickets/0199a18e-a400-7000-8000-000000000201/follow-ups",
+      ),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/actions/manager-onboard-organization")).toBe(
+      false,
+    );
     expect(isApiRouteEnabled("production", "/api/applications/organizations/not-a-uuid")).toBe(
       false,
     );

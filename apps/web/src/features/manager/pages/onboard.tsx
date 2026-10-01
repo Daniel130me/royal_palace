@@ -1,56 +1,83 @@
 "use client";
 
-// Managers do not collect or edit enrollment data. They only share attributed
-// links; applicants submit directly to Royal Palace for Admin review.
-
+import type { ManagerReferralLinkResponse } from "@royal-palace/contracts";
+import { Check, Copy, Link2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { managerService } from "@/lib/services";
-import { PageHeader, LoadingState, ErrorState } from "@/components/healthcare/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Copy, UserRoundPlus, Pill, FlaskConical, Hospital, Check } from "lucide-react";
 import { toast } from "sonner";
-import type { Manager } from "@/types";
 
-const ENROLLMENT_TYPES = [
-  { type: "patient", title: "Patient", description: "Patient creates an account and Admin verifies the enrollment.", icon: UserRoundPlus },
-  { type: "pharmacy", title: "Pharmacy", description: "The pharmacy submits its own business and licence information.", icon: Pill },
-  { type: "laboratory", title: "Laboratory", description: "The laboratory submits its own registration information.", icon: FlaskConical },
-  { type: "hospital", title: "Hospital", description: "The hospital also lists the services patients can search and filter.", icon: Hospital },
-] as const;
+import { ErrorState, LoadingState, PageHeader } from "@/components/healthcare/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { managerPortalService } from "@/lib/services";
 
 export function ManagerOnboard() {
-  const [manager, setManager] = useState<Manager | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [links, setLinks] = useState<ManagerReferralLinkResponse[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    managerService.me().then((data) => setManager(data.manager))
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load onboarding links."))
-      .finally(() => setLoading(false));
+    void managerPortalService
+      .referralLinks()
+      .then(setLinks)
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Referral links could not be loaded."),
+      );
   }, []);
-
-  if (loading) return <LoadingState label="Preparing your onboarding links…" />;
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
-  if (!manager) return null;
+  if (links === null) return <LoadingState label="Loading secure referral links…" />;
 
-  const linkFor = (type: string) => type === "patient"
-    ? `${window.location.origin}/#/login/signup?code=${manager.onboardingCode}`
-    : `${window.location.origin}/#/login/organization-signup?code=${manager.onboardingCode}&type=${type}`;
-
-  async function copy(type: string) {
-    await navigator.clipboard.writeText(linkFor(type));
-    setCopied(type);
-    toast.success(`${type[0].toUpperCase()}${type.slice(1)} onboarding link copied.`);
+  async function copy(link: ManagerReferralLinkResponse) {
+    const page = link.audience === "PATIENT" ? "signup" : "organization-signup";
+    const parameters = new URLSearchParams({ code: link.referralToken });
+    if (link.organizationType !== null) {
+      parameters.set("type", link.organizationType.toLowerCase());
+    }
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/#/login/${page}?${parameters.toString()}`,
+    );
+    setCopied(link.id);
+    toast.success("Secure referral link copied.");
     window.setTimeout(() => setCopied(null), 1800);
   }
 
-  return <div className="space-y-5">
-    <PageHeader title="Onboarding links" description="Share the correct link. You do not collect, review or manage applicant information." />
-    <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">Manager code</p><p className="text-2xl font-bold">{manager.onboardingCode}</p><p className="text-sm text-muted-foreground mt-1">Every approved enrollment remains attributed to this code for earnings.</p></CardContent></Card>
-    <div className="grid gap-3 md:grid-cols-2">
-      {ENROLLMENT_TYPES.map((item) => { const Icon = item.icon; return <Card key={item.type}><CardContent className="p-5 space-y-3"><div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon className="h-5 w-5" /></div><div><h2 className="font-semibold">{item.title} enrollment</h2><p className="text-sm text-muted-foreground">{item.description}</p></div></div><div className="rounded-lg bg-muted/50 p-2 text-xs break-all">{linkFor(item.type)}</div><Button variant="outline" className="w-full" onClick={() => void copy(item.type)}>{copied === item.type ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied === item.type ? "Copied" : "Copy link"}</Button></CardContent></Card>; })}
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Enrollment links"
+        description="Share the appropriate secure link. Applicants authenticate and submit their own information directly to Royal Palace."
+      />
+      <div className="grid gap-3 md:grid-cols-2">
+        {links.map((link) => (
+          <Card key={link.id}>
+            <CardContent className="space-y-3 p-5">
+              <div className="flex gap-3">
+                <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                  <Link2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold">{link.label}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {link.organizationType ?? link.audience} · {link.status}
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                disabled={link.status !== "ACTIVE"}
+                onClick={() => void copy(link)}
+                variant="outline"
+              >
+                {copied === link.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied === link.id ? "Copied" : "Copy secure link"}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {links.length === 0 ? (
+        <p className="rounded-lg border p-6 text-sm text-muted-foreground">
+          No referral links are active. An administrator must create purpose-scoped links for you.
+        </p>
+      ) : null}
     </div>
-  </div>;
+  );
 }

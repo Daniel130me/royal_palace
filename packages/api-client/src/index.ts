@@ -2,12 +2,17 @@ import createClient from "openapi-fetch";
 
 import type { paths } from "./generated/public-discovery.js";
 import type { paths as OnboardingPaths } from "./generated/onboarding.js";
+import type { paths as ManagerPaths } from "./generated/manager.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
 export type {
   components as OnboardingComponents,
   paths as OnboardingPaths,
 } from "./generated/onboarding.js";
+export type {
+  components as ManagerComponents,
+  paths as ManagerPaths,
+} from "./generated/manager.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
@@ -25,6 +30,17 @@ export function createOnboardingClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<OnboardingPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createManagerClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<ManagerPaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

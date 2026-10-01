@@ -11,6 +11,7 @@ import type {
 
 import { AuthorizationService } from "../../authorization/application/authorization.service.js";
 import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
+import { ReferralClaimService } from "../../manager/application/referral-claim.service.js";
 import {
   assertApplicationTransition,
   isApplicantEditable,
@@ -57,17 +58,22 @@ export class OnboardingService {
   constructor(
     @Inject(ONBOARDING_REPOSITORY) private readonly repository: OnboardingRepository,
     @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
+    @Inject(ReferralClaimService) private readonly referrals: ReferralClaimService,
   ) {}
 
   async createApplication(
     context: RequestContext,
     data: OnboardingApplicationData,
+    referralToken?: string,
   ): Promise<OnboardingApplicationDetail> {
     await this.authorizeOwner(context, "new", context.actor.principalId);
+    const referral =
+      referralToken === undefined ? undefined : await this.referrals.resolve(referralToken, data);
     return this.repository.createApplication({
       applicantPrincipalId: context.actor.principalId,
       ...(context.correlationId === undefined ? {} : { correlationId: context.correlationId }),
       data,
+      ...(referral === undefined ? {} : { referral }),
       requestId: context.requestId,
     });
   }

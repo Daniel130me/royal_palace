@@ -1,24 +1,123 @@
 "use client";
 
+import type { ManagerTicketResponse } from "@royal-palace/contracts";
 import { useCallback, useEffect, useState } from "react";
-import { managerService } from "@/lib/services";
-import { PageHeader, LoadingState, ErrorState } from "@/components/healthcare/page-header";
+import { toast } from "sonner";
+
+import { ErrorState, LoadingState, PageHeader } from "@/components/healthcare/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ManagerStatusBadge } from "../components/manager-shared";
-import { navigate } from "@/lib/nav";
+import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { managerPortalService } from "@/lib/services";
 
-type SafeTicket = { id: string; ticketNumber: string; displayName: string; category: string; status: string; lastActivityAt: string };
-type Response = { data: SafeTicket[]; meta: { total: number } };
+import { ManagerStatusBadge } from "../components/manager-shared";
 
 export function ManagerSupport() {
-  const [res, setRes] = useState<Response | null>(null); const [view, setView] = useState("all"); const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => managerService.tickets({ view, pageSize: "30" }).then((v) => setRes(v as unknown as Response)).catch((e) => setError(e instanceof Error ? e.message : "Failed to load tickets.")), [view]);
-  useEffect(() => { void load(); }, [load]);
-  if (error) return <ErrorState message={error} onRetry={load} />; if (!res) return <LoadingState label="Loading ticket references…" />;
-  return <div><PageHeader title="Support follow-up" description="For confidentiality, this queue shows only the ticket reference, display name, category and status. Royal Palace support handles the full record." />
-    <div className="flex gap-2 mb-4">{["all", "open", "escalated", "resolved"].map((item) => <Button key={item} size="sm" variant={view === item ? "default" : "outline"} onClick={() => setView(item)} className="capitalize">{item}</Button>)}</div>
-    <Card><CardContent className="p-0">{res.data.map((ticket) => <button key={ticket.id} onClick={() => navigate("manager", "ticket", { id: ticket.id })} className="w-full text-left grid sm:grid-cols-[1fr_1fr_auto] gap-2 p-4 border-b last:border-0 hover:bg-muted/40"><div><p className="font-semibold">{ticket.ticketNumber}</p><p className="text-xs text-muted-foreground">{ticket.displayName}</p></div><div><p className="text-sm capitalize">{ticket.category}</p><p className="text-xs text-muted-foreground">Updated {formatDateTime(ticket.lastActivityAt)}</p></div><ManagerStatusBadge status={ticket.status} /></button>)}</CardContent></Card>
-  </div>;
+  const [tickets, setTickets] = useState<ManagerTicketResponse[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [subjectDisplayName, setSubjectDisplayName] = useState("");
+  const [subjectReference, setSubjectReference] = useState("");
+  const [category, setCategory] = useState<
+    "ONBOARDING" | "ACCOUNT" | "TECHNICAL" | "SERVICE" | "OTHER"
+  >("ONBOARDING");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    void managerPortalService
+      .tickets({ limit: 50 })
+      .then((result) => setTickets(result.data))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Tickets could not be loaded."),
+      );
+  }, []);
+  useEffect(load, [load]);
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (tickets === null) return <LoadingState label="Loading ticket references…" />;
+  async function createTicket() {
+    setBusy(true);
+    try {
+      await managerPortalService.createTicket({
+        category,
+        subjectDisplayName: subjectDisplayName.trim(),
+        ...(subjectReference.trim() ? { subjectReference: subjectReference.trim() } : {}),
+      });
+      setSubjectDisplayName("");
+      setSubjectReference("");
+      toast.success("Ticket escalated to Royal Palace support.");
+      load();
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Ticket could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <PageHeader
+        description="This queue contains only the ticket reference, minimal identifying details, category, status, and safe follow-up."
+        title="Support follow-up"
+      />
+      <Card className="mb-4">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-4">
+          <Input
+            aria-label="Display name"
+            onChange={(event) => setSubjectDisplayName(event.target.value)}
+            placeholder="Display name"
+            value={subjectDisplayName}
+          />
+          <Input
+            aria-label="Reference"
+            onChange={(event) => setSubjectReference(event.target.value)}
+            placeholder="Reference (optional)"
+            value={subjectReference}
+          />
+          <select
+            aria-label="Category"
+            className="h-9 rounded-md border bg-background px-3 text-sm"
+            onChange={(event) => setCategory(event.target.value as typeof category)}
+            value={category}
+          >
+            <option value="ONBOARDING">Onboarding</option>
+            <option value="ACCOUNT">Account</option>
+            <option value="TECHNICAL">Technical</option>
+            <option value="SERVICE">Service</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <Button
+            disabled={busy || subjectDisplayName.trim().length === 0}
+            onClick={() => void createTicket()}
+          >
+            Escalate ticket
+          </Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-0">
+          {tickets.map((ticket) => (
+            <button
+              className="grid w-full gap-2 border-b p-4 text-left hover:bg-muted/40 sm:grid-cols-[1fr_1fr_auto]"
+              key={ticket.id}
+              onClick={() => navigate("manager", "ticket", { id: ticket.id })}
+            >
+              <div>
+                <p className="font-semibold">{ticket.ticketNumber}</p>
+                <p className="text-xs text-muted-foreground">{ticket.subjectDisplayName}</p>
+              </div>
+              <div>
+                <p className="text-sm">{ticket.category}</p>
+                <p className="text-xs text-muted-foreground">
+                  Updated {formatDateTime(ticket.updatedAt)}
+                </p>
+              </div>
+              <ManagerStatusBadge status={ticket.status} />
+            </button>
+          ))}
+          {tickets.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">No support tickets yet.</p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

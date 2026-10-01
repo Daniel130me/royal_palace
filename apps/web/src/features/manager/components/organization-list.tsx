@@ -6,7 +6,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { managerService } from "@/lib/services";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from "@/components/healthcare/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { OrganizationCard, ManagerEmptyState } from "./manager-shared";

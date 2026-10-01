@@ -16,12 +16,12 @@ type OrganizationType = "pharmacy" | "laboratory" | "hospital";
 
 export function OrganizationSignupPage() {
   const { authenticated, view } = useNav();
-  const code = view.params.code?.trim().toUpperCase() ?? "";
+  const referralToken = view.params.code?.trim() ?? "";
   const rawType = view.params.type;
   const type: OrganizationType =
     rawType === "laboratory" || rawType === "hospital" ? rawType : "pharmacy";
   const returnParameters = new URLSearchParams({ type });
-  if (code.length > 0) returnParameters.set("code", code);
+  if (referralToken.length > 0) returnParameters.set("code", referralToken);
   const returnTo = `/#/login/organization-signup?${returnParameters.toString()}`;
   const [busy, setBusy] = useState(false);
   const [services, setServices] = useState<readonly PublicService[]>([]);
@@ -67,24 +67,27 @@ export function OrganizationSignupPage() {
     if (!valid) return;
     setBusy(true);
     try {
-      const draft = await onboardingService.createOrganization({
-        addressLine1: form.address,
-        addressLine2: null,
-        administrativeArea: form.administrativeArea,
-        contactEmail: form.contactEmail,
-        contactName: form.contactPerson,
-        contactPhoneE164: form.contactPhone || null,
-        countryCode: form.countryCode.toUpperCase(),
-        displayName: form.businessName,
-        jurisdictionCode: form.jurisdictionCode,
-        legalName: form.businessName,
-        locality: form.city,
-        organizationType: type.toUpperCase() as "HOSPITAL" | "PHARMACY" | "LABORATORY",
-        postalCode: form.postalCode || null,
-        registrationAuthority: form.registrationAuthority,
-        registrationNumber: form.registrationNumber,
-        serviceIds,
-      });
+      const draft = await onboardingService.createOrganization(
+        {
+          addressLine1: form.address,
+          addressLine2: null,
+          administrativeArea: form.administrativeArea,
+          contactEmail: form.contactEmail,
+          contactName: form.contactPerson,
+          contactPhoneE164: form.contactPhone || null,
+          countryCode: form.countryCode.toUpperCase(),
+          displayName: form.businessName,
+          jurisdictionCode: form.jurisdictionCode,
+          legalName: form.businessName,
+          locality: form.city,
+          organizationType: type.toUpperCase() as "HOSPITAL" | "PHARMACY" | "LABORATORY",
+          postalCode: form.postalCode || null,
+          registrationAuthority: form.registrationAuthority,
+          registrationNumber: form.registrationNumber,
+          serviceIds,
+        },
+        referralToken || undefined,
+      );
       const result = await onboardingService.submit(draft.id, draft.version);
       setSubmitted(result.id);
       toast.success("Enrollment submitted for Royal Palace review.");
@@ -143,7 +146,7 @@ export function OrganizationSignupPage() {
         </Button>
         <PageHeader
           title={`${type[0].toUpperCase()}${type.slice(1)} enrollment`}
-          description={`${code ? `Referral ${code} · ` : ""}Sign in first, then submit the organization’s own information. Only Royal Palace Admin can approve it.`}
+          description={`${referralToken ? "Secure referral retained · " : ""}Sign in first, then submit the organization’s own information. Only Royal Palace Admin can approve it.`}
         />
         <Card>
           <CardContent className="p-5">

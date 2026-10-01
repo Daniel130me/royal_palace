@@ -13,11 +13,30 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params;
     const ticket = await db.supportTicket.findFirst({
       where: { id, managerId: manager.id },
-      select: { id: true, ticketNumber: true, organizationName: true, creatorName: true, category: true, status: true, lastActivityAt: true, escalationDepartment: true },
+      select: {
+        id: true,
+        ticketNumber: true,
+        organizationName: true,
+        creatorName: true,
+        category: true,
+        status: true,
+        lastActivityAt: true,
+        escalationDepartment: true,
+      },
     });
     if (!ticket) return NextResponse.json({ error: "Ticket not found." }, { status: 404 });
 
-    return NextResponse.json({ data: { id: ticket.id, ticketNumber: ticket.ticketNumber, displayName: ticket.organizationName || ticket.creatorName, category: ticket.category, status: ticket.status, lastActivityAt: ticket.lastActivityAt, escalationDepartment: ticket.escalationDepartment } });
+    return NextResponse.json({
+      data: {
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        displayName: ticket.organizationName || ticket.creatorName,
+        category: ticket.category,
+        status: ticket.status,
+        lastActivityAt: ticket.lastActivityAt,
+        escalationDepartment: ticket.escalationDepartment,
+      },
+    });
   } catch (error) {
     if (error instanceof ManagerAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

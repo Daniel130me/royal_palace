@@ -162,7 +162,9 @@ that completes an increment.
     interfaces through exact CSRF-protected BFF routes and generated API contracts.
   - `[x]` Pass clean/upgrade/repair migration, constraint, drift, repeatable seed,
     bounded-query, representative index-plan, repository, audit, and secret-scan gates.
-- `[ ]` **Increment 08 — Manager attribution, earnings, and restricted support**
+- `[~]` **Increment 08 — Manager attribution, earnings, and restricted support**
+  - Evidence:
+    [`increments/08-manager-attribution-earnings-and-restricted-support.md`](./increments/08-manager-attribution-earnings-and-restricted-support.md)
 - `[ ]` **Increment 09 — Appointment and payment vertical slice**
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**

@@ -5,7 +5,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { managerService, notificationService } from "@/lib/services";
-import { PageHeader, LoadingState, ErrorState, EmptyState } from "@/components/healthcare/page-header";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from "@/components/healthcare/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
@@ -58,13 +63,20 @@ export function ManagerNotifications() {
         <Card>
           <CardContent className="p-0">
             {items.map((n) => (
-              <div key={n.id} className={`flex items-start gap-3 p-4 border-b border-border/40 last:border-0 ${n.read ? "" : "bg-primary/[0.04]"}`}>
-                <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${n.read ? "bg-muted-foreground/30" : "bg-primary"}`} />
+              <div
+                key={n.id}
+                className={`flex items-start gap-3 p-4 border-b border-border/40 last:border-0 ${n.read ? "" : "bg-primary/[0.04]"}`}
+              >
+                <div
+                  className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${n.read ? "bg-muted-foreground/30" : "bg-primary"}`}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium leading-tight">{n.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
                 </div>
-                <span className="text-[11px] text-muted-foreground shrink-0">{formatDateTime(n.createdAt)}</span>
+                <span className="text-[11px] text-muted-foreground shrink-0">
+                  {formatDateTime(n.createdAt)}
+                </span>
               </div>
             ))}
           </CardContent>

@@ -2,7 +2,11 @@
 // The UI consumes these functions instead of performing raw fetches, so the
 // backend can be replaced without touching components (see spec section 58).
 
-import { createOnboardingClient, createPublicDiscoveryClient } from "@royal-palace/api-client";
+import {
+  createManagerClient,
+  createOnboardingClient,
+  createPublicDiscoveryClient,
+} from "@royal-palace/api-client";
 import type {
   OnboardingApplicationDetail,
   OnboardingApplicationListResponse,
@@ -12,6 +16,14 @@ import type {
   PatientApplicationData,
   PractitionerApplicationData,
   PublicOrganizationType,
+  ManagerProfileResponse,
+  ManagerReferralLinkResponse,
+  ManagerReferralStatusResponse,
+  ManagerEarningsReportResponse,
+  ManagerTicketResponse,
+  SupportManagerTicketResponse,
+  CommissionPolicyResponse,
+  ReferralAttributionCorrectionResponse,
 } from "@royal-palace/contracts";
 import {
   api,
@@ -127,20 +139,25 @@ export const hospitalService = {
 
 const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
 const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
+const generatedManagerClient = createManagerClient({ fetch: authenticatedGeneratedFetch });
 
 export const onboardingService = {
   listOwn: () => generatedOnboardingClient.GET("/api/applications").then(unwrapGeneratedResponse),
-  createPatient: (values: PatientApplicationData) =>
+  createPatient: (values: PatientApplicationData, referralToken?: string) =>
     generatedOnboardingClient
       .POST("/api/applications/patients", {
-        body: values,
+        body: { ...values, ...(referralToken === undefined ? {} : { referralToken }) },
         params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
       })
       .then(unwrapGeneratedResponse),
-  createOrganization: (values: OrganizationApplicationData) =>
+  createOrganization: (values: OrganizationApplicationData, referralToken?: string) =>
     generatedOnboardingClient
       .POST("/api/applications/organizations", {
-        body: { ...values, serviceIds: [...values.serviceIds] },
+        body: {
+          ...values,
+          serviceIds: [...values.serviceIds],
+          ...(referralToken === undefined ? {} : { referralToken }),
+        },
         params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
       })
       .then(unwrapGeneratedResponse),
@@ -544,6 +561,173 @@ export const uploadedPrescriptionService = {
 };
 
 export type { ProviderVerificationStatus };
+
+// Production manager boundary. These methods expose referral status, the manager's
+// own commission, and privacy-limited tickets only. They intentionally have no
+// organization portfolio, patient record, gross payment, or payout mutation API.
+export const managerPortalService = {
+  profile: () => generatedManagerClient.GET("/api/manager/profile").then(unwrapGeneratedResponse),
+  referralLinks: () =>
+    generatedManagerClient.GET("/api/manager/referral-links").then(unwrapGeneratedResponse),
+  referrals: (input: { cursor?: string; limit?: number } = {}) =>
+    generatedManagerClient
+      .GET("/api/manager/referrals", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  earnings: (input: {
+    cursor?: string;
+    from: string;
+    granularity: "DAY" | "MONTH";
+    limit?: number;
+    timeZone: string;
+    to: string;
+  }) =>
+    generatedManagerClient
+      .GET("/api/manager/earnings", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  tickets: (input: { cursor?: string; limit?: number } = {}) =>
+    generatedManagerClient
+      .GET("/api/manager/tickets", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  ticket: (ticketId: string) =>
+    generatedManagerClient
+      .GET("/api/manager/tickets/{ticketId}", { params: { path: { ticketId } } })
+      .then(unwrapGeneratedResponse),
+  createTicket: (input: {
+    category: "ONBOARDING" | "ACCOUNT" | "TECHNICAL" | "SERVICE" | "OTHER";
+    subjectDisplayName: string;
+    subjectReference?: string;
+  }) =>
+    generatedManagerClient
+      .POST("/api/manager/tickets", {
+        body: input,
+        params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  addTicketFollowUp: (ticketId: string, body: string) =>
+    generatedManagerClient
+      .POST("/api/manager/tickets/{ticketId}/follow-ups", {
+        body: { body },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { ticketId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+};
+
+export const managerProgramService = {
+  createManager: (input: { displayName: string; principalId: string }) =>
+    generatedManagerClient
+      .POST("/api/admin/managers", {
+        body: input,
+        params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  createReferralLink: (
+    managerProfileId: string,
+    input: {
+      audience: "PATIENT" | "ORGANIZATION";
+      label: string;
+      organizationType?: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+      validUntil?: string;
+    },
+  ) =>
+    generatedManagerClient
+      .POST("/api/admin/managers/{managerProfileId}/referral-links", {
+        body: input,
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { managerProfileId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  createCommissionPolicy: (
+    managerProfileId: string,
+    input: {
+      activityType: "CONSULTATION" | "HOSPITAL" | "PHARMACY" | "LABORATORY";
+      currency: string;
+      effectiveFrom: string;
+      effectiveUntil?: string;
+      minimumGrossMinor?: string;
+      rateBps: number;
+    },
+  ) =>
+    generatedManagerClient
+      .POST("/api/admin/managers/{managerProfileId}/commission-policies", {
+        body: input,
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { managerProfileId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  activateCommissionPolicy: (policyId: string, expectedVersion: number) =>
+    generatedManagerClient
+      .POST("/api/admin/managers/commission-policies/{policyId}/activate", {
+        body: { expectedVersion },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { policyId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  correctAttribution: (
+    applicationId: string,
+    input: {
+      expectedVersion: number;
+      managerProfileId?: string;
+      reasonCategory: string;
+      referralLinkId?: string;
+    },
+  ) =>
+    generatedManagerClient
+      .POST("/api/admin/managers/attributions/{applicationId}/corrections", {
+        body: input,
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  supportTickets: (
+    input: {
+      cursor?: string;
+      limit?: number;
+      status?: "ESCALATED" | "IN_REVIEW" | "WAITING_MANAGER" | "RESOLVED" | "CLOSED";
+    } = {},
+  ) =>
+    generatedManagerClient
+      .GET("/api/support/manager-tickets", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  reviewTicket: (
+    ticketId: string,
+    input: {
+      body?: string;
+      expectedVersion: number;
+      status: "IN_REVIEW" | "WAITING_MANAGER" | "RESOLVED" | "CLOSED";
+    },
+  ) =>
+    generatedManagerClient
+      .PATCH("/api/support/manager-tickets/{ticketId}", {
+        body: input,
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { ticketId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+};
+
+export type {
+  CommissionPolicyResponse,
+  ManagerEarningsReportResponse,
+  ManagerProfileResponse,
+  ManagerReferralLinkResponse,
+  ManagerReferralStatusResponse,
+  ManagerTicketResponse,
+  ReferralAttributionCorrectionResponse,
+  SupportManagerTicketResponse,
+};
 
 // ---------------------------------------------------------------------------
 // MANAGER MODULE — dedicated role-scoped service (plan §6).

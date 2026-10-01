@@ -125,6 +125,15 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const applicationHistoryId = v7();
   const parentSpecialtyId = v7();
   const childSpecialtyId = v7();
+  const managerProfileId = v7();
+  const referralLinkId = v7();
+  const referralEventId = v7();
+  const commissionPolicyId = v7();
+  const patientId = v7();
+  const settlementId = v7();
+  const earningId = v7();
+  const ticketId = v7();
+  const followUpId = v7();
 
   await client.connect();
   try {
@@ -311,6 +320,116 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       'UPDATE "onboarding_applications" SET "status" = $1, "updated_at" = now() WHERE "id" = $2',
       ["SUBMITTED", applicationId],
       "23514",
+    );
+    await client.query(
+      'INSERT INTO "manager_profiles" ("id", "principal_id", "display_name", "updated_at") VALUES ($1, $2, $3, now())',
+      [managerProfileId, principalId, "Synthetic Manager"],
+    );
+    await client.query(
+      'INSERT INTO "referral_links" ("id", "manager_profile_id", "audience", "label", "signing_key_id", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, now())',
+      [
+        referralLinkId,
+        managerProfileId,
+        "PATIENT",
+        "Synthetic patient referral",
+        "verification-key",
+        principalId,
+      ],
+    );
+    await client.query(
+      'INSERT INTO "referral_attribution_events" ("id", "application_id", "event_type", "referral_link_id", "manager_profile_id", "actor_principal_id", "reason_category", "request_id") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [
+        referralEventId,
+        applicationId,
+        "ATTRIBUTED",
+        referralLinkId,
+        managerProfileId,
+        principalId,
+        "REFERRAL_CLAIMED",
+        v7(),
+      ],
+    );
+    await client.query(
+      'INSERT INTO "current_referral_attributions" ("application_id", "current_event_id", "manager_profile_id", "referral_link_id", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [applicationId, referralEventId, managerProfileId, referralLinkId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "referral_attribution_events" SET "reason_category" = $1 WHERE "id" = $2',
+      ["MUTATED", referralEventId],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "commission_policies" ("id", "manager_profile_id", "activity_type", "currency", "rate_bps", "effective_from", "effective_until", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), now() + interval \'1 year\', $6, $7, $7, now())',
+      [commissionPolicyId, managerProfileId, "CONSULTATION", "USD", 500, "ACTIVE", principalId],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "commission_policies" ("id", "manager_profile_id", "activity_type", "currency", "rate_bps", "effective_from", "effective_until", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now() + interval \'1 day\', now() + interval \'2 days\', $6, $7, $7, now())',
+      [v7(), managerProfileId, "CONSULTATION", "USD", 700, "ACTIVE", principalId],
+      "23P01",
+    );
+    await client.query(
+      'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [patientId, principalId, "Synthetic", "Applicant"],
+    );
+    await client.query(
+      'UPDATE "onboarding_applications" SET "status" = \'APPROVED\', "submitted_at" = now(), "decided_at" = now(), "decided_by_principal_id" = $1, "approved_patient_id" = $2, "updated_at" = now() WHERE "id" = $3',
+      [principalId, patientId, applicationId],
+    );
+    await client.query(
+      'INSERT INTO "patient_activity_settlements" ("id", "patient_id", "source_event_key", "source_type", "activity_type", "gross_amount_minor", "currency", "settled_at", "recorded_by_principal_id") VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)',
+      [
+        settlementId,
+        patientId,
+        `migration-verification-${settlementId}`,
+        "SYNTHETIC",
+        "CONSULTATION",
+        10000,
+        "USD",
+        principalId,
+      ],
+    );
+    await client.query(
+      'INSERT INTO "manager_earnings" ("id", "event_key", "manager_profile_id", "settlement_id", "policy_id", "activity_type", "amount_minor", "currency", "entry_type", "occurred_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())',
+      [
+        earningId,
+        `migration-verification-${earningId}`,
+        managerProfileId,
+        settlementId,
+        commissionPolicyId,
+        "CONSULTATION",
+        500,
+        "USD",
+        "EARNING",
+      ],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "manager_earnings" SET "amount_minor" = $1 WHERE "id" = $2',
+      [600, earningId],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "manager_support_tickets" ("id", "ticket_number", "manager_profile_id", "subject_display_name", "category", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, now())',
+      [
+        ticketId,
+        `RPT-${ticketId.replaceAll("-", "").slice(0, 20)}`,
+        managerProfileId,
+        "Synthetic Applicant",
+        "ONBOARDING",
+        principalId,
+      ],
+    );
+    await client.query(
+      'INSERT INTO "manager_ticket_follow_ups" ("id", "ticket_id", "author_principal_id", "body", "visibility") VALUES ($1, $2, $3, $4, $5)',
+      [followUpId, ticketId, principalId, "Synthetic follow-up", "MANAGER"],
+    );
+    await expectSqlState(
+      client,
+      'DELETE FROM "manager_ticket_follow_ups" WHERE "id" = $1',
+      [followUpId],
+      "P0001",
     );
     await client.query(
       'INSERT INTO "specialty_taxonomies" ("id", "code", "name", "category", "source_system", "updated_at") VALUES ($1, $2, $3, $4, $5, now()), ($6, $7, $8, $9, $10, now())',

@@ -20,6 +20,7 @@ import type {
   StoredOnboardingApplication,
 } from "../src/onboarding/domain/onboarding-repository.types.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
+import type { ReferralClaimService } from "../src/manager/application/referral-claim.service.js";
 
 const patientData: OnboardingApplicationData = {
   kind: "PATIENT",
@@ -93,6 +94,7 @@ function service(repo: OnboardingRepository) {
     onboarding: new OnboardingService(
       repo,
       new AuthorizationService(new PolicyEngine(), { append }),
+      { resolve: vi.fn() } as unknown as ReferralClaimService,
     ),
   };
 }

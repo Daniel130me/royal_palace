@@ -131,6 +131,7 @@ describe("onboarding HTTP boundary", () => {
         kind: "PATIENT",
         values: expect.objectContaining({ countryCode: "GB" }),
       }),
+      undefined,
     );
   });
 

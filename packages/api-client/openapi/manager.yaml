@@ -1,0 +1,544 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace manager API
+  version: 1.0.0
+paths:
+  /api/manager/profile:
+    get:
+      operationId: getManagerProfile
+      responses:
+        "200":
+          {
+            description: Manager profile,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ManagerProfile" } } },
+          }
+  /api/manager/referral-links:
+    get:
+      operationId: listManagerReferralLinks
+      responses:
+        "200":
+          description: Purpose-scoped referral links
+          content:
+            {
+              application/json:
+                { schema: { type: array, items: { $ref: "#/components/schemas/ReferralLink" } } },
+            }
+  /api/manager/referrals:
+    get:
+      operationId: listManagerReferrals
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          {
+            description: Minimal referral status,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ReferralPage" } } },
+          }
+  /api/manager/earnings:
+    get:
+      operationId: getManagerEarnings
+      parameters:
+        - { in: query, name: from, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date-time } }
+        - {
+            in: query,
+            name: granularity,
+            required: true,
+            schema: { type: string, enum: [DAY, MONTH] },
+          }
+        - { in: query, name: timeZone, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          {
+            description: Commission-only earnings report,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/EarningsReport" } } },
+          }
+  /api/manager/tickets:
+    get:
+      operationId: listManagerTickets
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          {
+            description: Manager tickets,
+            content: { application/json: { schema: { $ref: "#/components/schemas/TicketPage" } } },
+          }
+    post:
+      operationId: createManagerTicket
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [category, subjectDisplayName]
+              properties:
+                category: { $ref: "#/components/schemas/TicketCategory" }
+                subjectDisplayName: { type: string, minLength: 1, maxLength: 160 }
+                subjectReference: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        "201":
+          {
+            description: Ticket created,
+            content: { application/json: { schema: { $ref: "#/components/schemas/Ticket" } } },
+          }
+  /api/manager/tickets/{ticketId}:
+    get:
+      operationId: getManagerTicket
+      parameters: [{ $ref: "#/components/parameters/TicketId" }]
+      responses:
+        "200":
+          {
+            description: Manager ticket,
+            content: { application/json: { schema: { $ref: "#/components/schemas/Ticket" } } },
+          }
+  /api/manager/tickets/{ticketId}/follow-ups:
+    post:
+      operationId: addManagerTicketFollowUp
+      parameters:
+        - { $ref: "#/components/parameters/TicketId" }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [body]
+              properties: { body: { type: string, minLength: 1, maxLength: 2000 } }
+      responses:
+        "201":
+          {
+            description: Follow-up added,
+            content: { application/json: { schema: { $ref: "#/components/schemas/Ticket" } } },
+          }
+  /api/admin/managers:
+    post:
+      operationId: createManager
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayName, principalId]
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 160 }
+                principalId: { type: string, format: uuid }
+      responses:
+        "201":
+          {
+            description: Manager created,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ManagerProfile" } } },
+          }
+  /api/admin/managers/{managerProfileId}/referral-links:
+    post:
+      operationId: createManagerReferralLink
+      parameters:
+        - { $ref: "#/components/parameters/ManagerProfileId" }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [audience, label]
+              properties:
+                audience: { type: string, enum: [PATIENT, ORGANIZATION] }
+                label: { type: string, minLength: 1, maxLength: 120 }
+                organizationType: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY] }
+                validUntil: { type: string, format: date-time }
+      responses:
+        "201":
+          {
+            description: Referral link created,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ReferralLink" } } },
+          }
+  /api/admin/managers/{managerProfileId}/commission-policies:
+    post:
+      operationId: createCommissionPolicy
+      parameters:
+        - { $ref: "#/components/parameters/ManagerProfileId" }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionPolicyInput" }
+      responses:
+        "201":
+          {
+            description: Draft policy created,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/CommissionPolicy" } } },
+          }
+  /api/admin/managers/commission-policies/{policyId}/activate:
+    post:
+      operationId: activateCommissionPolicy
+      parameters:
+        - { in: path, name: policyId, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              {
+                type: object,
+                additionalProperties: false,
+                required: [expectedVersion],
+                properties: { expectedVersion: { type: integer, minimum: 1 } },
+              }
+      responses:
+        "201":
+          {
+            description: Policy activated,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/CommissionPolicy" } } },
+          }
+  /api/admin/managers/attributions/{applicationId}/corrections:
+    post:
+      operationId: correctReferralAttribution
+      parameters:
+        - { in: path, name: applicationId, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion, reasonCategory]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+                managerProfileId: { type: string, format: uuid }
+                reasonCategory: { type: string, pattern: "^[A-Z][A-Z0-9_]{1,99}$" }
+                referralLinkId: { type: string, format: uuid }
+      responses:
+        "201":
+          {
+            description: Append-only correction recorded,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/AttributionCorrection" } },
+              },
+          }
+  /api/support/manager-tickets:
+    get:
+      operationId: listSupportManagerTickets
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: status, schema: { $ref: "#/components/schemas/TicketStatus" } }
+      responses:
+        "200":
+          {
+            description: Support ticket queue,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/SupportTicketPage" } } },
+          }
+  /api/support/manager-tickets/{ticketId}:
+    patch:
+      operationId: reviewManagerTicket
+      parameters:
+        - { $ref: "#/components/parameters/TicketId" }
+        - { $ref: "#/components/parameters/Csrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion, status]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+                expectedVersion: { type: integer, minimum: 1 }
+                status: { type: string, enum: [IN_REVIEW, WAITING_MANAGER, RESOLVED, CLOSED] }
+      responses:
+        "200":
+          {
+            description: Ticket reviewed,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/SupportTicket" } } },
+          }
+components:
+  parameters:
+    Csrf: { in: header, name: x-rp-csrf-token, required: true, schema: { type: string } }
+    Cursor: { in: query, name: cursor, schema: { type: string, maxLength: 2048 } }
+    Limit: { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50 } }
+    ManagerProfileId:
+      { in: path, name: managerProfileId, required: true, schema: { type: string, format: uuid } }
+    TicketId: { in: path, name: ticketId, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [endCursor, hasNextPage]
+      properties: { endCursor: { type: [string, "null"] }, hasNextPage: { type: boolean } }
+    ManagerProfile:
+      type: object
+      additionalProperties: false
+      required: [displayName, id, status]
+      properties:
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, SUSPENDED, DEACTIVATED] }
+    ReferralLink:
+      type: object
+      additionalProperties: false
+      required:
+        [audience, id, label, organizationType, referralToken, status, validFrom, validUntil]
+      properties:
+        audience: { type: string, enum: [PATIENT, ORGANIZATION] }
+        id: { type: string, format: uuid }
+        label: { type: string }
+        organizationType: { type: [string, "null"], enum: [HOSPITAL, PHARMACY, LABORATORY, null] }
+        referralToken: { type: string }
+        status: { type: string, enum: [ACTIVE, PAUSED, REVOKED] }
+        validFrom: { type: string, format: date-time }
+        validUntil: { type: [string, "null"], format: date-time }
+    ReferralStatus:
+      type: object
+      additionalProperties: false
+      required:
+        [applicationKind, applicationStatus, attributionId, createdAt, decidedAt, submittedAt]
+      properties:
+        applicationKind: { type: string, enum: [PATIENT, ORGANIZATION, PRACTITIONER] }
+        applicationStatus:
+          {
+            type: string,
+            enum:
+              [
+                DRAFT,
+                SUBMITTED,
+                UNDER_REVIEW,
+                MORE_INFORMATION_REQUIRED,
+                APPROVED,
+                REJECTED,
+                WITHDRAWN,
+              ],
+          }
+        attributionId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: [string, "null"], format: date-time }
+        submittedAt: { type: [string, "null"], format: date-time }
+    ReferralPage:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/ReferralStatus" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+    CurrencyAmount:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency]
+      properties:
+        {
+          amountMinor: { type: string, pattern: "^-?\\d+$" },
+          currency: { type: string, pattern: "^[A-Z]{3}$" },
+        }
+    EarningEntry:
+      type: object
+      additionalProperties: false
+      required: [activityType, amountMinor, currency, id, occurredAt, status]
+      properties:
+        activityType: { $ref: "#/components/schemas/ActivityType" }
+        amountMinor: { type: string, pattern: "^-?\\d+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        status: { type: string, enum: [AVAILABLE, PAID, REVERSED] }
+    EarningBucket:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency, periodStart]
+      properties:
+        amountMinor: { type: string, pattern: "^-?\\d+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        periodStart: { type: string }
+    EarningsReport:
+      type: object
+      additionalProperties: false
+      required: [buckets, entries, pageInfo, range, totals]
+      properties:
+        buckets: { type: array, items: { $ref: "#/components/schemas/EarningBucket" } }
+        entries: { type: array, items: { $ref: "#/components/schemas/EarningEntry" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        range:
+          type: object
+          additionalProperties: false
+          required: [from, timeZone, to]
+          properties:
+            {
+              from: { type: string, format: date-time },
+              timeZone: { type: string },
+              to: { type: string, format: date-time },
+            }
+        totals: { type: array, items: { $ref: "#/components/schemas/CurrencyAmount" } }
+    TicketCategory: { type: string, enum: [ONBOARDING, ACCOUNT, TECHNICAL, SERVICE, OTHER] }
+    TicketStatus: { type: string, enum: [ESCALATED, IN_REVIEW, WAITING_MANAGER, RESOLVED, CLOSED] }
+    TicketFollowUp:
+      type: object
+      additionalProperties: false
+      required: [body, createdAt, id]
+      properties:
+        {
+          body: { type: string },
+          createdAt: { type: string, format: date-time },
+          id: { type: string, format: uuid },
+        }
+    Ticket:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          category,
+          createdAt,
+          followUps,
+          id,
+          status,
+          subjectDisplayName,
+          subjectReference,
+          ticketNumber,
+          updatedAt,
+          version,
+        ]
+      properties:
+        category: { $ref: "#/components/schemas/TicketCategory" }
+        createdAt: { type: string, format: date-time }
+        followUps: { type: array, items: { $ref: "#/components/schemas/TicketFollowUp" } }
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/TicketStatus" }
+        subjectDisplayName: { type: string }
+        subjectReference: { type: [string, "null"] }
+        ticketNumber: { type: string }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer }
+    TicketPage:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        {
+          data: { type: array, items: { $ref: "#/components/schemas/Ticket" } },
+          pageInfo: { $ref: "#/components/schemas/PageInfo" },
+        }
+    SupportTicket:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          category,
+          createdAt,
+          followUps,
+          id,
+          managerProfileId,
+          status,
+          subjectDisplayName,
+          subjectReference,
+          ticketNumber,
+          updatedAt,
+          version,
+        ]
+      properties:
+        category: { $ref: "#/components/schemas/TicketCategory" }
+        createdAt: { type: string, format: date-time }
+        followUps:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [body, createdAt, id, visibility]
+            properties:
+              body: { type: string }
+              createdAt: { type: string, format: date-time }
+              id: { type: string, format: uuid }
+              visibility: { type: string, enum: [MANAGER, INTERNAL] }
+        id: { type: string, format: uuid }
+        managerProfileId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/TicketStatus" }
+        subjectDisplayName: { type: string }
+        subjectReference: { type: [string, "null"] }
+        ticketNumber: { type: string }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer }
+    SupportTicketPage:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        {
+          data: { type: array, items: { $ref: "#/components/schemas/SupportTicket" } },
+          pageInfo: { $ref: "#/components/schemas/PageInfo" },
+        }
+    ActivityType: { type: string, enum: [CONSULTATION, HOSPITAL, PHARMACY, LABORATORY] }
+    CommissionPolicyInput:
+      type: object
+      additionalProperties: false
+      required: [activityType, currency, effectiveFrom, rateBps]
+      properties:
+        activityType: { $ref: "#/components/schemas/ActivityType" }
+        currency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: string, format: date-time }
+        minimumGrossMinor: { type: string, pattern: "^\\d+$" }
+        rateBps: { type: integer, minimum: 1, maximum: 10000 }
+    CommissionPolicy:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          activityType,
+          currency,
+          effectiveFrom,
+          effectiveUntil,
+          id,
+          managerProfileId,
+          minimumGrossMinor,
+          rateBps,
+          status,
+          version,
+        ]
+      properties:
+        activityType: { $ref: "#/components/schemas/ActivityType" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: [string, "null"], format: date-time }
+        id: { type: string, format: uuid }
+        managerProfileId: { type: string, format: uuid }
+        minimumGrossMinor: { type: [string, "null"], pattern: "^\\d+$" }
+        rateBps: { type: integer, minimum: 1, maximum: 10000 }
+        status: { type: string, enum: [DRAFT, ACTIVE, RETIRED] }
+        version: { type: integer }
+    AttributionCorrection:
+      type: object
+      additionalProperties: false
+      required: [applicationId, eventId, eventType, managerProfileId, referralLinkId, version]
+      properties:
+        applicationId: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        eventType: { type: string, enum: [CORRECTED, REMOVED] }
+        managerProfileId: { type: [string, "null"], format: uuid }
+        referralLinkId: { type: [string, "null"], format: uuid }
+        version: { type: integer }

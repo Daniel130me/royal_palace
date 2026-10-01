@@ -11,17 +11,50 @@ export async function GET(req: Request) {
   try {
     const { manager } = await getManagerContext(req);
 
-    const [bankAccount, acquiredPatients, acquiredPharmacies, acquiredLaboratories, acquiredHospitals, openTicketCount, pendingOrgApplications, pendingPatientApplications] =
-      await Promise.all([
-        db.managerBankAccount.findUnique({ where: { managerId: manager.id } }),
-        db.patient.count({ where: { acquiredByManagerId: manager.id } }),
-        db.pharmacy.count({ where: { acquiredByManagerId: manager.id } }),
-        db.laboratory.count({ where: { acquiredByManagerId: manager.id } }),
-        db.hospital.count({ where: { acquiredByManagerId: manager.id } }),
-        db.supportTicket.count({ where: { managerId: manager.id, status: { in: ["new", "assigned_to_manager", "manager_investigating", "waiting_for_organization", "escalated_to_royal_palace", "royal_palace_investigating", "reopened"] } } }),
-        db.managerOrganizationApplication.count({ where: { managerId: manager.id, status: { in: ["submitted", "under_review", "information_required"] } } }),
-        db.managerPatientApplication.count({ where: { managerId: manager.id, status: { in: ["submitted", "under_review", "information_required"] } } }),
-      ]);
+    const [
+      bankAccount,
+      acquiredPatients,
+      acquiredPharmacies,
+      acquiredLaboratories,
+      acquiredHospitals,
+      openTicketCount,
+      pendingOrgApplications,
+      pendingPatientApplications,
+    ] = await Promise.all([
+      db.managerBankAccount.findUnique({ where: { managerId: manager.id } }),
+      db.patient.count({ where: { acquiredByManagerId: manager.id } }),
+      db.pharmacy.count({ where: { acquiredByManagerId: manager.id } }),
+      db.laboratory.count({ where: { acquiredByManagerId: manager.id } }),
+      db.hospital.count({ where: { acquiredByManagerId: manager.id } }),
+      db.supportTicket.count({
+        where: {
+          managerId: manager.id,
+          status: {
+            in: [
+              "new",
+              "assigned_to_manager",
+              "manager_investigating",
+              "waiting_for_organization",
+              "escalated_to_royal_palace",
+              "royal_palace_investigating",
+              "reopened",
+            ],
+          },
+        },
+      }),
+      db.managerOrganizationApplication.count({
+        where: {
+          managerId: manager.id,
+          status: { in: ["submitted", "under_review", "information_required"] },
+        },
+      }),
+      db.managerPatientApplication.count({
+        where: {
+          managerId: manager.id,
+          status: { in: ["submitted", "under_review", "information_required"] },
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       data: {
@@ -52,8 +85,10 @@ export async function GET(req: Request) {
             }
           : null,
         stats: {
-          enrollmentCount: acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
-          acquiredCount: acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
+          enrollmentCount:
+            acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
+          acquiredCount:
+            acquiredPatients + acquiredPharmacies + acquiredLaboratories + acquiredHospitals,
           openTicketCount,
           pendingApplications: pendingOrgApplications + pendingPatientApplications,
         },

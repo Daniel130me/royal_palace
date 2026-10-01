@@ -1,73 +1,108 @@
 "use client";
 
-// Admin · Support escalations (plan §3.8): tickets escalated to Royal
-// Palace by managers, routed to Finance/Technical/Operations/Compliance.
-
+import type { SupportManagerTicketResponse } from "@royal-palace/contracts";
 import { useCallback, useEffect, useState } from "react";
-import { sessionApi } from "@/lib/api-client";
-import { PageHeader, ErrorState, LoadingState, EmptyState } from "@/components/healthcare/page-header";
+import { toast } from "sonner";
+
+import { ErrorState, LoadingState, PageHeader } from "@/components/healthcare/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ManagerStatusBadge } from "@/features/manager/components/manager-shared";
 import { formatDateTime } from "@/lib/format";
-import { MANAGER_TICKET_STATUS_LABELS } from "@/lib/manager-constants";
-import { Building2, FlaskConical, ArrowUpRight } from "lucide-react";
-import type { SupportTicket } from "@/types";
+import { managerProgramService } from "@/lib/services";
+import { ManagerStatusBadge } from "@/features/manager/components/manager-shared";
 
 export function AdminManagerSupport() {
-  const [items, setItems] = useState<(SupportTicket & { managerName?: string })[] | null>(null);
+  const [items, setItems] = useState<SupportManagerTicketResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const json = await sessionApi.get<{ data: (SupportTicket & { managerName?: string })[] }>("/api/admin/manager-data?view=escalations");
-      setItems(json.data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load escalations.");
-    }
+  const load = useCallback(() => {
+    void managerProgramService
+      .supportTickets({ limit: 50 })
+      .then((result) => setItems(result.data))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Support queue could not be loaded."),
+      );
   }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
+  useEffect(load, [load]);
+  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (items === null) return <LoadingState label="Loading manager support queue…" />;
+  async function transition(
+    ticket: SupportManagerTicketResponse,
+    status: "IN_REVIEW" | "WAITING_MANAGER" | "RESOLVED" | "CLOSED",
+  ) {
+    try {
+      await managerProgramService.reviewTicket(ticket.id, {
+        expectedVersion: ticket.version,
+        status,
+      });
+      toast.success("Ticket updated.");
+      load();
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Ticket could not be updated.");
+    }
+  }
   return (
     <div>
       <PageHeader
-        title="Support Escalations"
-        description="Tickets escalated to Royal Palace by Managers (Level 2). Route them to the right department and resolve from the support console."
-        actions={<ArrowUpRight className="h-5 w-5 text-muted-foreground" />}
+        description="Minimal identifying details are shown. Internal notes remain hidden from managers; clinical and payment data are not part of this workflow."
+        title="Manager support queue"
       />
-      {error ? (
-        <ErrorState message={error} onRetry={() => void load()} />
-      ) : !items ? (
-        <LoadingState label="Loading escalations…" />
-      ) : items.length === 0 ? (
-        <EmptyState title="No escalations" description="Escalated tickets from managers will appear here." />
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            {items.map((t) => {
-              const Icon = t.organizationType === "pharmacy" ? Building2 : FlaskConical;
-              return (
-                <div key={t.id} className="flex items-start gap-3 px-4 py-3.5 border-b border-border/40 last:border-0">
-                  <div className="rounded-lg bg-rose-50 p-2 shrink-0"><Icon className="h-4 w-4 text-rose-600" /></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-sm">{t.subject}</p>
-                      <ManagerStatusBadge status={t.status} label={MANAGER_TICKET_STATUS_LABELS[t.status as keyof typeof MANAGER_TICKET_STATUS_LABELS]} />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.ticketNumber} · {t.organizationName} · manager {t.managerName ?? t.managerId} · department {t.escalationDepartment ?? "—"} · escalated {t.escalatedAt ? formatDateTime(t.escalatedAt) : "—"}
-                    </p>
-                    {t.escalationReason ? <p className="text-xs text-muted-foreground mt-1 border-l-2 border-rose-300 pl-2">{t.escalationReason}</p> : null}
-                  </div>
+      <Card>
+        <CardContent className="p-0">
+          {items.map((ticket) => (
+            <div className="space-y-2 border-b p-4 last:border-0" key={ticket.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">
+                    {ticket.ticketNumber} · {ticket.subjectDisplayName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {ticket.category} · updated {formatDateTime(ticket.updatedAt)}
+                  </p>
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
+                <ManagerStatusBadge status={ticket.status} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ticket.status === "ESCALATED" || ticket.status === "WAITING_MANAGER" ? (
+                  <Button onClick={() => void transition(ticket, "IN_REVIEW")} size="sm">
+                    Start review
+                  </Button>
+                ) : null}
+                {ticket.status === "IN_REVIEW" ? (
+                  <>
+                    <Button
+                      onClick={() => void transition(ticket, "WAITING_MANAGER")}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Await manager
+                    </Button>
+                    <Button onClick={() => void transition(ticket, "RESOLVED")} size="sm">
+                      Resolve
+                    </Button>
+                  </>
+                ) : null}
+                {ticket.status === "WAITING_MANAGER" ? (
+                  <Button onClick={() => void transition(ticket, "RESOLVED")} size="sm">
+                    Resolve
+                  </Button>
+                ) : null}
+                {ticket.status === "RESOLVED" ? (
+                  <Button
+                    onClick={() => void transition(ticket, "CLOSED")}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Close
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          {items.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">No manager escalations.</p>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }

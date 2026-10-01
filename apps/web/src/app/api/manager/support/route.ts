@@ -38,18 +38,34 @@ export async function GET(req: Request) {
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {
-          id: true, ticketNumber: true, organizationName: true, creatorName: true,
-          category: true, status: true, lastActivityAt: true,
+          id: true,
+          ticketNumber: true,
+          organizationName: true,
+          creatorName: true,
+          category: true,
+          status: true,
+          lastActivityAt: true,
         },
       }),
       db.supportTicket.count({ where }),
-      db.supportTicket.groupBy({ by: ["status"], where: { managerId: manager.id }, _count: { _all: true } }),
+      db.supportTicket.groupBy({
+        by: ["status"],
+        where: { managerId: manager.id },
+        _count: { _all: true },
+      }),
     ]);
 
     const statusCounts = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
 
     return NextResponse.json({
-      data: items.map((t) => ({ id: t.id, ticketNumber: t.ticketNumber, displayName: t.organizationName || t.creatorName, category: t.category, status: t.status, lastActivityAt: t.lastActivityAt })),
+      data: items.map((t) => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        displayName: t.organizationName || t.creatorName,
+        category: t.category,
+        status: t.status,
+        lastActivityAt: t.lastActivityAt,
+      })),
       meta: { page, pageSize, total, statusCounts },
     });
   } catch (error) {

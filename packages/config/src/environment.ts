@@ -83,6 +83,8 @@ const apiIdentityEnvironmentSchema = z
     OIDC_SCOPES: z.string().trim().min(1),
     PRIVILEGED_ASSURANCE_CONTEXT: z.string().trim().min(1).max(255),
     PRIVILEGED_AUTH_MAX_AGE_SECONDS: z.coerce.number().int().min(60).max(86_400),
+    REFERRAL_ACTIVE_SIGNING_KEY_ID: z.string().trim().min(1).max(64),
+    REFERRAL_SIGNING_KEYS: keyRingSchema,
     SESSION_ABSOLUTE_TTL_SECONDS: sessionDurationSchema,
     SESSION_IDLE_TTL_SECONDS: sessionDurationSchema,
     LOGIN_TRANSACTION_TTL_SECONDS: z.coerce.number().int().min(60).max(600),
@@ -132,6 +134,13 @@ const apiIdentityEnvironmentSchema = z
         code: "custom",
         message: "must identify a key present in IDENTITY_ENCRYPTION_KEYS",
         path: ["IDENTITY_ACTIVE_ENCRYPTION_KEY_ID"],
+      });
+    }
+    if (!(value.REFERRAL_ACTIVE_SIGNING_KEY_ID in value.REFERRAL_SIGNING_KEYS)) {
+      context.addIssue({
+        code: "custom",
+        message: "must identify a key present in REFERRAL_SIGNING_KEYS",
+        path: ["REFERRAL_ACTIVE_SIGNING_KEY_ID"],
       });
     }
     if (
@@ -237,6 +246,8 @@ export interface IdentityServiceConfig {
   scopes: readonly string[];
   privilegedAssuranceContext: string;
   privilegedAuthMaxAgeSeconds: number;
+  referralActiveSigningKeyId: string;
+  referralSigningKeys: Readonly<Record<string, string>>;
   sessionAbsoluteTtlSeconds: number;
   sessionIdleTtlSeconds: number;
 }
@@ -434,6 +445,8 @@ function parseIdentityEnvironment(
     scopes: Object.freeze(values.OIDC_SCOPES.split(/\s+/)),
     privilegedAssuranceContext: values.PRIVILEGED_ASSURANCE_CONTEXT,
     privilegedAuthMaxAgeSeconds: values.PRIVILEGED_AUTH_MAX_AGE_SECONDS,
+    referralActiveSigningKeyId: values.REFERRAL_ACTIVE_SIGNING_KEY_ID,
+    referralSigningKeys: Object.freeze(values.REFERRAL_SIGNING_KEYS),
     sessionAbsoluteTtlSeconds: values.SESSION_ABSOLUTE_TTL_SECONDS,
     sessionIdleTtlSeconds: values.SESSION_IDLE_TTL_SECONDS,
   });

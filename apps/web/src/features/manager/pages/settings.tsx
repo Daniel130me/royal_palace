@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  ArrowLeftRight, Bell, Coins, Info, LifeBuoy, LogOut, Moon, Wallet,
-} from "lucide-react";
+import { ArrowLeftRight, Bell, Coins, Info, LifeBuoy, LogOut, Moon, Wallet } from "lucide-react";
 
 const PREFS_KEY = "managerNotificationPrefs";
 
@@ -123,7 +121,8 @@ export function ManagerSettings() {
 
       <SectionCard title="Appearance" icon={Moon} description="Theming">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          The Manager Portal follows your system light/dark preference — there is no separate in-app theme switch in this prototype.
+          The Manager Portal follows your system light/dark preference — there is no separate in-app
+          theme switch in this prototype.
         </p>
       </SectionCard>
 
@@ -132,7 +131,9 @@ export function ManagerSettings() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Sign out</p>
-              <p className="text-sm text-muted-foreground mt-0.5">End your Manager Portal session on this device.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                End your Manager Portal session on this device.
+              </p>
             </div>
             <Button variant="destructive" onClick={logout} className="shrink-0">
               <LogOut className="h-4 w-4" /> Sign out
@@ -145,7 +146,12 @@ export function ManagerSettings() {
 }
 
 function PrefRow({
-  id, icon, title, description, checked, onChange,
+  id,
+  icon,
+  title,
+  description,
+  checked,
+  onChange,
 }: {
   id: string;
   icon: React.ReactNode;
@@ -159,7 +165,9 @@ function PrefRow({
       <div className="flex items-start gap-3 min-w-0">
         <div className="mt-0.5 shrink-0">{icon}</div>
         <div className="min-w-0">
-          <Label htmlFor={id} className="text-sm font-semibold cursor-pointer">{title}</Label>
+          <Label htmlFor={id} className="text-sm font-semibold cursor-pointer">
+            {title}
+          </Label>
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
       </div>

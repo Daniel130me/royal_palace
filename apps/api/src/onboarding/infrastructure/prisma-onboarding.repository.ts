@@ -153,11 +153,13 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
     applicantPrincipalId: string;
     correlationId?: string;
     data: OnboardingApplicationData;
+    referral?: { linkId: string; managerProfileId: string };
     requestId: string;
   }): Promise<StoredOnboardingApplication> {
     const applicationId = createOpaqueId();
     try {
       await this.database.$transaction(async (transaction) => {
+        const attributionEventId = input.referral === undefined ? undefined : createOpaqueId();
         await validateCatalogueSelections(transaction, input.data);
         await transaction.onboardingApplication.create({
           data: {
@@ -178,6 +180,30 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
           },
           select: { id: true },
         });
+        if (input.referral !== undefined && attributionEventId !== undefined) {
+          await transaction.referralAttributionEvent.create({
+            data: {
+              actorPrincipalId: input.applicantPrincipalId,
+              applicationId,
+              correlationId: input.correlationId,
+              eventType: "ATTRIBUTED",
+              id: attributionEventId,
+              managerProfileId: input.referral.managerProfileId,
+              reasonCategory: "APPLICANT_USED_REFERRAL_LINK",
+              referralLinkId: input.referral.linkId,
+              requestId: input.requestId,
+            },
+          });
+          await transaction.currentReferralAttribution.create({
+            data: {
+              applicationId,
+              currentEventId: attributionEventId,
+              managerProfileId: input.referral.managerProfileId,
+              referralLinkId: input.referral.linkId,
+              updatedAt: new Date(),
+            },
+          });
+        }
       });
     } catch (error) {
       throw translateConstraintError(error, "An open application of this type already exists");

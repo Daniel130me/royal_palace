@@ -8,8 +8,16 @@ import { PageHeader, SectionCard } from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
 import { ManagerStatusBadge } from "../components/manager-shared";
 import {
-  ArrowRight, Building2, CheckCircle2, Download, FileText, FlaskConical,
-  Landmark, LifeBuoy, ShieldCheck, Users,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Download,
+  FileText,
+  FlaskConical,
+  Landmark,
+  LifeBuoy,
+  ShieldCheck,
+  Users,
 } from "lucide-react";
 
 const RESPONSIBILITIES = [
@@ -34,17 +42,20 @@ const RESPONSIBILITIES = [
 const AGREEMENTS = [
   {
     title: "Manager Services Agreement",
-    description: "The master agreement covering your role, portfolio responsibilities and conduct on the platform.",
+    description:
+      "The master agreement covering your role, portfolio responsibilities and conduct on the platform.",
     accepted: true,
   },
   {
     title: "Revenue Share Schedule",
-    description: "The schedule of revenue share rates applied per organization type and transaction type.",
+    description:
+      "The schedule of revenue share rates applied per organization type and transaction type.",
     accepted: true,
   },
   {
     title: "Support & Escalation Addendum",
-    description: "The service expectations for first-level support, response windows and escalation handling.",
+    description:
+      "The service expectations for first-level support, response windows and escalation handling.",
     accepted: true,
   },
 ];
@@ -58,7 +69,11 @@ export function ManagerResources() {
       />
 
       {/* Responsibilities checklist */}
-      <SectionCard title="Manager responsibilities" icon={CheckCircle2} description="What Royal Palace expects from every Manager">
+      <SectionCard
+        title="Manager responsibilities"
+        icon={CheckCircle2}
+        description="What Royal Palace expects from every Manager"
+      >
         <ul className="space-y-3">
           {RESPONSIBILITIES.map((r) => (
             <li key={r.title} className="flex items-start gap-3">
@@ -107,7 +122,9 @@ export function ManagerResources() {
         <div className="mt-3 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-3">
           <FlaskConical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Tickets keep their organization, manager and department trail so every side can see where an issue currently sits — statuses are shown identically across the Manager and Admin portals.
+            Tickets keep their organization, manager and department trail so every side can see
+            where an issue currently sits — statuses are shown identically across the Manager and
+            Admin portals.
           </p>
         </div>
       </SectionCard>
@@ -120,7 +137,10 @@ export function ManagerResources() {
       >
         <div className="space-y-2">
           {AGREEMENTS.map((a) => (
-            <div key={a.title} className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-border/60 p-3">
+            <div
+              key={a.title}
+              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-border/60 p-3"
+            >
               <div className="rounded-lg bg-primary/10 p-2 shrink-0 self-start">
                 <Landmark className="h-4 w-4 text-primary" />
               </div>
@@ -138,14 +158,26 @@ export function ManagerResources() {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Agreement acceptance is simulated in this prototype — the documents above are placeholders and downloads are disabled. In production these would be versioned PDFs with countersignature tracking.
+          Agreement acceptance is simulated in this prototype — the documents above are placeholders
+          and downloads are disabled. In production these would be versioned PDFs with
+          countersignature tracking.
         </p>
       </SectionCard>
     </div>
   );
 }
 
-function RoutingStep({ icon: Icon, tone, title, body }: { icon: React.ComponentType<{ className?: string }>; tone: string; title: string; body: string }) {
+function RoutingStep({
+  icon: Icon,
+  tone,
+  title,
+  body,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: string;
+  title: string;
+  body: string;
+}) {
   return (
     <li className="flex items-start gap-3">
       <div className={`rounded-lg p-2 shrink-0 ${tone}`}>

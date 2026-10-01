@@ -1,53 +1,38 @@
 "use client";
 
-// Shared client context for the Manager Portal: loads the signed-in
-// manager's profile and headline stats once per session and exposes an
-// unread-notification count for the shell badge.
-
+import type { ManagerProfileResponse } from "@royal-palace/contracts";
 import { useCallback, useEffect, useState } from "react";
-import { managerService, notificationService, type ManagerMePayload } from "@/lib/services";
-import type { Notification } from "@/types";
+
+import { managerPortalService } from "@/lib/services";
 
 interface ManagerContextState {
-  me: ManagerMePayload | null;
-  unread: number;
-  loading: boolean;
   error: string | null;
+  loading: boolean;
+  profile: ManagerProfileResponse | null;
   refresh: () => void;
+  unread: number;
 }
 
-let cache: { me: ManagerMePayload; unread: number } | null = null;
+let cachedProfile: ManagerProfileResponse | null = null;
 
 export function useManagerContext(): ManagerContextState {
-  const [state, setState] = useState<ManagerContextState>({
-    me: cache?.me ?? null,
-    unread: cache?.unread ?? 0,
-    loading: !cache,
-    error: null,
-    refresh: () => {},
-  });
-
-  const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }));
-    try {
-      const me = await managerService.me();
-      const notifications = await notificationService.list(me.manager.id, "manager");
-      const unread = notifications.filter((n: Notification) => !n.read).length;
-      cache = { me, unread };
-      setState({ me, unread, loading: false, error: null, refresh: load });
-    } catch (error) {
-      setState((s) => ({
-        ...s,
-        loading: false,
-        error: error instanceof Error ? error.message : "Failed to load manager profile.",
-        refresh: load,
-      }));
-    }
+  const [profile, setProfile] = useState(cachedProfile);
+  const [loading, setLoading] = useState(cachedProfile === null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void managerPortalService
+      .profile()
+      .then((result) => {
+        cachedProfile = result;
+        setProfile(result);
+      })
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Manager profile could not be loaded."),
+      )
+      .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  return state;
+  useEffect(load, [load]);
+  return { error, loading, profile, refresh: load, unread: 0 };
 }

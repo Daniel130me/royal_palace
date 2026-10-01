@@ -17,7 +17,11 @@ export async function GET(req: Request) {
         include: { allocatedEarnings: { select: { earningNumber: true, amount: true } } },
       }),
       db.managerEarning.aggregate({
-        where: { managerId: manager.id, status: { in: ["available", "paid"] }, payoutRequestId: null },
+        where: {
+          managerId: manager.id,
+          status: { in: ["available", "paid"] },
+          payoutRequestId: null,
+        },
         _sum: { amount: true },
       }),
       db.managerBankAccount.findUnique({ where: { managerId: manager.id } }),

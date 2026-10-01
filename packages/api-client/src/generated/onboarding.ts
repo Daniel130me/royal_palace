@@ -388,6 +388,16 @@ export interface components {
             phoneE164: string | null;
             preferredLanguage: string | null;
         };
+        PatientApplicationCreate: {
+            countryCode: string | null;
+            /** Format: date */
+            dateOfBirth: string | null;
+            familyName: string;
+            givenName: string;
+            phoneE164: string | null;
+            preferredLanguage: string | null;
+            referralToken?: string;
+        };
         OrganizationApplicationData: {
             addressLine1: string | null;
             addressLine2: string | null;
@@ -403,6 +413,26 @@ export interface components {
             locality: string | null;
             organizationType: components["schemas"]["OrganizationType"];
             postalCode: string | null;
+            registrationAuthority: string;
+            registrationNumber: string;
+            serviceIds: string[];
+        };
+        OrganizationApplicationCreate: {
+            addressLine1: string | null;
+            addressLine2: string | null;
+            administrativeArea: string | null;
+            /** Format: email */
+            contactEmail: string;
+            contactName: string;
+            contactPhoneE164: string | null;
+            countryCode: string;
+            displayName: string;
+            jurisdictionCode: string;
+            legalName: string;
+            locality: string | null;
+            organizationType: components["schemas"]["OrganizationType"];
+            postalCode: string | null;
+            referralToken?: string;
             registrationAuthority: string;
             registrationNumber: string;
             serviceIds: string[];
@@ -603,12 +633,12 @@ export interface components {
     requestBodies: {
         PatientData: {
             content: {
-                "application/json": components["schemas"]["PatientApplicationData"];
+                "application/json": components["schemas"]["PatientApplicationCreate"];
             };
         };
         OrganizationData: {
             content: {
-                "application/json": components["schemas"]["OrganizationApplicationData"];
+                "application/json": components["schemas"]["OrganizationApplicationCreate"];
             };
         };
         PractitionerData: {

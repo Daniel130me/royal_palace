@@ -10,6 +10,8 @@ const OUTBOX_EVENT_COUNT = 10_000;
 const AUTH_SESSION_COUNT = 10_000;
 const PRACTITIONER_COUNT = 12_000;
 const ONBOARDING_APPLICATION_COUNT = 10_000;
+const MANAGER_TICKET_COUNT = 2_000;
+const MANAGER_EARNING_COUNT = 5_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -37,7 +39,7 @@ async function main(): Promise<void> {
   await client.connect();
   await client.query("BEGIN");
   try {
-    const targetSessionId = await loadRepresentativeData(
+    const { managerProfileId, targetSessionId } = await loadRepresentativeData(
       client,
       principalId,
       externalIdentityId,
@@ -158,7 +160,13 @@ async function main(): Promise<void> {
           ORDER BY link."practitioner_id", link."id"
           LIMIT 50`,
         [],
-        "practitioner_specialties_specialty_practitioner_idx",
+        // PostgreSQL may prefer the unique practitioner-first index for a small
+        // ordered LIMIT, or the specialty-first index for a more selective filter.
+        // Both remain bounded indexed access paths for the production query shape.
+        [
+          "practitioner_specialties_specialty_practitioner_idx",
+          "practitioner_specialties_practitioner_specialty_key",
+        ],
       ),
       await reviewPlan(
         client,
@@ -201,6 +209,42 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "manager referral status cursor",
+        `SELECT "application_id", "current_event_id", "updated_at"
+           FROM "current_referral_attributions"
+          WHERE "manager_profile_id" = $1
+          ORDER BY "updated_at" DESC, "application_id" DESC
+          LIMIT 50`,
+        [managerProfileId],
+        "current_referral_attribution_manager_updated_idx",
+      ),
+      await reviewPlan(
+        client,
+        "manager support ticket cursor",
+        `SELECT "id", "status", "updated_at"
+           FROM "manager_support_tickets"
+          WHERE "manager_profile_id" = $1
+          ORDER BY "updated_at" DESC, "id" DESC
+          LIMIT 50`,
+        [managerProfileId],
+        "manager_support_tickets_manager_updated_idx",
+      ),
+      await reviewPlan(
+        client,
+        "manager earnings range",
+        `SELECT "id", "currency", "amount_minor", "occurred_at"
+           FROM "manager_earnings"
+          WHERE "manager_profile_id" = $1
+            AND "occurred_at" >= now() - interval '30 days'
+            AND "occurred_at" < now()
+          ORDER BY "occurred_at" DESC, "id" DESC
+          LIMIT 50`,
+        [managerProfileId],
+        "manager_earnings_manager_occurred_idx",
+        { forceIndexEligibility: true },
+      ),
+      await reviewPlan(
+        client,
         "organization audit cursor",
         `SELECT "id", "occurred_at", "action", "result"
            FROM "audit_events"
@@ -238,7 +282,7 @@ async function loadRepresentativeData(
   organizationIds: readonly string[],
   practitionerIds: readonly string[],
   targetOrganizationId: string,
-): Promise<string> {
+): Promise<{ managerProfileId: string; targetSessionId: string }> {
   await client.query('INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())', [
     principalId,
   ]);
@@ -283,6 +327,89 @@ async function loadRepresentativeData(
             now() - (input.ordinality * interval '1 minute'), now()
        FROM unnest($2::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
     [principalId, rejectedApplicationIds],
+  );
+  const managerProfileId = v7();
+  const referralLinkId = v7();
+  await client.query(
+    'INSERT INTO "manager_profiles" ("id", "principal_id", "display_name", "updated_at") VALUES ($1, $2, $3, now())',
+    [managerProfileId, principalId, "Query Plan Manager"],
+  );
+  await client.query(
+    'INSERT INTO "referral_links" ("id", "manager_profile_id", "audience", "label", "signing_key_id", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, now())',
+    [
+      referralLinkId,
+      managerProfileId,
+      "PATIENT",
+      "Query plan referrals",
+      "query-plan-key",
+      principalId,
+    ],
+  );
+  const patientId = v7();
+  const commissionPolicyId = v7();
+  await client.query(
+    'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
+    [patientId, principalId, "Query", "Plan"],
+  );
+  await client.query(
+    `INSERT INTO "commission_policies"
+       ("id", "manager_profile_id", "activity_type", "currency", "rate_bps",
+        "effective_from", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at")
+     VALUES ($1, $2, 'CONSULTATION', 'USD', 500, now() - interval '1 year',
+             'ACTIVE', $3, $3, now())`,
+    [commissionPolicyId, managerProfileId, principalId],
+  );
+  const settlementIds = Array.from({ length: MANAGER_EARNING_COUNT }, () => v7());
+  const earningIds = Array.from({ length: MANAGER_EARNING_COUNT }, () => v7());
+  await client.query(
+    `INSERT INTO "patient_activity_settlements"
+       ("id", "patient_id", "source_event_key", "source_type", "activity_type",
+        "gross_amount_minor", "currency", "settled_at", "recorded_by_principal_id")
+     SELECT input.id, $1, 'query-plan-settlement-' || input.ordinality, 'QUERY_PLAN',
+            'CONSULTATION', 10000, 'USD', now() - (input.ordinality * interval '15 minutes'), $2
+       FROM unnest($3::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
+    [patientId, principalId, settlementIds],
+  );
+  await client.query(
+    `INSERT INTO "manager_earnings"
+       ("id", "event_key", "manager_profile_id", "settlement_id", "policy_id",
+        "activity_type", "amount_minor", "currency", "entry_type", "occurred_at")
+     SELECT input.earning_id, 'query-plan-earning-' || input.ordinality, $1,
+            input.settlement_id, $2, 'CONSULTATION', 500, 'USD', 'EARNING',
+            now() - (input.ordinality * interval '15 minutes')
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS input(earning_id, settlement_id, ordinality)`,
+    [managerProfileId, commissionPolicyId, earningIds, settlementIds],
+  );
+  const attributionEventIds = onboardingApplicationIds.map(() => v7());
+  await client.query(
+    `INSERT INTO "referral_attribution_events"
+       ("id", "application_id", "event_type", "referral_link_id", "manager_profile_id",
+        "actor_principal_id", "reason_category", "request_id")
+     SELECT input.event_id, input.application_id, 'ATTRIBUTED', $1, $2, $3,
+            'QUERY_PLAN_FIXTURE', input.event_id::text
+       FROM unnest($4::uuid[], $5::uuid[]) AS input(event_id, application_id)`,
+    [referralLinkId, managerProfileId, principalId, attributionEventIds, onboardingApplicationIds],
+  );
+  await client.query(
+    `INSERT INTO "current_referral_attributions"
+       ("application_id", "current_event_id", "manager_profile_id", "referral_link_id", "updated_at")
+     SELECT input.application_id, input.event_id, $1, $2,
+            now() - (input.ordinality * interval '1 second')
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS input(application_id, event_id, ordinality)`,
+    [managerProfileId, referralLinkId, onboardingApplicationIds, attributionEventIds],
+  );
+  const managerTicketIds = Array.from({ length: MANAGER_TICKET_COUNT }, () => v7());
+  await client.query(
+    `INSERT INTO "manager_support_tickets"
+       ("id", "ticket_number", "manager_profile_id", "subject_display_name", "category",
+        "created_by_principal_id", "updated_at")
+     SELECT input.id, 'RPT-QP-' || lpad(input.ordinality::text, 8, '0'), $1,
+            'Synthetic applicant', 'ONBOARDING', $2,
+            now() - (input.ordinality * interval '1 second')
+       FROM unnest($3::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
+    [managerProfileId, principalId, managerTicketIds],
   );
 
   const organizationTypes = organizationIds.map((_, index) =>
@@ -472,7 +599,7 @@ async function loadRepresentativeData(
 
   const targetSessionId = sessionIds[0];
   if (targetSessionId === undefined) throw new Error("Representative session set is empty");
-  return targetSessionId;
+  return { managerProfileId, targetSessionId };
 }
 
 async function reviewPlan(
@@ -480,7 +607,7 @@ async function reviewPlan(
   query: string,
   sql: string,
   values: readonly unknown[],
-  requiredIndex: string,
+  requiredIndex: string | readonly string[],
   options: { forceIndexEligibility?: boolean } = {},
 ): Promise<Record<string, unknown>> {
   if (options.forceIndexEligibility === true) {
@@ -507,15 +634,16 @@ async function reviewPlan(
   if (document === undefined) throw new Error(`PostgreSQL returned no plan for ${query}`);
 
   const indexes = collectIndexes(document.Plan);
-  if (!indexes.has(requiredIndex)) {
+  const acceptedIndexes = typeof requiredIndex === "string" ? [requiredIndex] : requiredIndex;
+  if (!acceptedIndexes.some((index) => indexes.has(index))) {
     throw new Error(
-      `${query} did not use ${requiredIndex}; observed: ${[...indexes].join(", ") || "none"}`,
+      `${query} did not use an accepted index (${acceptedIndexes.join(", ")}); observed: ${[...indexes].join(", ") || "none"}`,
     );
   }
 
   return {
     query,
-    requiredIndex,
+    acceptedIndexes,
     accessMode:
       options.forceIndexEligibility === true
         ? "forced eligibility proof; not the natural small-fixture plan"
@@ -529,6 +657,9 @@ async function reviewPlan(
       organizations: ORGANIZATION_COUNT,
       outboxEvents: OUTBOX_EVENT_COUNT,
       practitioners: PRACTITIONER_COUNT,
+      managerReferralAttributions: ONBOARDING_APPLICATION_COUNT,
+      managerTickets: MANAGER_TICKET_COUNT,
+      managerEarnings: MANAGER_EARNING_COUNT,
     },
   };
 }

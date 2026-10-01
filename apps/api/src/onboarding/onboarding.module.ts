@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthorizationModule } from "../authorization/authorization.module.js";
 import { IdentityModule } from "../identity/identity.module.js";
+import { ManagerModule } from "../manager/manager.module.js";
 import { OnboardingService } from "./application/onboarding.service.js";
 import { ClinicalCatalogueService } from "./application/clinical-catalogue.service.js";
 import { ONBOARDING_REPOSITORY } from "./domain/onboarding-repository.types.js";
@@ -14,7 +15,7 @@ import {
 import { ClinicalCatalogueController } from "./presentation/clinical-catalogue.controller.js";
 
 @Module({
-  imports: [AuthorizationModule, IdentityModule],
+  imports: [AuthorizationModule, IdentityModule, ManagerModule],
   controllers: [
     ApplicantOnboardingController,
     SupportOnboardingController,

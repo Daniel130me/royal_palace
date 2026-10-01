@@ -29,6 +29,8 @@ const validEnvironment = {
   OIDC_SCOPES: "openid profile email",
   PRIVILEGED_ASSURANCE_CONTEXT: "urn:royal-palace:aal2",
   PRIVILEGED_AUTH_MAX_AGE_SECONDS: "900",
+  REFERRAL_ACTIVE_SIGNING_KEY_ID: "test-referral-key-1",
+  REFERRAL_SIGNING_KEYS: JSON.stringify({ "test-referral-key-1": testKey }),
   QUEUE_NAMESPACE: "royal-palace:test",
   REDIS_URL: "redis://127.0.0.1:6379/0",
   SESSION_ABSOLUTE_TTL_SECONDS: "28800",

@@ -14,7 +14,7 @@ import { onboardingService } from "@/lib/services";
 
 export function SignupPage() {
   const { authenticated, view } = useNav();
-  const onboardingCode = view.params.code?.trim().toUpperCase();
+  const referralToken = view.params.code?.trim();
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -26,23 +26,26 @@ export function SignupPage() {
     preferredLanguage: "",
   });
   const returnTo =
-    onboardingCode === undefined
+    referralToken === undefined
       ? "/#/login/signup"
-      : `/#/login/signup?code=${encodeURIComponent(onboardingCode)}`;
+      : `/#/login/signup?code=${encodeURIComponent(referralToken)}`;
   const registrationUrl = `/api/bff/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     try {
-      const draft = await onboardingService.createPatient({
-        countryCode: form.countryCode === "" ? null : form.countryCode.toUpperCase(),
-        dateOfBirth: form.dateOfBirth || null,
-        familyName: form.familyName,
-        givenName: form.givenName,
-        phoneE164: form.phoneE164 || null,
-        preferredLanguage: form.preferredLanguage || null,
-      });
+      const draft = await onboardingService.createPatient(
+        {
+          countryCode: form.countryCode === "" ? null : form.countryCode.toUpperCase(),
+          dateOfBirth: form.dateOfBirth || null,
+          familyName: form.familyName,
+          givenName: form.givenName,
+          phoneE164: form.phoneE164 || null,
+          preferredLanguage: form.preferredLanguage || null,
+        },
+        referralToken,
+      );
       const application = await onboardingService.submit(draft.id, draft.version);
       setSubmitted(application.id);
       toast.success("Patient enrollment submitted for review.");
@@ -79,9 +82,9 @@ export function SignupPage() {
                   <ShieldCheck className="h-4 w-4 text-emerald-600" /> Secure registration
                 </CardTitle>
                 <CardDescription>
-                  {onboardingCode === undefined
+                  {referralToken === undefined
                     ? "After authentication, you can complete your patient profile and enrollment."
-                    : `Referral ${onboardingCode} will be retained for the enrollment workflow.`}
+                    : "Your secure referral will be retained for the enrollment workflow."}
                 </CardDescription>
               </CardHeader>
               <CardContent>

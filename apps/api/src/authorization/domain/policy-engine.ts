@@ -36,9 +36,16 @@ export class PolicyEngine {
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
       case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
+      case AUTHORIZATION_POLICY.ADMINISTER_COMMISSION_POLICY:
+      case AUTHORIZATION_POLICY.ADMINISTER_MANAGER_PROGRAM:
+      case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
       case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
       case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
+      case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
+        return this.allowPlatformRole(request.actor, request.policy, ["SYSTEM_WORKER"]);
+      case AUTHORIZATION_POLICY.REVIEW_MANAGER_TICKET:
+        return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.VIEW_PATIENT:
         return this.canViewPatient(request.actor, request.context);
       case AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD:
@@ -47,6 +54,8 @@ export class PolicyEngine {
         return this.canEscalateTicket(request.actor, request.context);
       case AUTHORIZATION_POLICY.VIEW_MANAGER_EARNINGS:
         return this.canViewManagerEarnings(request.actor, request.context.managerPrincipalId);
+      case AUTHORIZATION_POLICY.VIEW_MANAGER_REFERRALS:
+        return this.canViewManagerReferrals(request.actor, request.context.managerPrincipalId);
       case AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT:
         return this.canViewPatientPaymentAmount(request.actor, request.context.patientPrincipalId);
       default:
@@ -162,6 +171,17 @@ export class PolicyEngine {
       return this.allow(policy, "MANAGER", ALLOW.OWNER);
     }
     return this.allowPlatformRole(actor, policy, ["FINANCE", "ADMINISTRATOR"]);
+  }
+
+  private canViewManagerReferrals(
+    actor: CurrentSession,
+    managerPrincipalId: string,
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.VIEW_MANAGER_REFERRALS;
+    if (actor.roles.includes("MANAGER") && actor.principalId === managerPrincipalId) {
+      return this.allow(policy, "MANAGER", ALLOW.OWNER);
+    }
+    return this.allowPlatformRole(actor, policy, ["SUPPORT", "ADMINISTRATOR"]);
   }
 
   private canViewPatientPaymentAmount(

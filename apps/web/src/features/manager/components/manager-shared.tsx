@@ -24,18 +24,38 @@ type Tone = "default" | "success" | "warning" | "danger" | "info" | "violet";
 
 const STATUS_TONES: Record<string, Tone> = {
   // applications
-  draft: "default", submitted: "info", under_review: "warning", information_required: "warning", approved: "success", rejected: "danger",
+  draft: "default",
+  submitted: "info",
+  under_review: "warning",
+  information_required: "warning",
+  approved: "success",
+  rejected: "danger",
   // earnings
-  pending: "warning", available: "info", paid: "success", reversed: "danger",
+  pending: "warning",
+  available: "info",
+  paid: "success",
+  reversed: "danger",
   // organization payments
-  successful: "success", failed: "danger", cancelled: "default", refunded: "warning",
+  successful: "success",
+  failed: "danger",
+  cancelled: "default",
+  refunded: "warning",
   // payouts
-  requested: "warning", processing: "info",
+  requested: "warning",
+  processing: "info",
   // manager verification
-  verified: "success", suspended: "danger",
+  verified: "success",
+  suspended: "danger",
   // tickets
-  new: "info", assigned_to_manager: "info", manager_investigating: "warning", waiting_for_organization: "warning",
-  escalated_to_royal_palace: "danger", royal_palace_investigating: "danger", resolved: "success", closed: "default", reopened: "warning",
+  new: "info",
+  assigned_to_manager: "info",
+  manager_investigating: "warning",
+  waiting_for_organization: "warning",
+  escalated_to_royal_palace: "danger",
+  royal_palace_investigating: "danger",
+  resolved: "success",
+  closed: "default",
+  reopened: "warning",
 };
 
 const TONE_CLASSES: Record<Tone, string> = {
@@ -59,7 +79,10 @@ export function ManagerStatusBadge({ status, label }: { status: string; label?: 
     ...ORGANIZATION_PAYMENT_STATUS_LABELS,
   };
   return (
-    <Badge variant="outline" className={cn("border-transparent font-medium capitalize", TONE_CLASSES[tone])}>
+    <Badge
+      variant="outline"
+      className={cn("border-transparent font-medium capitalize", TONE_CLASSES[tone])}
+    >
       {label ?? allLabels[status] ?? status.replace(/_/g, " ")}
     </Badge>
   );
@@ -71,7 +94,11 @@ export function OrganizationCard({ org }: { org: ManagerOrganization }) {
   return (
     <Card
       className="cursor-pointer transition-all hover:shadow-soft-md hover:border-border"
-      onClick={() => navigate("manager", org.organizationType === "pharmacy" ? "pharmacy" : "laboratory", { id: org.id })}
+      onClick={() =>
+        navigate("manager", org.organizationType === "pharmacy" ? "pharmacy" : "laboratory", {
+          id: org.id,
+        })
+      }
     >
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
@@ -82,9 +109,14 @@ export function OrganizationCard({ org }: { org: ManagerOrganization }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-semibold truncate">{org.name}</p>
-                <p className="text-xs text-muted-foreground">{org.organizationNumber} · <MapPin className="inline h-3 w-3" /> {org.city}, {org.state}</p>
+                <p className="text-xs text-muted-foreground">
+                  {org.organizationNumber} · <MapPin className="inline h-3 w-3" /> {org.city},{" "}
+                  {org.state}
+                </p>
               </div>
-              <ManagerStatusBadge status={org.verificationStatus === "approved" ? "approved" : org.verificationStatus} />
+              <ManagerStatusBadge
+                status={org.verificationStatus === "approved" ? "approved" : org.verificationStatus}
+              />
             </div>
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div>
@@ -116,14 +148,26 @@ export function OrganizationCard({ org }: { org: ManagerOrganization }) {
 }
 
 /** Empty-state nudge with an optional action (reuses healthcare language). */
-export function ManagerEmptyState({ title, description, actionLabel, onAction }: { title: string; description: string; actionLabel?: string; onAction?: () => void }) {
+export function ManagerEmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
     <Card>
       <CardContent className="p-8 text-center">
         <p className="font-semibold">{title}</p>
         <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">{description}</p>
         {actionLabel && onAction ? (
-          <Button size="sm" className="mt-4" onClick={onAction}>{actionLabel}</Button>
+          <Button size="sm" className="mt-4" onClick={onAction}>
+            {actionLabel}
+          </Button>
         ) : null}
       </CardContent>
     </Card>

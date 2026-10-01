@@ -5,9 +5,13 @@ import { getManagerContext, ManagerAccessError } from "@/lib/manager-access";
 export async function GET(req: Request) {
   try {
     await getManagerContext(req);
-    return NextResponse.json({ error: "Organization records are available only to support and admin staff." }, { status: 403 });
+    return NextResponse.json(
+      { error: "Organization records are available only to support and admin staff." },
+      { status: 403 },
+    );
   } catch (error) {
-    if (error instanceof ManagerAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ManagerAccessError)
+      return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: "Access denied." }, { status: 403 });
   }
 }

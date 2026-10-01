@@ -23,6 +23,7 @@ import { z } from "zod";
 import { AuthorizationDeniedError } from "../../authorization/application/authorization.service.js";
 import type { AuthenticatedInternalRequest } from "../../identity/presentation/authenticated-internal-request.guard.js";
 import { AuthenticatedInternalRequestGuard } from "../../identity/presentation/authenticated-internal-request.guard.js";
+import { InvalidReferralClaimError } from "../../manager/application/referral-claim.service.js";
 import { InvalidApplicationCursorError } from "../application/application-cursor.js";
 import {
   MAX_APPLICATION_PAGE_SIZE,
@@ -94,6 +95,11 @@ const practitionerDataSchema = z
     specialtyIds: z.array(idSchema).max(100),
   })
   .strict();
+const referralTokenSchema = z.string().trim().min(1).max(512).optional();
+const patientCreateSchema = patientDataSchema.extend({ referralToken: referralTokenSchema });
+const organizationCreateSchema = organizationDataSchema.extend({
+  referralToken: referralTokenSchema,
+});
 const versionSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
 const withdrawalSchema = versionSchema.extend({
   note: z.string().trim().min(1).max(2000).optional(),
@@ -157,7 +163,8 @@ export class ApplicantOnboardingController {
 
   @Post("patients")
   createPatient(@Body() body: unknown, @Req() request: AuthenticatedInternalRequest) {
-    return this.create(request, { kind: "PATIENT", values: parse(patientDataSchema, body) });
+    const { referralToken, ...values } = parse(patientCreateSchema, body);
+    return this.create(request, { kind: "PATIENT", values }, referralToken);
   }
 
   @Get("patients/:applicationId")
@@ -176,10 +183,15 @@ export class ApplicantOnboardingController {
 
   @Post("organizations")
   createOrganization(@Body() body: unknown, @Req() request: AuthenticatedInternalRequest) {
-    return this.create(request, {
-      kind: "ORGANIZATION",
-      values: parse(organizationDataSchema, body),
-    });
+    const { referralToken, ...values } = parse(organizationCreateSchema, body);
+    return this.create(
+      request,
+      {
+        kind: "ORGANIZATION",
+        values,
+      },
+      referralToken,
+    );
   }
 
   @Get("organizations/:applicationId")
@@ -277,8 +289,14 @@ export class ApplicantOnboardingController {
     );
   }
 
-  private create(request: AuthenticatedInternalRequest, data: OnboardingApplicationData) {
-    return execute(() => this.onboarding.createApplication(requestContext(request), data));
+  private create(
+    request: AuthenticatedInternalRequest,
+    data: OnboardingApplicationData,
+    referralToken?: string,
+  ) {
+    return execute(() =>
+      this.onboarding.createApplication(requestContext(request), data, referralToken),
+    );
   }
 
   private async get(
@@ -479,6 +497,12 @@ async function execute<T>(operation: () => Promise<T>): Promise<T> {
     if (error instanceof InvalidCatalogueSelectionError) {
       throw new HttpException(
         { error: "invalid_catalogue_selection", message: error.message },
+        400,
+      );
+    }
+    if (error instanceof InvalidReferralClaimError) {
+      throw new HttpException(
+        { error: "invalid_referral", message: "Referral link is invalid or unavailable" },
         400,
       );
     }

@@ -5,6 +5,19 @@ export function formatCurrency(amount: number, currency = "NGN"): string {
   return `${currency} ${amount.toLocaleString("en-NG")}`;
 }
 
+export function formatMinorCurrency(amountMinor: string, currency: string): string {
+  try {
+    const formatter = new Intl.NumberFormat(undefined, { currency, style: "currency" });
+    const options = formatter.resolvedOptions();
+    const minorDigits = options.maximumFractionDigits ?? options.minimumFractionDigits ?? 0;
+    const rawAmount = Number(amountMinor);
+    if (!Number.isSafeInteger(rawAmount)) return `${currency} ${amountMinor} minor units`;
+    return formatter.format(rawAmount / 10 ** minorDigits);
+  } catch {
+    return `${currency} ${amountMinor} minor units`;
+  }
+}
+
 export function formatDate(input?: string | null): string {
   if (!input) return "—";
   const d = new Date(input);
@@ -91,7 +104,14 @@ export function genId(prefix: string): string {
 // -----------------------------------------------------------------------
 
 const APPOINTMENT_FLOW: Record<string, string[]> = {
-  scheduled: ["checked_in", "waiting_for_provider", "in_progress", "completed", "cancelled", "no_show"],
+  scheduled: [
+    "checked_in",
+    "waiting_for_provider",
+    "in_progress",
+    "completed",
+    "cancelled",
+    "no_show",
+  ],
   checked_in: ["waiting_for_provider", "in_progress", "completed", "cancelled", "no_show"],
   waiting_for_provider: ["in_progress", "completed", "cancelled", "no_show"],
   in_progress: ["awaiting_documentation", "completed"],
@@ -103,7 +123,12 @@ const APPOINTMENT_FLOW: Record<string, string[]> = {
 
 const ORDER_FLOW: Record<string, string[]> = {
   paid: ["prescription_under_review", "accepted", "rejected"],
-  prescription_under_review: ["accepted", "clarification_required", "rejected", "partially_available"],
+  prescription_under_review: [
+    "accepted",
+    "clarification_required",
+    "rejected",
+    "partially_available",
+  ],
   clarification_required: ["accepted", "rejected"],
   accepted: ["preparing"],
   partially_available: ["preparing"],
@@ -142,22 +167,16 @@ const LAB_FLOW: Record<string, string[]> = {
   cancelled: [],
 };
 
-export function canTransition(
-  flow: Record<string, string[]>,
-  from: string,
-  to: string
-): boolean {
+export function canTransition(flow: Record<string, string[]>, from: string, to: string): boolean {
   return (flow[from] ?? []).includes(to);
 }
 
 export const canTransitionAppointment = (from: string, to: string) =>
   canTransition(APPOINTMENT_FLOW, from, to);
-export const canTransitionOrder = (from: string, to: string) =>
-  canTransition(ORDER_FLOW, from, to);
+export const canTransitionOrder = (from: string, to: string) => canTransition(ORDER_FLOW, from, to);
 export const canTransitionDelivery = (from: string, to: string) =>
   canTransition(DELIVERY_FLOW, from, to);
-export const canTransitionLab = (from: string, to: string) =>
-  canTransition(LAB_FLOW, from, to);
+export const canTransitionLab = (from: string, to: string) => canTransition(LAB_FLOW, from, to);
 
 export const APPOINTMENT_STATUSES = Object.keys(APPOINTMENT_FLOW);
 export const ORDER_STATUSES = Object.keys(ORDER_FLOW);
