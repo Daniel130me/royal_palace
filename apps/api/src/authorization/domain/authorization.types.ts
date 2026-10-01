@@ -2,6 +2,7 @@ import type { CurrentSession, PlatformRole } from "@royal-palace/contracts";
 
 export const AUTHORIZATION_POLICY = {
   ACCESS_CLINICAL_RECORD: "ACCESS_CLINICAL_RECORD",
+  ADMINISTER_CONSULTATION_FEES: "ADMINISTER_CONSULTATION_FEES",
   ADMINISTER_CATALOGUE: "ADMINISTER_CATALOGUE",
   ADMINISTER_COMMISSION_POLICY: "ADMINISTER_COMMISSION_POLICY",
   ADMINISTER_MANAGER_PROGRAM: "ADMINISTER_MANAGER_PROGRAM",
@@ -9,20 +10,25 @@ export const AUTHORIZATION_POLICY = {
   DECIDE_APPLICATION: "DECIDE_APPLICATION",
   CORRECT_REFERRAL_ATTRIBUTION: "CORRECT_REFERRAL_ATTRIBUTION",
   ESCALATE_TICKET: "ESCALATE_TICKET",
+  EXPIRE_APPOINTMENT_RESERVATIONS: "EXPIRE_APPOINTMENT_RESERVATIONS",
+  BOOK_APPOINTMENT: "BOOK_APPOINTMENT",
+  MANAGE_PRACTITIONER_AVAILABILITY: "MANAGE_PRACTITIONER_AVAILABILITY",
   MANAGE_OWN_APPLICATION: "MANAGE_OWN_APPLICATION",
   REVIEW_APPLICATION: "REVIEW_APPLICATION",
   REVOKE_PRINCIPAL_SESSIONS: "REVOKE_PRINCIPAL_SESSIONS",
   RECORD_SETTLED_PATIENT_ACTIVITY: "RECORD_SETTLED_PATIENT_ACTIVITY",
+  RECONCILE_PAYMENT: "RECONCILE_PAYMENT",
   REVIEW_MANAGER_TICKET: "REVIEW_MANAGER_TICKET",
   VIEW_MANAGER_EARNINGS: "VIEW_MANAGER_EARNINGS",
   VIEW_MANAGER_REFERRALS: "VIEW_MANAGER_REFERRALS",
   VIEW_ORGANIZATION: "VIEW_ORGANIZATION",
   VIEW_PATIENT: "VIEW_PATIENT",
   VIEW_PATIENT_PAYMENT_AMOUNT: "VIEW_PATIENT_PAYMENT_AMOUNT",
+  VIEW_APPOINTMENT: "VIEW_APPOINTMENT",
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 4;
+export const AUTHORIZATION_POLICY_VERSION = 6;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -43,20 +49,27 @@ export interface AuthorizationPolicyContexts {
     organizationId: string;
     patientScopeId: string;
   };
+  ADMINISTER_CONSULTATION_FEES: ResourceReference;
   ADMINISTER_CATALOGUE: ResourceReference;
   ADMINISTER_COMMISSION_POLICY: ResourceReference;
   ADMINISTER_MANAGER_PROGRAM: ResourceReference;
   ADMINISTER_ROLE_ASSIGNMENT: ResourceReference;
   DECIDE_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   CORRECT_REFERRAL_ATTRIBUTION: ResourceReference;
+  BOOK_APPOINTMENT: ResourceReference & { patientPrincipalId: string };
   ESCALATE_TICKET: ResourceReference & {
     disclosureLevel: "MINIMAL" | "FULL";
     ticketOwnerPrincipalId: string;
   };
+  EXPIRE_APPOINTMENT_RESERVATIONS: ResourceReference;
   MANAGE_OWN_APPLICATION: ResourceReference & { applicantPrincipalId: string };
+  MANAGE_PRACTITIONER_AVAILABILITY: ResourceReference & {
+    practitionerPrincipalId: string;
+  };
   REVIEW_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVOKE_PRINCIPAL_SESSIONS: ResourceReference;
   RECORD_SETTLED_PATIENT_ACTIVITY: ResourceReference;
+  RECONCILE_PAYMENT: ResourceReference;
   REVIEW_MANAGER_TICKET: ResourceReference;
   VIEW_MANAGER_EARNINGS: ResourceReference & { managerPrincipalId: string };
   VIEW_MANAGER_REFERRALS: ResourceReference & { managerPrincipalId: string };
@@ -70,6 +83,10 @@ export interface AuthorizationPolicyContexts {
     viewLevel: "CARE" | "OPERATIONAL";
   };
   VIEW_PATIENT_PAYMENT_AMOUNT: ResourceReference & { patientPrincipalId: string };
+  VIEW_APPOINTMENT: ResourceReference & {
+    patientPrincipalId: string;
+    practitionerPrincipalId: string | null;
+  };
 }
 
 export type AuthorizationContext<P extends AuthorizationPolicy> = AuthorizationPolicyContexts[P];

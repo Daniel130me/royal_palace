@@ -1,0 +1,308 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Scheduling and Payment API
+  version: 1.0.0
+paths:
+  /api/public/practitioners/{practitionerId}/availability:
+    get:
+      operationId: listPractitionerAvailability
+      parameters:
+        - $ref: "#/components/parameters/PractitionerId"
+        - { in: query, name: from, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Bounded open availability
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Availability" } }
+  /api/appointments:
+    post:
+      operationId: bookAppointment
+      parameters:
+        - $ref: "#/components/parameters/Csrf"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [availabilitySlotId]
+              properties:
+                availabilitySlotId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Appointment reserved pending payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+  /api/appointments/{appointmentId}:
+    get:
+      operationId: getAppointment
+      parameters:
+        - { in: path, name: appointmentId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Authorized appointment view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+  /api/payments/checkout-sessions:
+    post:
+      operationId: createHostedCheckout
+      parameters:
+        - $ref: "#/components/parameters/Csrf"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [paymentId]
+              properties:
+                paymentId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Hosted checkout session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HostedCheckout" }
+  /api/payments/{paymentId}/status:
+    get:
+      operationId: getPaymentStatus
+      parameters:
+        - { in: path, name: paymentId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Patient-owned payment status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payment" }
+  /api/provider/availability:
+    post:
+      operationId: createAvailability
+      parameters: [{ $ref: "#/components/parameters/Csrf" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [consultationFeeId, endsAt, practitionerId, startsAt]
+              properties:
+                consultationFeeId: { type: string, format: uuid }
+                endsAt: { type: string, format: date-time }
+                practitionerId: { type: string, format: uuid }
+                startsAt: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Availability slot created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Availability" }
+  /api/admin/practitioners/{practitionerId}/consultation-fees:
+    post:
+      operationId: createConsultationFee
+      parameters:
+        - $ref: "#/components/parameters/PractitionerId"
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsultationFeeInput" }
+      responses:
+        "201":
+          description: Draft administrator-governed fee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsultationFee" }
+  /api/admin/consultation-fees/{feeId}/activate:
+    post:
+      operationId: activateConsultationFee
+      parameters:
+        - { in: path, name: feeId, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "201":
+          description: Fee activated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsultationFee" }
+  /api/admin/payments/{paymentId}/reconcile:
+    post:
+      operationId: reconcilePayment
+      parameters:
+        - { in: path, name: paymentId, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/Csrf"
+      responses:
+        "201":
+          description: Provider-authoritative reconciliation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reconciliation" }
+components:
+  parameters:
+    Csrf:
+      in: header
+      name: x-rp-csrf-token
+      required: true
+      schema: { type: string, minLength: 1 }
+    IdempotencyKey:
+      in: header
+      name: idempotency-key
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    PractitionerId:
+      in: path
+      name: practitionerId
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Mode:
+      type: string
+      enum: [VIDEO, AUDIO, CHAT, IN_PERSON, HOME_VISIT]
+    PaymentStatus:
+      type: string
+      enum:
+        [
+          CREATED,
+          PENDING,
+          SUCCEEDED,
+          FAILED,
+          EXPIRED,
+          CANCELLED,
+          REVERSED,
+          PARTIALLY_REFUNDED,
+          REFUNDED,
+          DISPUTED,
+        ]
+    Availability:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency, endsAt, id, mode, practitionerId, startsAt]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        endsAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        mode: { $ref: "#/components/schemas/Mode" }
+        practitionerId: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+    Appointment:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          amountMinor,
+          currency,
+          endsAt,
+          id,
+          mode,
+          paymentId,
+          practitioner,
+          startsAt,
+          status,
+          version,
+        ]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        endsAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        mode: { $ref: "#/components/schemas/Mode" }
+        paymentId: { type: string, format: uuid }
+        practitioner:
+          type: object
+          additionalProperties: false
+          required: [displayName, id]
+          properties:
+            displayName: { type: string }
+            id: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        status:
+          {
+            type: string,
+            enum: [PENDING_PAYMENT, CONFIRMED, PAYMENT_FAILED, EXPIRED, CANCELLED, COMPLETED],
+          }
+        version: { type: integer, minimum: 1 }
+    HostedCheckout:
+      type: object
+      additionalProperties: false
+      required: [checkoutUrl, expiresAt, paymentId, status]
+      properties:
+        checkoutUrl: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+        paymentId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/PaymentStatus" }
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, appointmentId, currency, id, status, updatedAt]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        appointmentId: { type: string, format: uuid }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/PaymentStatus" }
+        updatedAt: { type: string, format: date-time }
+    ConsultationFeeInput:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency, effectiveFrom, mode]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: string, format: date-time }
+        mode: { $ref: "#/components/schemas/Mode" }
+    ConsultationFee:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          amountMinor,
+          currency,
+          effectiveFrom,
+          effectiveUntil,
+          id,
+          mode,
+          practitionerId,
+          status,
+          version,
+        ]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: [string, "null"], format: date-time }
+        id: { type: string, format: uuid }
+        mode: { $ref: "#/components/schemas/Mode" }
+        practitionerId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, ACTIVE, RETIRED] }
+        version: { type: integer, minimum: 1 }
+    Reconciliation:
+      type: object
+      additionalProperties: false
+      required: [applied, internalStatus, paymentId, providerStatus, result]
+      properties:
+        applied: { type: boolean }
+        internalStatus: { $ref: "#/components/schemas/PaymentStatus" }
+        paymentId: { type: string, format: uuid }
+        providerStatus: { $ref: "#/components/schemas/PaymentStatus" }
+        result: { type: string, enum: [MATCHED, MISMATCH_APPLIED, MISMATCH_UNRESOLVED] }

@@ -8,10 +8,12 @@ const DEFAULT_PORTS = {
 const applicationEnvironmentSchema = z.enum(["development", "test", "staging", "production"]);
 const logLevelSchema = z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]);
 const oidcClientAuthMethodSchema = z.enum(["client_secret_basic", "client_secret_post", "none"]);
+const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
 const sessionDurationSchema = z.coerce.number().int().min(60).max(2_592_000);
+const paymentDurationSchema = z.coerce.number().int().min(60).max(86_400);
 
 const keyMaterialSchema = z.string().refine(
   (value) => {
@@ -172,6 +174,12 @@ const serviceEnvironmentSchema = z
       .regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
     OBJECT_STORAGE_ENDPOINT: z.url(),
     OBJECT_STORAGE_SECRET_KEY: z.string().min(1),
+    PAYMENT_CHECKOUT_BASE_URL: z.url().optional(),
+    PAYMENT_CHECKOUT_TTL_SECONDS: paymentDurationSchema.default(900),
+    PAYMENT_GATEWAY_MODE: paymentGatewayModeSchema.default("disabled"),
+    PAYMENT_RESERVATION_TTL_SECONDS: paymentDurationSchema.default(900),
+    PAYMENT_WEBHOOK_ACTIVE_KEY_ID: z.string().trim().min(1).max(64).optional(),
+    PAYMENT_WEBHOOK_SIGNING_KEYS: keyRingSchema.optional(),
     PORT: portSchema.optional(),
     QUEUE_NAMESPACE: z
       .string()
@@ -182,7 +190,54 @@ const serviceEnvironmentSchema = z
     REDIS_URL: redisUrlSchema,
   })
   .superRefine((value, context) => {
+    if (value.PAYMENT_CHECKOUT_TTL_SECONDS > value.PAYMENT_RESERVATION_TTL_SECONDS) {
+      context.addIssue({
+        code: "custom",
+        message: "must not exceed PAYMENT_RESERVATION_TTL_SECONDS",
+        path: ["PAYMENT_CHECKOUT_TTL_SECONDS"],
+      });
+    }
+    if (value.PAYMENT_GATEWAY_MODE === "synthetic") {
+      if (value.PAYMENT_CHECKOUT_BASE_URL === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "is required when PAYMENT_GATEWAY_MODE is synthetic",
+          path: ["PAYMENT_CHECKOUT_BASE_URL"],
+        });
+      }
+      if (value.PAYMENT_WEBHOOK_ACTIVE_KEY_ID === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "is required when PAYMENT_GATEWAY_MODE is synthetic",
+          path: ["PAYMENT_WEBHOOK_ACTIVE_KEY_ID"],
+        });
+      }
+      if (value.PAYMENT_WEBHOOK_SIGNING_KEYS === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "is required when PAYMENT_GATEWAY_MODE is synthetic",
+          path: ["PAYMENT_WEBHOOK_SIGNING_KEYS"],
+        });
+      } else if (
+        value.PAYMENT_WEBHOOK_ACTIVE_KEY_ID !== undefined &&
+        !(value.PAYMENT_WEBHOOK_ACTIVE_KEY_ID in value.PAYMENT_WEBHOOK_SIGNING_KEYS)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "must identify a key present in PAYMENT_WEBHOOK_SIGNING_KEYS",
+          path: ["PAYMENT_WEBHOOK_ACTIVE_KEY_ID"],
+        });
+      }
+    }
     if (!protectedEnvironments.has(value.APP_ENV)) return;
+
+    if (value.PAYMENT_GATEWAY_MODE !== "disabled") {
+      context.addIssue({
+        code: "custom",
+        message: "must remain disabled until a production payment provider is approved",
+        path: ["PAYMENT_GATEWAY_MODE"],
+      });
+    }
 
     if (value.AWS_REGION === undefined) {
       context.addIssue({
@@ -225,6 +280,14 @@ interface BaseServiceConfig {
     endpoint: string;
     quarantineBucket: string;
     secretKey: string;
+  };
+  paymentGateway: {
+    activeWebhookKeyId?: string;
+    checkoutBaseUrl?: string;
+    checkoutTtlSeconds: number;
+    mode: z.infer<typeof paymentGatewayModeSchema>;
+    reservationTtlSeconds: number;
+    webhookSigningKeys: Readonly<Record<string, string>>;
   };
   port: number;
   queueNamespace: string;
@@ -363,6 +426,18 @@ export function loadServiceConfig(
       endpoint: values.OBJECT_STORAGE_ENDPOINT,
       quarantineBucket: values.OBJECT_STORAGE_BUCKET_QUARANTINE,
       secretKey: values.OBJECT_STORAGE_SECRET_KEY,
+    }),
+    paymentGateway: Object.freeze({
+      ...(values.PAYMENT_WEBHOOK_ACTIVE_KEY_ID === undefined
+        ? {}
+        : { activeWebhookKeyId: values.PAYMENT_WEBHOOK_ACTIVE_KEY_ID }),
+      ...(values.PAYMENT_CHECKOUT_BASE_URL === undefined
+        ? {}
+        : { checkoutBaseUrl: values.PAYMENT_CHECKOUT_BASE_URL }),
+      checkoutTtlSeconds: values.PAYMENT_CHECKOUT_TTL_SECONDS,
+      mode: values.PAYMENT_GATEWAY_MODE,
+      reservationTtlSeconds: values.PAYMENT_RESERVATION_TTL_SECONDS,
+      webhookSigningKeys: Object.freeze(values.PAYMENT_WEBHOOK_SIGNING_KEYS ?? {}),
     }),
     port: values.PORT ?? DEFAULT_PORTS[serviceName],
     queueNamespace: values.QUEUE_NAMESPACE,

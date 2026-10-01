@@ -9,6 +9,7 @@ import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { ManagerModule } from "./manager/manager.module.js";
 import { DatabaseModule } from "./platform/database/database.module.js";
 import { PublicDiscoveryModule } from "./discovery/public-discovery.module.js";
+import { SchedulingPaymentModule } from "./scheduling/scheduling-payment.module.js";
 import { DEPENDENCY_READINESS } from "./tokens.js";
 
 @Module({})
@@ -26,6 +27,7 @@ export class AppModule {
         ManagerModule,
         OnboardingModule,
         PublicDiscoveryModule,
+        SchedulingPaymentModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: DEPENDENCY_READINESS, useValue: dependencies }],

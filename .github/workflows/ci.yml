@@ -127,3 +127,6 @@ jobs:
 
       - name: Review representative query plans
         run: pnpm db:query-plans
+
+      - name: Verify scheduling and payment persistence
+        run: pnpm db:scheduling-payments:verify

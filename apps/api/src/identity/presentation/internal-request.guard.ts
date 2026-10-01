@@ -36,6 +36,7 @@ export function assertSignedInternalRequest(request: SignedFastifyRequest, secre
   const valid = verifyInternalRequest(
     {
       body: request.rawBody?.toString("utf8") ?? "",
+      idempotencyKey: singleHeader(request.headers["idempotency-key"]),
       method: request.method,
       path,
       requestId,

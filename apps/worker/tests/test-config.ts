@@ -12,6 +12,7 @@ export const testConfig = loadServiceConfig("worker", {
   OBJECT_STORAGE_BUCKET_QUARANTINE: "test-quarantine",
   OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000",
   OBJECT_STORAGE_SECRET_KEY: "test-secret-key",
+  PAYMENT_GATEWAY_MODE: "disabled",
   QUEUE_NAMESPACE: "royal-palace:test",
   REDIS_URL: "redis://127.0.0.1:6379/0",
 });

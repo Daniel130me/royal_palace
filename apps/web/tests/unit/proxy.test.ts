@@ -65,6 +65,23 @@ describe("web request correlation", () => {
     expect(isApiRouteEnabled("production", "/api/public/pharmacies")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/laboratories")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/practitioners")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/appointments")).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/appointments/0199a18e-a400-7000-8000-000000000701"),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/payments/0199a18e-a400-7000-8000-000000000702/status"),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/payments/checkout-sessions")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/provider/availability")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/public/practitioners/0199a18e-a400-7000-8000-000000000601/availability",
+      ),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/appointments/not-a-uuid")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/payments/not-a-uuid/status")).toBe(false);
     expect(isApiRouteEnabled("production", "/api/public/professions")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/specialties")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/applications/organizations")).toBe(true);

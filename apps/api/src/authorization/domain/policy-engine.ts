@@ -32,10 +32,21 @@ export class PolicyEngine {
         return request.actor.principalId === request.context.applicantPrincipalId
           ? this.allow(request.policy, this.firstActorRole(request.actor), ALLOW.OWNER)
           : this.deny(request.policy, "application_ownership_required");
+      case AUTHORIZATION_POLICY.BOOK_APPOINTMENT:
+        return request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+          ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
+          : this.deny(request.policy, "patient_ownership_required");
+      case AUTHORIZATION_POLICY.MANAGE_PRACTITIONER_AVAILABILITY:
+        return request.actor.roles.includes("PROVIDER") &&
+          request.actor.principalId === request.context.practitionerPrincipalId
+          ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
+          : this.deny(request.policy, "practitioner_ownership_required");
       case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
       case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
+      case AUTHORIZATION_POLICY.ADMINISTER_CONSULTATION_FEES:
       case AUTHORIZATION_POLICY.ADMINISTER_COMMISSION_POLICY:
       case AUTHORIZATION_POLICY.ADMINISTER_MANAGER_PROGRAM:
       case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
@@ -43,7 +54,10 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
+      case AUTHORIZATION_POLICY.EXPIRE_APPOINTMENT_RESERVATIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["SYSTEM_WORKER"]);
+      case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
+        return this.allowPlatformRole(request.actor, request.policy, ["FINANCE", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.REVIEW_MANAGER_TICKET:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.VIEW_PATIENT:
@@ -58,6 +72,21 @@ export class PolicyEngine {
         return this.canViewManagerReferrals(request.actor, request.context.managerPrincipalId);
       case AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT:
         return this.canViewPatientPaymentAmount(request.actor, request.context.patientPrincipalId);
+      case AUTHORIZATION_POLICY.VIEW_APPOINTMENT:
+        if (
+          request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+        ) {
+          return this.allow(request.policy, "PATIENT", ALLOW.OWNER);
+        }
+        if (
+          request.context.practitionerPrincipalId !== null &&
+          request.actor.roles.includes("PROVIDER") &&
+          request.actor.principalId === request.context.practitionerPrincipalId
+        ) {
+          return this.allow(request.policy, "PROVIDER", ALLOW.OWNER);
+        }
+        return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       default:
         return this.denyUnknownPolicy(request);
     }

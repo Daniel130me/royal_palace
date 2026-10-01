@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { initials } from "@/lib/format";
-import { useNav } from "@/lib/nav";
+import { navigate, useNav } from "@/lib/nav";
 import { formatPractitionerLocation } from "@/lib/public-location";
 import { publicDiscoveryService } from "@/lib/services";
 
@@ -371,11 +371,16 @@ function PractitionerCard({ practitioner }: { practitioner: PublicPractitionerSu
           )}
         </div>
         <div className="mt-auto pt-4">
-          <Badge variant={practitioner.acceptingPatients ? "default" : "secondary"}>
-            {practitioner.acceptingPatients
-              ? "Accepting patients"
-              : "Not currently accepting patients"}
-          </Badge>
+          {practitioner.acceptingPatients ? (
+            <Button
+              className="w-full"
+              onClick={() => navigate("patient", "book", { providerId: practitioner.id })}
+            >
+              View availability
+            </Button>
+          ) : (
+            <Badge variant="secondary">Not currently accepting patients</Badge>
+          )}
         </div>
       </CardContent>
     </Card>

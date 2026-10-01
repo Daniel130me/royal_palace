@@ -120,6 +120,34 @@ describe("loadServiceConfig", () => {
       }),
     ).toThrow(/OIDC_CLIENT_SECRET/);
   });
+
+  it("keeps checkout expiry within the server-side reservation window", () => {
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        PAYMENT_CHECKOUT_TTL_SECONDS: "901",
+        PAYMENT_RESERVATION_TTL_SECONDS: "900",
+      }),
+    ).toThrow(/PAYMENT_CHECKOUT_TTL_SECONDS/);
+  });
+
+  it("allows the synthetic gateway only outside protected environments", () => {
+    const paymentEnvironment = {
+      ...validEnvironment,
+      PAYMENT_CHECKOUT_BASE_URL: "http://127.0.0.1:3000/synthetic-checkout",
+      PAYMENT_GATEWAY_MODE: "synthetic",
+      PAYMENT_WEBHOOK_ACTIVE_KEY_ID: "test-payment-key-1",
+      PAYMENT_WEBHOOK_SIGNING_KEYS: JSON.stringify({ "test-payment-key-1": testKey }),
+    };
+    expect(loadServiceConfig("api", paymentEnvironment).paymentGateway.mode).toBe("synthetic");
+    expect(() =>
+      loadServiceConfig("api", {
+        ...paymentEnvironment,
+        APP_ENV: "production",
+        AWS_REGION: "approved-region-1",
+      }),
+    ).toThrow(/PAYMENT_GATEWAY_MODE/);
+  });
 });
 
 describe("loadWebConfig", () => {

@@ -124,17 +124,42 @@ function baselineRequest(
         },
       };
     case AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT:
+    case AUTHORIZATION_POLICY.BOOK_APPOINTMENT:
       return {
         ...base,
         policy,
         context: { patientPrincipalId: targetPrincipalId, resourceId, resourceType: "payment" },
       };
+    case AUTHORIZATION_POLICY.MANAGE_PRACTITIONER_AVAILABILITY:
+      return {
+        ...base,
+        policy,
+        context: {
+          practitionerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "availability",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_APPOINTMENT:
+      return {
+        ...base,
+        policy,
+        context: {
+          patientPrincipalId: targetPrincipalId,
+          practitionerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "appointment",
+        },
+      };
+    case AUTHORIZATION_POLICY.ADMINISTER_CONSULTATION_FEES:
     case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
     case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
     case AUTHORIZATION_POLICY.ADMINISTER_COMMISSION_POLICY:
     case AUTHORIZATION_POLICY.ADMINISTER_MANAGER_PROGRAM:
     case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
     case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
+    case AUTHORIZATION_POLICY.EXPIRE_APPOINTMENT_RESERVATIONS:
+    case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
     case AUTHORIZATION_POLICY.REVIEW_MANAGER_TICKET:
       return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
     case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
@@ -146,23 +171,29 @@ describe("PolicyEngine", () => {
   const engine = new PolicyEngine();
   const roleMatrix: Readonly<Record<AuthorizationPolicy, readonly PlatformRole[]>> = {
     ACCESS_CLINICAL_RECORD: [],
+    ADMINISTER_CONSULTATION_FEES: ["ADMINISTRATOR"],
     ADMINISTER_CATALOGUE: ["ADMINISTRATOR"],
     ADMINISTER_COMMISSION_POLICY: ["ADMINISTRATOR"],
     ADMINISTER_MANAGER_PROGRAM: ["ADMINISTRATOR"],
     ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
     DECIDE_APPLICATION: ["ADMINISTRATOR"],
     CORRECT_REFERRAL_ATTRIBUTION: ["ADMINISTRATOR"],
+    BOOK_APPOINTMENT: [],
     ESCALATE_TICKET: ["SUPPORT", "ADMINISTRATOR"],
+    EXPIRE_APPOINTMENT_RESERVATIONS: ["SYSTEM_WORKER"],
+    MANAGE_PRACTITIONER_AVAILABILITY: [],
     MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
     REVOKE_PRINCIPAL_SESSIONS: ["ADMINISTRATOR"],
     RECORD_SETTLED_PATIENT_ACTIVITY: ["SYSTEM_WORKER"],
+    RECONCILE_PAYMENT: ["FINANCE", "ADMINISTRATOR"],
     REVIEW_MANAGER_TICKET: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_MANAGER_EARNINGS: ["FINANCE", "ADMINISTRATOR"],
     VIEW_MANAGER_REFERRALS: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_ORGANIZATION: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],
+    VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
   };
 
   for (const [policy, allowedRoles] of Object.entries(roleMatrix) as [

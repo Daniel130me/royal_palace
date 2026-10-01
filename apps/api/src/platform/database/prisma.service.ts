@@ -10,7 +10,15 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor(@Inject(SERVICE_CONFIG) config: ServiceConfig) {
     // Runtime configuration is validated before Nest starts; passing it explicitly
     // avoids a second, unvalidated read from process.env inside the data boundary.
-    super({ adapter: new PrismaPg({ connectionString: config.databaseUrl }) });
+    // Prisma's PostgreSQL driver adapter serializes timestamptz parameters without an
+    // explicit offset. Pinning every pooled session to UTC prevents the database session
+    // timezone from silently shifting instants on write or read.
+    super({
+      adapter: new PrismaPg({
+        connectionString: config.databaseUrl,
+        options: "-c timezone=UTC",
+      }),
+    });
   }
 
   async onModuleDestroy(): Promise<void> {

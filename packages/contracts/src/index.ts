@@ -416,6 +416,80 @@ export interface ManagerTicketResponse {
   version: number;
 }
 
+export type AppointmentStatus =
+  "PENDING_PAYMENT" | "CONFIRMED" | "PAYMENT_FAILED" | "EXPIRED" | "CANCELLED" | "COMPLETED";
+
+export type PaymentStatus =
+  | "CREATED"
+  | "PENDING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "EXPIRED"
+  | "CANCELLED"
+  | "REVERSED"
+  | "PARTIALLY_REFUNDED"
+  | "REFUNDED"
+  | "DISPUTED";
+
+export interface PractitionerAvailabilityResponse {
+  amountMinor: string;
+  currency: string;
+  endsAt: string;
+  id: string;
+  mode: PublicConsultationMode;
+  practitionerId: string;
+  startsAt: string;
+}
+
+export interface AppointmentResponse {
+  amountMinor: string;
+  currency: string;
+  endsAt: string;
+  id: string;
+  mode: PublicConsultationMode;
+  paymentId: string;
+  practitioner: { displayName: string; id: string };
+  startsAt: string;
+  status: AppointmentStatus;
+  version: number;
+}
+
+export interface HostedCheckoutResponse {
+  checkoutUrl: string;
+  expiresAt: string;
+  paymentId: string;
+  status: PaymentStatus;
+}
+
+export interface PaymentStatusResponse {
+  amountMinor: string;
+  appointmentId: string;
+  currency: string;
+  id: string;
+  status: PaymentStatus;
+  updatedAt: string;
+}
+
+export interface ConsultationFeeResponse {
+  amountMinor: string;
+  currency: string;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  id: string;
+  mode: PublicConsultationMode;
+  practitionerId: string;
+  status: "DRAFT" | "ACTIVE" | "RETIRED";
+  version: number;
+}
+
+export interface PaymentReconciliationResponse {
+  applied: boolean;
+  internalStatus: PaymentStatus;
+  paymentId: string;
+  providerStatus: PaymentStatus;
+  result: "MATCHED" | "MISMATCH_APPLIED" | "MISMATCH_UNRESOLVED";
+}
+
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";
 export type CatalogueEntryStatus = "ACTIVE" | "INACTIVE";
 

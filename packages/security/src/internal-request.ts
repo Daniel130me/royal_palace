@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 import { sha256Hex, timingSafeStringEqual } from "./values.js";
 
-const SIGNATURE_VERSION = "v2";
+const SIGNATURE_VERSION = "v3";
 export const INTERNAL_TIMESTAMP_HEADER = "x-rp-internal-timestamp";
 export const INTERNAL_SIGNATURE_HEADER = "x-rp-internal-signature";
 export const INTERNAL_SESSION_REFERENCE_HEADER = "x-rp-session-reference";
@@ -10,6 +10,7 @@ const DEFAULT_MAX_CLOCK_SKEW_SECONDS = 60;
 
 export interface InternalRequestInput {
   body: string;
+  idempotencyKey?: string;
   method: string;
   path: string;
   requestId: string;
@@ -60,6 +61,7 @@ function sign(input: InternalRequestInput, secretBase64: string, timestamp: stri
     input.path,
     input.requestId,
     input.sessionReference ?? "",
+    input.idempotencyKey ?? "",
     sha256Hex(input.body),
   ].join("\n");
   return createHmac("sha256", Buffer.from(secretBase64, "base64"))

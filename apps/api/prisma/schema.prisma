@@ -170,6 +170,78 @@ enum ManagerTicketNoteVisibility {
   INTERNAL
 }
 
+enum AvailabilitySlotStatus {
+  OPEN
+  BOOKED
+  BLOCKED
+  CANCELLED
+}
+
+enum ConsultationFeeStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum AppointmentStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  PAYMENT_FAILED
+  EXPIRED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  CANCELLED
+  REVERSED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  DISPUTED
+}
+
+enum CheckoutSessionStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  ABANDONED
+}
+
+enum PaymentEventType {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  CANCELLED
+  REVERSED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  DISPUTED
+}
+
+enum PaymentWebhookStatus {
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum LedgerOperationType {
+  PAYMENT_SETTLEMENT
+  PAYMENT_REFUND
+  PAYMENT_REVERSAL
+  PAYMENT_DISPUTE
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
 enum RoleScope {
   PLATFORM
   ORGANIZATION
@@ -236,6 +308,10 @@ model IdentityPrincipal {
   recordedActivitySettlements PatientActivitySettlement[] @relation("ActivitySettlementRecorder")
   createdManagerTickets       ManagerSupportTicket[]      @relation("ManagerTicketCreator")
   managerTicketFollowUps      ManagerTicketFollowUp[]     @relation("ManagerTicketFollowUpAuthor")
+  createdAvailabilitySlots    AvailabilitySlot[]           @relation("AvailabilitySlotCreator")
+  createdConsultationFees     ConsultationFee[]            @relation("ConsultationFeeCreator")
+  approvedConsultationFees    ConsultationFee[]            @relation("ConsultationFeeApprover")
+  requestedReconciliations    PaymentReconciliation[]      @relation("PaymentReconciliationRequester")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -257,6 +333,8 @@ model Patient {
   principal           IdentityPrincipal           @relation(fields: [principalId], references: [id], onDelete: Restrict)
   approvedApplication OnboardingApplication?      @relation("ApprovedPatientApplication")
   activitySettlements PatientActivitySettlement[]
+  appointments        Appointment[]
+  payments            Payment[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -552,6 +630,9 @@ model Practitioner {
   publicCredentials   PractitionerPublicCredential[]
   credentials         PractitionerCredential[]
   approvedApplication OnboardingApplication?         @relation("ApprovedPractitionerApplication")
+  consultationFees    ConsultationFee[]
+  availabilitySlots   AvailabilitySlot[]
+  appointments        Appointment[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -996,6 +1077,7 @@ model InboxEvent {
   processedAt   DateTime?   @map("processed_at") @db.Timestamptz(6)
   attemptCount  Int         @default(0) @map("attempt_count")
   lastErrorCode String?     @map("last_error_code") @db.VarChar(100)
+  paymentWebhookEvent PaymentWebhookEvent?
 
   @@unique([consumer, messageId], map: "inbox_events_consumer_message_key")
   @@index([status, receivedAt, id], map: "inbox_events_status_received_id_idx")
@@ -1197,4 +1279,216 @@ model ManagerTicketFollowUp {
 
   @@index([ticketId, visibility, createdAt, id], map: "manager_ticket_follow_ups_ticket_visibility_idx")
   @@map("manager_ticket_follow_ups")
+}
+
+model ConsultationFee {
+  id                    String                @id @db.Uuid
+  practitionerId        String                @map("practitioner_id") @db.Uuid
+  mode                  ConsultationMode
+  amountMinor           BigInt                @map("amount_minor")
+  currency              String                @db.Char(3)
+  effectiveFrom         DateTime              @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil        DateTime?             @map("effective_until") @db.Timestamptz(6)
+  status                ConsultationFeeStatus @default(DRAFT)
+  createdByPrincipalId  String                @map("created_by_principal_id") @db.Uuid
+  approvedByPrincipalId String?               @map("approved_by_principal_id") @db.Uuid
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                   @default(1)
+  practitioner          Practitioner          @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  createdByPrincipal    IdentityPrincipal     @relation("ConsultationFeeCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  approvedByPrincipal   IdentityPrincipal?    @relation("ConsultationFeeApprover", fields: [approvedByPrincipalId], references: [id], onDelete: Restrict)
+  availabilitySlots     AvailabilitySlot[]
+
+  @@index([practitionerId, mode, status, effectiveFrom, id], map: "consultation_fees_active_lookup_idx")
+  @@map("consultation_fees")
+}
+
+model AvailabilitySlot {
+  id                   String                 @id @db.Uuid
+  practitionerId       String                 @map("practitioner_id") @db.Uuid
+  consultationFeeId    String                 @map("consultation_fee_id") @db.Uuid
+  startsAt             DateTime               @map("starts_at") @db.Timestamptz(6)
+  endsAt               DateTime               @map("ends_at") @db.Timestamptz(6)
+  status               AvailabilitySlotStatus @default(OPEN)
+  createdByPrincipalId String                 @map("created_by_principal_id") @db.Uuid
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                    @default(1)
+  practitioner         Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  consultationFee      ConsultationFee         @relation(fields: [consultationFeeId], references: [id], onDelete: Restrict)
+  createdByPrincipal   IdentityPrincipal      @relation("AvailabilitySlotCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  appointment          Appointment?
+
+  @@index([practitionerId, status, startsAt, id], map: "availability_slots_public_lookup_idx")
+  @@index([status, startsAt, id], map: "availability_slots_expiry_idx")
+  @@map("availability_slots")
+}
+
+model Appointment {
+  id                  String            @id @db.Uuid
+  patientId           String            @map("patient_id") @db.Uuid
+  practitionerId      String            @map("practitioner_id") @db.Uuid
+  availabilitySlotId  String            @unique @map("availability_slot_id") @db.Uuid
+  mode                ConsultationMode
+  startsAt            DateTime          @map("starts_at") @db.Timestamptz(6)
+  endsAt              DateTime          @map("ends_at") @db.Timestamptz(6)
+  amountMinor         BigInt            @map("amount_minor")
+  currency            String            @db.Char(3)
+  status              AppointmentStatus @default(PENDING_PAYMENT)
+  paymentDueAt        DateTime          @map("payment_due_at") @db.Timestamptz(6)
+  confirmedAt         DateTime?         @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt         DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  completedAt         DateTime?         @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int               @default(1)
+  patient             Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner        Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  availabilitySlot    AvailabilitySlot  @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
+  payment             Payment?
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
+  @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
+  @@index([status, paymentDueAt, id], map: "appointments_payment_timeout_idx")
+  @@map("appointments")
+}
+
+model Payment {
+  id                       String        @id @db.Uuid
+  appointmentId            String        @unique @map("appointment_id") @db.Uuid
+  patientId                String        @map("patient_id") @db.Uuid
+  reference                String        @unique @db.VarChar(64)
+  providerCode             String        @map("provider_code") @db.VarChar(64)
+  providerPaymentReference String?       @unique @map("provider_payment_reference") @db.VarChar(255)
+  amountMinor              BigInt        @map("amount_minor")
+  refundedAmountMinor      BigInt        @default(0) @map("refunded_amount_minor")
+  currency                 String        @db.Char(3)
+  status                   PaymentStatus @default(CREATED)
+  providerOccurredAt       DateTime?     @map("provider_occurred_at") @db.Timestamptz(6)
+  succeededAt              DateTime?     @map("succeeded_at") @db.Timestamptz(6)
+  terminalAt               DateTime?     @map("terminal_at") @db.Timestamptz(6)
+  createdAt                DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int           @default(1)
+  appointment              Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient                  Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  checkoutSessions         PaymentCheckoutSession[]
+  webhookEvents            PaymentWebhookEvent[]
+  statusHistory            PaymentStatusHistory[]
+  ledgerTransactions       LedgerTransaction[]
+  reconciliations          PaymentReconciliation[]
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "payments_patient_created_idx")
+  @@index([providerCode, providerPaymentReference], map: "payments_provider_reference_idx")
+  @@index([status, updatedAt, id], map: "payments_reconciliation_idx")
+  @@map("payments")
+}
+
+model PaymentCheckoutSession {
+  id                       String                @id @db.Uuid
+  paymentId                String                @map("payment_id") @db.Uuid
+  providerCode             String                @map("provider_code") @db.VarChar(64)
+  providerSessionReference String                @unique @map("provider_session_reference") @db.VarChar(255)
+  providerPaymentReference String                @unique @map("provider_payment_reference") @db.VarChar(255)
+  checkoutUrl              String                @map("checkout_url") @db.VarChar(2048)
+  status                   CheckoutSessionStatus @default(ACTIVE)
+  expiresAt                DateTime              @map("expires_at") @db.Timestamptz(6)
+  completedAt              DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment                  Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, status, expiresAt, id], map: "payment_checkout_sessions_payment_status_idx")
+  @@index([status, expiresAt, id], map: "payment_checkout_sessions_expiry_idx")
+  @@map("payment_checkout_sessions")
+}
+
+model PaymentWebhookEvent {
+  id                       String               @id @db.Uuid
+  inboxEventId             String               @unique @map("inbox_event_id") @db.Uuid
+  paymentId                String?              @map("payment_id") @db.Uuid
+  providerCode             String               @map("provider_code") @db.VarChar(64)
+  providerEventId          String               @map("provider_event_id") @db.VarChar(255)
+  providerPaymentReference String               @map("provider_payment_reference") @db.VarChar(255)
+  eventType                PaymentEventType     @map("event_type")
+  amountMinor              BigInt?              @map("amount_minor")
+  currency                 String?              @db.Char(3)
+  payloadHash              String               @map("payload_hash") @db.Char(64)
+  signatureKeyId           String               @map("signature_key_id") @db.VarChar(64)
+  providerOccurredAt       DateTime             @map("provider_occurred_at") @db.Timestamptz(6)
+  status                   PaymentWebhookStatus
+  outcomeCode              String?              @map("outcome_code") @db.VarChar(100)
+  receivedAt               DateTime             @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt              DateTime?            @map("processed_at") @db.Timestamptz(6)
+  inboxEvent               InboxEvent           @relation(fields: [inboxEventId], references: [id], onDelete: Restrict)
+  payment                  Payment?             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  statusHistory            PaymentStatusHistory?
+
+  @@unique([providerCode, providerEventId], map: "payment_webhook_provider_event_key")
+  @@index([providerCode, providerPaymentReference, providerOccurredAt, id], map: "payment_webhooks_reference_occurred_idx")
+  @@index([status, receivedAt, id], map: "payment_webhooks_status_received_idx")
+  @@map("payment_webhook_events")
+}
+
+model PaymentStatusHistory {
+  id             String              @id @db.Uuid
+  paymentId      String              @map("payment_id") @db.Uuid
+  webhookEventId String?             @unique @map("webhook_event_id") @db.Uuid
+  fromStatus     PaymentStatus?      @map("from_status")
+  toStatus       PaymentStatus       @map("to_status")
+  reasonCode     String              @map("reason_code") @db.VarChar(100)
+  occurredAt     DateTime            @map("occurred_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment        Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  webhookEvent   PaymentWebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, occurredAt, id], map: "payment_status_history_payment_occurred_idx")
+  @@map("payment_status_history")
+}
+
+model LedgerTransaction {
+  id            String              @id @db.Uuid
+  paymentId     String              @map("payment_id") @db.Uuid
+  eventKey      String              @unique @map("event_key") @db.VarChar(255)
+  operationType LedgerOperationType @map("operation_type")
+  occurredAt    DateTime            @map("occurred_at") @db.Timestamptz(6)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment       Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  entries       LedgerEntry[]
+
+  @@index([paymentId, occurredAt, id], map: "ledger_transactions_payment_occurred_idx")
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id            String            @id @db.Uuid
+  transactionId String            @map("transaction_id") @db.Uuid
+  accountCode   String            @map("account_code") @db.VarChar(100)
+  direction     LedgerDirection
+  amountMinor   BigInt            @map("amount_minor")
+  currency      String            @db.Char(3)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId, currency, direction, id], map: "ledger_entries_balance_idx")
+  @@index([accountCode, currency, createdAt, id], map: "ledger_entries_account_report_idx")
+  @@map("ledger_entries")
+}
+
+model PaymentReconciliation {
+  id                     String            @id @db.Uuid
+  paymentId              String            @map("payment_id") @db.Uuid
+  requestedByPrincipalId String            @map("requested_by_principal_id") @db.Uuid
+  internalStatusBefore   PaymentStatus     @map("internal_status_before")
+  providerStatus         PaymentStatus     @map("provider_status")
+  applied                Boolean
+  resultCode             String            @map("result_code") @db.VarChar(100)
+  providerObservedAt     DateTime          @map("provider_observed_at") @db.Timestamptz(6)
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment                Payment           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  requestedByPrincipal   IdentityPrincipal @relation("PaymentReconciliationRequester", fields: [requestedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, createdAt(sort: Desc), id(sort: Desc)], map: "payment_reconciliations_payment_created_idx")
+  @@index([resultCode, createdAt(sort: Desc), id(sort: Desc)], map: "payment_reconciliations_result_created_idx")
+  @@map("payment_reconciliations")
 }

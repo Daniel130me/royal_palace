@@ -178,7 +178,9 @@ that completes an increment.
     and fail closed the replaced prototype routes in protected environments.
   - `[x]` Pass repository, migration, drift, seed, query-plan, audit, secret-scan, build,
     and exact-head remote CI gates; publish the Section 20 completion report.
-- `[ ]` **Increment 09 — Appointment and payment vertical slice**
+- `[~]` **Increment 09 — Appointment and payment vertical slice**
+  - Active checklist:
+    [`increments/09-appointment-and-payment-vertical-slice.md`](./increments/09-appointment-and-payment-vertical-slice.md)
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**
 - `[ ]` **Increment 12 — Qualification and controlled launch**

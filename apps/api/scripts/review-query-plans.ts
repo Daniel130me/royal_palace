@@ -12,6 +12,7 @@ const PRACTITIONER_COUNT = 12_000;
 const ONBOARDING_APPLICATION_COUNT = 10_000;
 const MANAGER_TICKET_COUNT = 2_000;
 const MANAGER_EARNING_COUNT = 5_000;
+const APPOINTMENT_COUNT = 5_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -39,14 +40,15 @@ async function main(): Promise<void> {
   await client.connect();
   await client.query("BEGIN");
   try {
-    const { managerProfileId, targetSessionId } = await loadRepresentativeData(
-      client,
-      principalId,
-      externalIdentityId,
-      organizationIds,
-      practitionerIds,
-      targetOrganizationId,
-    );
+    const { managerProfileId, targetPaymentId, targetPractitionerId, targetSessionId } =
+      await loadRepresentativeData(
+        client,
+        principalId,
+        externalIdentityId,
+        organizationIds,
+        practitionerIds,
+        targetOrganizationId,
+      );
     await client.query("ANALYZE");
 
     const evidence = [
@@ -266,6 +268,41 @@ async function main(): Promise<void> {
         [],
         "outbox_events_pending_available_idx",
       ),
+      await reviewPlan(
+        client,
+        "practitioner open availability",
+        `SELECT "id", "starts_at", "ends_at", "consultation_fee_id"
+           FROM "availability_slots"
+          WHERE "practitioner_id" = $1
+            AND "status" = 'OPEN'
+            AND "starts_at" >= now()
+            AND "starts_at" < now() + interval '31 days'
+          ORDER BY "starts_at", "id"
+          LIMIT 200`,
+        [targetPractitionerId],
+        "availability_slots_public_lookup_idx",
+      ),
+      await reviewPlan(
+        client,
+        "expired appointment reservation batch",
+        `SELECT "id", "availability_slot_id", "payment_due_at"
+           FROM "appointments"
+          WHERE "status" IN ('PENDING_PAYMENT', 'PAYMENT_FAILED')
+            AND "payment_due_at" <= now()
+          ORDER BY "payment_due_at", "id"
+          LIMIT 100`,
+        [],
+        "appointments_payment_timeout_idx",
+      ),
+      await reviewPlan(
+        client,
+        "patient payment status",
+        `SELECT "id", "appointment_id", "amount_minor", "currency", "status", "updated_at"
+           FROM "payments"
+          WHERE "id" = $1`,
+        [targetPaymentId],
+        "payments_pkey",
+      ),
     ];
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -282,7 +319,12 @@ async function loadRepresentativeData(
   organizationIds: readonly string[],
   practitionerIds: readonly string[],
   targetOrganizationId: string,
-): Promise<{ managerProfileId: string; targetSessionId: string }> {
+): Promise<{
+  managerProfileId: string;
+  targetPaymentId: string;
+  targetPractitionerId: string;
+  targetSessionId: string;
+}> {
   await client.query('INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())', [
     principalId,
   ]);
@@ -537,6 +579,112 @@ async function loadRepresentativeData(
        FROM unnest($1::uuid[], $2::text[]) AS input(practitioner_id, slug)`,
     [practitionerIds, practitionerSlugs],
   );
+  const targetPractitionerId = practitionerIds[0];
+  if (targetPractitionerId === undefined)
+    throw new Error("Representative practitioner set is empty");
+  const consultationFeeId = v7();
+  const availabilitySlotIds = Array.from({ length: APPOINTMENT_COUNT }, () => v7());
+  const appointmentIds = availabilitySlotIds.map(() => v7());
+  const paymentIds = availabilitySlotIds.map(() => v7());
+  await client.query(
+    `INSERT INTO "consultation_fees"
+       ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from",
+        "status", "created_by_principal_id", "approved_by_principal_id", "updated_at")
+     VALUES ($1, $2, 'VIDEO', 12500, 'USD', now() - interval '1 day',
+             'ACTIVE', $3, $3, now())`,
+    [consultationFeeId, targetPractitionerId, principalId],
+  );
+  await client.query(
+    `INSERT INTO "availability_slots"
+       ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at",
+        "status", "created_by_principal_id", "updated_at")
+     SELECT input.id, $1, $2,
+            now() + (input.ordinality * interval '1 hour'),
+            now() + (input.ordinality * interval '1 hour') + interval '30 minutes',
+            CASE WHEN input.ordinality <= 500 THEN 'OPEN'::"AvailabilitySlotStatus"
+                 ELSE 'BOOKED'::"AvailabilitySlotStatus" END,
+            $3, now()
+       FROM unnest($4::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
+    [targetPractitionerId, consultationFeeId, principalId, availabilitySlotIds],
+  );
+  const otherPractitionerIds = practitionerIds.slice(1, 101);
+  const otherFeeIds = otherPractitionerIds.map(() => v7());
+  await client.query(
+    `INSERT INTO "consultation_fees"
+       ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from",
+        "status", "created_by_principal_id", "approved_by_principal_id", "updated_at")
+     SELECT input.fee_id, input.practitioner_id, 'VIDEO', 12500, 'USD', now() - interval '1 day',
+            'ACTIVE', $1, $1, now()
+       FROM unnest($2::uuid[], $3::uuid[]) AS input(fee_id, practitioner_id)`,
+    [principalId, otherFeeIds, otherPractitionerIds],
+  );
+  const otherSlotIds: string[] = [];
+  const otherSlotPractitionerIds: string[] = [];
+  const otherSlotFeeIds: string[] = [];
+  const otherSlotStarts: Date[] = [];
+  const otherSlotEnds: Date[] = [];
+  const scheduleBase = Date.now() + 60 * 60 * 1000;
+  for (
+    let practitionerIndex = 0;
+    practitionerIndex < otherPractitionerIds.length;
+    practitionerIndex += 1
+  ) {
+    const practitionerId = otherPractitionerIds[practitionerIndex];
+    const feeId = otherFeeIds[practitionerIndex];
+    if (practitionerId === undefined || feeId === undefined) continue;
+    for (let slotIndex = 0; slotIndex < 100; slotIndex += 1) {
+      const startsAt = new Date(scheduleBase + slotIndex * 60 * 60 * 1000);
+      otherSlotIds.push(v7());
+      otherSlotPractitionerIds.push(practitionerId);
+      otherSlotFeeIds.push(feeId);
+      otherSlotStarts.push(startsAt);
+      otherSlotEnds.push(new Date(startsAt.getTime() + 30 * 60 * 1000));
+    }
+  }
+  await client.query(
+    `INSERT INTO "availability_slots"
+       ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at",
+        "created_by_principal_id", "updated_at")
+     SELECT input.id, input.practitioner_id, input.fee_id, input.starts_at, input.ends_at, $1, now()
+       FROM unnest($2::uuid[], $3::uuid[], $4::uuid[], $5::timestamptz[], $6::timestamptz[])
+            AS input(id, practitioner_id, fee_id, starts_at, ends_at)`,
+    [
+      principalId,
+      otherSlotIds,
+      otherSlotPractitionerIds,
+      otherSlotFeeIds,
+      otherSlotStarts,
+      otherSlotEnds,
+    ],
+  );
+  await client.query(
+    `INSERT INTO "appointments"
+       ("id", "patient_id", "practitioner_id", "availability_slot_id", "mode", "starts_at",
+        "ends_at", "amount_minor", "currency", "status", "payment_due_at", "updated_at")
+     SELECT input.appointment_id, $1, $2, input.slot_id, 'VIDEO', slot."starts_at", slot."ends_at",
+            12500, 'USD',
+            CASE WHEN input.ordinality % 20 = 0 THEN 'PENDING_PAYMENT'::"AppointmentStatus"
+                 ELSE 'CONFIRMED'::"AppointmentStatus" END,
+            CASE WHEN input.ordinality % 20 = 0 THEN now() - interval '1 minute'
+                 ELSE now() + interval '1 day' END,
+            now()
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS input(appointment_id, slot_id, ordinality)
+       JOIN "availability_slots" AS slot ON slot."id" = input.slot_id
+      WHERE input.ordinality > 500`,
+    [patientId, targetPractitionerId, appointmentIds, availabilitySlotIds],
+  );
+  await client.query(
+    `INSERT INTO "payments"
+       ("id", "appointment_id", "patient_id", "reference", "provider_code",
+        "amount_minor", "currency", "updated_at")
+     SELECT input.payment_id, input.appointment_id, $1, 'query_plan_' || input.payment_id::text,
+            'UNASSIGNED', 12500, 'USD', now()
+       FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
+            AS input(payment_id, appointment_id, ordinality)
+      WHERE input.ordinality > 500`,
+    [patientId, paymentIds, appointmentIds],
+  );
   const practitionerSpecialtyIds = practitionerIds.map(() => v7());
   const practitionerSpecialtyTaxonomyIds = practitionerIds.map(
     (_, index) => specialtyIds[index % specialtyIds.length],
@@ -599,7 +747,9 @@ async function loadRepresentativeData(
 
   const targetSessionId = sessionIds[0];
   if (targetSessionId === undefined) throw new Error("Representative session set is empty");
-  return { managerProfileId, targetSessionId };
+  const targetPaymentId = paymentIds[501];
+  if (targetPaymentId === undefined) throw new Error("Representative payment set is empty");
+  return { managerProfileId, targetPaymentId, targetPractitionerId, targetSessionId };
 }
 
 async function reviewPlan(
@@ -660,6 +810,7 @@ async function reviewPlan(
       managerReferralAttributions: ONBOARDING_APPLICATION_COUNT,
       managerTickets: MANAGER_TICKET_COUNT,
       managerEarnings: MANAGER_EARNING_COUNT,
+      appointments: APPOINTMENT_COUNT - 500,
     },
   };
 }

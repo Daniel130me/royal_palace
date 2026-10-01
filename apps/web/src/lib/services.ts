@@ -6,6 +6,7 @@ import {
   createManagerClient,
   createOnboardingClient,
   createPublicDiscoveryClient,
+  createSchedulingPaymentClient,
 } from "@royal-palace/api-client";
 import type {
   OnboardingApplicationDetail,
@@ -24,6 +25,10 @@ import type {
   SupportManagerTicketResponse,
   CommissionPolicyResponse,
   ReferralAttributionCorrectionResponse,
+  AppointmentResponse,
+  HostedCheckoutResponse,
+  PaymentStatusResponse,
+  PractitionerAvailabilityResponse,
 } from "@royal-palace/contracts";
 import {
   api,
@@ -140,6 +145,9 @@ export const hospitalService = {
 const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
 const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
 const generatedManagerClient = createManagerClient({ fetch: authenticatedGeneratedFetch });
+const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
+  fetch: authenticatedGeneratedFetch,
+});
 
 export const onboardingService = {
   listOwn: () => generatedOnboardingClient.GET("/api/applications").then(unwrapGeneratedResponse),
@@ -341,6 +349,54 @@ export const publicDiscoveryService = {
     generatedPublicDiscoveryClient
       .GET("/api/public/practitioners/{practitionerId}", {
         params: { path: { practitionerId: id } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
+};
+
+export const schedulingPaymentService = {
+  availability: (practitionerId: string, from: string, to: string, signal?: AbortSignal) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/public/practitioners/{practitionerId}/availability", {
+        params: { path: { practitionerId }, query: { from, to } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
+  book: (availabilitySlotId: string, idempotencyKey: string) =>
+    generatedSchedulingPaymentClient
+      .POST("/api/appointments", {
+        body: { availabilitySlotId },
+        params: {
+          header: {
+            "idempotency-key": idempotencyKey,
+            "x-rp-csrf-token": csrfToken() ?? "",
+          },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  appointment: (appointmentId: string, signal?: AbortSignal) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/appointments/{appointmentId}", {
+        params: { path: { appointmentId } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
+  createCheckout: (paymentId: string, idempotencyKey: string) =>
+    generatedSchedulingPaymentClient
+      .POST("/api/payments/checkout-sessions", {
+        body: { paymentId },
+        params: {
+          header: {
+            "idempotency-key": idempotencyKey,
+            "x-rp-csrf-token": csrfToken() ?? "",
+          },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  paymentStatus: (paymentId: string, signal?: AbortSignal) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/payments/{paymentId}/status", {
+        params: { path: { paymentId } },
         signal,
       })
       .then(unwrapGeneratedResponse),
@@ -719,12 +775,16 @@ export const managerProgramService = {
 };
 
 export type {
+  AppointmentResponse,
   CommissionPolicyResponse,
   ManagerEarningsReportResponse,
   ManagerProfileResponse,
   ManagerReferralLinkResponse,
   ManagerReferralStatusResponse,
   ManagerTicketResponse,
+  HostedCheckoutResponse,
+  PaymentStatusResponse,
+  PractitionerAvailabilityResponse,
   ReferralAttributionCorrectionResponse,
   SupportManagerTicketResponse,
 };

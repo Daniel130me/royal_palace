@@ -56,4 +56,21 @@ describe("internal request signatures", () => {
       ),
     ).toBe(false);
   });
+
+  it("binds the optional idempotency key into the signature", () => {
+    const idempotentInput = { ...input, idempotencyKey: "booking-request-1" };
+    const headers = createInternalRequestHeaders(idempotentInput, secret, now);
+    expect(
+      verifyInternalRequest(
+        {
+          ...idempotentInput,
+          idempotencyKey: "booking-request-2",
+          signature: headers["x-rp-internal-signature"],
+          timestamp: headers["x-rp-internal-timestamp"],
+        },
+        secret,
+        now,
+      ),
+    ).toBe(false);
+  });
 });

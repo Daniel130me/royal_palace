@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import openapiTS, { astToString } from "openapi-typescript";
 
-for (const name of ["public-discovery", "onboarding", "manager"]) {
+for (const name of ["public-discovery", "onboarding", "manager", "scheduling-payment"]) {
   const specificationUrl = new URL(`../openapi/${name}.yaml`, import.meta.url);
   const generatedUrl = new URL(`../src/generated/${name}.ts`, import.meta.url);
   const expected = astToString(await openapiTS(specificationUrl));

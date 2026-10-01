@@ -71,6 +71,7 @@ async function main(): Promise<void> {
       databaseUrlWithName(baseUrl, databaseNames.repair),
     );
     await verifyDatabaseInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
+    await verifyConcurrentBooking(databaseUrlWithName(baseUrl, databaseNames.clean));
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
@@ -134,6 +135,16 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const earningId = v7();
   const ticketId = v7();
   const followUpId = v7();
+  const consultationFeeId = v7();
+  const availabilitySlotId = v7();
+  const appointmentId = v7();
+  const paymentId = v7();
+  const inboxEventId = v7();
+  const webhookEventId = v7();
+  const paymentHistoryId = v7();
+  const ledgerTransactionId = v7();
+  const ledgerDebitId = v7();
+  const ledgerCreditId = v7();
 
   await client.connect();
   try {
@@ -432,6 +443,129 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       "P0001",
     );
     await client.query(
+      'INSERT INTO "consultation_fees" ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from", "effective_until", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), now() + interval \'30 days\', $6, $7, $7, now())',
+      [consultationFeeId, practitionerId, "VIDEO", 12500, "USD", "ACTIVE", principalId],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "consultation_fees" ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from", "effective_until", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now() + interval \'1 day\', now() + interval \'2 days\', $6, $7, $7, now())',
+      [v7(), practitionerId, "VIDEO", 13000, "USD", "ACTIVE", principalId],
+      "23P01",
+    );
+    await client.query(
+      'INSERT INTO "availability_slots" ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, now() + interval \'2 days\', now() + interval \'2 days 30 minutes\', $4, now())',
+      [availabilitySlotId, practitionerId, consultationFeeId, principalId],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "availability_slots" ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, now() + interval \'2 days 15 minutes\', now() + interval \'2 days 45 minutes\', $4, now())',
+      [v7(), practitionerId, consultationFeeId, principalId],
+      "23P01",
+    );
+    await client.query(
+      'UPDATE "availability_slots" SET "status" = \'BOOKED\', "updated_at" = now() WHERE "id" = $1',
+      [availabilitySlotId],
+    );
+    await client.query(
+      'INSERT INTO "appointments" ("id", "patient_id", "practitioner_id", "availability_slot_id", "mode", "starts_at", "ends_at", "amount_minor", "currency", "payment_due_at", "updated_at") SELECT $1, $2, $3, $4, $5, "starts_at", "ends_at", $6, $7, now() + interval \'15 minutes\', now() FROM "availability_slots" WHERE "id" = $4',
+      [appointmentId, patientId, practitionerId, availabilitySlotId, "VIDEO", 12500, "USD"],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "appointments" SET "amount_minor" = $1, "updated_at" = now() WHERE "id" = $2',
+      [14000, appointmentId],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "payments" ("id", "appointment_id", "patient_id", "reference", "provider_code", "provider_payment_reference", "amount_minor", "currency", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
+      [
+        paymentId,
+        appointmentId,
+        patientId,
+        `payment_${paymentId}`,
+        "SYNTHETIC",
+        `provider_${paymentId}`,
+        12500,
+        "USD",
+      ],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "payments" SET "currency" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["EUR", paymentId],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "inbox_events" ("id", "message_id", "consumer", "event_type", "payload_hash") VALUES ($1, $2, $3, $4, $5)',
+      [
+        inboxEventId,
+        `event_${paymentId}`,
+        "payment-webhook:SYNTHETIC",
+        "SUCCEEDED",
+        "b".repeat(64),
+      ],
+    );
+    await client.query(
+      'INSERT INTO "payment_webhook_events" ("id", "inbox_event_id", "payment_id", "provider_code", "provider_event_id", "provider_payment_reference", "event_type", "amount_minor", "currency", "payload_hash", "signature_key_id", "provider_occurred_at", "status", "processed_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), $12, now())',
+      [
+        webhookEventId,
+        inboxEventId,
+        paymentId,
+        "SYNTHETIC",
+        `event_${paymentId}`,
+        `provider_${paymentId}`,
+        "SUCCEEDED",
+        12500,
+        "USD",
+        "b".repeat(64),
+        "synthetic-key",
+        "PROCESSED",
+      ],
+    );
+    await client.query(
+      'INSERT INTO "payment_status_history" ("id", "payment_id", "webhook_event_id", "from_status", "to_status", "reason_code", "occurred_at") VALUES ($1, $2, $3, $4, $5, $6, now())',
+      [paymentHistoryId, paymentId, webhookEventId, "PENDING", "SUCCEEDED", "PROVIDER_SUCCEEDED"],
+    );
+    await expectSqlState(
+      client,
+      'DELETE FROM "payment_webhook_events" WHERE "id" = $1',
+      [webhookEventId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "payment_status_history" SET "reason_code" = $1 WHERE "id" = $2',
+      ["MUTATED", paymentHistoryId],
+      "P0001",
+    );
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "ledger_transactions" ("id", "payment_id", "event_key", "operation_type", "occurred_at") VALUES ($1, $2, $3, $4, now())',
+      [ledgerTransactionId, paymentId, `settlement_${paymentId}`, "PAYMENT_SETTLEMENT"],
+    );
+    await client.query(
+      'INSERT INTO "ledger_entries" ("id", "transaction_id", "account_code", "direction", "amount_minor", "currency") VALUES ($1, $2, $3, $4, $5, $6), ($7, $2, $8, $9, $5, $6)',
+      [
+        ledgerDebitId,
+        ledgerTransactionId,
+        "PAYMENT_PROVIDER_CLEARING",
+        "DEBIT",
+        12500,
+        "USD",
+        ledgerCreditId,
+        "CUSTOMER_FUNDS_CLEARING",
+        "CREDIT",
+      ],
+    );
+    await client.query("COMMIT");
+    await expectSqlState(
+      client,
+      'UPDATE "ledger_entries" SET "amount_minor" = $1 WHERE "id" = $2',
+      [1, ledgerDebitId],
+      "P0001",
+    );
+    await expectUnbalancedLedgerCommit(client, paymentId);
+    await client.query(
       'INSERT INTO "specialty_taxonomies" ("id", "code", "name", "category", "source_system", "updated_at") VALUES ($1, $2, $3, $4, $5, now()), ($6, $7, $8, $9, $10, now())',
       [
         parentSpecialtyId,
@@ -474,6 +608,104 @@ async function expectSqlState(
     throw error;
   }
   throw new Error(`Expected PostgreSQL error ${expectedCode}`);
+}
+
+async function verifyConcurrentBooking(databaseUrl: string): Promise<void> {
+  const setup = new Client({ connectionString: databaseUrl });
+  const first = new Client({ connectionString: databaseUrl });
+  const second = new Client({ connectionString: databaseUrl });
+  const principalId = v7();
+  const patientId = v7();
+  const practitionerId = v7();
+  const feeId = v7();
+  const slotId = v7();
+  await Promise.all([setup.connect(), first.connect(), second.connect()]);
+  try {
+    await setup.query('INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())', [
+      principalId,
+    ]);
+    await setup.query(
+      'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [patientId, principalId, "Concurrent", "Patient"],
+    );
+    await setup.query(
+      'INSERT INTO "practitioners" ("id", "display_name", "given_name", "family_name", "verification_status", "verified_at", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), now())',
+      [practitionerId, "Concurrent Practitioner", "Concurrent", "Practitioner", "VERIFIED"],
+    );
+    await setup.query(
+      'INSERT INTO "consultation_fees" ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $7, now())',
+      [feeId, practitionerId, "VIDEO", 15000, "USD", "ACTIVE", principalId],
+    );
+    await setup.query(
+      'INSERT INTO "availability_slots" ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, now() + interval \'7 days\', now() + interval \'7 days 30 minutes\', $4, now())',
+      [slotId, practitionerId, feeId, principalId],
+    );
+
+    const attempt = async (client: pg.Client): Promise<boolean> => {
+      await client.query("BEGIN");
+      try {
+        const claim = await client.query<{ id: string }>(
+          'UPDATE "availability_slots" SET "status" = \'BOOKED\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1 AND "status" = \'OPEN\' RETURNING "id"',
+          [slotId],
+        );
+        if (claim.rowCount !== 1) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        const appointmentId = v7();
+        const paymentId = v7();
+        await client.query(
+          'INSERT INTO "appointments" ("id", "patient_id", "practitioner_id", "availability_slot_id", "mode", "starts_at", "ends_at", "amount_minor", "currency", "payment_due_at", "updated_at") SELECT $1, $2, $3, slot."id", fee."mode", slot."starts_at", slot."ends_at", fee."amount_minor", fee."currency", now() + interval \'15 minutes\', now() FROM "availability_slots" AS slot JOIN "consultation_fees" AS fee ON fee."id" = slot."consultation_fee_id" WHERE slot."id" = $4',
+          [appointmentId, patientId, practitionerId, slotId],
+        );
+        await client.query(
+          'INSERT INTO "payments" ("id", "appointment_id", "patient_id", "reference", "provider_code", "amount_minor", "currency", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
+          [paymentId, appointmentId, patientId, `payment_${paymentId}`, "UNASSIGNED", 15000, "USD"],
+        );
+        await client.query("COMMIT");
+        return true;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    };
+
+    const claims = await Promise.all([attempt(first), attempt(second)]);
+    if (claims.filter(Boolean).length !== 1) {
+      throw new Error("Concurrent booking did not produce exactly one successful slot claim");
+    }
+    const result = await setup.query<{ appointments: string; payments: string }>(
+      `SELECT COUNT(DISTINCT appointment."id")::text AS appointments,
+              COUNT(DISTINCT payment."id")::text AS payments
+         FROM "appointments" AS appointment
+         LEFT JOIN "payments" AS payment ON payment."appointment_id" = appointment."id"
+        WHERE appointment."availability_slot_id" = $1`,
+      [slotId],
+    );
+    if (result.rows[0]?.appointments !== "1" || result.rows[0]?.payments !== "1") {
+      throw new Error("Concurrent booking created duplicate or incomplete financial records");
+    }
+  } finally {
+    await Promise.all([setup.end(), first.end(), second.end()]);
+  }
+}
+
+async function expectUnbalancedLedgerCommit(client: pg.Client, paymentId: string): Promise<void> {
+  await client.query("BEGIN");
+  try {
+    const transactionId = v7();
+    await client.query(
+      'INSERT INTO "ledger_transactions" ("id", "payment_id", "event_key", "operation_type", "occurred_at") VALUES ($1, $2, $3, $4, now())',
+      [transactionId, paymentId, `unbalanced_${transactionId}`, "PAYMENT_SETTLEMENT"],
+    );
+    await client.query(
+      'INSERT INTO "ledger_entries" ("id", "transaction_id", "account_code", "direction", "amount_minor", "currency") VALUES ($1, $2, $3, $4, $5, $6)',
+      [v7(), transactionId, "PAYMENT_PROVIDER_CLEARING", "DEBIT", 12500, "USD"],
+    );
+    await expectSqlState(client, "COMMIT", [], "P0001");
+  } finally {
+    await client.query("ROLLBACK").catch(() => undefined);
+  }
 }
 
 function isPostgresError(error: unknown): error is Error & { code: string } {

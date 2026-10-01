@@ -74,7 +74,7 @@ export async function callIdentityApi<T>(
 export async function callAuthenticatedApi<T>(
   request: NextRequest,
   apiPath: string,
-  options: { body?: unknown; method?: "GET" | "PATCH" | "POST" } = {},
+  options: { body?: unknown; idempotencyKey?: string; method?: "GET" | "PATCH" | "POST" } = {},
 ): Promise<T> {
   const sessionReference = readSessionId(request);
   const method = options.method ?? "GET";
@@ -83,7 +83,14 @@ export async function callAuthenticatedApi<T>(
   const traceparent = request.headers.get("traceparent");
   const upstreamUrl = new URL(apiPath, config.apiBaseUrl);
   const signatureHeaders = createInternalRequestHeaders(
-    { body, method, path: upstreamUrl.pathname, requestId: id, sessionReference },
+    {
+      body,
+      ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+      method,
+      path: upstreamUrl.pathname,
+      requestId: id,
+      sessionReference,
+    },
     config.bffInternalSecret,
   );
   let response: Response;
@@ -93,6 +100,9 @@ export async function callAuthenticatedApi<T>(
       cache: "no-store",
       headers: {
         ...(body.length === 0 ? {} : { "content-type": "application/json" }),
+        ...(options.idempotencyKey === undefined
+          ? {}
+          : { "idempotency-key": options.idempotencyKey }),
         ...(traceparent === null ? {} : { traceparent }),
         "x-request-id": id,
         ...signatureHeaders,
@@ -124,7 +134,12 @@ export async function proxyAuthenticatedApi(
   try {
     if (method !== "GET") requireCsrf(request);
     const body = method === "GET" ? undefined : await request.json().catch(() => null);
-    const result = await callAuthenticatedApi<unknown>(request, apiPath, { body, method });
+    const idempotencyKey = request.headers.get("idempotency-key") ?? undefined;
+    const result = await callAuthenticatedApi<unknown>(request, apiPath, {
+      body,
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      method,
+    });
     return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const response = authErrorResponse(error);

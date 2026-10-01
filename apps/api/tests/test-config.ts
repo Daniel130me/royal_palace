@@ -18,6 +18,12 @@ export const testConfig = loadServiceConfig("api", {
   OBJECT_STORAGE_BUCKET_QUARANTINE: "test-quarantine",
   OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000",
   OBJECT_STORAGE_SECRET_KEY: "test-secret-key",
+  PAYMENT_CHECKOUT_BASE_URL: "http://127.0.0.1:3000/dev/payment-checkout",
+  PAYMENT_GATEWAY_MODE: "synthetic",
+  PAYMENT_WEBHOOK_ACTIVE_KEY_ID: "test-payment-key-1",
+  PAYMENT_WEBHOOK_SIGNING_KEYS: JSON.stringify({
+    "test-payment-key-1": Buffer.alloc(32, 4).toString("base64"),
+  }),
   OIDC_CLIENT_ID: "test-client",
   OIDC_CLIENT_AUTH_METHOD: "none",
   OIDC_ASSURANCE_CONTEXT_MAP: JSON.stringify({

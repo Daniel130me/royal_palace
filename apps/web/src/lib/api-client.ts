@@ -113,6 +113,13 @@ export const sessionApi = {
       headers: mutationHeaders(),
       body: body == null ? undefined : JSON.stringify(body),
     }).then(handle<T>),
+  postIdempotent: <T>(path: string, idempotencyKey: string, body?: unknown) =>
+    fetch(path, {
+      credentials: "same-origin",
+      method: "POST",
+      headers: { ...mutationHeaders(), "idempotency-key": idempotencyKey },
+      body: body == null ? undefined : JSON.stringify(body),
+    }).then(handle<T>),
   patch: <T>(path: string, body?: unknown) =>
     fetch(path, {
       credentials: "same-origin",
