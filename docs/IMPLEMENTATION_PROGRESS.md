@@ -33,8 +33,7 @@ that completes an increment.
 - `[~]` **Phase 3 — PostgreSQL domain foundation.** Increment 03 established the
   foundation; domain models will be extended by each later vertical slice.
 - `[~]` **Phase 4 — Production vertical slices and frontend connection.** Increment 06
-  is complete. The remaining production slices are delivered by Increments 07–09 and
-  11.
+  is complete. The remaining production slices are delivered by Increments 07–09 and 11.
 - `[ ]` **Phase 5 — Payments, files, and asynchronous integrations.** Delivered by
   Increments 09–10 and relevant Increment 11 slices.
 - `[ ]` **Phase 6 — Clinical integrity and privacy operations.** Delivered by the
@@ -178,9 +177,20 @@ that completes an increment.
     and fail closed the replaced prototype routes in protected environments.
   - `[x]` Pass repository, migration, drift, seed, query-plan, audit, secret-scan, build,
     and exact-head remote CI gates; publish the Section 20 completion report.
-- `[~]` **Increment 09 — Appointment and payment vertical slice**
-  - Active checklist:
+- `[x]` **Increment 09 — Appointment and payment vertical slice**
+  - Evidence:
     [`increments/09-appointment-and-payment-vertical-slice.md`](./increments/09-appointment-and-payment-vertical-slice.md)
+  - Implementation commit: `efcbf3f`
+  - `[x]` Add administrator-governed effective-dated fees, bounded provider availability,
+    immutable appointment price snapshots, and database-enforced single-slot booking.
+  - `[x]` Add a provider-neutral hosted-checkout boundary, authenticated idempotent webhook
+    inbox, explicit payment transitions, immutable balanced ledger, and reconciliation.
+  - `[x]` Emit exactly-once settled-activity outbox events without exposing patient gross
+    payments or provider references through the manager boundary.
+  - `[x]` Connect generated OpenAPI contracts, signed BFF routes, and patient booking/payment
+    status interfaces while rejecting redirect parameters as payment authority.
+  - `[x]` Pass repository, migration, concurrency, persistence, query-plan, audit,
+    secret-scan, build, and exact-head remote CI gates; publish the Section 20 report.
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**
 - `[ ]` **Increment 12 — Qualification and controlled launch**
