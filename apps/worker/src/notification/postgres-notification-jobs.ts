@@ -1,4 +1,5 @@
 import type { WorkerServiceConfig } from "@royal-palace/config/environment";
+import type { NotificationCategory } from "@royal-palace/contracts";
 import { Pool, type PoolClient } from "pg";
 import { v7 as uuidv7 } from "uuid";
 
@@ -11,10 +12,13 @@ export interface NotificationJob {
   attemptId: string;
   attemptNumber: number;
   channel: NotificationChannel;
+  category: NotificationCategory;
   deliveryId: string;
+  destination: string | null;
   leaseToken: string;
   locale: string;
   recipientPrincipalId: string;
+  recipientEligible: boolean;
   templateKey: string;
   templateVersion: number;
   variables: unknown;
@@ -72,11 +76,29 @@ export class PostgresNotificationJobs {
        )
        SELECT updated.id AS "deliveryId", attempted.id AS "attemptId",
          updated.attempt_count AS "attemptNumber", updated.channel AS "channel",
+         updated.category AS "category", endpoint.address AS "destination",
          updated.lease_token AS "leaseToken", updated.locale AS "locale",
          updated.recipient_principal_id AS "recipientPrincipalId",
+         CASE WHEN updated.category <> 'MARKETING' THEN true
+           ELSE EXISTS (
+             SELECT 1 FROM notification_preferences AS preference
+             WHERE preference.principal_id = updated.recipient_principal_id
+               AND preference.channel = updated.channel
+               AND preference.category = 'MARKETING'
+               AND preference.enabled = true
+               AND preference.consented_at IS NOT NULL
+               AND preference.withdrawn_at IS NULL
+           ) END AS "recipientEligible",
          updated.template_key AS "templateKey", updated.template_version AS "templateVersion",
          updated.variables AS "variables"
-       FROM updated CROSS JOIN attempted`,
+       FROM updated CROSS JOIN attempted
+       LEFT JOIN LATERAL (
+         SELECT address FROM notification_recipient_endpoints
+         WHERE principal_id = updated.recipient_principal_id
+           AND channel = updated.channel AND invalidated_at IS NULL
+         ORDER BY verified_at DESC, id
+         LIMIT 1
+       ) AS endpoint ON true`,
       [leaseToken, NOTIFICATION_LEASE_MS, MAX_NOTIFICATION_ATTEMPTS, attemptId],
     );
     return result.rows[0] ?? null;

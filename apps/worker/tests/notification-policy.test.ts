@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_NOTIFICATION_ATTEMPTS,
   notificationRetryDelayMs,
+  NotificationRecipientError,
   NotificationTemplateError,
+  requireEmailRecipient,
   renderNotification,
   syntheticProviderMessageId,
 } from "../src/notification/notification-policy.js";
@@ -13,6 +15,7 @@ import { SyntheticNotificationProvider } from "../src/notification/notification-
 describe("notification policy", () => {
   it("renders purpose-specific content without embedding sensitive detail", () => {
     const email = renderNotification({
+      category: "TRANSACTIONAL",
       channel: "EMAIL",
       locale: "en",
       templateKey: NOTIFICATION_TEMPLATE.APPLICATION_STATUS_UPDATED,
@@ -26,6 +29,7 @@ describe("notification policy", () => {
 
     expect(
       renderNotification({
+        category: "SECURITY",
         channel: "SMS",
         locale: "en",
         templateKey: NOTIFICATION_TEMPLATE.SECURITY_ALERT,
@@ -44,11 +48,45 @@ describe("notification policy", () => {
     ]) {
       expect(() =>
         renderNotification({
+          category: "TRANSACTIONAL",
           channel: "PUSH",
           templateKey: NOTIFICATION_TEMPLATE.APPLICATION_STATUS_UPDATED,
           ...input,
         }),
       ).toThrow(NotificationTemplateError);
+    }
+  });
+
+  it("requires a verified email and explicit marketing consent", () => {
+    expect(
+      requireEmailRecipient({
+        category: "TRANSACTIONAL",
+        channel: "EMAIL",
+        destination: "person@example.test",
+        recipientEligible: true,
+      }),
+    ).toBe("person@example.test");
+    for (const input of [
+      {
+        category: "TRANSACTIONAL" as const,
+        channel: "EMAIL" as const,
+        destination: null,
+        recipientEligible: true,
+      },
+      {
+        category: "MARKETING" as const,
+        channel: "EMAIL" as const,
+        destination: "person@example.test",
+        recipientEligible: false,
+      },
+      {
+        category: "SECURITY" as const,
+        channel: "SMS" as const,
+        destination: "person@example.test",
+        recipientEligible: true,
+      },
+    ]) {
+      expect(() => requireEmailRecipient(input)).toThrow(NotificationRecipientError);
     }
   });
 
@@ -64,6 +102,7 @@ describe("notification policy", () => {
       body: "Safe message",
       channel: "EMAIL" as const,
       deliveryId: "0199f323-6e1b-70af-8d8e-e4d2a65cf810",
+      destination: "person@example.test",
       recipientPrincipalId: "0199f323-6e1b-70af-8d8e-e4d2a65cf811",
       subject: "Subject",
       title: null,

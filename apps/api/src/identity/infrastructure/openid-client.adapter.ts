@@ -1,6 +1,7 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import * as client from "openid-client";
+import { z } from "zod";
 
 import { SERVICE_CONFIG } from "../../tokens.js";
 import type {
@@ -12,6 +13,7 @@ import type {
 @Injectable()
 export class OpenIdClientAdapter implements OidcProvider {
   private configurationPromise: Promise<client.Configuration> | undefined;
+  private readonly logger = new Logger(OpenIdClientAdapter.name);
 
   constructor(@Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig) {}
 
@@ -50,6 +52,11 @@ export class OpenIdClientAdapter implements OidcProvider {
     });
     const claims = tokens.claims();
     if (claims?.sub === undefined) throw new Error("OIDC response did not contain a subject");
+    const verifiedEmail = await this.resolveVerifiedEmail(
+      configuration,
+      tokens.access_token,
+      claims,
+    );
 
     return {
       assuranceContext: this.normalizeAssuranceContext(claims.acr),
@@ -61,6 +68,7 @@ export class OpenIdClientAdapter implements OidcProvider {
       providerSessionId: typeof claims.sid === "string" ? claims.sid : null,
       refreshToken: tokens.refresh_token ?? null,
       subject: claims.sub,
+      verifiedEmail,
     };
   }
 
@@ -83,6 +91,7 @@ export class OpenIdClientAdapter implements OidcProvider {
       ...(tokens.id_token === undefined ? {} : { idToken: tokens.id_token }),
       ...(typeof claims?.sid === "string" ? { providerSessionId: claims.sid } : {}),
       ...(typeof claims?.sub === "string" ? { subject: claims.sub } : {}),
+      ...(claims === undefined ? {} : { verifiedEmail: verifiedEmailClaim(claims) }),
       refreshToken: tokens.refresh_token ?? null,
     };
   }
@@ -104,6 +113,30 @@ export class OpenIdClientAdapter implements OidcProvider {
   private configuration(): Promise<client.Configuration> {
     this.configurationPromise ??= this.discover();
     return this.configurationPromise;
+  }
+
+  private async resolveVerifiedEmail(
+    configuration: client.Configuration,
+    accessToken: string | undefined,
+    claims: Record<string, unknown> & { sub: string },
+  ): Promise<string | null> {
+    const fromIdToken = verifiedEmailClaim(claims);
+    if (fromIdToken !== null) return fromIdToken;
+    if (
+      accessToken === undefined ||
+      configuration.serverMetadata().userinfo_endpoint === undefined
+    ) {
+      return null;
+    }
+    try {
+      const userInfo = await client.fetchUserInfo(configuration, accessToken, claims.sub);
+      return verifiedEmailClaim(userInfo);
+    } catch {
+      // Email is optional for authentication. A failed UserInfo lookup must never
+      // create an unverified endpoint or make the core login path unavailable.
+      this.logger.warn({ event: "oidc_userinfo_email_unavailable" });
+      return null;
+    }
   }
 
   private async discover(): Promise<client.Configuration> {
@@ -140,6 +173,14 @@ export class OpenIdClientAdapter implements OidcProvider {
       throw new Error("Requested assurance context is not configured");
     return providerValue;
   }
+}
+
+const emailClaimSchema = z.email().max(320);
+
+function verifiedEmailClaim(claims: Record<string, unknown>): string | null {
+  if (claims.email_verified !== true) return null;
+  const parsed = emailClaimSchema.safeParse(claims.email);
+  return parsed.success ? parsed.data.trim().normalize("NFC") : null;
 }
 
 function resolveClientAuthentication(identity: ApiServiceConfig["identity"]): client.ClientAuth {

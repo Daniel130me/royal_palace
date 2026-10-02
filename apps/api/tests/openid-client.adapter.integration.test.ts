@@ -11,6 +11,7 @@ import { testConfig } from "./test-config.js";
 
 const REDIRECT_URI = "http://127.0.0.1:3000/api/bff/auth/callback";
 const TEST_SUBJECT = "synthetic-conformance-user";
+const UNVERIFIED_SUBJECT = "synthetic-unverified-user";
 
 describe("OpenIdClientAdapter OIDC conformance boundary", () => {
   let providerServer: Server;
@@ -20,6 +21,7 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
     const port = await reserveLoopbackPort();
     issuer = `http://127.0.0.1:${port}`;
     const configuration: Configuration = {
+      claims: { email: ["email", "email_verified"] },
       clients: [
         {
           client_id: testConfig.identity.clientId,
@@ -32,7 +34,12 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
       findAccount: (_context, subject) =>
         Promise.resolve({
           accountId: subject,
-          claims: () => Promise.resolve({ sub: subject }),
+          claims: () =>
+            Promise.resolve({
+              email: "verified-user@example.test",
+              email_verified: subject !== UNVERIFIED_SUBJECT,
+              sub: subject,
+            }),
         }),
       pkce: { required: () => true },
     };
@@ -41,6 +48,30 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
     await new Promise<void>((resolve, reject) => {
       providerServer.once("error", reject);
       providerServer.listen(port, "127.0.0.1", resolve);
+    });
+  });
+
+  it("does not trust an email without an affirmative verification claim", async () => {
+    const adapter = new OpenIdClientAdapter(identityConfig(issuer));
+    const state = client.randomState();
+    const nonce = client.randomNonce();
+    const pkceCodeVerifier = client.randomPKCECodeVerifier();
+    const authorizationUrl = await adapter.buildAuthorizationUrl({
+      codeChallenge: await client.calculatePKCECodeChallenge(pkceCodeVerifier),
+      nonce,
+      state,
+    });
+
+    const authentication = await adapter.completeAuthorization({
+      currentUrl: await completeSyntheticInteraction(authorizationUrl, UNVERIFIED_SUBJECT),
+      expectedNonce: nonce,
+      expectedState: state,
+      pkceCodeVerifier,
+    });
+
+    expect(authentication).toMatchObject({
+      subject: UNVERIFIED_SUBJECT,
+      verifiedEmail: null,
     });
   });
 
@@ -72,6 +103,7 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
     expect(authentication).toMatchObject({
       issuer,
       subject: TEST_SUBJECT,
+      verifiedEmail: "verified-user@example.test",
     });
     expect(authentication.idToken).toEqual(expect.any(String));
   });
@@ -88,7 +120,10 @@ function identityConfig(providerIssuer: string): ApiServiceConfig {
   };
 }
 
-async function completeSyntheticInteraction(authorizationUrl: URL): Promise<URL> {
+async function completeSyntheticInteraction(
+  authorizationUrl: URL,
+  subject = TEST_SUBJECT,
+): Promise<URL> {
   let nextUrl = authorizationUrl;
   const cookies = new Map<string, string>();
 
@@ -112,7 +147,7 @@ async function completeSyntheticInteraction(authorizationUrl: URL): Promise<URL>
       throw new Error(`Unexpected synthetic OIDC interaction response (${response.status})`);
     }
     const form = new URLSearchParams({ prompt });
-    if (prompt === "login") form.set("login", TEST_SUBJECT);
+    if (prompt === "login") form.set("login", subject);
     const submitUrl = body.match(/<form[^>]+action="([^"]+)"/)?.[1];
     if (submitUrl === undefined) throw new Error("OIDC interaction form did not have an action");
     const submission = await fetch(new URL(submitUrl, nextUrl), {

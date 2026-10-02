@@ -147,6 +147,49 @@ export class PrismaIdentityRepository implements IdentityRepository {
     );
   }
 
+  async synchronizeVerifiedEmail(input: {
+    email: string;
+    issuer: string;
+    now: Date;
+    principalId: string;
+  }): Promise<void> {
+    const normalizedAddress = canonicalEmailAddress(input.email);
+    await this.database.$transaction(async (transaction) => {
+      // Serialize endpoint replacement per principal. The partial unique index is a
+      // second line of defence against concurrent callbacks creating two active emails.
+      const principal = await transaction.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM identity_principals
+        WHERE id = ${input.principalId}::uuid AND status = 'ACTIVE'
+        FOR UPDATE
+      `;
+      if (principal.length !== 1) throw new Error("Identity is not active");
+      const active = await transaction.notificationRecipientEndpoint.findFirst({
+        select: { id: true, normalizedAddress: true },
+        where: { channel: "EMAIL", invalidatedAt: null, principalId: input.principalId },
+      });
+      if (active?.normalizedAddress === normalizedAddress) return;
+      if (active !== null) {
+        await transaction.notificationRecipientEndpoint.update({
+          data: { invalidatedAt: input.now, version: { increment: 1 } },
+          where: { id: active.id },
+        });
+      }
+      await transaction.notificationRecipientEndpoint.create({
+        data: {
+          address: input.email,
+          channel: "EMAIL",
+          id: createOpaqueId(),
+          normalizedAddress,
+          principalId: input.principalId,
+          sourceIssuer: input.issuer,
+          verificationSource: "OIDC_CLAIM",
+          verifiedAt: input.now,
+        },
+        select: { id: true },
+      });
+    });
+  }
+
   async createSession(input: {
     absoluteExpiresAt: Date;
     authentication: OidcAuthenticationResult;
@@ -434,4 +477,12 @@ export class PrismaIdentityRepository implements IdentityRepository {
       },
     });
   }
+}
+
+function canonicalEmailAddress(address: string): string {
+  const separator = address.lastIndexOf("@");
+  if (separator <= 0 || separator === address.length - 1) {
+    throw new Error("Verified email claim is invalid");
+  }
+  return `${address.slice(0, separator)}@${address.slice(separator + 1).toLowerCase()}`;
 }

@@ -203,8 +203,12 @@ that completes an increment.
     - `[x]` Provider-neutral delivery/attempt tables, privacy-safe versioned templates,
       lease recovery, bounded retry/dead-letter behavior, structured dead-letter events,
       deterministic synthetic idempotency, and administrator-only replay are implemented.
-    - `[ ]` Verified recipient resolution, consent/preferences, real adapters, sending
-      regions, provider webhooks, and production alert routing remain approval-gated.
+    - `[x]` Email-first policy is implemented with OIDC/UserInfo-verified endpoints,
+      irreversible replacement, mandatory security/transactional categories, explicit
+      marketing-consent constraints, English-only fail-closed templates, delivery-time
+      resolution, and atomic application/appointment/payment intents.
+    - `[ ]` Real email adapter, sending region/domain, suppression and delivery webhooks,
+      audited preference UI, and production alert routing remain approval-gated.
   - `[ ]` Approve production email/SMS/push vendors and privacy-safe content policy;
     qualify production bucket IAM, GuardDuty scan tagging, lifecycle, and alerting.
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**
@@ -223,7 +227,8 @@ These are not implementation-agent choices. Stop before the affected production 
 - Managed durable queue and production observability providers.
 - Paystack versus Flutterwave, commercial terms, settlement model, refund/dispute
   operations, and commission eligibility policy.
-- Email/SMS providers and approved sensitive-content policy.
+- Initial email provider, sending/data-processing region and domain; SMS and push are
+  deferred. The privacy-safe content and consent policy was approved on 2026-10-02.
 - Clinical terminology, retention/legal-hold policy, emergency access, and qualified
   clinical/privacy approvals.
 - Production migration/cutover involving any real user, clinical, or financial data.

@@ -10,7 +10,9 @@ import type { WorkerServiceConfig } from "@royal-palace/config/environment";
 import { SERVICE_CONFIG } from "../tokens.js";
 import {
   notificationRetryDelayMs,
+  NotificationRecipientError,
   NotificationTemplateError,
+  requireEmailRecipient,
   renderNotification,
 } from "./notification-policy.js";
 import {
@@ -67,11 +69,13 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnModuleDestroy
 
   private async deliver(job: NotificationJob): Promise<void> {
     try {
+      const destination = requireEmailRecipient(job);
       const message = renderNotification(job);
       const result = await this.provider.send({
         ...message,
         channel: job.channel,
         deliveryId: job.deliveryId,
+        destination,
         recipientPrincipalId: job.recipientPrincipalId,
       });
       const committed = await this.jobs.markDelivered(job, result);
@@ -84,11 +88,15 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnModuleDestroy
   private async recordFailure(job: NotificationJob, error: unknown): Promise<void> {
     const providerError = error instanceof NotificationProviderError ? error : null;
     const permanent =
-      error instanceof NotificationTemplateError || providerError?.kind === "PERMANENT";
+      error instanceof NotificationTemplateError ||
+      error instanceof NotificationRecipientError ||
+      providerError?.kind === "PERMANENT";
     const errorCode =
       error instanceof NotificationTemplateError
         ? error.code
-        : (providerError?.code ?? "NOTIFICATION_PROVIDER_UNAVAILABLE");
+        : error instanceof NotificationRecipientError
+          ? error.code
+          : (providerError?.code ?? "NOTIFICATION_PROVIDER_UNAVAILABLE");
     const outcome = permanent
       ? "PERMANENT_FAILURE"
       : providerError?.kind === "UNKNOWN"

@@ -4,6 +4,7 @@ import { syntheticProviderMessageId } from "./notification-policy.js";
 export interface NotificationProviderInput extends RenderedNotification {
   channel: NotificationChannel;
   deliveryId: string;
+  destination: string;
   recipientPrincipalId: string;
 }
 

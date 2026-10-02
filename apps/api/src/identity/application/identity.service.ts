@@ -179,6 +179,14 @@ export class IdentityService {
         "reauthentication_identity_mismatch",
       );
     }
+    if (authentication.verifiedEmail !== null) {
+      await this.repository.synchronizeVerifiedEmail({
+        email: authentication.verifiedEmail,
+        issuer: authentication.issuer,
+        now,
+        principalId: identity.principalId,
+      });
+    }
 
     const sessionId = createOpaqueId();
     const csrfToken = randomSecret();
@@ -259,6 +267,14 @@ export class IdentityService {
         sessionId: input.sessionId,
       });
       throw new IdentityFlowError("Provider identity changed", 401, "provider_identity_changed");
+    }
+    if (refreshed.verifiedEmail !== undefined && refreshed.verifiedEmail !== null) {
+      await this.repository.synchronizeVerifiedEmail({
+        email: refreshed.verifiedEmail,
+        issuer: session.issuer,
+        now,
+        principalId: session.principalId,
+      });
     }
     const rotatedRefreshToken = refreshed.refreshToken ?? refreshToken;
     await this.repository.updateRefreshedSession({

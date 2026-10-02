@@ -287,6 +287,16 @@ enum NotificationChannel {
   PUSH
 }
 
+enum NotificationCategory {
+  SECURITY
+  TRANSACTIONAL
+  MARKETING
+}
+
+enum NotificationEndpointVerificationSource {
+  OIDC_CLAIM
+}
+
 enum NotificationDeliveryStatus {
   PENDING
   PROCESSING
@@ -337,6 +347,8 @@ model IdentityPrincipal {
   requestedReconciliations    PaymentReconciliation[]      @relation("PaymentReconciliationRequester")
   notificationDeliveries      NotificationDelivery[]       @relation("NotificationRecipient")
   notificationReplays         NotificationDelivery[]       @relation("NotificationReplayActor")
+  notificationEndpoints       NotificationRecipientEndpoint[]
+  notificationPreferences     NotificationPreference[]
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -1126,6 +1138,7 @@ model NotificationDelivery {
   deduplicationKey         String                     @unique @map("deduplication_key") @db.VarChar(200)
   recipientPrincipalId     String                     @map("recipient_principal_id") @db.Uuid
   channel                  NotificationChannel
+  category                 NotificationCategory       @default(TRANSACTIONAL)
   templateKey              String                     @map("template_key") @db.VarChar(100)
   templateVersion          Int                        @map("template_version")
   locale                   String                     @db.VarChar(35)
@@ -1155,6 +1168,43 @@ model NotificationDelivery {
   @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_deliveries_recipient_created_idx")
   @@index([replayOfId, createdAt, id], map: "notification_deliveries_replay_created_idx")
   @@map("notification_deliveries")
+}
+
+model NotificationRecipientEndpoint {
+  id                 String                                 @id @db.Uuid
+  principalId        String                                 @map("principal_id") @db.Uuid
+  channel            NotificationChannel
+  address            String                                 @db.VarChar(320)
+  normalizedAddress  String                                 @map("normalized_address") @db.VarChar(320)
+  verificationSource NotificationEndpointVerificationSource @map("verification_source")
+  sourceIssuer       String                                 @map("source_issuer") @db.VarChar(255)
+  verifiedAt         DateTime                               @map("verified_at") @db.Timestamptz(6)
+  invalidatedAt      DateTime?                              @map("invalidated_at") @db.Timestamptz(6)
+  createdAt          DateTime                               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                                    @default(1)
+  principal          IdentityPrincipal                      @relation(fields: [principalId], references: [id], onDelete: Restrict)
+
+  @@index([principalId, channel, invalidatedAt, verifiedAt(sort: Desc), id], map: "notification_endpoints_principal_channel_active_idx")
+  @@map("notification_recipient_endpoints")
+}
+
+model NotificationPreference {
+  id                   String               @id @db.Uuid
+  principalId          String               @map("principal_id") @db.Uuid
+  channel              NotificationChannel
+  category             NotificationCategory
+  enabled              Boolean
+  consentedAt          DateTime?            @map("consented_at") @db.Timestamptz(6)
+  withdrawnAt          DateTime?            @map("withdrawn_at") @db.Timestamptz(6)
+  consentEvidenceCode  String?              @map("consent_evidence_code") @db.VarChar(100)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                  @default(1)
+  principal            IdentityPrincipal    @relation(fields: [principalId], references: [id], onDelete: Restrict)
+
+  @@unique([principalId, channel, category], map: "notification_preferences_principal_channel_category_key")
+  @@map("notification_preferences")
 }
 
 model NotificationAttempt {

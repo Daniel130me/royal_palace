@@ -34,6 +34,7 @@ describe.skipIf(!enabled)("PostgreSQL notification delivery leasing", () => {
     await fixture.connect();
     await fixture.query(`
       CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL', 'SMS', 'PUSH');
+      CREATE TYPE "NotificationCategory" AS ENUM ('SECURITY', 'TRANSACTIONAL', 'MARKETING');
       CREATE TYPE "NotificationDeliveryStatus" AS ENUM
         ('PENDING', 'PROCESSING', 'DELIVERED', 'DEAD_LETTERED', 'CANCELLED');
       CREATE TYPE "NotificationAttemptOutcome" AS ENUM
@@ -41,6 +42,7 @@ describe.skipIf(!enabled)("PostgreSQL notification delivery leasing", () => {
       CREATE TABLE notification_deliveries (
         id uuid PRIMARY KEY, deduplication_key text NOT NULL UNIQUE,
         recipient_principal_id uuid NOT NULL, channel "NotificationChannel" NOT NULL,
+        category "NotificationCategory" NOT NULL DEFAULT 'TRANSACTIONAL',
         template_key text NOT NULL, template_version integer NOT NULL, locale text NOT NULL,
         variables jsonb NOT NULL, status "NotificationDeliveryStatus" NOT NULL DEFAULT 'PENDING',
         available_at timestamptz NOT NULL DEFAULT now(), attempt_count integer NOT NULL DEFAULT 0,
@@ -55,6 +57,16 @@ describe.skipIf(!enabled)("PostgreSQL notification delivery leasing", () => {
         provider_code text, provider_message_id text, error_code text,
         started_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz,
         UNIQUE(delivery_id, attempt_number)
+      );
+      CREATE TABLE notification_recipient_endpoints (
+        id uuid PRIMARY KEY, principal_id uuid NOT NULL, channel "NotificationChannel" NOT NULL,
+        address text NOT NULL, verified_at timestamptz NOT NULL,
+        invalidated_at timestamptz
+      );
+      CREATE TABLE notification_preferences (
+        id uuid PRIMARY KEY, principal_id uuid NOT NULL, channel "NotificationChannel" NOT NULL,
+        category "NotificationCategory" NOT NULL, enabled boolean NOT NULL,
+        consented_at timestamptz, withdrawn_at timestamptz
       );
     `);
     jobs = new PostgresNotificationJobs({ ...testConfig, databaseUrl: parsed.toString() });
@@ -217,14 +229,51 @@ describe.skipIf(!enabled)("PostgreSQL notification delivery leasing", () => {
     expect(delivery.rows[0]?.provider_message_id).toMatch(/^synthetic-[0-9a-f]{32}$/);
   });
 
-  async function insertDelivery(id: string): Promise<void> {
+  it("dead-letters a delivery when the principal has no verified email", async () => {
+    const id = randomUUID();
     await fixture.query(
       `INSERT INTO notification_deliveries
          (id, deduplication_key, recipient_principal_id, channel, template_key,
           template_version, locale, variables, available_at)
        VALUES ($1, $2, $3, 'EMAIL', 'APPLICATION_STATUS_UPDATED', 1, 'en', $4,
                clock_timestamp() - interval '1 second')`,
-      [id, `test:${id}`, randomUUID(), { reference: "APP-1" }],
+      [id, `test:${id}`, randomUUID(), { reference: "APP-NO-EMAIL" }],
+    );
+    const worker = new NotificationDeliveryWorker({
+      ...testConfig,
+      databaseUrl: fixtureDatabaseUrl,
+      notificationDelivery: { mode: "synthetic" },
+    });
+    try {
+      expect(await worker.runOnce()).toBe(true);
+    } finally {
+      await worker.onModuleDestroy();
+    }
+    const result = await fixture.query<{ last_error_code: string; status: string }>(
+      `SELECT status, last_error_code FROM notification_deliveries WHERE id = $1`,
+      [id],
+    );
+    expect(result.rows[0]).toEqual({
+      last_error_code: "NOTIFICATION_RECIPIENT_NOT_VERIFIED",
+      status: "DEAD_LETTERED",
+    });
+  });
+
+  async function insertDelivery(id: string): Promise<void> {
+    const principalId = randomUUID();
+    await fixture.query(
+      `INSERT INTO notification_recipient_endpoints
+         (id, principal_id, channel, address, verified_at)
+       VALUES ($1, $2, 'EMAIL', $3, clock_timestamp())`,
+      [randomUUID(), principalId, `recipient-${id}@example.test`],
+    );
+    await fixture.query(
+      `INSERT INTO notification_deliveries
+         (id, deduplication_key, recipient_principal_id, channel, template_key,
+          template_version, locale, variables, available_at)
+       VALUES ($1, $2, $3, 'EMAIL', 'APPLICATION_STATUS_UPDATED', 1, 'en', $4,
+               clock_timestamp() - interval '1 second')`,
+      [id, `test:${id}`, principalId, { reference: "APP-1" }],
     );
   }
 });

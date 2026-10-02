@@ -35,8 +35,11 @@ completion claim.
 ## Notification and operations checklist
 
 - [ ] Select vendors and approved sending regions for email, SMS, and push.
-- [ ] Confirm verified recipient sources, opt-in/opt-out and consent rules,
-      allowed message categories, language fallback, and prohibited sensitive text.
+- [x] Approve the initial policy: email first; OIDC `email_verified=true` or a
+      successful UserInfo response is the only automatic verification source;
+      security/transactional messages are mandatory; marketing requires explicit
+      consent; English is the only initial locale with no implicit fallback; external
+      content contains no clinical detail.
 - [x] Add a versioned, purpose-specific template catalogue. Its current external
       messages contain only an opaque reference and direct recipients to sign in;
       unknown locales, versions, templates, or variables fail closed.
@@ -46,6 +49,9 @@ completion claim.
 - [x] Prove lease recovery and replay safety with a deterministic synthetic provider
       that treats the delivery ID as its idempotency key. Real adapters must pass the
       same qualification; unavoidable at-least-once risk remains an activation gate.
+- [x] Resolve the active verified email only inside the worker, enforce category
+      eligibility before provider invocation, and atomically create privacy-safe
+      application, appointment, and payment intents when synthetic delivery is enabled.
 - [ ] Decide and qualify managed production queue/observability providers.
 
 ## Security and architecture review
@@ -73,14 +79,25 @@ archival; the local-only replacement is flagged as an infrastructure change.
 Production still requires separately reviewed AWS S3/GuardDuty/IAM configuration
 and the region/cross-border decision already recorded in ADR 0001.
 
-Notification destinations are deliberately absent from delivery payloads and
-database records. A future approved adapter must resolve a principal to a verified,
-consented endpoint at delivery time. `NOTIFICATION_DELIVERY_MODE=synthetic` is
+Notification destinations are deliberately absent from delivery payloads and delivery
+records. Verified recipient endpoints are separate governed identity-linked records;
+the worker resolves one active verified email at delivery time and does not log it.
+OIDC login accepts a verified email from either signed claims or the standard UserInfo
+endpoint. A changed verified claim irreversibly invalidates the former endpoint.
+`NOTIFICATION_DELIVERY_MODE=synthetic` is
 limited to local/test environments and never contacts a user; staging and production
 reject it at startup. Disabled delivery neither polls nor permits administrators to
-create orphan replay work. Email, SMS, and push share a provider port, while each
-attempt retains its own result and provider identity. A crashed lease is closed as
-`UNKNOWN` before another attempt starts, preventing silent attempt histories.
+create orphan replay work, and business transactions do not accumulate messages for
+later accidental release. The initial policy enables email only. SMS and push remain
+schema-level extension points and fail closed in the worker. Each attempt retains its
+own result and provider identity. A crashed lease is closed as `UNKNOWN` before another
+attempt starts, preventing silent attempt histories.
+
+Security and transactional categories cannot be disabled. Marketing is not enabled in
+the product; the database permits it only with explicit consent time and evidence and
+tracks withdrawal separately. A future preference interface must add audited consent
+history before marketing can be activated. Unsupported locale, template version,
+template/category combination, channel, destination, or consent state fails closed.
 
 ## Remaining release blockers and recovery
 
@@ -93,6 +110,8 @@ notification replay endpoint cannot replay document scans.
 The worker emits structured dead-letter events, but routing them to a qualified
 production alerting/on-call system remains part of the observability provider gate.
 The administrator replay API is present but fails closed while delivery is disabled.
+No real email adapter, sending domain, data-processing region, suppression webhook, or
+provider delivery-receipt handler exists yet; this is intentional until qualification.
 
 Deploy the transactional document and notification migrations before API/web/worker
 binaries. On rollback, disable new upload initiation and notification delivery, stop
@@ -110,12 +129,16 @@ approved.
   logic is commented.
 - **Security:** owner/role policy and audit precede download; object keys stay
   server-owned; unsigned or mismatched content cannot become clean; production
-  malware results and object versions are mandatory.
+  malware results and object versions are mandatory. Notification jobs contain no
+  destination, OIDC/UserInfo email is accepted only with affirmative verification,
+  endpoint replacement is serialized and irreversible, and unsupported eligibility
+  states fail closed without logging the address.
 - **Performance:** bounded size and queue batches, indexed lease/expiry fields,
   single aggregate quota query, `SKIP LOCKED` leasing, and representative 10,000-row
-  scan and notification queue plans keep slow I/O off the API request path.
+  scan, notification queue, and verified-recipient plans keep slow I/O off the API
+  request path. Recipient resolution uses the one-active-email partial index.
 - **Maintainability:** no country/currency/provider assumption was added to this
   capability. Templates are versioned and locale-specific without an implicit
   fallback. The local emulator, synthetic notification adapter, provider activation,
-  and unfinished recipient/consent controls are explicitly flagged rather than
-  silently accepted.
+  real provider webhooks, and unfinished audited preference interface are explicitly
+  flagged rather than silently accepted.

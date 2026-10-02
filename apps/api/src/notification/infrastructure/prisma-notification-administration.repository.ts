@@ -30,6 +30,7 @@ export class PrismaNotificationAdministrationRepository implements NotificationA
 
       const original = await transaction.notificationDelivery.findUnique({
         select: {
+          category: true,
           channel: true,
           id: true,
           locale: true,
@@ -54,6 +55,7 @@ export class PrismaNotificationAdministrationRepository implements NotificationA
       const id = createOpaqueId();
       await transaction.notificationDelivery.create({
         data: {
+          category: original.category,
           channel: original.channel,
           deduplicationKey: `replay:${original.id}:${id}`,
           id,

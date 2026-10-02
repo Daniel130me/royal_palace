@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   NOTIFICATION_TEMPLATE,
   type NotificationChannel,
+  type NotificationCategory,
   type NotificationTemplateKey,
 } from "@royal-palace/contracts";
 
@@ -18,6 +19,7 @@ export interface RenderedNotification {
 }
 
 interface TemplateDefinition {
+  category: NotificationCategory;
   render(reference: string): RenderedNotification;
 }
 
@@ -27,6 +29,7 @@ const REFERENCE_PATTERN = /^[A-Z0-9-]{1,64}$/;
 // A recipient must sign in to the authenticated application to view protected content.
 const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefinition>> = {
   [NOTIFICATION_TEMPLATE.APPLICATION_ACTION_REQUIRED]: {
+    category: "TRANSACTIONAL",
     render: (reference) => ({
       body: `Action is required for application ${reference}. Sign in to view the secure update.`,
       subject: "Application action required",
@@ -34,6 +37,7 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
     }),
   },
   [NOTIFICATION_TEMPLATE.APPLICATION_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
     render: (reference) => ({
       body: `Application ${reference} has an update. Sign in to view it securely.`,
       subject: "Application updated",
@@ -41,6 +45,7 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
     }),
   },
   [NOTIFICATION_TEMPLATE.APPOINTMENT_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
     render: (reference) => ({
       body: `Appointment ${reference} has an update. Sign in to view it securely.`,
       subject: "Appointment updated",
@@ -48,6 +53,7 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
     }),
   },
   [NOTIFICATION_TEMPLATE.PAYMENT_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
     render: (reference) => ({
       body: `Payment ${reference} has an update. Sign in to view it securely.`,
       subject: "Payment updated",
@@ -55,6 +61,7 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
     }),
   },
   [NOTIFICATION_TEMPLATE.SECURITY_ALERT]: {
+    category: "SECURITY",
     render: (reference) => ({
       body: `Security event ${reference} requires your attention. Sign in to review it securely.`,
       subject: "Security alert",
@@ -72,6 +79,7 @@ export class NotificationTemplateError extends Error {
 }
 
 export function renderNotification(input: {
+  category: NotificationCategory;
   channel: NotificationChannel;
   locale: string;
   templateKey: string;
@@ -82,11 +90,37 @@ export function renderNotification(input: {
   const variables = parseVariables(input.variables);
   const template = TEMPLATE_CATALOGUE[input.locale]?.[input.templateKey];
   if (template === undefined) throw new NotificationTemplateError();
+  if (template.category !== input.category) throw new NotificationTemplateError();
   const rendered = template.render(variables.reference);
   if (input.channel === "SMS") return { body: rendered.body, subject: null, title: null };
   if (input.channel === "PUSH")
     return { body: rendered.body, subject: null, title: rendered.title };
   return { body: rendered.body, subject: rendered.subject, title: null };
+}
+
+export function requireEmailRecipient(input: {
+  category: NotificationCategory;
+  channel: NotificationChannel;
+  destination: string | null;
+  recipientEligible: boolean;
+}): string {
+  if (input.channel !== "EMAIL") {
+    throw new NotificationRecipientError("NOTIFICATION_CHANNEL_NOT_ENABLED");
+  }
+  if (input.destination === null) {
+    throw new NotificationRecipientError("NOTIFICATION_RECIPIENT_NOT_VERIFIED");
+  }
+  if (input.category === "MARKETING" && !input.recipientEligible) {
+    throw new NotificationRecipientError("NOTIFICATION_MARKETING_CONSENT_REQUIRED");
+  }
+  return input.destination;
+}
+
+export class NotificationRecipientError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+    this.name = "NotificationRecipientError";
+  }
 }
 
 export function notificationRetryDelayMs(

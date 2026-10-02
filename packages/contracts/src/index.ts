@@ -38,6 +38,7 @@ export const NOTIFICATION_TEMPLATE = {
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE)[keyof typeof NOTIFICATION_TEMPLATE];
 export type NotificationChannel = "EMAIL" | "SMS" | "PUSH";
+export type NotificationCategory = "SECURITY" | "TRANSACTIONAL" | "MARKETING";
 
 export interface NotificationReplayResponse {
   id: string;

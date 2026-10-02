@@ -147,6 +147,7 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const ledgerCreditId = v7();
   const notificationDeliveryId = v7();
   const notificationAttemptId = v7();
+  const notificationEndpointId = v7();
 
   await client.connect();
   try {
@@ -330,6 +331,68 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
        SET "attempt_number" = 2 WHERE "id" = $1`,
       [notificationAttemptId],
       "P0001",
+    );
+    await client.query(
+      `INSERT INTO "notification_recipient_endpoints"
+         ("id", "principal_id", "channel", "address", "normalized_address",
+          "verification_source", "source_issuer", "verified_at", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'verified@example.test', 'verified@example.test',
+               'OIDC_CLAIM', 'https://identity.example.test', now(), now())`,
+      [notificationEndpointId, principalId],
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "notification_recipient_endpoints"
+         ("id", "principal_id", "channel", "address", "normalized_address",
+          "verification_source", "source_issuer", "verified_at", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'other@example.test', 'other@example.test',
+               'OIDC_CLAIM', 'https://identity.example.test', now(), now())`,
+      [v7(), principalId],
+      "23505",
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "notification_recipient_endpoints"
+       SET "address" = 'mutated@example.test', "updated_at" = now() WHERE "id" = $1`,
+      [notificationEndpointId],
+      "P0001",
+    );
+    await client.query(
+      `UPDATE "notification_recipient_endpoints"
+       SET "invalidated_at" = now(), "updated_at" = now(), "version" = "version" + 1
+       WHERE "id" = $1`,
+      [notificationEndpointId],
+    );
+    await client.query(
+      `INSERT INTO "notification_recipient_endpoints"
+         ("id", "principal_id", "channel", "address", "normalized_address",
+          "verification_source", "source_issuer", "verified_at", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'replacement@example.test', 'replacement@example.test',
+               'OIDC_CLAIM', 'https://identity.example.test', now(), now())`,
+      [v7(), principalId],
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "notification_preferences"
+         ("id", "principal_id", "channel", "category", "enabled", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'MARKETING', true, now())`,
+      [v7(), principalId],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "notification_preferences"
+         ("id", "principal_id", "channel", "category", "enabled", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'TRANSACTIONAL', false, now())`,
+      [v7(), principalId],
+      "23514",
+    );
+    await client.query(
+      `INSERT INTO "notification_preferences"
+         ("id", "principal_id", "channel", "category", "enabled",
+          "consented_at", "consent_evidence_code", "updated_at")
+       VALUES ($1, $2, 'EMAIL', 'MARKETING', true, now(), 'explicit-web-opt-in-v1', now())`,
+      [v7(), principalId],
     );
     await client.query("BEGIN");
     await client.query(

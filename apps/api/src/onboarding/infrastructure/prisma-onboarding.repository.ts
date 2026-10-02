@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import type {
   ApplicationDocumentMetadata,
   OnboardingApplicationData,
@@ -8,6 +9,8 @@ import type {
 import type { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
+import { SERVICE_CONFIG } from "../../tokens.js";
 import type {
   ListApplicationsQuery,
   OnboardingRepository,
@@ -150,7 +153,10 @@ export class InvalidCatalogueSelectionError extends Error {
 
 @Injectable()
 export class PrismaOnboardingRepository implements OnboardingRepository {
-  constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly database: PrismaService,
+    @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
+  ) {}
 
   async createApplication(input: {
     applicantPrincipalId: string;
@@ -435,6 +441,15 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
             requestId: input.requestId,
             toStatus: input.toStatus,
           },
+        });
+        await enqueueEmailNotification(transaction, this.config, {
+          deduplicationKey: `application:${input.applicationId}:status:${input.toStatus}:v${input.expectedVersion + 1}`,
+          recipientPrincipalId: application.applicantPrincipalId,
+          reference: `APPLICATION-${input.applicationId.toUpperCase()}`,
+          templateKey:
+            input.toStatus === "MORE_INFORMATION_REQUIRED"
+              ? "APPLICATION_ACTION_REQUIRED"
+              : "APPLICATION_STATUS_UPDATED",
         });
       });
     } catch (error) {

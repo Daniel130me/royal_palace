@@ -21,6 +21,7 @@ function repository(overrides: Partial<IdentityRepository> = {}): IdentityReposi
     })),
     revokePrincipalSessions: vi.fn(async () => 0),
     revokeSession: vi.fn(async () => null),
+    synchronizeVerifiedEmail: vi.fn(async () => undefined),
     updateRefreshedSession: vi.fn(async () => undefined),
     validateReauthenticationSession: vi.fn(async () => true),
     ...overrides,
@@ -40,6 +41,7 @@ function provider(overrides: Partial<OidcProvider> = {}): OidcProvider {
       providerSessionId: null,
       refreshToken: null,
       subject: "subject-1",
+      verifiedEmail: null,
     })),
     refresh: vi.fn(async () => ({ refreshToken: null })),
     revoke: vi.fn(async () => undefined),
@@ -98,6 +100,66 @@ describe("IdentityService", () => {
       code: "invalid_login_transaction",
       status: 401,
     });
+  });
+
+  it("records only an identity-provider-verified email endpoint", async () => {
+    const principalId = createOpaqueId();
+    const synchronizeVerifiedEmail = vi.fn<IdentityRepository["synchronizeVerifiedEmail"]>(
+      async () => undefined,
+    );
+    const service = new IdentityService(
+      testConfig,
+      repository({
+        consumeLoginTransaction: vi.fn(async () => ({
+          expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+          id: "test-transaction",
+          nonceCiphertext: new KeyRingSecretBox(
+            testConfig.identity.encryptionKeys,
+            testConfig.identity.activeEncryptionKeyId,
+          ).seal("nonce", "oidc-login-nonce:test-transaction"),
+          pkceVerifierCiphertext: new KeyRingSecretBox(
+            testConfig.identity.encryptionKeys,
+            testConfig.identity.activeEncryptionKeyId,
+          ).seal("verifier", "oidc-login-pkce:test-transaction"),
+          reauthenticateSessionId: null,
+          requestedAssurance: null,
+          returnTo: "/",
+        })),
+        resolveExternalIdentity: vi.fn(async () => ({
+          externalIdentityId: createOpaqueId(),
+          principalId,
+        })),
+        synchronizeVerifiedEmail,
+      }),
+      provider({
+        completeAuthorization: vi.fn(async () => ({
+          assuranceContext: null,
+          authenticatedAt: new Date(),
+          authenticationMethods: ["pwd"],
+          idToken: null,
+          issuer: testConfig.identity.issuerUrl,
+          providerSessionId: null,
+          refreshToken: null,
+          subject: "subject-1",
+          verifiedEmail: "person@example.test",
+        })),
+      }),
+      authorization(),
+    );
+
+    await service.completeLogin({
+      currentUrl: `${testConfig.identity.redirectUri}?code=code&state=state`,
+      requestId: "request-verified-email",
+      transactionId: "test-transaction",
+    });
+
+    expect(synchronizeVerifiedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "person@example.test",
+        issuer: testConfig.identity.issuerUrl,
+        principalId,
+      }),
+    );
   });
 
   it("requires the configured assurance for privileged application roles", async () => {

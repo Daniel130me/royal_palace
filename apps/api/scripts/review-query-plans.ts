@@ -14,6 +14,7 @@ const MANAGER_TICKET_COUNT = 2_000;
 const MANAGER_EARNING_COUNT = 5_000;
 const APPOINTMENT_COUNT = 5_000;
 const NOTIFICATION_DELIVERY_COUNT = 10_000;
+const HISTORICAL_NOTIFICATION_ENDPOINT_COUNT = 10_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -295,6 +296,19 @@ async function main(): Promise<void> {
           FOR UPDATE SKIP LOCKED`,
         [],
         "notification_deliveries_pending_available_idx",
+      ),
+      await reviewPlan(
+        client,
+        "verified email recipient resolution",
+        `SELECT "address"
+           FROM "notification_recipient_endpoints"
+          WHERE "principal_id" = $1
+            AND "channel" = 'EMAIL'
+            AND "invalidated_at" IS NULL
+          ORDER BY "verified_at" DESC, "id"
+          LIMIT 1`,
+        [principalId],
+        "notification_endpoints_one_active_email_key",
       ),
       await reviewPlan(
         client,
@@ -799,6 +813,24 @@ async function loadRepresentativeData(
        FROM unnest($2::uuid[], $3::timestamptz[]) AS input(id, available_at)`,
     [principalId, notificationIds, notificationTimes],
   );
+  const endpointIds = Array.from({ length: HISTORICAL_NOTIFICATION_ENDPOINT_COUNT }, () => v7());
+  await client.query(
+    `INSERT INTO "notification_recipient_endpoints"
+       ("id", "principal_id", "channel", "address", "normalized_address",
+        "verification_source", "source_issuer", "verified_at", "invalidated_at", "updated_at")
+     SELECT input.id, $1, 'EMAIL', 'historical@example.test', 'historical@example.test',
+            'OIDC_CLAIM', 'https://identity.synthetic.invalid', now() - interval '1 year', now(), now()
+       FROM unnest($2::uuid[]) AS input(id)`,
+    [principalId, endpointIds],
+  );
+  await client.query(
+    `INSERT INTO "notification_recipient_endpoints"
+       ("id", "principal_id", "channel", "address", "normalized_address",
+        "verification_source", "source_issuer", "verified_at", "updated_at")
+     VALUES ($1, $2, 'EMAIL', 'active@example.test', 'active@example.test',
+             'OIDC_CLAIM', 'https://identity.synthetic.invalid', now(), now())`,
+    [v7(), principalId],
+  );
 
   const targetSessionId = sessionIds[0];
   if (targetSessionId === undefined) throw new Error("Representative session set is empty");
@@ -868,6 +900,7 @@ async function reviewPlan(
       appointments: APPOINTMENT_COUNT - 500,
       applicationDocuments: ONBOARDING_APPLICATION_COUNT,
       notificationDeliveries: NOTIFICATION_DELIVERY_COUNT,
+      historicalNotificationEndpoints: HISTORICAL_NOTIFICATION_ENDPOINT_COUNT,
     },
   };
 }

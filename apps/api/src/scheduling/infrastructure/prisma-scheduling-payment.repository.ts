@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
+import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import type {
   ConsultationFeeResponse,
   HostedCheckoutResponse,
@@ -13,6 +14,8 @@ import type {
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
+import { SERVICE_CONFIG } from "../../tokens.js";
 import { resolvePaymentTransition } from "../domain/payment-state-machine.js";
 import {
   SchedulingPaymentConflictError,
@@ -32,7 +35,10 @@ class SlotUnavailableError extends Error {}
 
 @Injectable()
 export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepository {
-  constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly database: PrismaService,
+    @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
+  ) {}
 
   async findPractitionerPrincipal(practitionerId: string): Promise<string | null | undefined> {
     const record = await this.database.practitioner.findUnique({
@@ -257,6 +263,12 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
               reasonCode: "APPOINTMENT_BOOKED",
               toStatus: "CREATED",
             },
+          });
+          await enqueueEmailNotification(transaction, this.config, {
+            deduplicationKey: `appointment:${appointmentId}:status:PENDING_PAYMENT:v1`,
+            recipientPrincipalId: input.patientPrincipalId,
+            reference: `APPOINTMENT-${appointmentId.toUpperCase()}`,
+            templateKey: "APPOINTMENT_STATUS_UPDATED",
           });
           await transaction.idempotencyKey.update({
             data: {
@@ -592,7 +604,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       },
     });
     const payment = await transaction.payment.findUnique({
-      include: { appointment: true },
+      include: { appointment: true, patient: { select: { principalId: true } } },
       where: { reference: input.event.paymentReference },
     });
     if (payment === null) {
@@ -740,6 +752,12 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
         toStatus: transition.target,
         webhookEventId: webhookId,
       },
+    });
+    await enqueueEmailNotification(transaction, this.config, {
+      deduplicationKey: `payment:${payment.id}:status:${transition.target}:v${payment.version + 1}`,
+      recipientPrincipalId: payment.patient.principalId,
+      reference: `PAYMENT-${payment.id.toUpperCase()}`,
+      templateKey: "PAYMENT_STATUS_UPDATED",
     });
     const checkoutStatus = checkoutStatusForPayment(transition.target);
     if (checkoutStatus !== null) {

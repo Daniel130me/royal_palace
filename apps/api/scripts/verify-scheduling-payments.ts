@@ -1,4 +1,4 @@
-import type { ServiceConfig } from "@royal-palace/config/environment";
+import type { ApiServiceConfig, ServiceConfig } from "@royal-palace/config/environment";
 import { v7 } from "uuid";
 
 import { PrismaService } from "../src/platform/database/prisma.service.js";
@@ -19,7 +19,9 @@ interface Fixture {
 async function main(): Promise<void> {
   const databaseUrl = requireDisposableDatabase().toString();
   const database = new PrismaService({ databaseUrl } as ServiceConfig);
-  const repository = new PrismaSchedulingPaymentRepository(database);
+  const repository = new PrismaSchedulingPaymentRepository(database, {
+    notificationDelivery: { mode: "disabled" },
+  } as ApiServiceConfig);
   try {
     const payment = await createFixture(database, "lifecycle", new Date(Date.now() + 15 * 60_000));
     const storedAppointment = await database.appointment.findUniqueOrThrow({

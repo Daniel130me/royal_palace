@@ -16,6 +16,7 @@ export interface OidcAuthenticationResult {
   providerSessionId: string | null;
   refreshToken: string | null;
   subject: string;
+  verifiedEmail: string | null;
 }
 
 export interface OidcProvider {
@@ -113,6 +114,12 @@ export interface IdentityRepository {
     requestId: string;
     sessionId: string;
   }): Promise<SessionSecrets | null>;
+  synchronizeVerifiedEmail(input: {
+    email: string;
+    issuer: string;
+    now: Date;
+    principalId: string;
+  }): Promise<void>;
   updateRefreshedSession(input: {
     assuranceContext?: string | null;
     authenticatedAt?: Date;
