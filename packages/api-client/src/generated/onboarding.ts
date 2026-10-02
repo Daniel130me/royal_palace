@@ -138,6 +138,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/applications/{applicationId}/documents/{documentId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completeApplicationDocumentUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{applicationId}/documents/{documentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadOwnApplicationDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/applications/{applicationId}/submit": {
         parameters: {
             query?: never;
@@ -202,6 +234,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/support/applications/{applicationId}/documents/{documentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadSupportApplicationDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/support/applications/{applicationId}/start-review": {
         parameters: {
             query?: never;
@@ -242,6 +290,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getAdminApplication"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/applications/{applicationId}/documents/{documentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadAdminApplicationDocument"];
         put?: never;
         post?: never;
         delete?: never;
@@ -505,13 +569,28 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
+            status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED" | "SCAN_FAILED";
             statusReasonCode: string | null;
         };
         DocumentIntentResponse: {
             document: components["schemas"]["DocumentMetadata"];
-            /** @constant */
-            uploadAvailable: false;
+            upload: {
+                /** Format: date-time */
+                expiresAt: string;
+                headers: {
+                    [key: string]: string;
+                };
+                /** @constant */
+                method: "PUT";
+                /** Format: uri */
+                url: string;
+            };
+        };
+        DocumentDownloadResponse: {
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uri */
+            url: string;
         };
         StatusHistory: {
             fromStatus: components["schemas"]["ApplicationStatus"] | null;
@@ -590,6 +669,27 @@ export interface components {
                 "application/json": components["schemas"]["ApplicationListResponse"];
             };
         };
+        /** @description Upload verified and queued for malware scanning. */
+        DocumentCompletion: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    /** @constant */
+                    status: "QUARANTINED";
+                };
+            };
+        };
+        /** @description Short-lived download for an authorized clean document. */
+        DocumentDownload: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DocumentDownloadResponse"];
+            };
+        };
         /** @description Safe API error. */
         Error: {
             headers: {
@@ -620,6 +720,7 @@ export interface components {
     };
     parameters: {
         ApplicationId: string;
+        DocumentId: string;
         ApplicationKind: components["schemas"]["ApplicationKind"];
         ApplicationStatus: components["schemas"]["ApplicationStatus"];
         CatalogueId: string;
@@ -866,7 +967,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Metadata reservation. Real upload remains unavailable until the qualified storage increment. */
+            /** @description Short-lived, single-write quarantine upload intent. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -875,6 +976,40 @@ export interface operations {
                     "application/json": components["schemas"]["DocumentIntentResponse"];
                 };
             };
+            default: components["responses"]["Error"];
+        };
+    };
+    completeApplicationDocumentUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["Csrf"];
+            };
+            path: {
+                applicationId: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DocumentCompletion"];
+            default: components["responses"]["Error"];
+        };
+    };
+    downloadOwnApplicationDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationId: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DocumentDownload"];
             default: components["responses"]["Error"];
         };
     };
@@ -951,6 +1086,22 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    downloadSupportApplicationDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationId: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DocumentDownload"];
+            default: components["responses"]["Error"];
+        };
+    };
     startApplicationReview: {
         parameters: {
             query?: never;
@@ -998,6 +1149,22 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["ApplicationDetail"];
+            default: components["responses"]["Error"];
+        };
+    };
+    downloadAdminApplicationDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationId: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DocumentDownload"];
             default: components["responses"]["Error"];
         };
     };

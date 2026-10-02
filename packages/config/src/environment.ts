@@ -161,19 +161,27 @@ const serviceEnvironmentSchema = z
     APP_ENV: applicationEnvironmentSchema,
     APP_VERSION: z.string().trim().min(1).max(128),
     AWS_REGION: z.string().trim().min(1).optional(),
-    CLAMAV_HOST: z.string().trim().min(1),
-    CLAMAV_PORT: portSchema,
+    CLAMAV_HOST: z.string().trim().min(1).optional(),
+    CLAMAV_PORT: portSchema.optional(),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
-    OBJECT_STORAGE_ACCESS_KEY: z.string().min(1),
+    OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
     OBJECT_STORAGE_BUCKET_QUARANTINE: z
       .string()
       .min(3)
       .max(63)
       .regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
+    OBJECT_STORAGE_BUCKET_CLEAN: z
+      .string()
+      .min(3)
+      .max(63)
+      .regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
     OBJECT_STORAGE_ENDPOINT: z.url(),
-    OBJECT_STORAGE_SECRET_KEY: z.string().min(1),
+    OBJECT_STORAGE_REGION: z.string().trim().min(1),
+    OBJECT_STORAGE_SECRET_KEY: z.string().min(1).optional(),
+    OBJECT_STORAGE_UPLOAD_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+    OBJECT_STORAGE_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(30).max(300).default(60),
     PAYMENT_CHECKOUT_BASE_URL: z.url().optional(),
     PAYMENT_CHECKOUT_TTL_SECONDS: paymentDurationSchema.default(900),
     PAYMENT_GATEWAY_MODE: paymentGatewayModeSchema.default("disabled"),
@@ -190,6 +198,50 @@ const serviceEnvironmentSchema = z
     REDIS_URL: redisUrlSchema,
   })
   .superRefine((value, context) => {
+    if (
+      value.APP_ENV !== "production" &&
+      (value.CLAMAV_HOST === undefined || value.CLAMAV_PORT === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "is required outside production",
+        path: ["CLAMAV_HOST"],
+      });
+    }
+    if ((value.CLAMAV_HOST === undefined) !== (value.CLAMAV_PORT === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "must be configured together",
+        path: ["CLAMAV_PORT"],
+      });
+    }
+    if (
+      (value.OBJECT_STORAGE_ACCESS_KEY === undefined) !==
+      (value.OBJECT_STORAGE_SECRET_KEY === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "must be configured together",
+        path: ["OBJECT_STORAGE_ACCESS_KEY"],
+      });
+    }
+    if (
+      !protectedEnvironments.has(value.APP_ENV) &&
+      value.OBJECT_STORAGE_ACCESS_KEY === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "is required for local S3-compatible storage",
+        path: ["OBJECT_STORAGE_ACCESS_KEY"],
+      });
+    }
+    if (value.OBJECT_STORAGE_BUCKET_CLEAN === value.OBJECT_STORAGE_BUCKET_QUARANTINE) {
+      context.addIssue({
+        code: "custom",
+        message: "must differ from OBJECT_STORAGE_BUCKET_QUARANTINE",
+        path: ["OBJECT_STORAGE_BUCKET_CLEAN"],
+      });
+    }
     if (value.PAYMENT_CHECKOUT_TTL_SECONDS > value.PAYMENT_RESERVATION_TTL_SECONDS) {
       context.addIssue({
         code: "custom",
@@ -271,15 +323,18 @@ interface BaseServiceConfig {
   clamav: {
     host: string;
     port: number;
-  };
+  } | null;
   databaseUrl: string;
   dependencyTimeoutMs: number;
   logLevel: LogLevel;
   objectStorage: {
-    accessKey: string;
+    credentials?: { accessKey: string; secretKey: string };
+    cleanBucket: string;
     endpoint: string;
     quarantineBucket: string;
-    secretKey: string;
+    region: string;
+    uploadTtlSeconds: number;
+    downloadTtlSeconds: number;
   };
   paymentGateway: {
     activeWebhookKeyId?: string;
@@ -417,15 +472,29 @@ export function loadServiceConfig(
     appEnvironment: values.APP_ENV,
     appVersion: values.APP_VERSION,
     ...(values.AWS_REGION === undefined ? {} : { awsRegion: values.AWS_REGION }),
-    clamav: Object.freeze({ host: values.CLAMAV_HOST, port: values.CLAMAV_PORT }),
+    clamav:
+      values.CLAMAV_HOST === undefined || values.CLAMAV_PORT === undefined
+        ? null
+        : Object.freeze({ host: values.CLAMAV_HOST, port: values.CLAMAV_PORT }),
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
     logLevel: values.LOG_LEVEL,
     objectStorage: Object.freeze({
-      accessKey: values.OBJECT_STORAGE_ACCESS_KEY,
+      ...(values.OBJECT_STORAGE_ACCESS_KEY === undefined ||
+      values.OBJECT_STORAGE_SECRET_KEY === undefined
+        ? {}
+        : {
+            credentials: Object.freeze({
+              accessKey: values.OBJECT_STORAGE_ACCESS_KEY,
+              secretKey: values.OBJECT_STORAGE_SECRET_KEY,
+            }),
+          }),
+      cleanBucket: values.OBJECT_STORAGE_BUCKET_CLEAN,
       endpoint: values.OBJECT_STORAGE_ENDPOINT,
       quarantineBucket: values.OBJECT_STORAGE_BUCKET_QUARANTINE,
-      secretKey: values.OBJECT_STORAGE_SECRET_KEY,
+      region: values.OBJECT_STORAGE_REGION,
+      uploadTtlSeconds: values.OBJECT_STORAGE_UPLOAD_TTL_SECONDS,
+      downloadTtlSeconds: values.OBJECT_STORAGE_DOWNLOAD_TTL_SECONDS,
     }),
     paymentGateway: Object.freeze({
       ...(values.PAYMENT_WEBHOOK_ACTIVE_KEY_ID === undefined

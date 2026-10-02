@@ -32,20 +32,20 @@ services:
       retries: 12
     restart: unless-stopped
 
-  minio:
-    image: royal-palace/minio:release-2025-10-15
-    build:
-      context: https://github.com/minio/minio.git#9e49d5e
-      dockerfile: Dockerfile.release
-    command: ["server", "/data", "--console-address", ":9001"]
+  object-storage:
+    image: ghcr.io/rustfs/rustfs:1.0.0-glibc
+    command: ["/data"]
     environment:
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.local}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.local}
+      RUSTFS_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:?Set OBJECT_STORAGE_ACCESS_KEY in .env.local}
+      RUSTFS_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:?Set OBJECT_STORAGE_SECRET_KEY in .env.local}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports:
-      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${OBJECT_STORAGE_API_PORT:-9000}:9000"
+      - "127.0.0.1:${OBJECT_STORAGE_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - minio-data:/data
+      - object-storage-data:/data
     restart: unless-stopped
 
   clamav:
@@ -64,6 +64,6 @@ services:
 
 volumes:
   clamav-signatures:
-  minio-data:
+  object-storage-data:
   postgres-data:
   redis-data:

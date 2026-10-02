@@ -30,9 +30,10 @@
     "typecheck": "tsc --noEmit && node --check eslint/base.mjs && node --check eslint/next.mjs && node --check vitest/node.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1145.0",
     "ioredis": "6.0.0",
-    "pino": "10.3.1",
     "pg": "8.23.0",
+    "pino": "10.3.1",
     "zod": "4.6.5"
   },
   "devDependencies": {

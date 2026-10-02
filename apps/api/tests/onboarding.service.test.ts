@@ -21,6 +21,8 @@ import type {
 } from "../src/onboarding/domain/onboarding-repository.types.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
 import type { ReferralClaimService } from "../src/manager/application/referral-claim.service.js";
+import type { DocumentStorage } from "../src/onboarding/domain/document-storage.port.js";
+import { testConfig } from "./test-config.js";
 
 const patientData: OnboardingApplicationData = {
   kind: "PATIENT",
@@ -78,6 +80,9 @@ function repository(record: StoredOnboardingApplication): OnboardingRepository {
       pageInfo: { endCursor: null, hasNextPage: false },
     })),
     reserveDocument: vi.fn(),
+    findDocument: vi.fn(async () => null),
+    quarantineDocument: vi.fn(async () => false),
+    rejectDocument: vi.fn(async () => undefined),
     transitionApplication: vi.fn(async (input) => ({
       ...record,
       status: input.toStatus,
@@ -89,12 +94,20 @@ function repository(record: StoredOnboardingApplication): OnboardingRepository {
 
 function service(repo: OnboardingRepository) {
   const append = vi.fn<AuthorizationAuditRepository["append"]>(async () => undefined);
+  const storage = {
+    signUpload: vi.fn(),
+    inspectQuarantined: vi.fn(),
+    signCleanDownload: vi.fn(),
+  } as DocumentStorage;
   return {
     append,
+    storage,
     onboarding: new OnboardingService(
       repo,
       new AuthorizationService(new PolicyEngine(), { append }),
       { resolve: vi.fn() } as unknown as ReferralClaimService,
+      storage,
+      testConfig,
     ),
   };
 }
@@ -237,5 +250,99 @@ describe("OnboardingService", () => {
         stored.version,
       ),
     ).rejects.toMatchObject({ code: "services_required" });
+  });
+
+  it("denies manager document access before reaching storage", async () => {
+    const stored = application(createOpaqueId(), "SUBMITTED");
+    const repo = repository(stored);
+    const { onboarding, storage } = service(repo);
+    await expect(
+      onboarding.downloadDocument(
+        { actor: session("MANAGER"), requestId: "document-denied" },
+        stored.id,
+        createOpaqueId(),
+        "OWNER",
+      ),
+    ).rejects.toBeInstanceOf(AuthorizationDeniedError);
+    expect(repo.findDocument).not.toHaveBeenCalled();
+    expect(storage.signCleanDownload).not.toHaveBeenCalled();
+  });
+
+  it("never signs a quarantined download and signs a clean one only after authorization", async () => {
+    const applicant = session();
+    const stored = application(applicant.principalId);
+    const repo = repository(stored);
+    const documentId = createOpaqueId();
+    const document = {
+      applicationId: stored.id,
+      cleanObjectKey: null,
+      cleanVersionId: null,
+      declaredContentType: "application/pdf",
+      declaredSha256: "a".repeat(64),
+      declaredSizeBytes: 8,
+      id: documentId,
+      status: "QUARANTINED" as const,
+      storageObjectKey: `application-documents/${documentId}`,
+      uploadExpiresAt: new Date(Date.now() + 30_000),
+    };
+    vi.mocked(repo.findDocument).mockResolvedValue(document);
+    const { onboarding, storage } = service(repo);
+    const context = { actor: applicant, requestId: "document-download" };
+
+    await expect(
+      onboarding.downloadDocument(context, stored.id, documentId, "OWNER"),
+    ).rejects.toMatchObject({
+      code: "document_not_available",
+    });
+    expect(storage.signCleanDownload).not.toHaveBeenCalled();
+
+    vi.mocked(repo.findDocument).mockResolvedValue({
+      ...document,
+      cleanObjectKey: `application-documents/${documentId}`,
+      status: "CLEAN",
+    });
+    vi.mocked(storage.signCleanDownload).mockResolvedValue("https://objects.example.test/signed");
+    await expect(
+      onboarding.downloadDocument(context, stored.id, documentId, "OWNER"),
+    ).resolves.toMatchObject({
+      url: "https://objects.example.test/signed",
+    });
+  });
+
+  it("rejects a completed upload if its storage evidence differs from the declaration", async () => {
+    const applicant = session();
+    const stored = application(applicant.principalId);
+    const repo = repository(stored);
+    const documentId = createOpaqueId();
+    vi.mocked(repo.findDocument).mockResolvedValue({
+      applicationId: stored.id,
+      cleanObjectKey: null,
+      cleanVersionId: null,
+      declaredContentType: "application/pdf",
+      declaredSha256: "a".repeat(64),
+      declaredSizeBytes: 8,
+      id: documentId,
+      status: "AWAITING_UPLOAD",
+      storageObjectKey: `application-documents/${documentId}`,
+      uploadExpiresAt: new Date(Date.now() + 30_000),
+    });
+    const { onboarding, storage } = service(repo);
+    vi.mocked(storage.inspectQuarantined).mockResolvedValue({
+      checksumSha256: "wrong",
+      contentType: "application/pdf",
+      sizeBytes: 8,
+      versionId: null,
+    });
+    await expect(
+      onboarding.completeDocumentUpload(
+        { actor: applicant, requestId: "document-complete" },
+        stored.id,
+        documentId,
+      ),
+    ).rejects.toMatchObject({ code: "document_upload_invalid" });
+    expect(repo.rejectDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ reasonCode: "UPLOAD_EVIDENCE_MISMATCH" }),
+    );
+    expect(repo.quarantineDocument).not.toHaveBeenCalled();
   });
 });

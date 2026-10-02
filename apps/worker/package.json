@@ -12,16 +12,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@royal-palace/config": "workspace:*",
+    "@aws-sdk/client-s3": "3.1145.0",
     "@nestjs/common": "12.0.4",
     "@nestjs/core": "12.0.4",
     "@nestjs/platform-fastify": "12.0.4",
+    "@royal-palace/config": "workspace:*",
     "fastify": "5.12.5",
+    "pg": "8.16.3",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "uuid": "11.1.1"
   },
   "devDependencies": {
     "@types/node": "24.13.6",
+    "@types/pg": "8.15.5",
     "eslint": "9.39.2",
     "tsx": "4.23.15",
     "typescript": "5.9.3",

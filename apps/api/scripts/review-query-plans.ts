@@ -211,6 +211,19 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "document scan queue claim",
+        `SELECT "id"
+           FROM "application_documents"
+          WHERE "scan_attempt_count" < 10
+            AND "status" = 'QUARANTINED'
+            AND "scan_available_at" <= clock_timestamp()
+          ORDER BY "scan_available_at", "created_at", "id"
+          LIMIT 1`,
+        [],
+        "application_documents_scan_queue_idx",
+      ),
+      await reviewPlan(
+        client,
         "manager referral status cursor",
         `SELECT "application_id", "current_event_id", "updated_at"
            FROM "current_referral_attributions"
@@ -359,6 +372,20 @@ async function loadRepresentativeData(
        FROM unnest($1::uuid[], $2::uuid[]) WITH ORDINALITY
             AS input(id, principal_id, ordinality)`,
     [onboardingApplicationIds, onboardingPrincipalIds],
+  );
+  const applicationDocumentIds = onboardingApplicationIds.map(() => v7());
+  await client.query(
+    `INSERT INTO "application_documents"
+       ("id", "application_id", "purpose", "original_filename",
+        "declared_content_type", "declared_size_bytes", "declared_sha256",
+        "storage_object_key", "status", "scan_available_at", "updated_at")
+     SELECT input.document_id, input.application_id, 'PROFESSIONAL_CREDENTIAL',
+            'credential.pdf', 'application/pdf', 1024, repeat('a', 64),
+            'application-documents/' || input.document_id::text, 'QUARANTINED',
+            now() - (input.ordinality * interval '1 second'), now()
+       FROM unnest($1::uuid[], $2::uuid[]) WITH ORDINALITY
+            AS input(document_id, application_id, ordinality)`,
+    [applicationDocumentIds, onboardingApplicationIds],
   );
   const rejectedApplicationIds = Array.from({ length: 500 }, () => v7());
   await client.query(
@@ -811,6 +838,7 @@ async function reviewPlan(
       managerTickets: MANAGER_TICKET_COUNT,
       managerEarnings: MANAGER_EARNING_COUNT,
       appointments: APPOINTMENT_COUNT - 500,
+      applicationDocuments: ONBOARDING_APPLICATION_COUNT,
     },
   };
 }

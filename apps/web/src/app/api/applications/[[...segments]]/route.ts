@@ -6,11 +6,13 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const READ_PATHS = [
   /^$/,
   new RegExp(`^(?:patients|organizations|practitioners)/${UUID}$`, "i"),
+  new RegExp(`^${UUID}/documents/${UUID}/download$`, "i"),
 ] as const;
 const CREATE_PATHS = [/^(?:patients|organizations|practitioners)$/] as const;
 const COMMAND_PATHS = [
   new RegExp(`^${UUID}/(?:submit|withdraw)$`, "i"),
   new RegExp(`^${UUID}/documents/upload-intents$`, "i"),
+  new RegExp(`^${UUID}/documents/${UUID}/complete$`, "i"),
 ] as const;
 const UPDATE_PATHS = [
   new RegExp(`^(?:patients|organizations|practitioners)/${UUID}$`, "i"),

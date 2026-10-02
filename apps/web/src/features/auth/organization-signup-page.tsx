@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { PublicService } from "@royal-palace/contracts";
+import type { OrganizationApplicationData, PublicService } from "@royal-palace/contracts";
 import { useNav, navigate } from "@/lib/nav";
 import { onboardingService, publicDiscoveryService } from "@/lib/services";
 import { PageHeader } from "@/components/healthcare/page-header";
@@ -27,6 +27,9 @@ export function OrganizationSignupPage() {
   const [services, setServices] = useState<readonly PublicService[]>([]);
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ id: string; version: number } | null>(null);
+  const [evidence, setEvidence] = useState<File | null>(null);
+  const [uploadedEvidence, setUploadedEvidence] = useState<File | null>(null);
   const [form, setForm] = useState({
     businessName: "",
     contactPerson: "",
@@ -67,28 +70,34 @@ export function OrganizationSignupPage() {
     if (!valid) return;
     setBusy(true);
     try {
-      const draft = await onboardingService.createOrganization(
-        {
-          addressLine1: form.address,
-          addressLine2: null,
-          administrativeArea: form.administrativeArea,
-          contactEmail: form.contactEmail,
-          contactName: form.contactPerson,
-          contactPhoneE164: form.contactPhone || null,
-          countryCode: form.countryCode.toUpperCase(),
-          displayName: form.businessName,
-          jurisdictionCode: form.jurisdictionCode,
-          legalName: form.businessName,
-          locality: form.city,
-          organizationType: type.toUpperCase() as "HOSPITAL" | "PHARMACY" | "LABORATORY",
-          postalCode: form.postalCode || null,
-          registrationAuthority: form.registrationAuthority,
-          registrationNumber: form.registrationNumber,
-          serviceIds,
-        },
-        referralToken || undefined,
-      );
-      const result = await onboardingService.submit(draft.id, draft.version);
+      const values: OrganizationApplicationData = {
+        addressLine1: form.address,
+        addressLine2: null,
+        administrativeArea: form.administrativeArea,
+        contactEmail: form.contactEmail,
+        contactName: form.contactPerson,
+        contactPhoneE164: form.contactPhone || null,
+        countryCode: form.countryCode.toUpperCase(),
+        displayName: form.businessName,
+        jurisdictionCode: form.jurisdictionCode,
+        legalName: form.businessName,
+        locality: form.city,
+        organizationType: type.toUpperCase() as "HOSPITAL" | "PHARMACY" | "LABORATORY",
+        postalCode: form.postalCode || null,
+        registrationAuthority: form.registrationAuthority,
+        registrationNumber: form.registrationNumber,
+        serviceIds,
+      };
+      const current =
+        draft === null
+          ? await onboardingService.createOrganization(values, referralToken || undefined)
+          : await onboardingService.updateOrganization(draft.id, draft.version, values);
+      setDraft({ id: current.id, version: current.version });
+      if (evidence !== null && uploadedEvidence !== evidence) {
+        await onboardingService.uploadDocument(current.id, evidence, "REGISTRATION_EVIDENCE");
+        setUploadedEvidence(evidence);
+      }
+      const result = await onboardingService.submit(current.id, current.version);
       setSubmitted(result.id);
       toast.success("Enrollment submitted for Royal Palace review.");
     } catch (error) {
@@ -264,6 +273,17 @@ export function OrganizationSignupPage() {
                     ))}
                   </div>
                 )}
+              </Field>
+              <Field label="Registration evidence (PDF, JPEG, or PNG; optional)" wide>
+                <Input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                  onChange={(event) => setEvidence(event.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Up to 25 MB. Only Royal Palace Admin and authorized support can open a clean
+                  document.
+                </p>
               </Field>
               <div className="sm:col-span-2">
                 <Button className="w-full" type="submit" disabled={!valid || busy}>

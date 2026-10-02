@@ -326,6 +326,32 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       [v7(), applicationId, "IDENTITY", "identity.pdf", "application/pdf", 100, "invalid"],
       "23514",
     );
+    const documentId = v7();
+    await client.query(
+      'INSERT INTO "application_documents" ("id", "application_id", "purpose", "original_filename", "declared_content_type", "declared_size_bytes", "declared_sha256", "storage_object_key", "upload_expires_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval \'5 minutes\', now())',
+      [
+        documentId,
+        applicationId,
+        "IDENTITY_EVIDENCE",
+        "identity.pdf",
+        "application/pdf",
+        100,
+        "a".repeat(64),
+        `application-documents/${documentId}`,
+      ],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "application_documents" SET "status" = \'CLEAN\', "updated_at" = now() WHERE "id" = $1',
+      [documentId],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "application_documents" SET "status" = \'SCANNING\', "updated_at" = now() WHERE "id" = $1',
+      [documentId],
+      "23514",
+    );
     await expectSqlState(
       client,
       'UPDATE "onboarding_applications" SET "status" = $1, "updated_at" = now() WHERE "id" = $2',

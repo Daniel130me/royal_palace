@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  PractitionerApplicationData,
   PublicOrganizationSummary,
   PublicProfession,
   PublicSpecialty,
@@ -27,6 +28,9 @@ export function PractitionerSignupPage() {
   const [specialtyIds, setSpecialtyIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ id: string; version: number } | null>(null);
+  const [evidence, setEvidence] = useState<File | null>(null);
+  const [uploadedEvidence, setUploadedEvidence] = useState<File | null>(null);
   const [form, setForm] = useState({
     biography: "",
     credentialType: "",
@@ -64,7 +68,7 @@ export function PractitionerSignupPage() {
     try {
       const selectedOrganizationId = form.selectedOrganizationId || null;
       const selectedHospital = hospitals.find((hospital) => hospital.id === selectedOrganizationId);
-      const draft = await onboardingService.createPractitioner({
+      const values: PractitionerApplicationData = {
         biography: form.biography || null,
         credentialType: form.credentialType,
         facilityName: (selectedHospital?.displayName ?? form.facilityName) || null,
@@ -77,8 +81,17 @@ export function PractitionerSignupPage() {
         registrationNumber: form.registrationNumber,
         selectedOrganizationId,
         specialtyIds,
-      });
-      const result = await onboardingService.submit(draft.id, draft.version);
+      };
+      const current =
+        draft === null
+          ? await onboardingService.createPractitioner(values)
+          : await onboardingService.updatePractitioner(draft.id, draft.version, values);
+      setDraft({ id: current.id, version: current.version });
+      if (evidence !== null && uploadedEvidence !== evidence) {
+        await onboardingService.uploadDocument(current.id, evidence, "PROFESSIONAL_CREDENTIAL");
+        setUploadedEvidence(evidence);
+      }
+      const result = await onboardingService.submit(current.id, current.version);
       setSubmitted(result.id);
       toast.success("Practitioner verification was submitted for administrator review.");
     } catch (error) {
@@ -222,6 +235,16 @@ export function PractitionerSignupPage() {
                 selected={specialtyIds}
                 onChange={setSpecialtyIds}
               />
+              <Field label="Professional credential (PDF, JPEG, or PNG; optional)" wide>
+                <Input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                  onChange={(event) => setEvidence(event.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Up to 25 MB. Files are scanned before authorized review.
+                </p>
+              </Field>
               <Button className="sm:col-span-2" type="submit" disabled={busy}>
                 {busy ? "Submitting…" : "Submit for administrator review"}
               </Button>

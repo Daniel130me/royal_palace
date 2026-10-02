@@ -123,10 +123,29 @@ paths:
             schema: { $ref: "#/components/schemas/DocumentIntentRequest" }
       responses:
         "201":
-          description: Metadata reservation. Real upload remains unavailable until the qualified storage increment.
+          description: Short-lived, single-write quarantine upload intent.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DocumentIntentResponse" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/{applicationId}/documents/{documentId}/complete:
+    post:
+      operationId: completeApplicationDocumentUpload
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/DocumentId"
+        - $ref: "#/components/parameters/Csrf"
+      responses:
+        "200": { $ref: "#/components/responses/DocumentCompletion" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/applications/{applicationId}/documents/{documentId}/download:
+    get:
+      operationId: downloadOwnApplicationDocument
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200": { $ref: "#/components/responses/DocumentDownload" }
         default: { $ref: "#/components/responses/Error" }
   /api/applications/{applicationId}/submit:
     post:
@@ -169,6 +188,15 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/ApplicationDetail" }
         default: { $ref: "#/components/responses/Error" }
+  /api/support/applications/{applicationId}/documents/{documentId}/download:
+    get:
+      operationId: downloadSupportApplicationDocument
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200": { $ref: "#/components/responses/DocumentDownload" }
+        default: { $ref: "#/components/responses/Error" }
   /api/support/applications/{applicationId}/start-review:
     post:
       operationId: startApplicationReview
@@ -192,6 +220,15 @@ paths:
       parameters: [{ $ref: "#/components/parameters/ApplicationId" }]
       responses:
         "200": { $ref: "#/components/responses/ApplicationDetail" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/admin/applications/{applicationId}/documents/{documentId}/download:
+    get:
+      operationId: downloadAdminApplicationDocument
+      parameters:
+        - $ref: "#/components/parameters/ApplicationId"
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200": { $ref: "#/components/responses/DocumentDownload" }
         default: { $ref: "#/components/responses/Error" }
   /api/admin/applications/{applicationId}/approve:
     post:
@@ -276,6 +313,11 @@ components:
     ApplicationId:
       in: path
       name: applicationId
+      required: true
+      schema: { type: string, format: uuid }
+    DocumentId:
+      in: path
+      name: documentId
       required: true
       schema: { type: string, format: uuid }
     ApplicationKind:
@@ -363,6 +405,20 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ApplicationListResponse" }
+    DocumentCompletion:
+      description: Upload verified and queued for malware scanning.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status: { type: string, const: QUARANTINED }
+    DocumentDownload:
+      description: Short-lived download for an authorized clean document.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/DocumentDownloadResponse" }
     Error:
       description: Safe API error.
       content:
@@ -609,14 +665,30 @@ components:
           properties:
             id: { type: string, format: uuid }
             status:
-              { type: string, enum: [AWAITING_UPLOAD, QUARANTINED, SCANNING, CLEAN, REJECTED] }
+              {
+                type: string,
+                enum: [AWAITING_UPLOAD, QUARANTINED, SCANNING, CLEAN, REJECTED, SCAN_FAILED],
+              }
             statusReasonCode: { type: [string, "null"] }
     DocumentIntentResponse:
       type: object
-      required: [document, uploadAvailable]
+      required: [document, upload]
       properties:
         document: { $ref: "#/components/schemas/DocumentMetadata" }
-        uploadAvailable: { type: boolean, const: false }
+        upload:
+          type: object
+          required: [expiresAt, headers, method, url]
+          properties:
+            expiresAt: { type: string, format: date-time }
+            headers: { type: object, additionalProperties: { type: string } }
+            method: { type: string, const: PUT }
+            url: { type: string, format: uri }
+    DocumentDownloadResponse:
+      type: object
+      required: [expiresAt, url]
+      properties:
+        expiresAt: { type: string, format: date-time }
+        url: { type: string, format: uri }
     StatusHistory:
       type: object
       required: [fromStatus, id, note, noteVisibility, occurredAt, reasonCategory, toStatus]

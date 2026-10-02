@@ -1,5 +1,6 @@
 import net from "node:net";
 
+import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { Redis } from "ioredis";
 import { Pool } from "pg";
 
@@ -22,6 +23,7 @@ export interface DependencyReadiness {
 export class RuntimeDependencies implements DependencyReadiness {
   private readonly pool: Pool;
   private readonly redis: Redis;
+  private readonly objectStorage: S3Client;
   private redisConnectionAttempt?: Promise<void>;
 
   constructor(private readonly config: ServiceConfig) {
@@ -38,6 +40,19 @@ export class RuntimeDependencies implements DependencyReadiness {
       lazyConnect: true,
       maxRetriesPerRequest: 0,
     });
+    this.objectStorage = new S3Client({
+      ...(config.objectStorage.credentials === undefined
+        ? {}
+        : {
+            credentials: {
+              accessKeyId: config.objectStorage.credentials.accessKey,
+              secretAccessKey: config.objectStorage.credentials.secretKey,
+            },
+          }),
+      endpoint: config.objectStorage.endpoint,
+      forcePathStyle: config.appEnvironment === "development" || config.appEnvironment === "test",
+      region: config.objectStorage.region,
+    });
   }
 
   async check(): Promise<ReadinessResult> {
@@ -45,7 +60,9 @@ export class RuntimeDependencies implements DependencyReadiness {
       this.checkPostgres(),
       this.checkRedisQueue(),
       this.checkObjectStorage(),
-      this.checkClamAv(),
+      ...(this.config.serviceName === "worker" && this.config.appEnvironment !== "production"
+        ? [this.checkClamAv()]
+        : []),
     ]);
 
     return {
@@ -56,6 +73,7 @@ export class RuntimeDependencies implements DependencyReadiness {
 
   async onApplicationShutdown(): Promise<void> {
     await Promise.allSettled([this.pool.end(), this.closeRedis()]);
+    this.objectStorage.destroy();
   }
 
   private async checkPostgres(): Promise<DependencyCheck> {
@@ -74,22 +92,27 @@ export class RuntimeDependencies implements DependencyReadiness {
 
   private async checkObjectStorage(): Promise<DependencyCheck> {
     return this.asCheck("object-storage", async () => {
-      const healthUrl = new URL("/minio/health/live", this.config.objectStorage.endpoint);
-      const response = await fetch(healthUrl, {
-        signal: AbortSignal.timeout(this.config.dependencyTimeoutMs),
-      });
-      if (!response.ok) throw new Error("Object storage health endpoint is unavailable");
+      await Promise.all(
+        [this.config.objectStorage.quarantineBucket, this.config.objectStorage.cleanBucket].map(
+          (bucket) =>
+            this.objectStorage.send(new HeadBucketCommand({ Bucket: bucket }), {
+              abortSignal: AbortSignal.timeout(this.config.dependencyTimeoutMs),
+            }),
+        ),
+      );
     });
   }
 
   private async checkClamAv(): Promise<DependencyCheck> {
+    const clamav = this.config.clamav;
+    if (clamav === null) return { name: "clamav", status: "down" };
     return this.asCheck(
       "clamav",
       () =>
         new Promise<void>((resolve, reject) => {
           const socket = net.createConnection({
-            host: this.config.clamav.host,
-            port: this.config.clamav.port,
+            host: clamav.host,
+            port: clamav.port,
           });
 
           socket.setTimeout(this.config.dependencyTimeoutMs);

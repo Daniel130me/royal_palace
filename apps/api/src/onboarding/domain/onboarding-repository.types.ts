@@ -46,6 +46,20 @@ export interface ReserveApplicationDocumentInput {
   declaredSizeBytes: number;
   originalFilename: string;
   purpose: string;
+  uploadExpiresAt: Date;
+}
+
+export interface StoredApplicationDocument {
+  applicationId: string;
+  cleanObjectKey: string | null;
+  cleanVersionId: string | null;
+  declaredContentType: string;
+  declaredSha256: string;
+  declaredSizeBytes: number;
+  id: string;
+  status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED" | "SCAN_FAILED";
+  storageObjectKey: string | null;
+  uploadExpiresAt: Date | null;
 }
 
 export interface OnboardingRepository {
@@ -63,7 +77,21 @@ export interface OnboardingRepository {
   listApplications(query: ListApplicationsQuery): Promise<OnboardingApplicationListResponse>;
   reserveDocument(
     input: ReserveApplicationDocumentInput,
-  ): Promise<ApplicationDocumentIntentResponse>;
+  ): Promise<{ document: ApplicationDocumentIntentResponse["document"]; storageObjectKey: string }>;
+  findDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<StoredApplicationDocument | null>;
+  quarantineDocument(input: {
+    applicationId: string;
+    documentId: string;
+    versionId: string | null;
+  }): Promise<boolean>;
+  rejectDocument(input: {
+    applicationId: string;
+    documentId: string;
+    reasonCode: string;
+  }): Promise<void>;
   transitionApplication(input: TransitionApplicationInput): Promise<StoredOnboardingApplication>;
   updateApplication(input: {
     applicantPrincipalId: string;

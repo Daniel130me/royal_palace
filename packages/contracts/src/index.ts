@@ -208,7 +208,7 @@ export type OnboardingApplicationStatus =
   | "WITHDRAWN";
 export type ApplicationNoteVisibility = "APPLICANT" | "INTERNAL";
 export type ApplicationDocumentStatus =
-  "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
+  "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED" | "SCAN_FAILED";
 
 export interface PatientApplicationData {
   countryCode: string | null;
@@ -304,7 +304,17 @@ export interface OnboardingApplicationListResponse {
 
 export interface ApplicationDocumentIntentResponse {
   document: ApplicationDocumentMetadata;
-  uploadAvailable: false;
+  upload: {
+    expiresAt: string;
+    headers: Readonly<Record<string, string>>;
+    method: "PUT";
+    url: string;
+  };
+}
+
+export interface ApplicationDocumentDownloadResponse {
+  expiresAt: string;
+  url: string;
 }
 
 export type ManagerProfileStatus = "ACTIVE" | "SUSPENDED" | "DEACTIVATED";

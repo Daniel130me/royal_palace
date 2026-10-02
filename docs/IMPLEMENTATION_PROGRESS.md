@@ -192,6 +192,16 @@ that completes an increment.
   - `[x]` Pass repository, migration, concurrency, persistence, query-plan, audit,
     secret-scan, build, and exact-head remote CI gates; publish the Section 20 report.
 - `[ ]` **Increment 10 — Files, notifications, and worker reliability**
+  - `[x]` Add purpose-bound, checksum-bound, single-write presigned onboarding uploads;
+    completion checks exact object metadata and owner scope.
+  - `[x]` Quarantine files, verify bytes and detected MIME, scan asynchronously, and
+    release only a versioned clean copy. Downloads require existing policy and audit.
+  - `[x]` Rehearse local S3, ClamAV, and PostgreSQL leasing with synthetic integration
+    tests; keep production malware-provider and object-storage configuration gated.
+  - `[ ]` Add channel-specific notifications, verified recipients, durable attempts,
+    provider IDs, dedupe, retry/dead-letter alerts, and an authorized replay procedure.
+  - `[ ]` Approve production email/SMS/push vendors and privacy-safe content policy;
+    qualify production bucket IAM, GuardDuty scan tagging, lifecycle, and alerting.
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
@@ -215,12 +225,13 @@ These are not implementation-agent choices. Stop before the affected production 
 
 ## Current implementation note
 
-Increment 02 deliberately uses MinIO only for synthetic local development. Production
-object storage remains private Amazon S3 under ADR 0001. The upstream MinIO repository
-is archived, so its pinned local source build is a flagged non-standard dependency and
-must be reassessed before Increment 10. Docker Desktop is not currently running on the
-implementation host; Compose can be statically validated, while live dependency-stack
-evidence must be recorded when a Docker engine is available.
+Increment 02 originally selected MinIO only for synthetic local development. Its archived
+source build failed to reproduce during Increment 10, so the local-only Compose emulator
+was replaced with pinned RustFS 1.0.0; this is not a production storage change. Production
+object storage remains private Amazon S3 under ADR 0001. Docker Desktop became available
+during Increment 10, and synthetic live storage and malware-scanner contracts were exercised.
+The local emulator remains a flagged compatibility subset, not evidence of production S3
+configuration or launch readiness.
 
 Increment 03 was exercised against a disposable native PostgreSQL 18 instance because
 Docker Desktop remained unavailable. CI now repeats migration and query-plan checks
@@ -265,8 +276,11 @@ governance remains mandatory before real-data launch. Increment 08 completed in
 commission policy, privacy-safe earnings, and restricted support without manager access to
 patient, payment, application, or organization private data. No live commission policy,
 payment provider, payout workflow, banking data, or country/currency default was activated.
-Increment 09 is the next implementation step; its vendor and financial-product choices remain
-material approval gates before live integration.
+Increment 09 completed in `efcbf3f` and `82bfbd5`. The appointment and payment slice is
+provider-neutral and remains synthetic: no live payment gateway, settlement account, refund
+operation, commission eligibility policy, or production pricing was activated. Increment 10
+now has a validated secure-file checkpoint, while production storage qualification and the
+notification vendor, recipient, consent, content, and queue decisions remain explicit gates.
 The deferred Increment 04B identity-provider decision remains a mandatory gate before
 protected staging with non-synthetic users, real-user migration, Increment 12, or launch;
 it does not block synthetic implementation and validation of Increments 06–11.

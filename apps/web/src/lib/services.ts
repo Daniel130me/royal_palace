@@ -169,6 +169,20 @@ export const onboardingService = {
         params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
       })
       .then(unwrapGeneratedResponse),
+  updateOrganization: (
+    applicationId: string,
+    expectedVersion: number,
+    values: OrganizationApplicationData,
+  ) =>
+    generatedOnboardingClient
+      .PATCH("/api/applications/organizations/{applicationId}", {
+        body: { expectedVersion, values: { ...values, serviceIds: [...values.serviceIds] } },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
   createPractitioner: (values: PractitionerApplicationData) =>
     generatedOnboardingClient
       .POST("/api/applications/practitioners", {
@@ -178,6 +192,27 @@ export const onboardingService = {
           specialtyIds: [...values.specialtyIds],
         },
         params: { header: { "x-rp-csrf-token": csrfToken() ?? "" } },
+      })
+      .then(unwrapGeneratedResponse),
+  updatePractitioner: (
+    applicationId: string,
+    expectedVersion: number,
+    values: PractitionerApplicationData,
+  ) =>
+    generatedOnboardingClient
+      .PATCH("/api/applications/practitioners/{applicationId}", {
+        body: {
+          expectedVersion,
+          values: {
+            ...values,
+            professionIds: [...values.professionIds],
+            specialtyIds: [...values.specialtyIds],
+          },
+        },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId },
+        },
       })
       .then(unwrapGeneratedResponse),
   submit: (applicationId: string, expectedVersion: number) =>
@@ -190,6 +225,49 @@ export const onboardingService = {
         },
       })
       .then(unwrapGeneratedResponse),
+  uploadDocument: async (applicationId: string, file: File, purpose: string) => {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const declaredSha256 = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    const intent = await generatedOnboardingClient
+      .POST("/api/applications/{applicationId}/documents/upload-intents", {
+        body: {
+          declaredContentType: file.type,
+          declaredSha256,
+          declaredSizeBytes: file.size,
+          originalFilename: file.name,
+          purpose,
+        },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId },
+        },
+      })
+      .then(unwrapGeneratedResponse);
+    const upload = await fetch(intent.upload.url, {
+      body: file,
+      credentials: "omit",
+      headers: intent.upload.headers,
+      method: "PUT",
+      mode: "cors",
+      referrerPolicy: "no-referrer",
+    });
+    if (!upload.ok) throw new Error("The document could not be uploaded. Please retry.");
+    await generatedOnboardingClient
+      .POST("/api/applications/{applicationId}/documents/{documentId}/complete", {
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { applicationId, documentId: intent.document.id },
+        },
+      })
+      .then(unwrapGeneratedResponse);
+    return intent.document.id;
+  },
+  downloadForReview: (authority: "admin" | "support", applicationId: string, documentId: string) =>
+    sessionApi.get<{ url: string; expiresAt: string }>(
+      `/api/${authority}/applications/${applicationId}/documents/${documentId}/download`,
+    ),
   listForSupport: (cursor?: string) => listApplicationReviewQueue("support", cursor),
   getForSupport: (applicationId: string) =>
     sessionApi.get<OnboardingApplicationDetail>(`/api/support/applications/${applicationId}`),

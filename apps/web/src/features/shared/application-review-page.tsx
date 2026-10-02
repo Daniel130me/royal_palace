@@ -95,6 +95,27 @@ export function ApplicationReviewPage({ authority }: { authority: "ADMIN" | "SUP
     await run(() => onboardingService.startReview(selected.id, selected.version));
   }
 
+  async function downloadDocument(documentId: string) {
+    if (selected === null) return;
+    setBusy(true);
+    try {
+      const result = await onboardingService.downloadForReview(
+        authority === "ADMIN" ? "admin" : "support",
+        selected.id,
+        documentId,
+      );
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.rel = "noopener noreferrer";
+      link.referrerPolicy = "no-referrer";
+      link.click();
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "The document is unavailable.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function decide(command: "approve" | "reject" | "request-information") {
     if (selected === null) return;
     if (command !== "approve" && note.trim() === "") {
@@ -222,6 +243,37 @@ export function ApplicationReviewPage({ authority }: { authority: "ADMIN" | "SUP
                   <pre className="max-h-80 overflow-auto rounded-lg bg-muted p-3 text-xs whitespace-pre-wrap">
                     {JSON.stringify(selected.data.values, null, 2)}
                   </pre>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-semibold">Evidence documents</p>
+                  {selected.documents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No documents attached.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {selected.documents.map((document) => (
+                        <li
+                          key={document.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{document.originalFilename}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {document.purpose.replaceAll("_", " ")} ·{" "}
+                              {document.status.replaceAll("_", " ")}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy || document.status !== "CLEAN"}
+                            onClick={() => void downloadDocument(document.id)}
+                          >
+                            Download
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <p className="mb-2 text-sm font-semibold">Status history</p>

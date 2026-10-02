@@ -12,6 +12,7 @@ import type {
   ListApplicationsQuery,
   OnboardingRepository,
   ReserveApplicationDocumentInput,
+  StoredApplicationDocument,
   StoredOnboardingApplication,
   TransitionApplicationInput,
 } from "../domain/onboarding-repository.types.js";
@@ -130,6 +131,8 @@ type ApplicationSummaryRecord = Prisma.OnboardingApplicationGetPayload<{
   select: typeof applicationSummarySelect;
 }>;
 type Transaction = Prisma.TransactionClient;
+const MAX_ACTIVE_DOCUMENTS_PER_APPLICATION = 12;
+const MAX_DOCUMENT_ATTEMPTS_PER_APPLICATION = 48;
 
 export class ApplicationConflictError extends Error {
   constructor(message = "Application changed while the request was being processed") {
@@ -268,24 +271,112 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
 
   async reserveDocument(
     input: ReserveApplicationDocumentInput,
-  ): Promise<{ document: ApplicationDocumentMetadata; uploadAvailable: false }> {
+  ): Promise<{ document: ApplicationDocumentMetadata; storageObjectKey: string }> {
     const document = await this.database.$transaction(async (transaction) => {
-      const application = await transaction.onboardingApplication.findUnique({
-        select: { status: true },
-        where: { id: input.applicationId },
-      });
+      // Serialize reservations for one application so the document cap cannot be
+      // bypassed by concurrent initiation requests.
+      const [application] = await transaction.$queryRaw<Array<{ status: string }>>`
+        SELECT status::text AS status
+        FROM onboarding_applications
+        WHERE id = ${input.applicationId}::uuid
+        FOR UPDATE
+      `;
       if (
-        application === null ||
+        application === undefined ||
         (application.status !== "DRAFT" && application.status !== "MORE_INFORMATION_REQUIRED")
       ) {
         throw new ApplicationConflictError("Documents cannot be added in the current state");
       }
+      const [counts] = await transaction.$queryRaw<
+        Array<{ activeCount: number; attemptCount: number }>
+      >`
+        SELECT count(*)::integer AS "attemptCount",
+          count(*) FILTER (WHERE status NOT IN ('REJECTED', 'SCAN_FAILED'))::integer AS "activeCount"
+        FROM application_documents
+        WHERE application_id = ${input.applicationId}::uuid
+      `;
+      // A failed scan must not permanently consume the active-document allowance;
+      // the separate lifetime ceiling still limits repeated reservations.
+      if (
+        counts === undefined ||
+        counts.activeCount >= MAX_ACTIVE_DOCUMENTS_PER_APPLICATION ||
+        counts.attemptCount >= MAX_DOCUMENT_ATTEMPTS_PER_APPLICATION
+      ) {
+        throw new ApplicationConflictError("Document limit reached");
+      }
+      const id = createOpaqueId();
       return transaction.applicationDocument.create({
-        data: { ...input, id: createOpaqueId() },
+        data: {
+          ...input,
+          id,
+          storageObjectKey: `application-documents/${id}`,
+        },
         select: applicationDetailSelect.documents.select,
       });
     });
-    return { document, uploadAvailable: false };
+    return { document, storageObjectKey: `application-documents/${document.id}` };
+  }
+
+  findDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<StoredApplicationDocument | null> {
+    return this.database.applicationDocument.findFirst({
+      select: {
+        applicationId: true,
+        cleanObjectKey: true,
+        cleanVersionId: true,
+        declaredContentType: true,
+        declaredSha256: true,
+        declaredSizeBytes: true,
+        id: true,
+        status: true,
+        storageObjectKey: true,
+        uploadExpiresAt: true,
+      },
+      where: { applicationId, id: documentId },
+    });
+  }
+
+  async quarantineDocument(input: {
+    applicationId: string;
+    documentId: string;
+    versionId: string | null;
+  }): Promise<boolean> {
+    const result = await this.database.applicationDocument.updateMany({
+      data: {
+        quarantineVersionId: input.versionId,
+        scanAvailableAt: new Date(),
+        status: "QUARANTINED",
+        version: { increment: 1 },
+      },
+      where: {
+        applicationId: input.applicationId,
+        id: input.documentId,
+        status: "AWAITING_UPLOAD",
+        uploadExpiresAt: { gt: new Date() },
+      },
+    });
+    return result.count === 1;
+  }
+
+  async rejectDocument(input: {
+    applicationId: string;
+    documentId: string;
+    reasonCode: string;
+  }): Promise<void> {
+    await this.database.applicationDocument.updateMany({
+      data: {
+        status: "REJECTED",
+        statusReasonCode: input.reasonCode,
+        version: { increment: 1 },
+      },
+      where: {
+        applicationId: input.applicationId,
+        id: input.documentId,
+        status: "AWAITING_UPLOAD",
+      },
+    });
   }
 
   async transitionApplication(
@@ -305,7 +396,6 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
         ) {
           throw new ApplicationConflictError();
         }
-
         const approvedResourceId =
           input.toStatus === "APPROVED"
             ? await createApprovedResource(transaction, application, input.actorPrincipalId)

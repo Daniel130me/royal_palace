@@ -4,11 +4,12 @@ import { proxyAuthenticatedApi } from "@/lib/auth/bff";
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const DETAIL = new RegExp(`^${UUID}$`, "i");
+const DOCUMENT_DOWNLOAD = new RegExp(`^${UUID}/documents/${UUID}/download$`, "i");
 const DECISION = new RegExp(`^${UUID}/(?:approve|reject|request-information)$`, "i");
 
 export async function GET(request: NextRequest, route: RouteContext) {
   const path = await relativePath(route);
-  if (path !== "" && !DETAIL.test(path)) return notFound();
+  if (path !== "" && !DETAIL.test(path) && !DOCUMENT_DOWNLOAD.test(path)) return notFound();
   return proxyAuthenticatedApi(request, upstream(path, request.nextUrl.search), "GET");
 }
 

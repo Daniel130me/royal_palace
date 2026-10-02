@@ -3,6 +3,7 @@ import type { ServiceConfig } from "@royal-palace/config/environment";
 import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/config/readiness";
 
 import { HealthController } from "./health.controller.js";
+import { DocumentScanWorker } from "./document-scan/document-scan.worker.js";
 import { DEPENDENCY_READINESS, SERVICE_CONFIG } from "./tokens.js";
 
 @Module({})
@@ -17,6 +18,7 @@ export class AppModule {
       providers: [
         { provide: SERVICE_CONFIG, useValue: config },
         { provide: DEPENDENCY_READINESS, useValue: dependencies },
+        DocumentScanWorker,
       ],
     };
   }

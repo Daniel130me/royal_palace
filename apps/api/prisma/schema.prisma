@@ -95,6 +95,7 @@ enum ApplicationDocumentStatus {
   SCANNING
   CLEAN
   REJECTED
+  SCAN_FAILED
 }
 
 enum ManagerProfileStatus {
@@ -933,6 +934,18 @@ model ApplicationDocument {
   declaredSizeBytes   Int                       @map("declared_size_bytes")
   declaredSha256      String                    @map("declared_sha256") @db.Char(64)
   storageObjectKey    String?                   @unique @map("storage_object_key") @db.VarChar(1024)
+  uploadExpiresAt     DateTime?                 @map("upload_expires_at") @db.Timestamptz(6)
+  quarantineVersionId String?                   @map("quarantine_version_id") @db.VarChar(255)
+  cleanObjectKey      String?                   @unique @map("clean_object_key") @db.VarChar(1024)
+  cleanVersionId      String?                   @map("clean_version_id") @db.VarChar(255)
+  detectedContentType String?                   @map("detected_content_type") @db.VarChar(127)
+  verifiedSizeBytes   Int?                      @map("verified_size_bytes")
+  verifiedSha256      String?                   @map("verified_sha256") @db.Char(64)
+  scanLeaseToken      String?                   @map("scan_lease_token") @db.Uuid
+  scanLeaseExpiresAt  DateTime?                 @map("scan_lease_expires_at") @db.Timestamptz(6)
+  scanAvailableAt     DateTime?                 @map("scan_available_at") @db.Timestamptz(6)
+  scanAttemptCount    Int                       @default(0) @map("scan_attempt_count")
+  scannedAt           DateTime?                 @map("scanned_at") @db.Timestamptz(6)
   status              ApplicationDocumentStatus @default(AWAITING_UPLOAD)
   statusReasonCode    String?                   @map("status_reason_code") @db.VarChar(100)
   createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)

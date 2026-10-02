@@ -31,6 +31,7 @@ import {
   OnboardingService,
 } from "../application/onboarding.service.js";
 import { InvalidApplicationTransitionError } from "../domain/application-state-machine.js";
+import { InvalidDocumentError, MAX_APPLICATION_DOCUMENT_BYTES } from "../domain/document-policy.js";
 import {
   ApplicationConflictError,
   InvalidCatalogueSelectionError,
@@ -108,11 +109,7 @@ const documentSchema = z
   .object({
     declaredContentType: z.string().trim().min(1).max(127),
     declaredSha256: z.string().regex(/^[0-9a-f]{64}$/),
-    declaredSizeBytes: z
-      .number()
-      .int()
-      .positive()
-      .max(25 * 1024 * 1024),
+    declaredSizeBytes: z.number().int().positive().max(MAX_APPLICATION_DOCUMENT_BYTES),
     originalFilename: z.string().trim().min(1).max(255),
     purpose: z
       .string()
@@ -252,6 +249,38 @@ export class ApplicantOnboardingController {
     );
   }
 
+  @Post(":applicationId/documents/:documentId/complete")
+  @HttpCode(HttpStatus.OK)
+  completeDocument(
+    @Param("applicationId") rawApplicationId: string,
+    @Param("documentId") rawDocumentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.onboarding.completeDocumentUpload(
+        requestContext(request),
+        parse(idSchema, rawApplicationId),
+        parse(idSchema, rawDocumentId),
+      ),
+    );
+  }
+
+  @Get(":applicationId/documents/:documentId/download")
+  downloadDocument(
+    @Param("applicationId") rawApplicationId: string,
+    @Param("documentId") rawDocumentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.onboarding.downloadDocument(
+        requestContext(request),
+        parse(idSchema, rawApplicationId),
+        parse(idSchema, rawDocumentId),
+        "OWNER",
+      ),
+    );
+  }
+
   @Post(":applicationId/submit")
   @HttpCode(HttpStatus.OK)
   submit(
@@ -342,6 +371,22 @@ export class ApplicantOnboardingController {
 export class SupportOnboardingController {
   constructor(@Inject(OnboardingService) private readonly onboarding: OnboardingService) {}
 
+  @Get(":applicationId/documents/:documentId/download")
+  downloadDocument(
+    @Param("applicationId") rawApplicationId: string,
+    @Param("documentId") rawDocumentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.onboarding.downloadDocument(
+        requestContext(request),
+        parse(idSchema, rawApplicationId),
+        parse(idSchema, rawDocumentId),
+        "REVIEW",
+      ),
+    );
+  }
+
   @Get()
   list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     return execute(() =>
@@ -377,6 +422,22 @@ export class SupportOnboardingController {
 @UseGuards(AuthenticatedInternalRequestGuard)
 export class AdminOnboardingController {
   constructor(@Inject(OnboardingService) private readonly onboarding: OnboardingService) {}
+
+  @Get(":applicationId/documents/:documentId/download")
+  downloadDocument(
+    @Param("applicationId") rawApplicationId: string,
+    @Param("documentId") rawDocumentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.onboarding.downloadDocument(
+        requestContext(request),
+        parse(idSchema, rawApplicationId),
+        parse(idSchema, rawDocumentId),
+        "DECIDE",
+      ),
+    );
+  }
 
   @Get()
   list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
@@ -490,6 +551,9 @@ async function execute<T>(operation: () => Promise<T>): Promise<T> {
     }
     if (error instanceof InvalidApplicationTransitionError) {
       throw new HttpException({ error: "invalid_status_transition", message: error.message }, 409);
+    }
+    if (error instanceof InvalidDocumentError) {
+      throw new HttpException({ error: error.code, message: error.message }, 400);
     }
     if (error instanceof ApplicationConflictError) {
       throw new HttpException({ error: "application_conflict", message: error.message }, 409);
