@@ -27,6 +27,24 @@ export interface CurrentSession {
   sessionId: string;
 }
 
+export const NOTIFICATION_TEMPLATE = {
+  APPLICATION_ACTION_REQUIRED: "APPLICATION_ACTION_REQUIRED",
+  APPLICATION_STATUS_UPDATED: "APPLICATION_STATUS_UPDATED",
+  APPOINTMENT_STATUS_UPDATED: "APPOINTMENT_STATUS_UPDATED",
+  PAYMENT_STATUS_UPDATED: "PAYMENT_STATUS_UPDATED",
+  SECURITY_ALERT: "SECURITY_ALERT",
+} as const;
+
+export type NotificationTemplateKey =
+  (typeof NOTIFICATION_TEMPLATE)[keyof typeof NOTIFICATION_TEMPLATE];
+export type NotificationChannel = "EMAIL" | "SMS" | "PUSH";
+
+export interface NotificationReplayResponse {
+  id: string;
+  replayOfId: string;
+  status: "PENDING";
+}
+
 export interface BeginLoginResponse {
   authorizationUrl: string;
   transactionId: string;

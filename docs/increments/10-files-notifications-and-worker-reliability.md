@@ -2,9 +2,11 @@
 
 ## Status
 
-**In progress. Not approved for production use.** The file pipeline is implemented
-and under validation. Notification delivery and several protected-environment
-controls remain open. This checkpoint is not an Increment 10 completion claim.
+**In progress. Not approved for production use.** The file pipeline and the
+provider-neutral notification reliability foundation are implemented and validated
+against the local synthetic environment. Real notification delivery and several
+protected-environment controls remain open. This checkpoint is not an Increment 10
+completion claim.
 
 ## File pipeline checklist
 
@@ -35,12 +37,15 @@ controls remain open. This checkpoint is not an Increment 10 completion claim.
 - [ ] Select vendors and approved sending regions for email, SMS, and push.
 - [ ] Confirm verified recipient sources, opt-in/opt-out and consent rules,
       allowed message categories, language fallback, and prohibited sensitive text.
-- [ ] Add a purpose-specific template catalogue with no clinical detail in
-      external channels unless separately approved by privacy/clinical owners.
-- [ ] Persist delivery intents and attempts transactionally, store provider
-      message IDs, cap retries, and expose dead-letter alerts and controlled replay.
-- [ ] Prove retry/replay does not duplicate user-visible delivery where a provider
-      supports idempotency; explicitly record any unavoidable at-least-once risk.
+- [x] Add a versioned, purpose-specific template catalogue. Its current external
+      messages contain only an opaque reference and direct recipients to sign in;
+      unknown locales, versions, templates, or variables fail closed.
+- [x] Persist immutable delivery facts and durable attempt outcomes, provider
+      message IDs, leases, bounded backoff, terminal dead letters, structured alert
+      events, and an administrator-authorized, audited replay chain.
+- [x] Prove lease recovery and replay safety with a deterministic synthetic provider
+      that treats the delivery ID as its idempotency key. Real adapters must pass the
+      same qualification; unavoidable at-least-once risk remains an activation gate.
 - [ ] Decide and qualify managed production queue/observability providers.
 
 ## Security and architecture review
@@ -68,21 +73,34 @@ archival; the local-only replacement is flagged as an infrastructure change.
 Production still requires separately reviewed AWS S3/GuardDuty/IAM configuration
 and the region/cross-border decision already recorded in ADR 0001.
 
+Notification destinations are deliberately absent from delivery payloads and
+database records. A future approved adapter must resolve a principal to a verified,
+consented endpoint at delivery time. `NOTIFICATION_DELIVERY_MODE=synthetic` is
+limited to local/test environments and never contacts a user; staging and production
+reject it at startup. Disabled delivery neither polls nor permits administrators to
+create orphan replay work. Email, SMS, and push share a provider port, while each
+attempt retains its own result and provider identity. A crashed lease is closed as
+`UNKNOWN` before another attempt starts, preventing silent attempt histories.
+
 ## Remaining release blockers and recovery
 
 Do not enable real document upload until the approved region, bucket IAM and
 encryption, clean/quarantine separation, versioning, malware event delivery,
 lifecycle, and denied-public-access controls have been provisioned and tested in
 staging. A scanner outage leaves files quarantined; retry exhaustion records
-`SCAN_FAILED` and requires an audited operator workflow before replay. No
-automatic operator replay or protected-environment alert has been added yet.
+`SCAN_FAILED` and requires a separately approved document-replay workflow; the
+notification replay endpoint cannot replay document scans.
+The worker emits structured dead-letter events, but routing them to a qualified
+production alerting/on-call system remains part of the observability provider gate.
+The administrator replay API is present but fails closed while delivery is disabled.
 
-Deploy the transactional document migration before API/web/worker binaries. On
-rollback, disable new upload initiation, stop the scanner worker, and retain
-quarantine and clean objects for forensic review; do not delete blobs or revert
-the database migration against real data. Restore the previous binaries and a
-verified backup if the migration itself must be reversed. This is a forward-only
-checkpoint until a formal production cutover/rollback rehearsal is approved.
+Deploy the transactional document and notification migrations before API/web/worker
+binaries. On rollback, disable new upload initiation and notification delivery, stop
+both workers, and retain quarantine, clean, delivery, and attempt evidence for review;
+do not delete evidence or revert database migrations against real data. Restore the
+previous binaries and a verified backup if a migration itself must be reversed. This
+is a forward-only checkpoint until a formal production cutover/rollback rehearsal is
+approved.
 
 ## Standards walkthrough
 
@@ -94,8 +112,10 @@ checkpoint until a formal production cutover/rollback rehearsal is approved.
   server-owned; unsigned or mismatched content cannot become clean; production
   malware results and object versions are mandatory.
 - **Performance:** bounded size and queue batches, indexed lease/expiry fields,
-  single aggregate quota query, and asynchronous scanning keep large I/O off the
-  API request path.
+  single aggregate quota query, `SKIP LOCKED` leasing, and representative 10,000-row
+  scan and notification queue plans keep slow I/O off the API request path.
 - **Maintainability:** no country/currency/provider assumption was added to this
-  capability. The local emulator, provider activation, and unfinished notification
-  controls are explicitly flagged rather than silently accepted.
+  capability. Templates are versioned and locale-specific without an implicit
+  fallback. The local emulator, synthetic notification adapter, provider activation,
+  and unfinished recipient/consent controls are explicitly flagged rather than
+  silently accepted.

@@ -191,7 +191,7 @@ that completes an increment.
     status interfaces while rejecting redirect parameters as payment authority.
   - `[x]` Pass repository, migration, concurrency, persistence, query-plan, audit,
     secret-scan, build, and exact-head remote CI gates; publish the Section 20 report.
-- `[ ]` **Increment 10 — Files, notifications, and worker reliability**
+- `[~]` **Increment 10 — Files, notifications, and worker reliability**
   - `[x]` Add purpose-bound, checksum-bound, single-write presigned onboarding uploads;
     completion checks exact object metadata and owner scope.
   - `[x]` Quarantine files, verify bytes and detected MIME, scan asynchronously, and
@@ -200,6 +200,11 @@ that completes an increment.
     tests; keep production malware-provider and object-storage configuration gated.
   - `[ ]` Add channel-specific notifications, verified recipients, durable attempts,
     provider IDs, dedupe, retry/dead-letter alerts, and an authorized replay procedure.
+    - `[x]` Provider-neutral delivery/attempt tables, privacy-safe versioned templates,
+      lease recovery, bounded retry/dead-letter behavior, structured dead-letter events,
+      deterministic synthetic idempotency, and administrator-only replay are implemented.
+    - `[ ]` Verified recipient resolution, consent/preferences, real adapters, sending
+      regions, provider webhooks, and production alert routing remain approval-gated.
   - `[ ]` Approve production email/SMS/push vendors and privacy-safe content policy;
     qualify production bucket IAM, GuardDuty scan tagging, lifecycle, and alerting.
 - `[ ]` **Increment 11 — Remaining operational and clinical slices**

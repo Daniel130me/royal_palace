@@ -1,0 +1,43 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Notification Administration API
+  version: 1.0.0
+paths:
+  /api/admin/notifications/{deliveryId}/replay:
+    post:
+      operationId: replayNotificationDelivery
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: header
+          name: x-rp-csrf-token
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "201":
+          description: A new pending delivery linked to the dead-lettered delivery
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [id, replayOfId, status]
+                properties:
+                  id: { type: string, format: uuid }
+                  replayOfId: { type: string, format: uuid }
+                  status: { type: string, const: PENDING }
+        "403": { description: Administrator authorization required }
+        "409": { description: Delivery is not replayable or already has an active replay }
+        "503": { description: Notification delivery is not enabled in this environment }

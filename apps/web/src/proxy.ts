@@ -60,6 +60,7 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
   new RegExp(`^/api/admin/practitioners/${UUID_PATH_SEGMENT}/consultation-fees$`, "i"),
   new RegExp(`^/api/admin/consultation-fees/${UUID_PATH_SEGMENT}/activate$`, "i"),
   new RegExp(`^/api/admin/payments/${UUID_PATH_SEGMENT}/reconcile$`, "i"),
+  new RegExp(`^/api/admin/notifications/${UUID_PATH_SEGMENT}/replay$`, "i"),
   new RegExp(`^/api/public/practitioners/${UUID_PATH_SEGMENT}/availability$`, "i"),
   /^\/api\/public\/hospitals\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   /^\/api\/public\/(?:laboratories|pharmacies)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,

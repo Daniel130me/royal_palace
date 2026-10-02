@@ -77,6 +77,15 @@ describe("web request correlation", () => {
     expect(
       isApiRouteEnabled(
         "production",
+        "/api/admin/notifications/0199a18e-a400-7000-8000-000000000703/replay",
+      ),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/admin/notifications/not-a-uuid/replay")).toBe(
+      false,
+    );
+    expect(
+      isApiRouteEnabled(
+        "production",
         "/api/public/practitioners/0199a18e-a400-7000-8000-000000000601/availability",
       ),
     ).toBe(true);

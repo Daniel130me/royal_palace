@@ -13,6 +13,7 @@ const ONBOARDING_APPLICATION_COUNT = 10_000;
 const MANAGER_TICKET_COUNT = 2_000;
 const MANAGER_EARNING_COUNT = 5_000;
 const APPOINTMENT_COUNT = 5_000;
+const NOTIFICATION_DELIVERY_COUNT = 10_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -280,6 +281,20 @@ async function main(): Promise<void> {
           FOR UPDATE SKIP LOCKED`,
         [],
         "outbox_events_pending_available_idx",
+      ),
+      await reviewPlan(
+        client,
+        "pending notification delivery claim",
+        `SELECT "id"
+           FROM "notification_deliveries"
+          WHERE "attempt_count" < 8
+            AND "status" = 'PENDING'
+            AND "available_at" <= clock_timestamp()
+          ORDER BY "available_at", "created_at", "id"
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED`,
+        [],
+        "notification_deliveries_pending_available_idx",
       ),
       await reviewPlan(
         client,
@@ -772,6 +787,19 @@ async function loadRepresentativeData(
     [outboxIds, aggregateIds, availableTimes],
   );
 
+  const notificationIds = Array.from({ length: NOTIFICATION_DELIVERY_COUNT }, () => v7());
+  const notificationTimes = notificationIds.map((_, index) => new Date(Date.now() - index * 100));
+  await client.query(
+    `INSERT INTO "notification_deliveries"
+       ("id", "deduplication_key", "recipient_principal_id", "channel", "template_key",
+        "template_version", "locale", "variables", "available_at", "updated_at")
+     SELECT input.id, 'query-plan:' || input.id::text, $1, 'EMAIL',
+            'APPLICATION_STATUS_UPDATED', 1, 'en',
+            jsonb_build_object('reference', 'APP-QUERY'), input.available_at, now()
+       FROM unnest($2::uuid[], $3::timestamptz[]) AS input(id, available_at)`,
+    [principalId, notificationIds, notificationTimes],
+  );
+
   const targetSessionId = sessionIds[0];
   if (targetSessionId === undefined) throw new Error("Representative session set is empty");
   const targetPaymentId = paymentIds[501];
@@ -839,6 +867,7 @@ async function reviewPlan(
       managerEarnings: MANAGER_EARNING_COUNT,
       appointments: APPOINTMENT_COUNT - 500,
       applicationDocuments: ONBOARDING_APPLICATION_COUNT,
+      notificationDeliveries: NOTIFICATION_DELIVERY_COUNT,
     },
   };
 }

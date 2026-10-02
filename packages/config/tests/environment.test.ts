@@ -150,6 +150,27 @@ describe("loadServiceConfig", () => {
       }),
     ).toThrow(/PAYMENT_GATEWAY_MODE/);
   });
+
+  it("keeps synthetic notification delivery outside protected environments", () => {
+    expect(
+      loadServiceConfig("worker", {
+        ...validEnvironment,
+        NOTIFICATION_DELIVERY_MODE: "synthetic",
+      }).notificationDelivery.mode,
+    ).toBe("synthetic");
+    expect(() =>
+      loadServiceConfig("worker", {
+        ...validEnvironment,
+        APP_ENV: "production",
+        AWS_REGION: "approved-region-1",
+        DATABASE_URL:
+          "postgresql://test-user:test-password@database.example.test:5432/test-db?sslmode=verify-full",
+        NOTIFICATION_DELIVERY_MODE: "synthetic",
+        OBJECT_STORAGE_ENDPOINT: "https://objects.example.test",
+        REDIS_URL: "rediss://redis.example.test:6379/0",
+      }),
+    ).toThrow(/NOTIFICATION_DELIVERY_MODE/);
+  });
 });
 
 describe("loadWebConfig", () => {

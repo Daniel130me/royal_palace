@@ -9,6 +9,7 @@ const applicationEnvironmentSchema = z.enum(["development", "test", "staging", "
 const logLevelSchema = z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]);
 const oidcClientAuthMethodSchema = z.enum(["client_secret_basic", "client_secret_post", "none"]);
 const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
+const notificationDeliveryModeSchema = z.enum(["disabled", "synthetic"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
@@ -166,6 +167,7 @@ const serviceEnvironmentSchema = z
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
+    NOTIFICATION_DELIVERY_MODE: notificationDeliveryModeSchema.default("disabled"),
     OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
     OBJECT_STORAGE_BUCKET_QUARANTINE: z
       .string()
@@ -291,6 +293,15 @@ const serviceEnvironmentSchema = z
       });
     }
 
+    if (value.NOTIFICATION_DELIVERY_MODE !== "disabled") {
+      context.addIssue({
+        code: "custom",
+        message:
+          "must remain disabled until notification providers and recipient governance are approved",
+        path: ["NOTIFICATION_DELIVERY_MODE"],
+      });
+    }
+
     if (value.AWS_REGION === undefined) {
       context.addIssue({
         code: "custom",
@@ -327,6 +338,9 @@ interface BaseServiceConfig {
   databaseUrl: string;
   dependencyTimeoutMs: number;
   logLevel: LogLevel;
+  notificationDelivery: {
+    mode: z.infer<typeof notificationDeliveryModeSchema>;
+  };
   objectStorage: {
     credentials?: { accessKey: string; secretKey: string };
     cleanBucket: string;
@@ -479,6 +493,7 @@ export function loadServiceConfig(
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
     logLevel: values.LOG_LEVEL,
+    notificationDelivery: Object.freeze({ mode: values.NOTIFICATION_DELIVERY_MODE }),
     objectStorage: Object.freeze({
       ...(values.OBJECT_STORAGE_ACCESS_KEY === undefined ||
       values.OBJECT_STORAGE_SECRET_KEY === undefined

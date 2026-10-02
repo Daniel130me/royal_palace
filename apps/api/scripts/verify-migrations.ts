@@ -145,6 +145,8 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const ledgerTransactionId = v7();
   const ledgerDebitId = v7();
   const ledgerCreditId = v7();
+  const notificationDeliveryId = v7();
+  const notificationAttemptId = v7();
 
   await client.connect();
   try {
@@ -280,6 +282,53 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       client,
       'UPDATE "audit_events" SET "action" = $1 WHERE "id" = $2',
       ["verification.changed", auditId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "notification_deliveries"
+         ("id", "deduplication_key", "recipient_principal_id", "channel", "template_key",
+          "template_version", "locale", "variables", "updated_at")
+       VALUES ($1, $2, $3, 'EMAIL', 'APPLICATION_STATUS_UPDATED', 1, 'en', '[]'::jsonb, now())`,
+      [v7(), `invalid-notification-${v7()}`, principalId],
+      "23514",
+    );
+    await client.query(
+      `INSERT INTO "notification_deliveries"
+         ("id", "deduplication_key", "recipient_principal_id", "channel", "template_key",
+          "template_version", "locale", "variables", "updated_at")
+       VALUES ($1, $2, $3, 'EMAIL', 'APPLICATION_STATUS_UPDATED', 1, 'en', $4, now())`,
+      [
+        notificationDeliveryId,
+        `migration-notification-${notificationDeliveryId}`,
+        principalId,
+        { reference: "APP-VERIFY" },
+      ],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "notification_deliveries" SET "template_key" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["MUTATED", notificationDeliveryId],
+      "P0001",
+    );
+    await client.query(
+      `UPDATE "notification_deliveries"
+       SET "status" = 'PROCESSING', "attempt_count" = 1, "lease_token" = $1,
+           "lease_expires_at" = now() + interval '5 minutes', "updated_at" = now()
+       WHERE "id" = $2`,
+      [v7(), notificationDeliveryId],
+    );
+    await client.query(
+      `INSERT INTO "notification_attempts"
+         ("id", "delivery_id", "attempt_number", "outcome")
+       VALUES ($1, $2, 1, 'STARTED')`,
+      [notificationAttemptId, notificationDeliveryId],
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "notification_attempts"
+       SET "attempt_number" = 2 WHERE "id" = $1`,
+      [notificationAttemptId],
       "P0001",
     );
     await client.query("BEGIN");

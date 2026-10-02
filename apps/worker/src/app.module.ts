@@ -4,6 +4,7 @@ import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/con
 
 import { HealthController } from "./health.controller.js";
 import { DocumentScanWorker } from "./document-scan/document-scan.worker.js";
+import { NotificationDeliveryWorker } from "./notification/notification-delivery.worker.js";
 import { DEPENDENCY_READINESS, SERVICE_CONFIG } from "./tokens.js";
 
 @Module({})
@@ -19,6 +20,7 @@ export class AppModule {
         { provide: SERVICE_CONFIG, useValue: config },
         { provide: DEPENDENCY_READINESS, useValue: dependencies },
         DocumentScanWorker,
+        NotificationDeliveryWorker,
       ],
     };
   }

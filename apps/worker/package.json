@@ -17,6 +17,7 @@
     "@nestjs/core": "12.0.4",
     "@nestjs/platform-fastify": "12.0.4",
     "@royal-palace/config": "workspace:*",
+    "@royal-palace/contracts": "workspace:*",
     "fastify": "5.12.5",
     "pg": "8.16.3",
     "reflect-metadata": "0.2.2",

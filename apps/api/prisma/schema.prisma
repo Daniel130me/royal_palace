@@ -281,6 +281,28 @@ enum InboxStatus {
   DEAD_LETTERED
 }
 
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  DEAD_LETTERED
+  CANCELLED
+}
+
+enum NotificationAttemptOutcome {
+  STARTED
+  ACCEPTED
+  TRANSIENT_FAILURE
+  PERMANENT_FAILURE
+  UNKNOWN
+}
+
 model IdentityPrincipal {
   id                          String                      @id @db.Uuid
   status                      PrincipalStatus             @default(ACTIVE)
@@ -313,6 +335,8 @@ model IdentityPrincipal {
   createdConsultationFees     ConsultationFee[]            @relation("ConsultationFeeCreator")
   approvedConsultationFees    ConsultationFee[]            @relation("ConsultationFeeApprover")
   requestedReconciliations    PaymentReconciliation[]      @relation("PaymentReconciliationRequester")
+  notificationDeliveries      NotificationDelivery[]       @relation("NotificationRecipient")
+  notificationReplays         NotificationDelivery[]       @relation("NotificationReplayActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -1095,6 +1119,59 @@ model InboxEvent {
   @@unique([consumer, messageId], map: "inbox_events_consumer_message_key")
   @@index([status, receivedAt, id], map: "inbox_events_status_received_id_idx")
   @@map("inbox_events")
+}
+
+model NotificationDelivery {
+  id                       String                     @id @db.Uuid
+  deduplicationKey         String                     @unique @map("deduplication_key") @db.VarChar(200)
+  recipientPrincipalId     String                     @map("recipient_principal_id") @db.Uuid
+  channel                  NotificationChannel
+  templateKey              String                     @map("template_key") @db.VarChar(100)
+  templateVersion          Int                        @map("template_version")
+  locale                   String                     @db.VarChar(35)
+  variables                Json                       @default("{}") @db.JsonB
+  status                   NotificationDeliveryStatus @default(PENDING)
+  availableAt              DateTime                   @default(now()) @map("available_at") @db.Timestamptz(6)
+  attemptCount             Int                        @default(0) @map("attempt_count")
+  leaseToken               String?                    @map("lease_token") @db.Uuid
+  leaseExpiresAt           DateTime?                  @map("lease_expires_at") @db.Timestamptz(6)
+  providerCode             String?                    @map("provider_code") @db.VarChar(64)
+  providerMessageId        String?                    @map("provider_message_id") @db.VarChar(255)
+  deliveredAt              DateTime?                  @map("delivered_at") @db.Timestamptz(6)
+  lastErrorCode            String?                    @map("last_error_code") @db.VarChar(100)
+  replayOfId               String?                    @map("replay_of_id") @db.Uuid
+  replayedByPrincipalId    String?                    @map("replayed_by_principal_id") @db.Uuid
+  replayReason             String?                    @map("replay_reason") @db.VarChar(500)
+  createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                        @default(1)
+  recipient                IdentityPrincipal          @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  replayOf                 NotificationDelivery?      @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
+  replays                  NotificationDelivery[]     @relation("NotificationReplayChain")
+  replayedBy               IdentityPrincipal?         @relation("NotificationReplayActor", fields: [replayedByPrincipalId], references: [id], onDelete: Restrict)
+  attempts                 NotificationAttempt[]
+
+  @@unique([providerCode, providerMessageId], map: "notification_deliveries_provider_message_key")
+  @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_deliveries_recipient_created_idx")
+  @@index([replayOfId, createdAt, id], map: "notification_deliveries_replay_created_idx")
+  @@map("notification_deliveries")
+}
+
+model NotificationAttempt {
+  id                String                     @id @db.Uuid
+  deliveryId        String                     @map("delivery_id") @db.Uuid
+  attemptNumber     Int                        @map("attempt_number")
+  outcome           NotificationAttemptOutcome @default(STARTED)
+  providerCode      String?                    @map("provider_code") @db.VarChar(64)
+  providerMessageId String?                    @map("provider_message_id") @db.VarChar(255)
+  errorCode         String?                    @map("error_code") @db.VarChar(100)
+  startedAt         DateTime                   @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?                  @map("completed_at") @db.Timestamptz(6)
+  delivery          NotificationDelivery       @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryId, attemptNumber], map: "notification_attempts_delivery_number_key")
+  @@index([outcome, startedAt, id], map: "notification_attempts_outcome_started_idx")
+  @@map("notification_attempts")
 }
 
 model ManagerProfile {
