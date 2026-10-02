@@ -1,0 +1,4 @@
+# Reviewed documentation prose false positives in immutable commits. Keep exclusions scoped
+# to exact fingerprints; never suppress a rule, path, or secret type globally.
+c34b55197b8bbe26f0d1ce296f6d12ed95c8e4be:docs/adr/0002-vendor-neutral-identity-and-provider-qualification.md:generic-api-key:52
+82bfbd5a3468e3c7958640aadc295c6dcc3bd473:docs/increments/09-appointment-and-payment-vertical-slice.md:generic-api-key:178

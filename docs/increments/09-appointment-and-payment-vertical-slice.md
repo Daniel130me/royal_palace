@@ -174,9 +174,10 @@ API/config with payment mode disabled; run readiness, migration, protected-contr
 round-trip smoke checks; deploy worker and web BFF/frontend; then monitor authorization
 denials, idempotency conflicts, slot contention, webhook failures/duplicates, inbox backlog,
 ledger/reconciliation mismatches, reservation expiry, latency, and error budgets. Do not
-enable a live provider until its material decisions and due diligence are approved. Roll back
-on privacy leakage, signature/auth regression, invariant/ledger/reconciliation failure,
-schema drift, migration failure, or material latency/error-budget regression.
+enable a live provider until its material decisions and due diligence are approved. Rollback
+triggers include a privacy leak, invalid signature acceptance, broken access control,
+inconsistent ledger or reconciliation records, schema drift, migration failure, or material
+latency/error-budget regression.
 
 **Remote close:** Implementation commit `efcbf3f` was pushed to `origin/feat_prod`. GitHub
 Actions run `36880191144` passed all three exact-head jobs: workspace verification and
