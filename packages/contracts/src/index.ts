@@ -519,6 +519,90 @@ export interface PaymentReconciliationResponse {
   result: "MATCHED" | "MISMATCH_APPLIED" | "MISMATCH_UNRESOLVED";
 }
 
+export type PrescriptionStatus =
+  | "DRAFT"
+  | "SIGNED"
+  | "SENT"
+  | "ACCEPTED"
+  | "PARTIALLY_DISPENSED"
+  | "DISPENSED"
+  | "CANCELLED"
+  | "EXPIRED";
+
+export interface PrescriptionItemResponse {
+  controlledMedication: boolean;
+  dose: string;
+  duration: string | null;
+  frequency: string;
+  id: string;
+  instructions: string | null;
+  lineNumber: number;
+  medicationCode: string | null;
+  medicationCodeSystem: string | null;
+  medicationName: string;
+  quantity: string;
+  quantityUnit: string;
+  refillsAuthorized: number;
+  route: string | null;
+  strength: string | null;
+  substitutionAllowed: boolean;
+}
+
+export interface PrescriptionStatusHistoryResponse {
+  fromStatus: PrescriptionStatus | null;
+  id: string;
+  occurredAt: string;
+  reasonCode: string;
+  toStatus: PrescriptionStatus;
+}
+
+export interface PrescriptionRouteResponse {
+  acceptedAt: string | null;
+  id: string;
+  pharmacy: { displayName: string; id: string };
+  sentAt: string;
+  status: "SENT" | "ACCEPTED" | "CANCELLED";
+  version: number;
+}
+
+export interface PrescriptionResponse {
+  appointmentId: string;
+  attestationMethod: string | null;
+  cancelledAt: string | null;
+  clinicalNote: string | null;
+  contentDigest: string | null;
+  createdAt: string;
+  id: string;
+  items: readonly PrescriptionItemResponse[];
+  jurisdictionCode: string;
+  patient: { displayName: string; id: string };
+  practitioner: { displayName: string; id: string };
+  prescriptionNumber: string;
+  previousPrescriptionId: string | null;
+  routes: readonly PrescriptionRouteResponse[];
+  signedAt: string | null;
+  status: PrescriptionStatus;
+  statusHistory: readonly PrescriptionStatusHistoryResponse[];
+  updatedAt: string;
+  validUntil: string | null;
+  version: number;
+}
+
+export interface PrescriptionListResponse {
+  data: readonly PrescriptionResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export type PharmacyPrescriptionResponse = Omit<
+  PrescriptionResponse,
+  "appointmentId" | "clinicalNote"
+>;
+
+export interface PharmacyPrescriptionListResponse {
+  data: readonly PharmacyPrescriptionResponse[];
+  pageInfo: CursorPageInfo;
+}
+
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";
 export type CatalogueEntryStatus = "ACTIVE" | "INACTIVE";
 

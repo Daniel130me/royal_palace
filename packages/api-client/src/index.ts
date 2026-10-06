@@ -5,6 +5,7 @@ import type { paths as OnboardingPaths } from "./generated/onboarding.js";
 import type { paths as ManagerPaths } from "./generated/manager.js";
 import type { paths as SchedulingPaymentPaths } from "./generated/scheduling-payment.js";
 import type { paths as NotificationPaths } from "./generated/notifications.js";
+import type { paths as PrescriptionPaths } from "./generated/prescriptions.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
 export type {
@@ -23,6 +24,10 @@ export type {
   components as NotificationComponents,
   paths as NotificationPaths,
 } from "./generated/notifications.js";
+export type {
+  components as PrescriptionComponents,
+  paths as PrescriptionPaths,
+} from "./generated/prescriptions.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
@@ -73,6 +78,17 @@ export function createNotificationClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<NotificationPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createPrescriptionClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<PrescriptionPaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

@@ -171,6 +171,31 @@ describe("loadServiceConfig", () => {
       }),
     ).toThrow(/NOTIFICATION_DELIVERY_MODE/);
   });
+
+  it("keeps synthetic clinical workflows outside protected environments", () => {
+    expect(
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        CLINICAL_WORKFLOW_MODE: "synthetic",
+      }).clinicalWorkflow.mode,
+    ).toBe("synthetic");
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        APP_ENV: "production",
+        AWS_REGION: "approved-region-1",
+        CLINICAL_WORKFLOW_MODE: "synthetic",
+        DATABASE_URL:
+          "postgresql://test-user:test-password@database.example.test:5432/test-db?sslmode=verify-full",
+        OBJECT_STORAGE_ENDPOINT: "https://objects.example.test",
+        OIDC_CLIENT_AUTH_METHOD: "client_secret_basic",
+        OIDC_CLIENT_SECRET: "test-client-secret",
+        OIDC_ISSUER_URL: "https://identity.example.test",
+        OIDC_REDIRECT_URI: "https://app.example.test/api/bff/auth/callback",
+        REDIS_URL: "rediss://redis.example.test:6379/0",
+      }),
+    ).toThrow(/CLINICAL_WORKFLOW_MODE/);
+  });
 });
 
 describe("loadWebConfig", () => {

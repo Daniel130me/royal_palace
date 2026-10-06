@@ -11,6 +11,7 @@
     "db:migrate:verify": "tsx scripts/verify-migrations.ts",
     "db:query-plans": "tsx scripts/review-query-plans.ts",
     "db:scheduling-payments:verify": "tsx scripts/verify-scheduling-payments.ts",
+    "db:prescriptions:verify": "tsx scripts/verify-prescriptions.ts",
     "db:discovery:verify": "tsx scripts/verify-public-discovery.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:validate": "tsx scripts/validate-prisma.ts",

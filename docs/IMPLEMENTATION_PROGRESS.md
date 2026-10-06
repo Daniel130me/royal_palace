@@ -211,7 +211,22 @@ that completes an increment.
       audited preference UI, and production alert routing remain approval-gated.
   - `[ ]` Approve production email/SMS/push vendors and privacy-safe content policy;
     qualify production bucket IAM, GuardDuty scan tagging, lifecycle, and alerting.
-- `[ ]` **Increment 11 — Remaining operational and clinical slices**
+- `[~]` **Increment 11 — Remaining operational and clinical slices**
+  - Evidence: [`increments/11-prescription-and-pharmacy.md`](./increments/11-prescription-and-pharmacy.md)
+  - `[x]` Product owner approved the prescription/pharmacy state, ownership,
+    immutability, visibility, substitution, and controlled-medication rules.
+  - `[x]` Checkpoint 11A adds the synthetic-only production prescription aggregate,
+    verified-practitioner attestation, patient-directed verified-pharmacy routing,
+    minimal pharmacy visibility, append-only history, bounded expiry, migration and
+    concurrency verification, indexed representative queue evidence, and a generated
+    drift-checked service contract. The checkpoint is complete but not approved for
+    real clinical use.
+  - `[ ]` Checkpoint 11B: dispensing events, substitution consent/approval, refill and
+    quantity accounting, and associated notification intents.
+  - `[ ]` Checkpoint 11C: commercial pharmacy order/payment/fulfilment workflow,
+    frontend/BFF cutover, prototype-route retirement, and qualified clinical review.
+  - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
+    advanced-reporting slices remain after the pharmacy/prescription slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open

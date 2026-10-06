@@ -131,6 +131,7 @@ function baselineRequest(
         context: { patientPrincipalId: targetPrincipalId, resourceId, resourceType: "payment" },
       };
     case AUTHORIZATION_POLICY.MANAGE_PRACTITIONER_AVAILABILITY:
+    case AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION:
       return {
         ...base,
         policy,
@@ -138,6 +139,34 @@ function baselineRequest(
           practitionerPrincipalId: targetPrincipalId,
           resourceId,
           resourceType: "availability",
+        },
+      };
+    case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
+      return {
+        ...base,
+        policy,
+        context: { organizationId, resourceId, resourceType: "prescription" },
+      };
+    case AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION:
+      return {
+        ...base,
+        policy,
+        context: {
+          patientPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "prescription",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_PRESCRIPTION:
+      return {
+        ...base,
+        policy,
+        context: {
+          patientPrincipalId: targetPrincipalId,
+          pharmacyOrganizationId: organizationId,
+          practitionerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "prescription",
         },
       };
     case AUTHORIZATION_POLICY.VIEW_APPOINTMENT:
@@ -160,6 +189,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
     case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
     case AUTHORIZATION_POLICY.EXPIRE_APPOINTMENT_RESERVATIONS:
+    case AUTHORIZATION_POLICY.EXPIRE_PRESCRIPTIONS:
     case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
     case AUTHORIZATION_POLICY.REVIEW_MANAGER_TICKET:
       return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
@@ -184,6 +214,8 @@ describe("PolicyEngine", () => {
     ESCALATE_TICKET: ["SUPPORT", "ADMINISTRATOR"],
     EXPIRE_APPOINTMENT_RESERVATIONS: ["SYSTEM_WORKER"],
     MANAGE_PRACTITIONER_AVAILABILITY: [],
+    MANAGE_OWN_PRESCRIPTION: [],
+    MANAGE_PHARMACY_PRESCRIPTION: [],
     MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
     REVOKE_PRINCIPAL_SESSIONS: ["ADMINISTRATOR"],
@@ -196,6 +228,9 @@ describe("PolicyEngine", () => {
     VIEW_PATIENT: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],
     VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
+    ROUTE_PRESCRIPTION: [],
+    VIEW_PRESCRIPTION: [],
+    EXPIRE_PRESCRIPTIONS: ["SYSTEM_WORKER"],
   };
 
   for (const [policy, allowedRoles] of Object.entries(roleMatrix) as [

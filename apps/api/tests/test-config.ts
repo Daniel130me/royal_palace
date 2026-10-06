@@ -6,6 +6,7 @@ export const testConfig = loadServiceConfig("api", {
   BFF_INTERNAL_SECRET: Buffer.alloc(32, 1).toString("base64"),
   CLAMAV_HOST: "127.0.0.1",
   CLAMAV_PORT: "3310",
+  CLINICAL_WORKFLOW_MODE: "synthetic",
   DATABASE_URL: "postgresql://test-user:test-password@127.0.0.1:5432/test-db",
   DEPENDENCY_TIMEOUT_MS: "1500",
   LOG_LEVEL: "silent",

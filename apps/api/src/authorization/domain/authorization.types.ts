@@ -14,6 +14,8 @@ export const AUTHORIZATION_POLICY = {
   EXPIRE_APPOINTMENT_RESERVATIONS: "EXPIRE_APPOINTMENT_RESERVATIONS",
   BOOK_APPOINTMENT: "BOOK_APPOINTMENT",
   MANAGE_PRACTITIONER_AVAILABILITY: "MANAGE_PRACTITIONER_AVAILABILITY",
+  MANAGE_OWN_PRESCRIPTION: "MANAGE_OWN_PRESCRIPTION",
+  MANAGE_PHARMACY_PRESCRIPTION: "MANAGE_PHARMACY_PRESCRIPTION",
   MANAGE_OWN_APPLICATION: "MANAGE_OWN_APPLICATION",
   REVIEW_APPLICATION: "REVIEW_APPLICATION",
   REVOKE_PRINCIPAL_SESSIONS: "REVOKE_PRINCIPAL_SESSIONS",
@@ -26,10 +28,13 @@ export const AUTHORIZATION_POLICY = {
   VIEW_PATIENT: "VIEW_PATIENT",
   VIEW_PATIENT_PAYMENT_AMOUNT: "VIEW_PATIENT_PAYMENT_AMOUNT",
   VIEW_APPOINTMENT: "VIEW_APPOINTMENT",
+  ROUTE_PRESCRIPTION: "ROUTE_PRESCRIPTION",
+  VIEW_PRESCRIPTION: "VIEW_PRESCRIPTION",
+  EXPIRE_PRESCRIPTIONS: "EXPIRE_PRESCRIPTIONS",
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 7;
+export const AUTHORIZATION_POLICY_VERSION = 8;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -68,6 +73,8 @@ export interface AuthorizationPolicyContexts {
   MANAGE_PRACTITIONER_AVAILABILITY: ResourceReference & {
     practitionerPrincipalId: string;
   };
+  MANAGE_OWN_PRESCRIPTION: ResourceReference & { practitionerPrincipalId: string };
+  MANAGE_PHARMACY_PRESCRIPTION: ResourceReference & { organizationId: string };
   REVIEW_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVOKE_PRINCIPAL_SESSIONS: ResourceReference;
   RECORD_SETTLED_PATIENT_ACTIVITY: ResourceReference;
@@ -89,6 +96,13 @@ export interface AuthorizationPolicyContexts {
     patientPrincipalId: string;
     practitionerPrincipalId: string | null;
   };
+  ROUTE_PRESCRIPTION: ResourceReference & { patientPrincipalId: string };
+  VIEW_PRESCRIPTION: ResourceReference & {
+    patientPrincipalId: string;
+    pharmacyOrganizationId?: string;
+    practitionerPrincipalId: string;
+  };
+  EXPIRE_PRESCRIPTIONS: ResourceReference;
 }
 
 export type AuthorizationContext<P extends AuthorizationPolicy> = AuthorizationPolicyContexts[P];

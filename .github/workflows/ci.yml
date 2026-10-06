@@ -43,7 +43,7 @@ jobs:
         run: pnpm verify
 
       - name: Audit dependencies
-        run: pnpm audit --audit-level high
+        run: pnpm audit:dependencies
 
       - name: Require a clean generated workspace
         run: git diff --exit-code
@@ -130,3 +130,6 @@ jobs:
 
       - name: Verify scheduling and payment persistence
         run: pnpm db:scheduling-payments:verify
+
+      - name: Verify prescription and pharmacy persistence
+        run: pnpm db:prescriptions:verify

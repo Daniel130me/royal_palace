@@ -42,6 +42,24 @@ export class PolicyEngine {
           request.actor.principalId === request.context.practitionerPrincipalId
           ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
           : this.deny(request.policy, "practitioner_ownership_required");
+      case AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION:
+        return request.actor.roles.includes("PROVIDER") &&
+          request.actor.principalId === request.context.practitionerPrincipalId
+          ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
+          : this.deny(request.policy, "prescription_issuer_required");
+      case AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION:
+        return request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+          ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
+          : this.deny(request.policy, "prescription_patient_required");
+      case AUTHORIZATION_POLICY.VIEW_PRESCRIPTION:
+        return this.canViewPrescription(request.actor, request.context);
+      case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
+        return this.canManagePharmacyPrescription(
+          request.actor,
+          request.context.organizationId,
+          request.policy,
+        );
       case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
@@ -56,6 +74,7 @@ export class PolicyEngine {
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
       case AUTHORIZATION_POLICY.EXPIRE_APPOINTMENT_RESERVATIONS:
+      case AUTHORIZATION_POLICY.EXPIRE_PRESCRIPTIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["SYSTEM_WORKER"]);
       case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
         return this.allowPlatformRole(request.actor, request.policy, ["FINANCE", "ADMINISTRATOR"]);
@@ -223,6 +242,37 @@ export class PolicyEngine {
       return this.allow(policy, "PATIENT", ALLOW.OWNER);
     }
     return this.allowPlatformRole(actor, policy, ["FINANCE", "ADMINISTRATOR"]);
+  }
+
+  private canViewPrescription(
+    actor: CurrentSession,
+    context: Extract<AuthorizationRequest, { policy: "VIEW_PRESCRIPTION" }>["context"],
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.VIEW_PRESCRIPTION;
+    if (actor.roles.includes("PATIENT") && actor.principalId === context.patientPrincipalId) {
+      return this.allow(policy, "PATIENT", ALLOW.OWNER);
+    }
+    if (actor.roles.includes("PROVIDER") && actor.principalId === context.practitionerPrincipalId) {
+      return this.allow(policy, "PROVIDER", ALLOW.OWNER);
+    }
+    if (context.pharmacyOrganizationId !== undefined) {
+      return this.canManagePharmacyPrescription(actor, context.pharmacyOrganizationId, policy);
+    }
+    return this.deny(policy, "prescription_relationship_required");
+  }
+
+  private canManagePharmacyPrescription(
+    actor: CurrentSession,
+    organizationId: string,
+    policy: AuthorizationDecision["policy"],
+  ): AuthorizationDecision {
+    const role = this.firstOrganizationRole(actor, organizationId, [
+      "ORGANIZATION_STAFF",
+      "PROVIDER",
+    ]);
+    return role === null
+      ? this.deny(policy, "assigned_pharmacy_membership_required")
+      : this.allow(policy, role, ALLOW.ORGANIZATION_MEMBER);
   }
 
   private allowPlatformRole(

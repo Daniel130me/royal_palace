@@ -313,42 +313,60 @@ enum NotificationAttemptOutcome {
   UNKNOWN
 }
 
+enum PrescriptionStatus {
+  DRAFT
+  SIGNED
+  SENT
+  ACCEPTED
+  PARTIALLY_DISPENSED
+  DISPENSED
+  CANCELLED
+  EXPIRED
+}
+
+enum PrescriptionRouteStatus {
+  SENT
+  ACCEPTED
+  CANCELLED
+}
+
 model IdentityPrincipal {
-  id                          String                      @id @db.Uuid
-  status                      PrincipalStatus             @default(ACTIVE)
-  createdAt                   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                     Int                         @default(1)
-  externalIdentities          ExternalIdentity[]          @relation("ExternalIdentityOwner")
-  linkedIdentities            ExternalIdentity[]          @relation("ExternalIdentityLinker")
+  id                          String                          @id @db.Uuid
+  status                      PrincipalStatus                 @default(ACTIVE)
+  createdAt                   DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                     Int                             @default(1)
+  externalIdentities          ExternalIdentity[]              @relation("ExternalIdentityOwner")
+  linkedIdentities            ExternalIdentity[]              @relation("ExternalIdentityLinker")
   sessions                    AuthSession[]
   memberships                 Membership[]
-  roleAssignments             RoleAssignment[]            @relation("RoleAssignee")
-  grantedRoles                RoleAssignment[]            @relation("RoleGrantor")
-  auditEvents                 AuditEvent[]                @relation("AuditActor")
+  roleAssignments             RoleAssignment[]                @relation("RoleAssignee")
+  grantedRoles                RoleAssignment[]                @relation("RoleGrantor")
+  auditEvents                 AuditEvent[]                    @relation("AuditActor")
   idempotencyKeys             IdempotencyKey[]
   practitioner                Practitioner?
   patient                     Patient?
-  onboardingApplications      OnboardingApplication[]     @relation("OnboardingApplicant")
-  startedApplicationReviews   OnboardingApplication[]     @relation("OnboardingReviewStarter")
-  decidedApplications         OnboardingApplication[]     @relation("OnboardingDecider")
-  applicationStatusHistory    ApplicationStatusHistory[]  @relation("ApplicationHistoryActor")
+  onboardingApplications      OnboardingApplication[]         @relation("OnboardingApplicant")
+  startedApplicationReviews   OnboardingApplication[]         @relation("OnboardingReviewStarter")
+  decidedApplications         OnboardingApplication[]         @relation("OnboardingDecider")
+  applicationStatusHistory    ApplicationStatusHistory[]      @relation("ApplicationHistoryActor")
   managerProfile              ManagerProfile?
-  createdReferralLinks        ReferralLink[]              @relation("ReferralLinkCreator")
-  referralAttributionEvents   ReferralAttributionEvent[]  @relation("ReferralAttributionActor")
-  commissionPoliciesCreated   CommissionPolicy[]          @relation("CommissionPolicyCreator")
-  commissionPoliciesApproved  CommissionPolicy[]          @relation("CommissionPolicyApprover")
-  recordedActivitySettlements PatientActivitySettlement[] @relation("ActivitySettlementRecorder")
-  createdManagerTickets       ManagerSupportTicket[]      @relation("ManagerTicketCreator")
-  managerTicketFollowUps      ManagerTicketFollowUp[]     @relation("ManagerTicketFollowUpAuthor")
-  createdAvailabilitySlots    AvailabilitySlot[]           @relation("AvailabilitySlotCreator")
-  createdConsultationFees     ConsultationFee[]            @relation("ConsultationFeeCreator")
-  approvedConsultationFees    ConsultationFee[]            @relation("ConsultationFeeApprover")
-  requestedReconciliations    PaymentReconciliation[]      @relation("PaymentReconciliationRequester")
-  notificationDeliveries      NotificationDelivery[]       @relation("NotificationRecipient")
-  notificationReplays         NotificationDelivery[]       @relation("NotificationReplayActor")
+  createdReferralLinks        ReferralLink[]                  @relation("ReferralLinkCreator")
+  referralAttributionEvents   ReferralAttributionEvent[]      @relation("ReferralAttributionActor")
+  commissionPoliciesCreated   CommissionPolicy[]              @relation("CommissionPolicyCreator")
+  commissionPoliciesApproved  CommissionPolicy[]              @relation("CommissionPolicyApprover")
+  recordedActivitySettlements PatientActivitySettlement[]     @relation("ActivitySettlementRecorder")
+  createdManagerTickets       ManagerSupportTicket[]          @relation("ManagerTicketCreator")
+  managerTicketFollowUps      ManagerTicketFollowUp[]         @relation("ManagerTicketFollowUpAuthor")
+  createdAvailabilitySlots    AvailabilitySlot[]              @relation("AvailabilitySlotCreator")
+  createdConsultationFees     ConsultationFee[]               @relation("ConsultationFeeCreator")
+  approvedConsultationFees    ConsultationFee[]               @relation("ConsultationFeeApprover")
+  requestedReconciliations    PaymentReconciliation[]         @relation("PaymentReconciliationRequester")
+  notificationDeliveries      NotificationDelivery[]          @relation("NotificationRecipient")
+  notificationReplays         NotificationDelivery[]          @relation("NotificationReplayActor")
   notificationEndpoints       NotificationRecipientEndpoint[]
   notificationPreferences     NotificationPreference[]
+  prescriptionStatusChanges   PrescriptionStatusHistory[]     @relation("PrescriptionStatusActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -372,6 +390,7 @@ model Patient {
   activitySettlements PatientActivitySettlement[]
   appointments        Appointment[]
   payments            Payment[]
+  prescriptions       Prescription[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -468,6 +487,7 @@ model Organization {
   approvedApplication               OnboardingApplication?          @relation("ApprovedOrganizationApplication")
   practitionerApplicationSelections PractitionerApplicationDetail[]
   registrations                     OrganizationRegistration[]
+  prescriptionRoutes                PrescriptionRoute[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -670,6 +690,7 @@ model Practitioner {
   consultationFees    ConsultationFee[]
   availabilitySlots   AvailabilitySlot[]
   appointments        Appointment[]
+  prescriptions       Prescription[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -1115,17 +1136,17 @@ model OutboxEvent {
 }
 
 model InboxEvent {
-  id            String      @id @db.Uuid
-  consumer      String      @db.VarChar(128)
-  messageId     String      @map("message_id") @db.VarChar(255)
-  eventType     String      @map("event_type") @db.VarChar(160)
-  payloadHash   String      @map("payload_hash") @db.Char(64)
-  status        InboxStatus @default(RECEIVED)
-  receivedAt    DateTime    @default(now()) @map("received_at") @db.Timestamptz(6)
-  processingAt  DateTime?   @map("processing_at") @db.Timestamptz(6)
-  processedAt   DateTime?   @map("processed_at") @db.Timestamptz(6)
-  attemptCount  Int         @default(0) @map("attempt_count")
-  lastErrorCode String?     @map("last_error_code") @db.VarChar(100)
+  id                  String               @id @db.Uuid
+  consumer            String               @db.VarChar(128)
+  messageId           String               @map("message_id") @db.VarChar(255)
+  eventType           String               @map("event_type") @db.VarChar(160)
+  payloadHash         String               @map("payload_hash") @db.Char(64)
+  status              InboxStatus          @default(RECEIVED)
+  receivedAt          DateTime             @default(now()) @map("received_at") @db.Timestamptz(6)
+  processingAt        DateTime?            @map("processing_at") @db.Timestamptz(6)
+  processedAt         DateTime?            @map("processed_at") @db.Timestamptz(6)
+  attemptCount        Int                  @default(0) @map("attempt_count")
+  lastErrorCode       String?              @map("last_error_code") @db.VarChar(100)
   paymentWebhookEvent PaymentWebhookEvent?
 
   @@unique([consumer, messageId], map: "inbox_events_consumer_message_key")
@@ -1134,35 +1155,35 @@ model InboxEvent {
 }
 
 model NotificationDelivery {
-  id                       String                     @id @db.Uuid
-  deduplicationKey         String                     @unique @map("deduplication_key") @db.VarChar(200)
-  recipientPrincipalId     String                     @map("recipient_principal_id") @db.Uuid
-  channel                  NotificationChannel
-  category                 NotificationCategory       @default(TRANSACTIONAL)
-  templateKey              String                     @map("template_key") @db.VarChar(100)
-  templateVersion          Int                        @map("template_version")
-  locale                   String                     @db.VarChar(35)
-  variables                Json                       @default("{}") @db.JsonB
-  status                   NotificationDeliveryStatus @default(PENDING)
-  availableAt              DateTime                   @default(now()) @map("available_at") @db.Timestamptz(6)
-  attemptCount             Int                        @default(0) @map("attempt_count")
-  leaseToken               String?                    @map("lease_token") @db.Uuid
-  leaseExpiresAt           DateTime?                  @map("lease_expires_at") @db.Timestamptz(6)
-  providerCode             String?                    @map("provider_code") @db.VarChar(64)
-  providerMessageId        String?                    @map("provider_message_id") @db.VarChar(255)
-  deliveredAt              DateTime?                  @map("delivered_at") @db.Timestamptz(6)
-  lastErrorCode            String?                    @map("last_error_code") @db.VarChar(100)
-  replayOfId               String?                    @map("replay_of_id") @db.Uuid
-  replayedByPrincipalId    String?                    @map("replayed_by_principal_id") @db.Uuid
-  replayReason             String?                    @map("replay_reason") @db.VarChar(500)
-  createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                  Int                        @default(1)
-  recipient                IdentityPrincipal          @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
-  replayOf                 NotificationDelivery?      @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
-  replays                  NotificationDelivery[]     @relation("NotificationReplayChain")
-  replayedBy               IdentityPrincipal?         @relation("NotificationReplayActor", fields: [replayedByPrincipalId], references: [id], onDelete: Restrict)
-  attempts                 NotificationAttempt[]
+  id                    String                     @id @db.Uuid
+  deduplicationKey      String                     @unique @map("deduplication_key") @db.VarChar(200)
+  recipientPrincipalId  String                     @map("recipient_principal_id") @db.Uuid
+  channel               NotificationChannel
+  category              NotificationCategory       @default(TRANSACTIONAL)
+  templateKey           String                     @map("template_key") @db.VarChar(100)
+  templateVersion       Int                        @map("template_version")
+  locale                String                     @db.VarChar(35)
+  variables             Json                       @default("{}") @db.JsonB
+  status                NotificationDeliveryStatus @default(PENDING)
+  availableAt           DateTime                   @default(now()) @map("available_at") @db.Timestamptz(6)
+  attemptCount          Int                        @default(0) @map("attempt_count")
+  leaseToken            String?                    @map("lease_token") @db.Uuid
+  leaseExpiresAt        DateTime?                  @map("lease_expires_at") @db.Timestamptz(6)
+  providerCode          String?                    @map("provider_code") @db.VarChar(64)
+  providerMessageId     String?                    @map("provider_message_id") @db.VarChar(255)
+  deliveredAt           DateTime?                  @map("delivered_at") @db.Timestamptz(6)
+  lastErrorCode         String?                    @map("last_error_code") @db.VarChar(100)
+  replayOfId            String?                    @map("replay_of_id") @db.Uuid
+  replayedByPrincipalId String?                    @map("replayed_by_principal_id") @db.Uuid
+  replayReason          String?                    @map("replay_reason") @db.VarChar(500)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                        @default(1)
+  recipient             IdentityPrincipal          @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  replayOf              NotificationDelivery?      @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
+  replays               NotificationDelivery[]     @relation("NotificationReplayChain")
+  replayedBy            IdentityPrincipal?         @relation("NotificationReplayActor", fields: [replayedByPrincipalId], references: [id], onDelete: Restrict)
+  attempts              NotificationAttempt[]
 
   @@unique([providerCode, providerMessageId], map: "notification_deliveries_provider_message_key")
   @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_deliveries_recipient_created_idx")
@@ -1190,18 +1211,18 @@ model NotificationRecipientEndpoint {
 }
 
 model NotificationPreference {
-  id                   String               @id @db.Uuid
-  principalId          String               @map("principal_id") @db.Uuid
-  channel              NotificationChannel
-  category             NotificationCategory
-  enabled              Boolean
-  consentedAt          DateTime?            @map("consented_at") @db.Timestamptz(6)
-  withdrawnAt          DateTime?            @map("withdrawn_at") @db.Timestamptz(6)
-  consentEvidenceCode  String?              @map("consent_evidence_code") @db.VarChar(100)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version              Int                  @default(1)
-  principal            IdentityPrincipal    @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  id                  String               @id @db.Uuid
+  principalId         String               @map("principal_id") @db.Uuid
+  channel             NotificationChannel
+  category            NotificationCategory
+  enabled             Boolean
+  consentedAt         DateTime?            @map("consented_at") @db.Timestamptz(6)
+  withdrawnAt         DateTime?            @map("withdrawn_at") @db.Timestamptz(6)
+  consentEvidenceCode String?              @map("consent_evidence_code") @db.VarChar(100)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                  @default(1)
+  principal           IdentityPrincipal    @relation(fields: [principalId], references: [id], onDelete: Restrict)
 
   @@unique([principalId, channel, category], map: "notification_preferences_principal_channel_category_key")
   @@map("notification_preferences")
@@ -1456,7 +1477,7 @@ model AvailabilitySlot {
   updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   version              Int                    @default(1)
   practitioner         Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  consultationFee      ConsultationFee         @relation(fields: [consultationFeeId], references: [id], onDelete: Restrict)
+  consultationFee      ConsultationFee        @relation(fields: [consultationFeeId], references: [id], onDelete: Restrict)
   createdByPrincipal   IdentityPrincipal      @relation("AvailabilitySlotCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
   appointment          Appointment?
 
@@ -1466,27 +1487,28 @@ model AvailabilitySlot {
 }
 
 model Appointment {
-  id                  String            @id @db.Uuid
-  patientId           String            @map("patient_id") @db.Uuid
-  practitionerId      String            @map("practitioner_id") @db.Uuid
-  availabilitySlotId  String            @unique @map("availability_slot_id") @db.Uuid
-  mode                ConsultationMode
-  startsAt            DateTime          @map("starts_at") @db.Timestamptz(6)
-  endsAt              DateTime          @map("ends_at") @db.Timestamptz(6)
-  amountMinor         BigInt            @map("amount_minor")
-  currency            String            @db.Char(3)
-  status              AppointmentStatus @default(PENDING_PAYMENT)
-  paymentDueAt        DateTime          @map("payment_due_at") @db.Timestamptz(6)
-  confirmedAt         DateTime?         @map("confirmed_at") @db.Timestamptz(6)
-  cancelledAt         DateTime?         @map("cancelled_at") @db.Timestamptz(6)
-  completedAt         DateTime?         @map("completed_at") @db.Timestamptz(6)
-  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version             Int               @default(1)
-  patient             Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner        Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  availabilitySlot    AvailabilitySlot  @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
-  payment             Payment?
+  id                 String            @id @db.Uuid
+  patientId          String            @map("patient_id") @db.Uuid
+  practitionerId     String            @map("practitioner_id") @db.Uuid
+  availabilitySlotId String            @unique @map("availability_slot_id") @db.Uuid
+  mode               ConsultationMode
+  startsAt           DateTime          @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime          @map("ends_at") @db.Timestamptz(6)
+  amountMinor        BigInt            @map("amount_minor")
+  currency           String            @db.Char(3)
+  status             AppointmentStatus @default(PENDING_PAYMENT)
+  paymentDueAt       DateTime          @map("payment_due_at") @db.Timestamptz(6)
+  confirmedAt        DateTime?         @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  completedAt        DateTime?         @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int               @default(1)
+  patient            Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner       Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  availabilitySlot   AvailabilitySlot  @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
+  payment            Payment?
+  prescriptions      Prescription[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
@@ -1494,25 +1516,120 @@ model Appointment {
   @@map("appointments")
 }
 
+model Prescription {
+  id                     String                      @id @db.Uuid
+  prescriptionNumber     String                      @unique @map("prescription_number") @db.VarChar(64)
+  patientId              String                      @map("patient_id") @db.Uuid
+  practitionerId         String                      @map("practitioner_id") @db.Uuid
+  appointmentId          String                      @map("appointment_id") @db.Uuid
+  previousPrescriptionId String?                     @unique @map("previous_prescription_id") @db.Uuid
+  jurisdictionCode       String                      @map("jurisdiction_code") @db.VarChar(32)
+  status                 PrescriptionStatus          @default(DRAFT)
+  clinicalNote           String?                     @map("clinical_note") @db.VarChar(2000)
+  contentDigest          String?                     @map("content_digest") @db.Char(64)
+  attestationMethod      String?                     @map("attestation_method") @db.VarChar(64)
+  signedAt               DateTime?                   @map("signed_at") @db.Timestamptz(6)
+  validUntil             DateTime?                   @map("valid_until") @db.Timestamptz(6)
+  cancelledAt            DateTime?                   @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReasonCode String?                     @map("cancellation_reason_code") @db.VarChar(100)
+  createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                         @default(1)
+  patient                Patient                     @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner           Practitioner                @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  appointment            Appointment                 @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  previousPrescription   Prescription?               @relation("PrescriptionAmendment", fields: [previousPrescriptionId], references: [id], onDelete: Restrict)
+  amendedPrescription    Prescription?               @relation("PrescriptionAmendment")
+  items                  PrescriptionItem[]
+  statusHistory          PrescriptionStatusHistory[]
+  routes                 PrescriptionRoute[]
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "prescriptions_patient_created_idx")
+  @@index([practitionerId, createdAt(sort: Desc), id(sort: Desc)], map: "prescriptions_practitioner_created_idx")
+  @@index([status, validUntil, id], map: "prescriptions_status_expiry_idx")
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id                   String       @id @db.Uuid
+  prescriptionId       String       @map("prescription_id") @db.Uuid
+  lineNumber           Int          @map("line_number")
+  medicationCode       String?      @map("medication_code") @db.VarChar(120)
+  medicationCodeSystem String?      @map("medication_code_system") @db.VarChar(255)
+  medicationName       String       @map("medication_name") @db.VarChar(240)
+  strength             String?      @db.VarChar(120)
+  dose                 String       @db.VarChar(240)
+  route                String?      @db.VarChar(120)
+  frequency            String       @db.VarChar(240)
+  duration             String?      @db.VarChar(120)
+  quantity             Decimal      @db.Decimal(12, 3)
+  quantityUnit         String       @map("quantity_unit") @db.VarChar(64)
+  refillsAuthorized    Int          @default(0) @map("refills_authorized")
+  substitutionAllowed  Boolean      @default(false) @map("substitution_allowed")
+  controlledMedication Boolean      @default(false) @map("controlled_medication")
+  instructions         String?      @db.VarChar(1000)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  prescription         Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+
+  @@unique([prescriptionId, lineNumber], map: "prescription_items_prescription_line_key")
+  @@index([prescriptionId, id], map: "prescription_items_prescription_id_idx")
+  @@map("prescription_items")
+}
+
+model PrescriptionStatusHistory {
+  id               String              @id @db.Uuid
+  prescriptionId   String              @map("prescription_id") @db.Uuid
+  actorPrincipalId String              @map("actor_principal_id") @db.Uuid
+  fromStatus       PrescriptionStatus? @map("from_status")
+  toStatus         PrescriptionStatus  @map("to_status")
+  reasonCode       String              @map("reason_code") @db.VarChar(100)
+  occurredAt       DateTime            @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  prescription     Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal   @relation("PrescriptionStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionId, occurredAt, id], map: "prescription_status_history_prescription_idx")
+  @@map("prescription_status_history")
+}
+
+model PrescriptionRoute {
+  id                     String                  @id @db.Uuid
+  prescriptionId         String                  @map("prescription_id") @db.Uuid
+  pharmacyOrganizationId String                  @map("pharmacy_organization_id") @db.Uuid
+  status                 PrescriptionRouteStatus @default(SENT)
+  sentAt                 DateTime                @map("sent_at") @db.Timestamptz(6)
+  acceptedAt             DateTime?               @map("accepted_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?               @map("cancelled_at") @db.Timestamptz(6)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                     @default(1)
+  prescription           Prescription            @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  pharmacyOrganization   Organization            @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+
+  @@index([pharmacyOrganizationId, status, sentAt(sort: Desc), id(sort: Desc)], map: "prescription_routes_pharmacy_queue_idx")
+  @@index([prescriptionId, createdAt, id], map: "prescription_routes_prescription_idx")
+  @@map("prescription_routes")
+}
+
 model Payment {
-  id                       String        @id @db.Uuid
-  appointmentId            String        @unique @map("appointment_id") @db.Uuid
-  patientId                String        @map("patient_id") @db.Uuid
-  reference                String        @unique @db.VarChar(64)
-  providerCode             String        @map("provider_code") @db.VarChar(64)
-  providerPaymentReference String?       @unique @map("provider_payment_reference") @db.VarChar(255)
-  amountMinor              BigInt        @map("amount_minor")
-  refundedAmountMinor      BigInt        @default(0) @map("refunded_amount_minor")
-  currency                 String        @db.Char(3)
-  status                   PaymentStatus @default(CREATED)
-  providerOccurredAt       DateTime?     @map("provider_occurred_at") @db.Timestamptz(6)
-  succeededAt              DateTime?     @map("succeeded_at") @db.Timestamptz(6)
-  terminalAt               DateTime?     @map("terminal_at") @db.Timestamptz(6)
-  createdAt                DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                  Int           @default(1)
-  appointment              Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  patient                  Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  id                       String                   @id @db.Uuid
+  appointmentId            String                   @unique @map("appointment_id") @db.Uuid
+  patientId                String                   @map("patient_id") @db.Uuid
+  reference                String                   @unique @db.VarChar(64)
+  providerCode             String                   @map("provider_code") @db.VarChar(64)
+  providerPaymentReference String?                  @unique @map("provider_payment_reference") @db.VarChar(255)
+  amountMinor              BigInt                   @map("amount_minor")
+  refundedAmountMinor      BigInt                   @default(0) @map("refunded_amount_minor")
+  currency                 String                   @db.Char(3)
+  status                   PaymentStatus            @default(CREATED)
+  providerOccurredAt       DateTime?                @map("provider_occurred_at") @db.Timestamptz(6)
+  succeededAt              DateTime?                @map("succeeded_at") @db.Timestamptz(6)
+  terminalAt               DateTime?                @map("terminal_at") @db.Timestamptz(6)
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                      @default(1)
+  appointment              Appointment              @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient                  Patient                  @relation(fields: [patientId], references: [id], onDelete: Restrict)
   checkoutSessions         PaymentCheckoutSession[]
   webhookEvents            PaymentWebhookEvent[]
   statusHistory            PaymentStatusHistory[]
@@ -1544,24 +1661,24 @@ model PaymentCheckoutSession {
 }
 
 model PaymentWebhookEvent {
-  id                       String               @id @db.Uuid
-  inboxEventId             String               @unique @map("inbox_event_id") @db.Uuid
-  paymentId                String?              @map("payment_id") @db.Uuid
-  providerCode             String               @map("provider_code") @db.VarChar(64)
-  providerEventId          String               @map("provider_event_id") @db.VarChar(255)
-  providerPaymentReference String               @map("provider_payment_reference") @db.VarChar(255)
-  eventType                PaymentEventType     @map("event_type")
-  amountMinor              BigInt?              @map("amount_minor")
-  currency                 String?              @db.Char(3)
-  payloadHash              String               @map("payload_hash") @db.Char(64)
-  signatureKeyId           String               @map("signature_key_id") @db.VarChar(64)
-  providerOccurredAt       DateTime             @map("provider_occurred_at") @db.Timestamptz(6)
+  id                       String                @id @db.Uuid
+  inboxEventId             String                @unique @map("inbox_event_id") @db.Uuid
+  paymentId                String?               @map("payment_id") @db.Uuid
+  providerCode             String                @map("provider_code") @db.VarChar(64)
+  providerEventId          String                @map("provider_event_id") @db.VarChar(255)
+  providerPaymentReference String                @map("provider_payment_reference") @db.VarChar(255)
+  eventType                PaymentEventType      @map("event_type")
+  amountMinor              BigInt?               @map("amount_minor")
+  currency                 String?               @db.Char(3)
+  payloadHash              String                @map("payload_hash") @db.Char(64)
+  signatureKeyId           String                @map("signature_key_id") @db.VarChar(64)
+  providerOccurredAt       DateTime              @map("provider_occurred_at") @db.Timestamptz(6)
   status                   PaymentWebhookStatus
-  outcomeCode              String?              @map("outcome_code") @db.VarChar(100)
-  receivedAt               DateTime             @default(now()) @map("received_at") @db.Timestamptz(6)
-  processedAt              DateTime?            @map("processed_at") @db.Timestamptz(6)
-  inboxEvent               InboxEvent           @relation(fields: [inboxEventId], references: [id], onDelete: Restrict)
-  payment                  Payment?             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  outcomeCode              String?               @map("outcome_code") @db.VarChar(100)
+  receivedAt               DateTime              @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt              DateTime?             @map("processed_at") @db.Timestamptz(6)
+  inboxEvent               InboxEvent            @relation(fields: [inboxEventId], references: [id], onDelete: Restrict)
+  payment                  Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   statusHistory            PaymentStatusHistory?
 
   @@unique([providerCode, providerEventId], map: "payment_webhook_provider_event_key")
@@ -1571,15 +1688,15 @@ model PaymentWebhookEvent {
 }
 
 model PaymentStatusHistory {
-  id             String              @id @db.Uuid
-  paymentId      String              @map("payment_id") @db.Uuid
-  webhookEventId String?             @unique @map("webhook_event_id") @db.Uuid
-  fromStatus     PaymentStatus?      @map("from_status")
-  toStatus       PaymentStatus       @map("to_status")
-  reasonCode     String              @map("reason_code") @db.VarChar(100)
-  occurredAt     DateTime            @map("occurred_at") @db.Timestamptz(6)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  payment        Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  id             String               @id @db.Uuid
+  paymentId      String               @map("payment_id") @db.Uuid
+  webhookEventId String?              @unique @map("webhook_event_id") @db.Uuid
+  fromStatus     PaymentStatus?       @map("from_status")
+  toStatus       PaymentStatus        @map("to_status")
+  reasonCode     String               @map("reason_code") @db.VarChar(100)
+  occurredAt     DateTime             @map("occurred_at") @db.Timestamptz(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment        Payment              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   webhookEvent   PaymentWebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: Restrict)
 
   @@index([paymentId, occurredAt, id], map: "payment_status_history_payment_occurred_idx")

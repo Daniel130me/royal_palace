@@ -10,6 +10,7 @@ const logLevelSchema = z.enum(["fatal", "error", "warn", "info", "debug", "trace
 const oidcClientAuthMethodSchema = z.enum(["client_secret_basic", "client_secret_post", "none"]);
 const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 const notificationDeliveryModeSchema = z.enum(["disabled", "synthetic"]);
+const clinicalWorkflowModeSchema = z.enum(["disabled", "synthetic"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
@@ -164,6 +165,7 @@ const serviceEnvironmentSchema = z
     AWS_REGION: z.string().trim().min(1).optional(),
     CLAMAV_HOST: z.string().trim().min(1).optional(),
     CLAMAV_PORT: portSchema.optional(),
+    CLINICAL_WORKFLOW_MODE: clinicalWorkflowModeSchema.default("disabled"),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
@@ -302,6 +304,15 @@ const serviceEnvironmentSchema = z
       });
     }
 
+    if (value.CLINICAL_WORKFLOW_MODE !== "disabled") {
+      context.addIssue({
+        code: "custom",
+        message:
+          "must remain disabled until jurisdiction-specific clinical and legal qualification is approved",
+        path: ["CLINICAL_WORKFLOW_MODE"],
+      });
+    }
+
     if (value.AWS_REGION === undefined) {
       context.addIssue({
         code: "custom",
@@ -335,6 +346,9 @@ interface BaseServiceConfig {
     host: string;
     port: number;
   } | null;
+  clinicalWorkflow: {
+    mode: z.infer<typeof clinicalWorkflowModeSchema>;
+  };
   databaseUrl: string;
   dependencyTimeoutMs: number;
   logLevel: LogLevel;
@@ -490,6 +504,7 @@ export function loadServiceConfig(
       values.CLAMAV_HOST === undefined || values.CLAMAV_PORT === undefined
         ? null
         : Object.freeze({ host: values.CLAMAV_HOST, port: values.CLAMAV_PORT }),
+    clinicalWorkflow: Object.freeze({ mode: values.CLINICAL_WORKFLOW_MODE }),
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
     logLevel: values.LOG_LEVEL,
