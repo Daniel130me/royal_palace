@@ -462,6 +462,8 @@ export type PaymentStatus =
   | "REFUNDED"
   | "DISPUTED";
 
+export type PaymentPurpose = "CONSULTATION" | "PHARMACY_ORDER";
+
 export interface PractitionerAvailabilityResponse {
   amountMinor: string;
   currency: string;
@@ -497,6 +499,8 @@ export interface PaymentStatusResponse {
   appointmentId: string;
   currency: string;
   id: string;
+  payableUntil: string;
+  purpose: PaymentPurpose;
   status: PaymentStatus;
   updatedAt: string;
 }

@@ -253,12 +253,14 @@ components:
     Payment:
       type: object
       additionalProperties: false
-      required: [amountMinor, appointmentId, currency, id, status, updatedAt]
+      required: [amountMinor, appointmentId, currency, id, payableUntil, purpose, status, updatedAt]
       properties:
         amountMinor: { type: string, pattern: "^[0-9]+$" }
         appointmentId: { type: string, format: uuid }
         currency: { type: string, pattern: "^[A-Z]{3}$" }
         id: { type: string, format: uuid }
+        payableUntil: { type: string, format: date-time }
+        purpose: { type: string, enum: [CONSULTATION, PHARMACY_ORDER] }
         status: { $ref: "#/components/schemas/PaymentStatus" }
         updatedAt: { type: string, format: date-time }
     ConsultationFeeInput:

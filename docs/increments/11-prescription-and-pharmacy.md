@@ -72,14 +72,30 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 
 ### 11C — pharmacy commercial and operational workflow
 
-- [ ] Add inventory-facing quote/reservation boundaries without making inventory the
-      clinical source of truth.
-- [ ] Add pharmacy order/payment/fulfilment states using integer minor units and the
-      existing provider-neutral payment and ledger boundaries.
-- [ ] Replace the prototype pharmacy pages and action routes with generated contracts
-      and exact BFF allowlists; remove generic prescription CRUD exposure.
-- [ ] Complete clinical-owner review evidence and keep real activation disabled until
-      every jurisdiction gate is approved.
+- [x] **11C1 — shared payment subject foundation:** generalize the existing payment,
+      checkout, webhook, ledger, and reconciliation boundary from appointment-only
+      ownership to an explicit payable subject without changing appointment behavior.
+- [ ] **11C2 — quote, reservation, and order core:** add immutable prescription-fill
+      quotes, inventory reservation ports, patient acceptance, and pharmacy orders.
+      Inventory remains operational evidence and never becomes the clinical source of
+      truth.
+- [ ] **11C3 — payment and fulfilment orchestration:** connect successful, reversed,
+      disputed, and refunded payment facts to the order state machine; keep dispensing
+      independent; add pickup/delivery handoff without implementing logistics itself.
+- [ ] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
+      pages and action routes with generated contracts and exact authenticated BFF
+      allowlists; delete generic prescription/order CRUD exposure after parity tests.
+- [ ] **11C5 — qualification evidence:** complete financial/clinical-owner review and
+      keep real inventory, payment, and clinical activation disabled until every
+      provider and jurisdiction gate is approved.
+
+The product owner approved the commercial rules on 2026-10-07: pharmacy-issued
+time-limited quotes; immutable line/tax/fee/currency snapshots; explicit patient
+acceptance and hosted checkout; payment and clinical dispensing as independent facts;
+pre-dispense refund initiation with post-dispense administrative disputes; a
+vendor-neutral inventory adapter; OTC deferral; and separate settlement/commission
+consumers. No production provider, tax policy, settlement policy, or jurisdiction is
+activated by this approval.
 
 ## Database and recovery
 
@@ -351,3 +367,68 @@ pharmacy order/payment/fulfilment states, exact BFF/frontend cutover, and deleti
 the replaced prototype paths. Real clinical activation remains prohibited pending the
 qualified jurisdiction, clinical, privacy, retention, terminology, security, and
 operational approvals already recorded in the controlling plan.
+
+## Checkpoint 11C1 completion report
+
+### Increment and scope
+
+Checkpoint 11C1 is complete. Payments now carry an explicit immutable purpose and an
+independent immutable payable deadline. Existing appointment payments are backfilled as
+`CONSULTATION`, preserve their appointment foreign key and behavior, and expose the new
+facts through the shared contract. This checkpoint does not create pharmacy quotes,
+orders, inventory reservations, refunds, fulfilment, settlement, or production provider
+activation; those remain in 11C2–11C5.
+
+### Architecture and integrity
+
+- Migration `20261007190000_payment_subject_foundation` adds the controlled
+  `PaymentPurpose` enum, backfills `payable_until` from the appointment commercial
+  snapshot, makes both facts part of immutable payment identity, and adds a bounded
+  purpose/status/deadline index for future operational workers.
+- Checkout validity reads the payment-owned deadline rather than reaching through the
+  appointment aggregate. Webhook state effects dispatch through an explicit payment
+  purpose boundary; unsupported subjects fail closed instead of receiving appointment
+  behavior accidentally.
+- Appointment remains a real foreign key. The foundation deliberately avoids an
+  unvalidated polymorphic `subject_id`; 11C2 will add a pharmacy-order foreign key and
+  an exactly-one-subject constraint when that aggregate exists.
+- Ledger entries, provider evidence, reconciliation, and checkout sessions remain
+  payment-owned. Clinical dispensing remains a separate immutable fact and is not
+  inferred from payment state.
+
+### Verification evidence
+
+- Prisma generation/schema validation, API and generated-client type checks, generated
+  contract drift, lint, and all 405 active API tests passed; one environment-dependent
+  integration test remained skipped as before.
+- All 15 migrations passed clean installation, foundation-to-current upgrade,
+  transactional repair, constraints, and concurrent booking.
+- A dedicated previous-schema rehearsal inserted an appointment payment before 11C1,
+  applied the migration, and proved that appointment identity, `CONSULTATION` purpose,
+  and the exact payable timestamp were preserved.
+- The scheduling/payment PostgreSQL verifier passed immutable purpose/deadline,
+  checkout, authenticated webhook persistence, duplicate and out-of-order delivery,
+  partial/final refund accounting, balanced ledger entries, settled-activity
+  idempotency, reconciliation, and reservation expiry. Schema drift was zero.
+
+### Standards walkthrough
+
+- **Readable and extendable:** payment purpose and payable period are explicit domain
+  facts; subject-specific effects are isolated behind one dispatch point.
+- **Security and integrity:** subject, owner, amount, currency, and payable deadline are
+  database-immutable, provider validation is unchanged, and unknown future purposes
+  fail closed.
+- **Query conscious:** checkout removes an unnecessary appointment join, and the new
+  composite index supports bounded purpose/status/deadline scans without country,
+  currency, provider, or cloud assumptions.
+- **No short-term patching:** relational subject integrity is retained. The temporary
+  current-subject constraint permits only consultation payments and must be replaced
+  atomically by 11C2's exactly-one appointment-or-pharmacy-order constraint; it is not
+  a production workaround.
+
+### Next checkpoint
+
+11C2 adds immutable prescription-fill quotes, line/tax/fee snapshots, vendor-neutral
+inventory reservation evidence, explicit patient acceptance, and pharmacy orders. Real
+inventory/payment adapters and every jurisdiction remain disabled pending the recorded
+qualification decisions.

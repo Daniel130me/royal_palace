@@ -249,7 +249,9 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
               appointmentId,
               currency: slot.consultationFee.currency,
               id: paymentId,
+              payableUntil: input.paymentDueAt,
               patientId: patient.id,
+              purpose: "CONSULTATION",
               providerCode: "UNASSIGNED",
               reference: `payment_${paymentId}`,
               updatedAt: new Date(),
@@ -317,8 +319,10 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
         appointmentId: true,
         currency: true,
         id: true,
+        payableUntil: true,
         patient: { select: { principalId: true } },
         patientId: true,
+        purpose: true,
         providerCode: true,
         providerPaymentReference: true,
         reference: true,
@@ -340,13 +344,12 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
   }): Promise<HostedCheckoutResponse> {
     return this.database.$transaction(async (transaction) => {
       const payment = await transaction.payment.findUniqueOrThrow({
-        include: { appointment: { select: { paymentDueAt: true } } },
         where: { id: input.paymentId },
       });
       if (
         !["CREATED", "PENDING", "FAILED"].includes(payment.status) ||
-        payment.appointment.paymentDueAt <= new Date() ||
-        input.expiresAt > payment.appointment.paymentDueAt
+        payment.payableUntil <= new Date() ||
+        input.expiresAt > payment.payableUntil
       ) {
         throw new SchedulingPaymentConflictError("PAYMENT_NOT_PAYABLE");
       }
@@ -769,9 +772,9 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
         where: { paymentId: payment.id, status: "ACTIVE" },
       });
     }
-    await updateAppointmentFromPayment(
+    await applyPaymentSubjectTransition(
       transaction,
-      payment.appointment,
+      payment,
       transition.target,
       input.event.occurredAt,
     );
@@ -783,7 +786,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
           eventType: "patient.activity.settled.v1",
           id: createOpaqueId(),
           payload: {
-            activityType: "CONSULTATION",
+            activityType: activityTypeForPaymentPurpose(payment.purpose),
             currency: payment.currency,
             grossAmountMinor: payment.amountMinor.toString(),
             patientId: payment.patientId,
@@ -911,8 +914,10 @@ function mapPayment(row: {
   appointmentId: string;
   currency: string;
   id: string;
+  payableUntil: Date;
   patient: { principalId: string };
   patientId: string;
+  purpose: "CONSULTATION" | "PHARMACY_ORDER";
   providerCode: string;
   providerPaymentReference: string | null;
   reference: string;
@@ -924,10 +929,12 @@ function mapPayment(row: {
     appointmentId: row.appointmentId,
     currency: row.currency,
     id: row.id,
+    payableUntil: row.payableUntil.toISOString(),
     patientId: row.patientId,
     patientPrincipalId: row.patient.principalId,
     providerCode: row.providerCode,
     providerPaymentReference: row.providerPaymentReference,
+    purpose: row.purpose,
     reference: row.reference,
     status: row.status,
     updatedAt: row.updatedAt.toISOString(),
@@ -1112,6 +1119,27 @@ async function updateAppointmentFromPayment(
       },
     });
   }
+}
+
+async function applyPaymentSubjectTransition(
+  transaction: Prisma.TransactionClient,
+  payment: {
+    appointment: { availabilitySlotId: string; id: string; status: string };
+    purpose: "CONSULTATION" | "PHARMACY_ORDER";
+  },
+  paymentStatus: PaymentStatus,
+  occurredAt: Date,
+): Promise<void> {
+  if (payment.purpose !== "CONSULTATION") {
+    throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+  }
+  await updateAppointmentFromPayment(transaction, payment.appointment, paymentStatus, occurredAt);
+}
+
+function activityTypeForPaymentPurpose(
+  purpose: "CONSULTATION" | "PHARMACY_ORDER",
+): "CONSULTATION" | "PHARMACY_PURCHASE" {
+  return purpose === "CONSULTATION" ? "CONSULTATION" : "PHARMACY_PURCHASE";
 }
 
 function checkoutStatusForPayment(

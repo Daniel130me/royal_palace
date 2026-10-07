@@ -206,6 +206,11 @@ enum PaymentStatus {
   DISPUTED
 }
 
+enum PaymentPurpose {
+  CONSULTATION
+  PHARMACY_ORDER
+}
+
 enum CheckoutSessionStatus {
   ACTIVE
   COMPLETED
@@ -1754,6 +1759,7 @@ model PrescriptionDispenseLine {
 model Payment {
   id                       String                   @id @db.Uuid
   appointmentId            String                   @unique @map("appointment_id") @db.Uuid
+  purpose                  PaymentPurpose           @default(CONSULTATION)
   patientId                String                   @map("patient_id") @db.Uuid
   reference                String                   @unique @db.VarChar(64)
   providerCode             String                   @map("provider_code") @db.VarChar(64)
@@ -1761,6 +1767,7 @@ model Payment {
   amountMinor              BigInt                   @map("amount_minor")
   refundedAmountMinor      BigInt                   @default(0) @map("refunded_amount_minor")
   currency                 String                   @db.Char(3)
+  payableUntil             DateTime                 @map("payable_until") @db.Timestamptz(6)
   status                   PaymentStatus            @default(CREATED)
   providerOccurredAt       DateTime?                @map("provider_occurred_at") @db.Timestamptz(6)
   succeededAt              DateTime?                @map("succeeded_at") @db.Timestamptz(6)
@@ -1777,6 +1784,7 @@ model Payment {
   reconciliations          PaymentReconciliation[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "payments_patient_created_idx")
+  @@index([purpose, status, payableUntil, id], map: "payments_purpose_payable_idx")
   @@index([providerCode, providerPaymentReference], map: "payments_provider_reference_idx")
   @@index([status, updatedAt, id], map: "payments_reconciliation_idx")
   @@map("payments")

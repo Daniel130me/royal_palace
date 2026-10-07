@@ -16,11 +16,13 @@ import {
 
 const { Client } = pg;
 const FIRST_MIGRATION = "20260928120000_foundation_identity_and_organizations";
+const PAYMENT_SUBJECT_MIGRATION = "20261007190000_payment_subject_foundation";
 
 async function main(): Promise<void> {
   const baseUrl = requireDisposableDatabase();
   const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
   const databaseNames = {
+    paymentBackfill: `rp_payment_backfill_${suffix}`,
     clean: `rp_clean_${suffix}`,
     repair: `rp_repair_${suffix}`,
     upgrade: `rp_upgrade_${suffix}`,
@@ -65,6 +67,14 @@ async function main(): Promise<void> {
       databaseUrlWithName(baseUrl, databaseNames.upgrade),
     );
 
+    const paymentPriorSchemaRoot = join(temporaryRoot, "payment-prior-prisma");
+    await copyMigrationSet(paymentPriorSchemaRoot, (name) => name !== PAYMENT_SUBJECT_MIGRATION);
+    const paymentBackfillUrl = databaseUrlWithName(baseUrl, databaseNames.paymentBackfill);
+    await runPrismaMigration(join(paymentPriorSchemaRoot, "schema.prisma"), paymentBackfillUrl);
+    const backfillFixture = await seedPaymentBeforeSubjectMigration(paymentBackfillUrl);
+    await runPrismaMigration(join(prismaRoot, "schema.prisma"), paymentBackfillUrl);
+    await verifyPaymentSubjectBackfill(paymentBackfillUrl, backfillFixture);
+
     await rehearseTransactionalRepair(databaseUrlWithName(baseUrl, databaseNames.repair));
     await runPrismaMigration(
       join(prismaRoot, "schema.prisma"),
@@ -75,7 +85,7 @@ async function main(): Promise<void> {
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
-      "Migration verification passed: clean install, prior-schema upgrade, transactional repair, and constraints.\n",
+      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, transactional repair, and constraints.\n",
     );
   } finally {
     for (const databaseName of Object.values(databaseNames).reverse()) {
@@ -87,6 +97,113 @@ async function main(): Promise<void> {
     }
     await admin.end();
     await rm(temporaryRoot, { force: true, recursive: true });
+  }
+}
+
+async function copyMigrationSet(
+  targetRoot: string,
+  include: (migrationName: string) => boolean,
+): Promise<void> {
+  const targetMigrations = join(targetRoot, "migrations");
+  await mkdir(targetMigrations, { recursive: true });
+  await cp(join(prismaRoot, "schema.prisma"), join(targetRoot, "schema.prisma"));
+  await cp(
+    join(prismaRoot, "migrations", "migration_lock.toml"),
+    join(targetMigrations, "migration_lock.toml"),
+  );
+  const entries = await readdir(join(prismaRoot, "migrations"), { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !include(entry.name)) continue;
+    await cp(join(prismaRoot, "migrations", entry.name), join(targetMigrations, entry.name), {
+      recursive: true,
+    });
+  }
+}
+
+interface PaymentBackfillFixture {
+  appointmentId: string;
+  paymentDueAt: Date;
+  paymentId: string;
+}
+
+async function seedPaymentBeforeSubjectMigration(
+  databaseUrl: string,
+): Promise<PaymentBackfillFixture> {
+  const client = new Client({ connectionString: databaseUrl });
+  const principalId = v7();
+  const patientId = v7();
+  const practitionerId = v7();
+  const feeId = v7();
+  const slotId = v7();
+  const appointmentId = v7();
+  const paymentId = v7();
+  const paymentDueAt = new Date(Date.now() + 15 * 60_000);
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now())',
+      [principalId],
+    );
+    await client.query(
+      'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [patientId, principalId, "Payment", "Backfill"],
+    );
+    await client.query(
+      'INSERT INTO "practitioners" ("id", "display_name", "given_name", "family_name", "verification_status", "verified_at", "updated_at") VALUES ($1, $2, $3, $4, $5, now(), now())',
+      [practitionerId, "Payment Backfill Practitioner", "Payment", "Backfill", "VERIFIED"],
+    );
+    await client.query(
+      'INSERT INTO "consultation_fees" ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now() - interval \'1 minute\', $6, $7, $7, now())',
+      [feeId, practitionerId, "VIDEO", 12500, "USD", "ACTIVE", principalId],
+    );
+    await client.query(
+      'INSERT INTO "availability_slots" ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at", "status", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, now() + interval \'2 days\', now() + interval \'2 days 30 minutes\', $4, $5, now())',
+      [slotId, practitionerId, feeId, "BOOKED", principalId],
+    );
+    await client.query(
+      'INSERT INTO "appointments" ("id", "patient_id", "practitioner_id", "availability_slot_id", "mode", "starts_at", "ends_at", "amount_minor", "currency", "payment_due_at", "updated_at") SELECT $1, $2, $3, $4, $5, "starts_at", "ends_at", $6, $7, $8, now() FROM "availability_slots" WHERE "id" = $4',
+      [appointmentId, patientId, practitionerId, slotId, "VIDEO", 12500, "USD", paymentDueAt],
+    );
+    await client.query(
+      'INSERT INTO "payments" ("id", "appointment_id", "patient_id", "reference", "provider_code", "amount_minor", "currency", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
+      [paymentId, appointmentId, patientId, `payment_${paymentId}`, "UNASSIGNED", 12500, "USD"],
+    );
+    await client.query("COMMIT");
+    return { appointmentId, paymentDueAt, paymentId };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+async function verifyPaymentSubjectBackfill(
+  databaseUrl: string,
+  fixture: PaymentBackfillFixture,
+): Promise<void> {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const result = await client.query<{
+      appointment_id: string;
+      payable_until: Date;
+      purpose: string;
+    }>(
+      'SELECT "appointment_id", "payable_until", "purpose"::text FROM "payments" WHERE "id" = $1',
+      [fixture.paymentId],
+    );
+    const payment = result.rows[0];
+    if (
+      payment?.appointment_id !== fixture.appointmentId ||
+      payment.purpose !== "CONSULTATION" ||
+      payment.payable_until.getTime() !== fixture.paymentDueAt.getTime()
+    ) {
+      throw new Error("Existing appointment payment was not backfilled without identity drift");
+    }
+  } finally {
+    await client.end();
   }
 }
 
@@ -615,10 +732,11 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       "P0001",
     );
     await client.query(
-      'INSERT INTO "payments" ("id", "appointment_id", "patient_id", "reference", "provider_code", "provider_payment_reference", "amount_minor", "currency", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
+      'INSERT INTO "payments" ("id", "appointment_id", "purpose", "patient_id", "reference", "provider_code", "provider_payment_reference", "amount_minor", "currency", "payable_until", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now() + interval \'15 minutes\', now())',
       [
         paymentId,
         appointmentId,
+        "CONSULTATION",
         patientId,
         `payment_${paymentId}`,
         "SYNTHETIC",
@@ -631,6 +749,18 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       client,
       'UPDATE "payments" SET "currency" = $1, "updated_at" = now() WHERE "id" = $2',
       ["EUR", paymentId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "payments" SET "payable_until" = "payable_until" + interval \'1 minute\', "updated_at" = now() WHERE "id" = $1',
+      [paymentId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "payments" SET "purpose" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["PHARMACY_ORDER", paymentId],
       "P0001",
     );
     await client.query(
@@ -797,8 +927,17 @@ async function verifyConcurrentBooking(databaseUrl: string): Promise<void> {
           [appointmentId, patientId, practitionerId, slotId],
         );
         await client.query(
-          'INSERT INTO "payments" ("id", "appointment_id", "patient_id", "reference", "provider_code", "amount_minor", "currency", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
-          [paymentId, appointmentId, patientId, `payment_${paymentId}`, "UNASSIGNED", 15000, "USD"],
+          'INSERT INTO "payments" ("id", "appointment_id", "purpose", "patient_id", "reference", "provider_code", "amount_minor", "currency", "payable_until", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + interval \'15 minutes\', now())',
+          [
+            paymentId,
+            appointmentId,
+            "CONSULTATION",
+            patientId,
+            `payment_${paymentId}`,
+            "UNASSIGNED",
+            15000,
+            "USD",
+          ],
         );
         await client.query("COMMIT");
         return true;

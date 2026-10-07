@@ -28,9 +28,20 @@ async function main(): Promise<void> {
       select: { paymentDueAt: true },
       where: { id: payment.appointmentId },
     });
+    const storedPayment = await database.payment.findUniqueOrThrow({
+      select: { payableUntil: true, purpose: true },
+      where: { id: payment.paymentId },
+    });
     if (storedAppointment.paymentDueAt.getTime() !== payment.paymentDueAt.getTime()) {
       throw new Error("UTC instant round-trip changed across the Prisma/PostgreSQL boundary");
     }
+    if (
+      storedPayment.purpose !== "CONSULTATION" ||
+      storedPayment.payableUntil.getTime() !== payment.paymentDueAt.getTime()
+    ) {
+      throw new Error("Payment purpose or independent payable period was not persisted exactly");
+    }
+    await expectPaymentIdentityMutationRejected(database, payment.paymentId);
     await repository.saveHostedCheckout({
       checkoutUrl: `https://checkout.synthetic.invalid/${payment.paymentId}`,
       expiresAt: new Date(Date.now() + 10 * 60_000),
@@ -162,7 +173,7 @@ async function main(): Promise<void> {
     }
 
     process.stdout.write(
-      "Scheduling/payment verification passed: retries, authenticated-event persistence, duplicates, reordering, refunds, ledger balance, outbox idempotency, reconciliation, and expiry.\n",
+      "Scheduling/payment verification passed: immutable purpose/payable period, retries, authenticated-event persistence, duplicates, reordering, refunds, ledger balance, outbox idempotency, reconciliation, and expiry.\n",
     );
   } finally {
     await database.$disconnect();
@@ -256,7 +267,9 @@ async function createFixture(
         appointmentId,
         currency: "USD",
         id: paymentId,
+        payableUntil: paymentDueAt,
         patientId,
+        purpose: "CONSULTATION",
         providerCode: "UNASSIGNED",
         reference: paymentReference,
         updatedAt: new Date(),
@@ -272,6 +285,21 @@ async function createFixture(
     principalId,
     providerPaymentReference,
   };
+}
+
+async function expectPaymentIdentityMutationRejected(
+  database: PrismaService,
+  paymentId: string,
+): Promise<void> {
+  try {
+    await database.payment.update({
+      data: { payableUntil: new Date(Date.now() + 30 * 60_000) },
+      where: { id: paymentId },
+    });
+  } catch {
+    return;
+  }
+  throw new Error("Payment payable period mutation was not rejected");
 }
 
 function event(

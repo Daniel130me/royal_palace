@@ -227,8 +227,15 @@ that completes an increment.
     accounting, safe return/rerouting, concurrency verification, paginated history,
     and privacy-safe notification intents. It remains synthetic-only and is not
     approved for real clinical use.
-  - `[ ]` Checkpoint 11C: commercial pharmacy order/payment/fulfilment workflow,
-    frontend/BFF cutover, prototype-route retirement, and qualified clinical review.
+  - `[~]` Checkpoint 11C commercial rules were approved on 2026-10-07.
+    - `[x]` 11C1 adds immutable payment purpose and payable-period identity, preserves
+      existing appointment behavior, removes checkout's dependency on appointment
+      expiry, dispatches webhook effects through an explicit subject boundary, and
+      verifies prior-data backfill plus database immutability.
+    - `[ ]` 11C2 quote/reservation/order core.
+    - `[ ]` 11C3 payment/fulfilment orchestration.
+    - `[ ]` 11C4 frontend/BFF cutover and prototype-route retirement.
+    - `[ ]` 11C5 qualification evidence.
   - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the pharmacy/prescription slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

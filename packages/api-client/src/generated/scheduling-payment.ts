@@ -206,6 +206,10 @@ export interface components {
             currency: string;
             /** Format: uuid */
             id: string;
+            /** Format: date-time */
+            payableUntil: string;
+            /** @enum {string} */
+            purpose: "CONSULTATION" | "PHARMACY_ORDER";
             status: components["schemas"]["PaymentStatus"];
             /** Format: date-time */
             updatedAt: string;
