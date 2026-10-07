@@ -10,9 +10,12 @@ describe("prescription state machine", () => {
     expect(canTransitionPrescription("DRAFT", "SIGNED")).toBe(true);
     expect(canTransitionPrescription("SIGNED", "SENT")).toBe(true);
     expect(canTransitionPrescription("SENT", "ACCEPTED")).toBe(true);
+    expect(canTransitionPrescription("SENT", "SIGNED")).toBe(true);
+    expect(canTransitionPrescription("ACCEPTED", "SIGNED")).toBe(true);
     expect(canTransitionPrescription("ACCEPTED", "PARTIALLY_DISPENSED")).toBe(true);
     expect(canTransitionPrescription("PARTIALLY_DISPENSED", "DISPENSED")).toBe(true);
     expect(canTransitionPrescription("SENT", "DISPENSED")).toBe(false);
+    expect(canTransitionPrescription("PARTIALLY_DISPENSED", "SIGNED")).toBe(false);
     expect(canTransitionPrescription("CANCELLED", "SIGNED")).toBe(false);
   });
 

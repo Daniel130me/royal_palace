@@ -98,6 +98,75 @@ const queueSchema = z
 const expirationSchema = z
   .object({ limit: z.coerce.number().int().min(1).max(100).default(100) })
   .strict();
+const substitutionSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    fillNumber: z.number().int().min(0).max(99),
+    prescriptionItemId: idSchema,
+    proposedMedicationCode: optionalText(120),
+    proposedMedicationCodeSystem: z.url().max(255).optional(),
+    proposedMedicationName: z.string().trim().min(1).max(240),
+    proposedStrength: optionalText(120),
+    reasonCode: z.enum([
+      "brand_unavailable",
+      "formulation_unavailable",
+      "generic_available",
+      "patient_preference",
+      "supply_constraint",
+    ]),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      (input.proposedMedicationCode === undefined) ===
+      (input.proposedMedicationCodeSystem === undefined),
+    { path: ["proposedMedicationCodeSystem"] },
+  );
+const substitutionDecisionSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    outcome: z.enum(["APPROVED", "DECLINED"]),
+  })
+  .strict();
+const dispenseLineSchema = z
+  .object({
+    fillNumber: z.number().int().min(0).max(99),
+    prescriptionItemId: idSchema,
+    quantity: z.string().regex(/^(?:0|[1-9]\d{0,8})(?:\.\d{1,3})?$/),
+    substitutionProposalId: idSchema.optional(),
+  })
+  .strict()
+  .refine((line) => Number(line.quantity) > 0, { path: ["quantity"] });
+const dispenseSchema = z
+  .object({
+    dispenseEventId: idSchema,
+    expectedVersion: z.number().int().positive(),
+    lines: z.array(dispenseLineSchema).min(1).max(50),
+    occurredAt: z.iso.datetime({ offset: true }),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      new Set(input.lines.map((line) => line.prescriptionItemId)).size === input.lines.length,
+    { path: ["lines"] },
+  );
+const returnSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    reasonCode: z.enum([
+      "patient_requested_reroute",
+      "pharmacy_unable_to_fulfill",
+      "safety_review_required",
+      "stock_unavailable",
+    ]),
+  })
+  .strict();
+const eventListSchema = z
+  .object({
+    cursor: z.string().trim().min(1).max(1024).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+  })
+  .strict();
 
 @Controller("v1/provider/prescriptions")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -167,6 +236,27 @@ export class ProviderPrescriptionController {
       ),
     );
   }
+
+  @Post(":prescriptionId/substitutions/:proposalId/decision")
+  @HttpCode(HttpStatus.OK)
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION)
+  decideSubstitution(
+    @Param("prescriptionId") prescriptionId: string,
+    @Param("proposalId") proposalId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(substitutionDecisionSchema, body);
+    return execute(() =>
+      this.prescriptions.recordPractitionerSubstitutionDecision(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(idSchema, proposalId),
+        input.expectedVersion,
+        input.outcome,
+      ),
+    );
+  }
 }
 
 @Controller("v1/prescriptions")
@@ -181,6 +271,22 @@ export class PrescriptionReadController {
     @Req() request: AuthenticatedInternalRequest,
   ) {
     return execute(() => this.prescriptions.get(context(request), parse(idSchema, prescriptionId)));
+  }
+
+  @Get(":prescriptionId/dispense-events")
+  @PolicyProtected(AUTHORIZATION_POLICY.VIEW_PRESCRIPTION)
+  listDispenseEvents(
+    @Param("prescriptionId") prescriptionId: string,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.prescriptions.listDispenseEvents(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(eventListSchema, query),
+      ),
+    );
   }
 }
 
@@ -204,6 +310,27 @@ export class PatientPrescriptionController {
         parse(idSchema, prescriptionId),
         input.pharmacyOrganizationId,
         input.expectedVersion,
+      ),
+    );
+  }
+
+  @Post(":prescriptionId/substitutions/:proposalId/consent")
+  @HttpCode(HttpStatus.OK)
+  @PolicyProtected(AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION)
+  decideSubstitution(
+    @Param("prescriptionId") prescriptionId: string,
+    @Param("proposalId") proposalId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(substitutionDecisionSchema, body);
+    return execute(() =>
+      this.prescriptions.recordPatientSubstitutionDecision(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(idSchema, proposalId),
+        input.expectedVersion,
+        input.outcome,
       ),
     );
   }
@@ -247,6 +374,65 @@ export class PharmacyPrescriptionController {
         parse(idSchema, prescriptionId),
         parse(idSchema, organizationId),
         input.expectedVersion,
+      ),
+    );
+  }
+
+  @Post(":prescriptionId/substitutions")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION)
+  proposeSubstitution(
+    @Param("prescriptionId") prescriptionId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const { expectedVersion, ...proposal } = parse(substitutionSchema, body);
+    return execute(() =>
+      this.prescriptions.proposeSubstitution(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(idSchema, organizationId),
+        expectedVersion,
+        proposal,
+      ),
+    );
+  }
+
+  @Post(":prescriptionId/dispense")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION)
+  dispense(
+    @Param("prescriptionId") prescriptionId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.prescriptions.dispense(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(idSchema, organizationId),
+        parse(dispenseSchema, body),
+      ),
+    );
+  }
+
+  @Post(":prescriptionId/return")
+  @HttpCode(HttpStatus.OK)
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION)
+  returnToPatient(
+    @Param("prescriptionId") prescriptionId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(returnSchema, body);
+    return execute(() =>
+      this.prescriptions.returnToPatient(
+        context(request),
+        parse(idSchema, prescriptionId),
+        parse(idSchema, organizationId),
+        input.expectedVersion,
+        input.reasonCode,
       ),
     );
   }

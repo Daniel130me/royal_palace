@@ -44,6 +44,12 @@ function prescription(overrides: Partial<PrescriptionAccessRecord> = {}): Prescr
     id: createOpaqueId(),
     items: [
       {
+        balance: {
+          dispensedQuantity: "0",
+          fills: [{ dispensedQuantity: "0", fillNumber: 0, remainingQuantity: "10" }],
+          remainingQuantity: "10",
+          totalAuthorizedQuantity: "10",
+        },
         controlledMedication: false,
         dose: "one tablet",
         duration: "five days",
@@ -70,6 +76,7 @@ function prescription(overrides: Partial<PrescriptionAccessRecord> = {}): Prescr
     prescriptionNumber: `RX-${createOpaqueId()}`,
     previousPrescriptionId: null,
     routes: [],
+    substitutionProposals: [],
     signedAt: null,
     status: "DRAFT",
     statusHistory: [],
@@ -269,5 +276,98 @@ describe("PrescriptionService", () => {
         1,
       ),
     ).resolves.toMatchObject<Partial<PrescriptionResponse>>({ status: "ACCEPTED" });
+  });
+
+  it("records substitution consent only for the owning patient", async () => {
+    const patientPrincipalId = createOpaqueId();
+    const current = prescription({ patientPrincipalId, status: "ACCEPTED" });
+    const proposalId = createOpaqueId();
+    const decideSubstitution = vi.fn<PrescriptionRepository["decideSubstitution"]>(async () => ({
+      approvalMode: "PATIENT_AND_PRACTITIONER",
+      createdAt: new Date().toISOString(),
+      decisions: [],
+      fillNumber: 0,
+      id: proposalId,
+      prescriptionItemId: current.items[0]?.id ?? createOpaqueId(),
+      proposedMedicationCode: null,
+      proposedMedicationCodeSystem: null,
+      proposedMedicationName: "Synthetic generic",
+      proposedStrength: null,
+      reasonCode: "generic_available",
+      status: "PATIENT_CONSENTED",
+      updatedAt: new Date().toISOString(),
+      version: 2,
+    }));
+    const service = createService({ decideSubstitution, findById: vi.fn(async () => current) });
+
+    await expect(
+      service.recordPatientSubstitutionDecision(
+        { actor: session("PATIENT"), requestId: "request-wrong-patient" },
+        current.id,
+        proposalId,
+        current.version,
+        "APPROVED",
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await service.recordPatientSubstitutionDecision(
+      {
+        actor: session("PATIENT", { principalId: patientPrincipalId }),
+        requestId: "request-owner-consent",
+      },
+      current.id,
+      proposalId,
+      current.version,
+      "APPROVED",
+    );
+    expect(decideSubstitution).toHaveBeenCalledWith(
+      expect.objectContaining({ decisionKind: "PATIENT_CONSENT", outcome: "APPROVED" }),
+    );
+  });
+
+  it("derives a stable dispense digest and requires assigned pharmacy membership", async () => {
+    const organizationId = createOpaqueId();
+    const current = prescription({ pharmacyOrganizationId: organizationId, status: "ACCEPTED" });
+    const dispense = vi.fn<PrescriptionRepository["dispense"]>(async (input) => ({
+      eventNumber: 1,
+      id: input.dispenseEventId,
+      lines: [],
+      occurredAt: input.occurredAt.toISOString(),
+      prescriptionId: input.prescriptionId,
+      routeId: createOpaqueId(),
+    }));
+    const service = createService({ dispense });
+    const input = {
+      dispenseEventId: createOpaqueId(),
+      expectedVersion: current.version,
+      lines: [
+        {
+          fillNumber: 0,
+          prescriptionItemId: current.items[0]?.id ?? createOpaqueId(),
+          quantity: "5",
+        },
+      ],
+      occurredAt: new Date().toISOString(),
+    };
+
+    await expect(
+      service.dispense(
+        { actor: session("ORGANIZATION_STAFF"), requestId: "request-unassigned-dispense" },
+        current.id,
+        organizationId,
+        input,
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await service.dispense(
+      {
+        actor: session("ORGANIZATION_STAFF", { organizationId }),
+        requestId: "request-assigned-dispense",
+      },
+      current.id,
+      organizationId,
+      input,
+    );
+    expect(dispense).toHaveBeenCalledWith(
+      expect.objectContaining({ requestDigest: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    );
   });
 });

@@ -57,6 +57,24 @@ describe("notification policy", () => {
     }
   });
 
+  it("keeps prescription notifications free of clinical details", () => {
+    for (const templateKey of [
+      NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED,
+      NOTIFICATION_TEMPLATE.PRESCRIPTION_STATUS_UPDATED,
+    ]) {
+      const notification = renderNotification({
+        category: "TRANSACTIONAL",
+        channel: "EMAIL",
+        locale: "en",
+        templateKey,
+        templateVersion: 1,
+        variables: { reference: "RX-1024" },
+      });
+      expect(notification.body).toContain("Sign in");
+      expect(notification.body).not.toMatch(/medicine|medication|dose|diagnos|pharmacy/i);
+    }
+  });
+
   it("requires a verified email and explicit marketing consent", () => {
     expect(
       requireEmailRecipient({

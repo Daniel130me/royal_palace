@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/provider/prescriptions/{prescriptionId}/substitutions/{proposalId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordPractitionerSubstitutionDecision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/prescriptions/{prescriptionId}": {
         parameters: {
             query?: never;
@@ -76,6 +92,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getPrescription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/prescriptions/{prescriptionId}/dispense-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPrescriptionDispenseEvents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -94,6 +126,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["sendPrescriptionToPharmacy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/prescriptions/{prescriptionId}/substitutions/{proposalId}/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordPatientSubstitutionConsent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -132,6 +180,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pharmacy/prescriptions/{prescriptionId}/substitutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["proposePrescriptionSubstitution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/prescriptions/{prescriptionId}/dispense": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordPrescriptionDispenseEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/prescriptions/{prescriptionId}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["returnPrescriptionToPatient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/prescriptions/expire-due": {
         parameters: {
             query?: never;
@@ -153,8 +249,8 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         CursorPageInfo: {
+            endCursor: string | null;
             hasNextPage: boolean;
-            nextCursor: string | null;
         };
         Error: {
             error: string;
@@ -197,6 +293,7 @@ export interface components {
             substitutionAllowed: boolean;
         };
         PrescriptionItem: components["schemas"]["PrescriptionItemInput"] & {
+            balance: components["schemas"]["PrescriptionItemBalance"];
             duration: string | null;
             /** Format: uuid */
             id: string;
@@ -210,6 +307,9 @@ export interface components {
         PrescriptionRoute: {
             /** Format: date-time */
             acceptedAt: string | null;
+            cancellationReasonCode: string | null;
+            /** Format: date-time */
+            cancelledAt: string | null;
             /** Format: uuid */
             id: string;
             pharmacy: components["schemas"]["NamedResource"];
@@ -230,6 +330,119 @@ export interface components {
         };
         /** @enum {string} */
         PrescriptionStatus: "DRAFT" | "SIGNED" | "SENT" | "ACCEPTED" | "PARTIALLY_DISPENSED" | "DISPENSED" | "CANCELLED" | "EXPIRED";
+        PrescriptionFillBalance: {
+            dispensedQuantity: string;
+            fillNumber: number;
+            remainingQuantity: string;
+        };
+        PrescriptionItemBalance: {
+            dispensedQuantity: string;
+            fills: components["schemas"]["PrescriptionFillBalance"][];
+            remainingQuantity: string;
+            totalAuthorizedQuantity: string;
+        };
+        SubstitutionDecisionInput: {
+            expectedVersion: number;
+            /** @enum {string} */
+            outcome: "APPROVED" | "DECLINED";
+        };
+        SubstitutionProposalInput: {
+            expectedVersion: number;
+            fillNumber: number;
+            /** Format: uuid */
+            prescriptionItemId: string;
+            proposedMedicationCode?: string;
+            /** Format: uri */
+            proposedMedicationCodeSystem?: string;
+            proposedMedicationName: string;
+            proposedStrength?: string;
+            /** @enum {string} */
+            reasonCode: "brand_unavailable" | "formulation_unavailable" | "generic_available" | "patient_preference" | "supply_constraint";
+        };
+        SubstitutionDecision: {
+            /** @enum {string} */
+            decisionKind: "PATIENT_CONSENT" | "PRACTITIONER_APPROVAL";
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @enum {string} */
+            outcome: "APPROVED" | "DECLINED";
+        };
+        SubstitutionProposal: {
+            /** @enum {string} */
+            approvalMode: "DISABLED" | "PATIENT_ONLY" | "PATIENT_AND_PRACTITIONER";
+            /** Format: date-time */
+            createdAt: string;
+            decisions: components["schemas"]["SubstitutionDecision"][];
+            fillNumber: number;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            prescriptionItemId: string;
+            proposedMedicationCode: string | null;
+            proposedMedicationCodeSystem: string | null;
+            proposedMedicationName: string;
+            proposedStrength: string | null;
+            reasonCode: string;
+            /** @enum {string} */
+            status: "PROPOSED" | "PATIENT_CONSENTED" | "APPROVED" | "DECLINED" | "CANCELLED" | "USED";
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        DispenseLineInput: {
+            fillNumber: number;
+            /** Format: uuid */
+            prescriptionItemId: string;
+            quantity: string;
+            /** Format: uuid */
+            substitutionProposalId?: string;
+        };
+        DispenseEventInput: {
+            /** Format: uuid */
+            dispenseEventId: string;
+            expectedVersion: number;
+            lines: components["schemas"]["DispenseLineInput"][];
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        DispenseLine: {
+            dispensedMedicationCode: string | null;
+            dispensedMedicationCodeSystem: string | null;
+            dispensedMedicationName: string;
+            dispensedStrength: string | null;
+            fillNumber: number;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            prescriptionItemId: string;
+            quantity: string;
+            quantityUnit: string;
+            /** Format: uuid */
+            substitutionProposalId: string | null;
+        };
+        DispenseEvent: {
+            eventNumber: number;
+            /** Format: uuid */
+            id: string;
+            lines: components["schemas"]["DispenseLine"][];
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: uuid */
+            prescriptionId: string;
+            /** Format: uuid */
+            routeId: string;
+        };
+        DispenseEventList: {
+            data: components["schemas"]["DispenseEvent"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        ReturnToPatientInput: {
+            expectedVersion: number;
+            /** @enum {string} */
+            reasonCode: "patient_requested_reroute" | "pharmacy_unable_to_fulfill" | "safety_review_required" | "stock_unavailable";
+        };
         PrescriptionBase: {
             attestationMethod: string | null;
             /** Format: date-time */
@@ -247,6 +460,7 @@ export interface components {
             /** Format: uuid */
             previousPrescriptionId: string | null;
             routes: components["schemas"]["PrescriptionRoute"][];
+            substitutionProposals: components["schemas"]["SubstitutionProposal"][];
             /** Format: date-time */
             signedAt: string | null;
             status: components["schemas"]["PrescriptionStatus"];
@@ -315,6 +529,15 @@ export interface components {
                 "application/json": components["schemas"]["Prescription"];
             };
         };
+        /** @description Substitution proposal with immutable consent and approval decisions */
+        SubstitutionProposalResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SubstitutionProposal"];
+            };
+        };
         /** @description Clinical workflows are disabled in this environment */
         WorkflowDisabled: {
             headers: {
@@ -328,6 +551,7 @@ export interface components {
     parameters: {
         OrganizationId: string;
         PrescriptionId: string;
+        ProposalId: string;
         RequestId: string;
     };
     requestBodies: never;
@@ -439,6 +663,31 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    recordPractitionerSubstitutionDecision: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubstitutionDecisionInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["SubstitutionProposalResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     getPrescription: {
         parameters: {
             query?: never;
@@ -466,6 +715,37 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    listPrescriptionDispenseEvents: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded immutable dispense-event history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispenseEventList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     sendPrescriptionToPharmacy: {
         parameters: {
             query?: never;
@@ -488,6 +768,31 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["PrescriptionResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    recordPatientSubstitutionConsent: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+                proposalId: components["parameters"]["ProposalId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubstitutionDecisionInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["SubstitutionProposalResponse"];
             400: components["responses"]["InvalidRequest"];
             403: components["responses"]["AccessDenied"];
             409: components["responses"]["Conflict"];
@@ -558,6 +863,97 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    proposePrescriptionSubstitution: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubstitutionProposalInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["SubstitutionProposalResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    recordPrescriptionDispenseEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DispenseEventInput"];
+            };
+        };
+        responses: {
+            /** @description Immutable dispense event */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispenseEvent"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    returnPrescriptionToPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnToPatientInput"];
+            };
+        };
+        responses: {
+            /** @description Returned prescription with pharmacy-minimized fields */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyPrescription"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     expireDuePrescriptions: {
         parameters: {
             query?: {
@@ -577,7 +973,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": number;
+                    "application/json": {
+                        expired: number;
+                    };
                 };
             };
             403: components["responses"]["AccessDenied"];

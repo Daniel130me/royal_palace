@@ -13,6 +13,8 @@ const TEMPLATE_CATEGORY: Readonly<Record<NotificationTemplateKey, NotificationCa
   [NOTIFICATION_TEMPLATE.APPLICATION_STATUS_UPDATED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.APPOINTMENT_STATUS_UPDATED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.PAYMENT_STATUS_UPDATED]: "TRANSACTIONAL",
+  [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: "TRANSACTIONAL",
+  [NOTIFICATION_TEMPLATE.PRESCRIPTION_STATUS_UPDATED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.SECURITY_ALERT]: "SECURITY",
 };
 const INITIAL_NOTIFICATION_LOCALE = "en";
@@ -25,7 +27,7 @@ const INITIAL_TEMPLATE_VERSION = 1;
  */
 export async function enqueueEmailNotification(
   transaction: Prisma.TransactionClient,
-  config: ApiServiceConfig,
+  config: Pick<ApiServiceConfig, "notificationDelivery">,
   input: {
     deduplicationKey: string;
     recipientPrincipalId: string;

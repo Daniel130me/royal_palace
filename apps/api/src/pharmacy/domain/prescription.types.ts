@@ -1,4 +1,11 @@
-import type { PrescriptionListResponse, PrescriptionResponse } from "@royal-palace/contracts";
+import type {
+  PrescriptionDispenseEventListResponse,
+  PrescriptionDispenseEventResponse,
+  PrescriptionListResponse,
+  PrescriptionResponse,
+  PrescriptionSubstitutionProposalResponse,
+  SubstitutionDecisionOutcome,
+} from "@royal-palace/contracts";
 
 export interface PrescriptionItemInput {
   controlledMedication: boolean;
@@ -32,6 +39,23 @@ export interface PrescriptionAccessRecord extends PrescriptionResponse {
   practitionerPrincipalId: string;
 }
 
+export interface PrescriptionSubstitutionInput {
+  fillNumber: number;
+  prescriptionItemId: string;
+  proposedMedicationCode?: string;
+  proposedMedicationCodeSystem?: string;
+  proposedMedicationName: string;
+  proposedStrength?: string;
+  reasonCode: string;
+}
+
+export interface PrescriptionDispenseLineInput {
+  fillNumber: number;
+  prescriptionItemId: string;
+  quantity: string;
+  substitutionProposalId?: string;
+}
+
 export interface PractitionerPrescriptionIdentity {
   id: string;
   principalId: string;
@@ -41,7 +65,12 @@ export interface PractitionerPrescriptionIdentity {
 export class PrescriptionConflictError extends Error {
   constructor(
     readonly reason:
-      "ACTIVE_ROUTE_EXISTS" | "INVALID_STATE" | "VERSION_CONFLICT" | "INVARIANT_VIOLATION",
+      | "ACTIVE_ROUTE_EXISTS"
+      | "DUPLICATE_DISPENSE_EVENT"
+      | "INVALID_STATE"
+      | "SUBSTITUTION_CONFLICT"
+      | "VERSION_CONFLICT"
+      | "INVARIANT_VIOLATION",
   ) {
     super(reason);
     this.name = "PrescriptionConflictError";
@@ -61,6 +90,31 @@ export interface PrescriptionRepository {
     prescriptionId: string;
     reasonCode: string;
   }): Promise<PrescriptionAccessRecord | null>;
+  createSubstitutionProposal(input: {
+    actorPrincipalId: string;
+    expectedVersion: number;
+    organizationId: string;
+    prescriptionId: string;
+    proposal: PrescriptionSubstitutionInput;
+  }): Promise<PrescriptionSubstitutionProposalResponse | null>;
+  decideSubstitution(input: {
+    actorPrincipalId: string;
+    decisionKind: "PATIENT_CONSENT" | "PRACTITIONER_APPROVAL";
+    expectedVersion: number;
+    outcome: SubstitutionDecisionOutcome;
+    prescriptionId: string;
+    proposalId: string;
+  }): Promise<PrescriptionSubstitutionProposalResponse | null>;
+  dispense(input: {
+    actorPrincipalId: string;
+    dispenseEventId: string;
+    expectedVersion: number;
+    lines: readonly PrescriptionDispenseLineInput[];
+    occurredAt: Date;
+    organizationId: string;
+    prescriptionId: string;
+    requestDigest: string;
+  }): Promise<PrescriptionDispenseEventResponse | null>;
   createDraft(input: {
     actorPrincipalId: string;
     draft: PrescriptionDraftInput;
@@ -81,6 +135,18 @@ export interface PrescriptionRepository {
     limit: number;
     organizationId: string;
   }): Promise<PrescriptionListResponse>;
+  listDispenseEvents(input: {
+    cursor?: { id: string; occurredAt: Date };
+    limit: number;
+    prescriptionId: string;
+  }): Promise<PrescriptionDispenseEventListResponse>;
+  returnToPatient(input: {
+    actorPrincipalId: string;
+    expectedVersion: number;
+    organizationId: string;
+    prescriptionId: string;
+    reasonCode: string;
+  }): Promise<PrescriptionAccessRecord | null>;
   routeToPharmacy(input: {
     actorPrincipalId: string;
     expectedVersion: number;

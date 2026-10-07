@@ -3,12 +3,13 @@
 ## Status
 
 **In progress. Not approved for real clinical use.** The product owner approved the
-prescription and pharmacy rules on 2026-10-07. Checkpoint 11A establishes the
-production prescription aggregate and patient-directed pharmacy routing in the
-synthetic local/test environment. Dispensing, substitutions, refill consumption,
-commercial orders, frontend migration, and qualified jurisdiction activation remain
-open. `CLINICAL_WORKFLOW_MODE` defaults to `disabled`, and staging/production reject
-every non-disabled value until clinical and legal qualification is completed.
+prescription and pharmacy rules on 2026-10-07. Checkpoints 11A and 11B establish the
+production prescription aggregate, patient-directed pharmacy routing, consented
+substitution, and immutable dispensing/refill accounting in the synthetic local/test
+environment. Commercial orders, frontend migration, and qualified jurisdiction
+activation remain open. `CLINICAL_WORKFLOW_MODE` defaults to `disabled`, and
+staging/production reject every non-disabled value until clinical and legal
+qualification is completed.
 
 ## Approved controlling rules
 
@@ -61,13 +62,13 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 
 ### 11B — dispensing, substitution, and refill accounting
 
-- [ ] Add immutable dispense events and per-item quantity/refill balances; never infer
+- [x] Add immutable dispense events and per-item quantity/refill balances; never infer
       dispensing from an order status.
-- [ ] Add substitution proposals, explicit patient consent, jurisdiction policy hooks,
+- [x] Add substitution proposals, explicit patient consent, jurisdiction policy hooks,
       and practitioner approval where required.
-- [ ] Add partial-dispense, completion, rejection/return-to-patient, cancellation, and
+- [x] Add partial-dispense, completion, rejection/return-to-patient, cancellation, and
       expiry concurrency tests.
-- [ ] Add purpose-minimized transactional notifications without clinical details.
+- [x] Add purpose-minimized transactional notifications without clinical details.
 
 ### 11C — pharmacy commercial and operational workflow
 
@@ -245,3 +246,108 @@ No new product decision is requested for 11A. Remote CI success on the exact pus
 commit is required before starting 11B. Real clinical use remains prohibited until the
 material jurisdiction, clinical, privacy, retention, terminology, and operational
 qualification decisions in the controlling plan are completed.
+
+## Checkpoint 11B completion report
+
+### Increment and scope
+
+Checkpoint 11B is complete at the code and synthetic-verification boundary. It adds
+per-item/fill substitution proposals, immutable patient and practitioner decisions,
+immutable dispense events, quantity/refill balances, patient rerouting before any
+dispense fact exists, and privacy-safe notification intents. It does not add pharmacy
+inventory, quotes, reservations, orders, payments, fulfilment, browser/BFF exposure,
+or real clinical activation; those boundaries remain in 11C and qualification.
+
+### Architecture and integrity
+
+- Additive migration `20261007160000_prescription_dispensing_and_substitution` owns
+  temporal jurisdiction policy versions, proposals, decisions, dispense events,
+  dispense lines, constraints, indexes, and database triggers. Signed prescription
+  content remains immutable.
+- A missing, disabled, expired, or future jurisdiction policy rejects substitution.
+  Effective windows cannot overlap. Each proposal references the exact governing
+  policy version and snapshots its mode. `PATIENT_ONLY` requires patient consent;
+  `PATIENT_AND_PRACTITIONER` requires patient consent followed by the independently
+  verified issuing practitioner's step-up-authorized approval.
+- Every decision, dispense event, and dispense line is append-only. A caller-supplied
+  event UUID plus a server-generated canonical SHA-256 request digest makes dispense
+  retries idempotent and rejects reuse with different content.
+- Each dispense line is tied to one prescribed item and zero-based fill number. The
+  database prevents skipped refills, per-fill over-dispensing, unauthorized medication
+  identity changes, and use of an unapproved substitution. Medication identity is
+  derived server-side from the prescription or approved proposal, never trusted from
+  the pharmacy request.
+- A pharmacy may return an undispensed `SENT` or `ACCEPTED` prescription to `SIGNED`
+  with a controlled reason so the patient can reroute it. Once any dispense event
+  exists, return-to-patient is rejected. Practitioner cancellation remains legal after
+  a partial dispense but optimistic versioning gives concurrent cancellation,
+  dispensing, return, and expiry operations a consistent serialized outcome.
+
+### Security, privacy, and performance
+
+Patient consent is authorized against the prescription owner; practitioner approval is
+authorized against the issuing verified practitioner with recent privileged assurance;
+and proposal, dispense, and return operations require active membership in the selected
+pharmacy. Manager and support roles remain excluded. Pharmacy responses still omit the
+appointment link and private clinical note.
+
+External email intents use only the prescription reference and generic action/update
+language. They include no medicine, dose, diagnosis, pharmacy, decision outcome, or
+other clinical content; delivery still requires a verified recipient under the
+existing notification boundary and real providers remain disabled.
+
+Prescription reads aggregate all item/fill balances in one grouped query. Pharmacy
+queue reads aggregate balances for the entire bounded page in one query, avoiding an
+item or prescription N+1. Dispense-time items and substitution proposals are loaded in
+bounded batch queries, and transaction-client reads are sequential to respect the
+supported Prisma PostgreSQL adapter behavior. Embedded substitution proposals are
+limited to the at-most-one actionable proposal per item/current fill; immutable
+historical proposal facts remain retained in PostgreSQL. Dispense history is
+independently cursor-paginated and uses the prescription/occurred-time index.
+
+### Verification evidence
+
+- The 11A integration correction passed all exact-head remote jobs on commit
+  `947642c`: canonical install/verify/audit, full-history secret scan, and PostgreSQL
+  migrations/query plans/persistence.
+- Prisma generation and validation passed. The migration verifier passed all 14
+  migrations for clean install, prior-schema upgrade, transactional repair, and
+  constraint checks.
+- The PostgreSQL prescription verifier passed signed-content immutability, substitution
+  consent and approval, non-overlapping temporal policy windows, unchanged-medication
+  rejection, append-only decisions/events, concurrent payload-bound idempotent retry,
+  partial and complete dispensing, proposal/dispense refill ordering and balances,
+  safe return/rerouting, cancellation/dispense and expiry/dispense concurrency, bounded
+  expiry, and the representative 5,000-route indexed query (0.450 ms observed locally).
+- Focused API tests passed 405 active tests with one environment-dependent integration
+  test skipped. Worker tests passed 16 active tests with nine environment-dependent
+  integration tests skipped, including explicit checks that prescription templates do
+  not contain common clinical terms.
+- The OpenAPI contract is version 1.1.0, generated TypeScript is drift-checked, and the
+  existing cursor-page and expiry-response schemas were corrected while extending it.
+
+### Standards walkthrough
+
+- **Readable and extendable:** domain inputs, application authorization, repository
+  transactions, database invariants, transport validation, contracts, and templates
+  remain separate. Jurisdiction behavior is governed data rather than country logic.
+- **Security first:** identity is derived from the authenticated session, role and
+  organization scope are re-authorized, medication snapshots are server-derived, and
+  production clinical mode still fails closed.
+- **Query conscious:** no per-item balance query and no per-line substitution lookup;
+  all growing event history is bounded and indexed.
+- **No short-term patching:** dispensing is an independent immutable clinical fact
+  model, not a flag on the future commercial order. The old prototype routes remain
+  quarantined until the deliberate 11C cutover and deletion.
+- **Known non-standard boundary:** jurisdiction policies have no production admin
+  interface yet and must not be manipulated manually outside disposable synthetic
+  verification. The governed admin workflow and qualified policy content are required
+  before real activation.
+
+### Next checkpoint and gate
+
+Checkpoint 11C is next: inventory-facing quote/reservation boundaries, provider-neutral
+pharmacy order/payment/fulfilment states, exact BFF/frontend cutover, and deletion of
+the replaced prototype paths. Real clinical activation remains prohibited pending the
+qualified jurisdiction, clinical, privacy, retention, terminology, security, and
+operational approvals already recorded in the controlling plan.

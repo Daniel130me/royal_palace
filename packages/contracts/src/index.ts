@@ -32,6 +32,8 @@ export const NOTIFICATION_TEMPLATE = {
   APPLICATION_STATUS_UPDATED: "APPLICATION_STATUS_UPDATED",
   APPOINTMENT_STATUS_UPDATED: "APPOINTMENT_STATUS_UPDATED",
   PAYMENT_STATUS_UPDATED: "PAYMENT_STATUS_UPDATED",
+  PRESCRIPTION_ACTION_REQUIRED: "PRESCRIPTION_ACTION_REQUIRED",
+  PRESCRIPTION_STATUS_UPDATED: "PRESCRIPTION_STATUS_UPDATED",
   SECURITY_ALERT: "SECURITY_ALERT",
 } as const;
 
@@ -546,6 +548,77 @@ export interface PrescriptionItemResponse {
   route: string | null;
   strength: string | null;
   substitutionAllowed: boolean;
+  balance: PrescriptionItemBalanceResponse;
+}
+
+export interface PrescriptionFillBalanceResponse {
+  dispensedQuantity: string;
+  fillNumber: number;
+  remainingQuantity: string;
+}
+
+export interface PrescriptionItemBalanceResponse {
+  dispensedQuantity: string;
+  fills: readonly PrescriptionFillBalanceResponse[];
+  remainingQuantity: string;
+  totalAuthorizedQuantity: string;
+}
+
+export type SubstitutionApprovalMode = "DISABLED" | "PATIENT_ONLY" | "PATIENT_AND_PRACTITIONER";
+export type SubstitutionProposalStatus =
+  "PROPOSED" | "PATIENT_CONSENTED" | "APPROVED" | "DECLINED" | "CANCELLED" | "USED";
+export type SubstitutionDecisionKind = "PATIENT_CONSENT" | "PRACTITIONER_APPROVAL";
+export type SubstitutionDecisionOutcome = "APPROVED" | "DECLINED";
+
+export interface PrescriptionSubstitutionDecisionResponse {
+  decisionKind: SubstitutionDecisionKind;
+  id: string;
+  occurredAt: string;
+  outcome: SubstitutionDecisionOutcome;
+}
+
+export interface PrescriptionSubstitutionProposalResponse {
+  approvalMode: SubstitutionApprovalMode;
+  createdAt: string;
+  decisions: readonly PrescriptionSubstitutionDecisionResponse[];
+  fillNumber: number;
+  id: string;
+  prescriptionItemId: string;
+  proposedMedicationCode: string | null;
+  proposedMedicationCodeSystem: string | null;
+  proposedMedicationName: string;
+  proposedStrength: string | null;
+  reasonCode: string;
+  status: SubstitutionProposalStatus;
+  updatedAt: string;
+  version: number;
+}
+
+export interface PrescriptionDispenseLineResponse {
+  dispensedMedicationCode: string | null;
+  dispensedMedicationCodeSystem: string | null;
+  dispensedMedicationName: string;
+  dispensedStrength: string | null;
+  fillNumber: number;
+  id: string;
+  prescriptionItemId: string;
+  quantity: string;
+  quantityUnit: string;
+  substitutionProposalId: string | null;
+}
+
+export interface PrescriptionDispenseEventResponse {
+  eventNumber: number;
+  id: string;
+  lines: readonly PrescriptionDispenseLineResponse[];
+  occurredAt: string;
+  prescriptionId: string;
+  routeId: string;
+}
+
+export interface PrescriptionDispenseEventListResponse {
+  data: readonly PrescriptionDispenseEventResponse[];
+  pageInfo: CursorPageInfo;
 }
 
 export interface PrescriptionStatusHistoryResponse {
@@ -558,6 +631,8 @@ export interface PrescriptionStatusHistoryResponse {
 
 export interface PrescriptionRouteResponse {
   acceptedAt: string | null;
+  cancellationReasonCode: string | null;
+  cancelledAt: string | null;
   id: string;
   pharmacy: { displayName: string; id: string };
   sentAt: string;
@@ -580,6 +655,7 @@ export interface PrescriptionResponse {
   prescriptionNumber: string;
   previousPrescriptionId: string | null;
   routes: readonly PrescriptionRouteResponse[];
+  substitutionProposals: readonly PrescriptionSubstitutionProposalResponse[];
   signedAt: string | null;
   status: PrescriptionStatus;
   statusHistory: readonly PrescriptionStatusHistoryResponse[];

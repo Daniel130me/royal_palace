@@ -14,11 +14,15 @@ import { SERVICE_CONFIG } from "../../tokens.js";
 import {
   PRESCRIPTION_REPOSITORY,
   PrescriptionConflictError,
+  type PrescriptionDispenseLineInput,
   type PrescriptionDraftInput,
   type PrescriptionRepository,
+  type PrescriptionSubstitutionInput,
 } from "../domain/prescription.types.js";
 
 const SYNTHETIC_ATTESTATION_METHOD = "AUTHENTICATED_PLATFORM_ATTESTATION_V1";
+const DISPENSE_CLOCK_SKEW_MS = 5 * 60_000;
+const DISPENSE_RECORDING_WINDOW_MS = 24 * 60 * 60_000;
 
 export interface PrescriptionRequestContext {
   actor: CurrentSession;
@@ -208,6 +212,191 @@ export class PrescriptionService {
     );
   }
 
+  async proposeSubstitution(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    organizationId: string,
+    expectedVersion: number,
+    proposal: PrescriptionSubstitutionInput,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { organizationId, resourceId: prescriptionId, resourceType: "prescription" },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return this.requireMutation(
+      await this.repository.createSubstitutionProposal({
+        actorPrincipalId: context.actor.principalId,
+        expectedVersion,
+        organizationId,
+        prescriptionId,
+        proposal,
+      }),
+      "prescription_substitution_conflict",
+    );
+  }
+
+  async recordPatientSubstitutionDecision(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    proposalId: string,
+    expectedVersion: number,
+    outcome: "APPROVED" | "DECLINED",
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    const prescription = await this.requirePrescription(prescriptionId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: prescription.patientPrincipalId,
+        resourceId: prescription.id,
+        resourceType: "prescription",
+      },
+      policy: AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return this.requireMutation(
+      await this.repository.decideSubstitution({
+        actorPrincipalId: context.actor.principalId,
+        decisionKind: "PATIENT_CONSENT",
+        expectedVersion,
+        outcome,
+        prescriptionId,
+        proposalId,
+      }),
+      "prescription_substitution_decision_conflict",
+    );
+  }
+
+  async recordPractitionerSubstitutionDecision(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    proposalId: string,
+    expectedVersion: number,
+    outcome: "APPROVED" | "DECLINED",
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    const prescription = await this.requirePrescription(prescriptionId);
+    await this.authorizeIssuer(context, prescription);
+    await this.requireVerifiedPractitioner(context.actor.principalId);
+    this.assertPrivilegedAssurance(context.actor);
+    return this.requireMutation(
+      await this.repository.decideSubstitution({
+        actorPrincipalId: context.actor.principalId,
+        decisionKind: "PRACTITIONER_APPROVAL",
+        expectedVersion,
+        outcome,
+        prescriptionId,
+        proposalId,
+      }),
+      "prescription_substitution_decision_conflict",
+    );
+  }
+
+  async dispense(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    organizationId: string,
+    input: {
+      dispenseEventId: string;
+      expectedVersion: number;
+      lines: readonly PrescriptionDispenseLineInput[];
+      occurredAt: string;
+    },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { organizationId, resourceId: prescriptionId, resourceType: "prescription" },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    const occurredAt = parseDispenseInstant(input.occurredAt);
+    const requestDigest = createHash("sha256")
+      .update(
+        JSON.stringify({
+          lines: [...input.lines].sort((left, right) =>
+            left.prescriptionItemId.localeCompare(right.prescriptionItemId),
+          ),
+          occurredAt: occurredAt.toISOString(),
+          organizationId,
+          prescriptionId,
+        }),
+      )
+      .digest("hex");
+    return this.requireMutation(
+      await this.repository.dispense({
+        actorPrincipalId: context.actor.principalId,
+        dispenseEventId: input.dispenseEventId,
+        expectedVersion: input.expectedVersion,
+        lines: input.lines,
+        occurredAt,
+        organizationId,
+        prescriptionId,
+        requestDigest,
+      }),
+      "prescription_dispense_conflict",
+    );
+  }
+
+  async returnToPatient(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    organizationId: string,
+    expectedVersion: number,
+    reasonCode: string,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { organizationId, resourceId: prescriptionId, resourceType: "prescription" },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return pharmacyPrescription(
+      this.requireMutation(
+        await this.repository.returnToPatient({
+          actorPrincipalId: context.actor.principalId,
+          expectedVersion,
+          organizationId,
+          prescriptionId,
+          reasonCode,
+        }),
+        "prescription_return_conflict",
+      ),
+    );
+  }
+
+  async listDispenseEvents(
+    context: PrescriptionRequestContext,
+    prescriptionId: string,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    const prescription = await this.requirePrescription(prescriptionId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: prescription.patientPrincipalId,
+        ...(prescription.pharmacyOrganizationId === undefined
+          ? {}
+          : { pharmacyOrganizationId: prescription.pharmacyOrganizationId }),
+        practitionerPrincipalId: prescription.practitionerPrincipalId,
+        resourceId: prescription.id,
+        resourceType: "prescription",
+      },
+      policy: AUTHORIZATION_POLICY.VIEW_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return this.repository.listDispenseEvents({
+      ...(input.cursor === undefined ? {} : { cursor: decodeEventCursor(input.cursor) }),
+      limit: input.limit,
+      prescriptionId,
+    });
+  }
+
   async cancel(
     context: PrescriptionRequestContext,
     prescriptionId: string,
@@ -394,6 +583,23 @@ function parseFutureInstant(value: string): Date {
   return parsed;
 }
 
+function parseDispenseInstant(value: string): Date {
+  const parsed = new Date(value);
+  const now = Date.now();
+  if (
+    !Number.isFinite(parsed.getTime()) ||
+    parsed.getTime() > now + DISPENSE_CLOCK_SKEW_MS ||
+    parsed.getTime() < now - DISPENSE_RECORDING_WINDOW_MS
+  ) {
+    throw new PrescriptionFlowError(
+      "invalid_dispense_time",
+      400,
+      "Dispense time is outside the accepted recording window",
+    );
+  }
+  return parsed;
+}
+
 function decodeCursor(value: string): { id: string; sentAt: Date } {
   try {
     const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
@@ -404,6 +610,21 @@ function decodeCursor(value: string): { id: string; sentAt: Date } {
     const sentAt = new Date(decoded.sentAt);
     if (!Number.isFinite(sentAt.getTime())) throw new Error();
     return { id: decoded.id, sentAt };
+  } catch {
+    throw new PrescriptionFlowError("invalid_cursor", 400, "Cursor is invalid");
+  }
+}
+
+function decodeEventCursor(value: string): { id: string; occurredAt: Date } {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      id?: unknown;
+      occurredAt?: unknown;
+    };
+    if (typeof decoded.id !== "string" || typeof decoded.occurredAt !== "string") throw new Error();
+    const occurredAt = new Date(decoded.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime())) throw new Error();
+    return { id: decoded.id, occurredAt };
   } catch {
     throw new PrescriptionFlowError("invalid_cursor", 400, "Cursor is invalid");
   }

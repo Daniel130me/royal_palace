@@ -60,6 +60,22 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
       title: "Payment updated",
     }),
   },
+  [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Action is required for secure health request ${reference}. Sign in to review it securely.`,
+      subject: "Secure health request action required",
+      title: "Secure health request action required",
+    }),
+  },
+  [NOTIFICATION_TEMPLATE.PRESCRIPTION_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Secure health request ${reference} has an update. Sign in to view it securely.`,
+      subject: "Secure health request updated",
+      title: "Secure health request updated",
+    }),
+  },
   [NOTIFICATION_TEMPLATE.SECURITY_ALERT]: {
     category: "SECURITY",
     render: (reference) => ({

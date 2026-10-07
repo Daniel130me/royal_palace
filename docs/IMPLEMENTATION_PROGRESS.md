@@ -221,8 +221,12 @@ that completes an increment.
     concurrency verification, indexed representative queue evidence, and a generated
     drift-checked service contract. The checkpoint is complete but not approved for
     real clinical use.
-  - `[ ]` Checkpoint 11B: dispensing events, substitution consent/approval, refill and
-    quantity accounting, and associated notification intents.
+  - `[x]` Checkpoint 11B adds jurisdiction-policy-gated substitution proposals,
+    immutable patient/practitioner decisions and dispense events, idempotent event
+    retries, server-derived medication snapshots, partial/full quantity and refill
+    accounting, safe return/rerouting, concurrency verification, paginated history,
+    and privacy-safe notification intents. It remains synthetic-only and is not
+    approved for real clinical use.
   - `[ ]` Checkpoint 11C: commercial pharmacy order/payment/fulfilment workflow,
     frontend/BFF cutover, prototype-route retirement, and qualified clinical review.
   - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
