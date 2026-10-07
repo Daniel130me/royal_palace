@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/v1/pharmacy/prescriptions/{prescriptionId}/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPharmacyQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/quotes/{quoteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyQuoteForPharmacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyOrderForPharmacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/quotes/{quoteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyQuoteForPatient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/quotes/{quoteId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acceptPharmacyQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyOrderForPatient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/provider/prescriptions": {
         parameters: {
             query?: never;
@@ -248,6 +344,122 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptPharmacyQuoteInput: {
+            expectedVersion: number;
+        };
+        CreatePharmacyQuoteInput: {
+            /** @default [] */
+            charges: components["schemas"]["PharmacyQuoteChargeInput"][];
+            currency: string;
+            expectedPrescriptionVersion: number;
+            fillNumber: number;
+            lines: components["schemas"]["PharmacyQuoteLineInput"][];
+            validForSeconds: number;
+        };
+        PharmacyQuoteLineInput: {
+            /** Format: uuid */
+            prescriptionItemId: string;
+            quantity: string;
+            /** Format: uuid */
+            substitutionProposalId?: string;
+            unitPriceMinor: string;
+        };
+        PharmacyQuoteChargeInput: {
+            amountMinor: string;
+            code: string;
+            label: string;
+            /** @enum {string} */
+            type: "TAX" | "FEE";
+        };
+        PharmacyQuoteLine: {
+            /** Format: uuid */
+            id: string;
+            lineNumber: number;
+            lineSubtotalMinor: string;
+            medicationCode: string | null;
+            medicationCodeSystem: string | null;
+            medicationName: string;
+            /** Format: uuid */
+            prescriptionItemId: string;
+            quantity: string;
+            quantityUnit: string;
+            strength: string | null;
+            /** Format: uuid */
+            substitutionProposalId: string | null;
+            unitPriceMinor: string;
+        };
+        PharmacyQuoteCharge: {
+            amountMinor: string;
+            code: string;
+            /** Format: uuid */
+            id: string;
+            label: string;
+            /** @enum {string} */
+            type: "TAX" | "FEE";
+        };
+        PharmacyQuote: {
+            charges: components["schemas"]["PharmacyQuoteCharge"][];
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            /** Format: date-time */
+            expiresAt: string;
+            feeMinor: string;
+            fillNumber: number;
+            /** Format: uuid */
+            id: string;
+            inventoryReservation: {
+                /** Format: date-time */
+                expiresAt: string;
+                /** @enum {string} */
+                status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+            };
+            lines: components["schemas"]["PharmacyQuoteLine"][];
+            /** Format: uuid */
+            orderId: string | null;
+            /** Format: uuid */
+            patientId: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            /** Format: uuid */
+            prescriptionId: string;
+            /** Format: uuid */
+            prescriptionRouteId: string;
+            quoteNumber: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
+            subtotalMinor: string;
+            taxMinor: string;
+            totalMinor: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        PharmacyOrder: {
+            /** Format: date-time */
+            acceptedAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            orderNumber: string;
+            /** Format: uuid */
+            patientId: string;
+            /** Format: uuid */
+            paymentId: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            /** Format: uuid */
+            prescriptionId: string;
+            /** Format: uuid */
+            prescriptionRouteId: string;
+            quote: components["schemas"]["PharmacyQuote"];
+            /** @enum {string} */
+            status: "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "DISPUTED";
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
         CursorPageInfo: {
             endCursor: string | null;
             hasNextPage: boolean;
@@ -529,6 +741,24 @@ export interface components {
                 "application/json": components["schemas"]["Prescription"];
             };
         };
+        /** @description Patient-accepted pharmacy order with its immutable quote snapshot and payment reference */
+        PharmacyOrderResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyOrder"];
+            };
+        };
+        /** @description Time-limited, immutable pharmacy quote snapshot */
+        PharmacyQuoteResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyQuote"];
+            };
+        };
         /** @description Substitution proposal with immutable consent and approval decisions */
         SubstitutionProposalResponse: {
             headers: {
@@ -549,6 +779,9 @@ export interface components {
         };
     };
     parameters: {
+        IdempotencyKey: string;
+        OrderId: string;
+        QuoteId: string;
         OrganizationId: string;
         PrescriptionId: string;
         ProposalId: string;
@@ -560,6 +793,134 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    createPharmacyQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                prescriptionId: components["parameters"]["PrescriptionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePharmacyQuoteInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyQuoteResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getPharmacyQuoteForPharmacy: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                quoteId: components["parameters"]["QuoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyQuoteResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getPharmacyOrderForPharmacy: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyOrderResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getPharmacyQuoteForPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                quoteId: components["parameters"]["QuoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyQuoteResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    acceptPharmacyQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                quoteId: components["parameters"]["QuoteId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptPharmacyQuoteInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyOrderResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getPharmacyOrderForPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyOrderResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     createPrescriptionDraft: {
         parameters: {
             query?: never;

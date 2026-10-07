@@ -232,7 +232,10 @@ that completes an increment.
       existing appointment behavior, removes checkout's dependency on appointment
       expiry, dispatches webhook effects through an explicit subject boundary, and
       verifies prior-data backfill plus database immutability.
-    - `[ ]` 11C2 quote/reservation/order core.
+    - `[x]` 11C2 adds immutable prescription-fill quote snapshots, exact line/tax/fee
+      arithmetic, vendor-neutral inventory reservation evidence, explicit patient
+      acceptance, pharmacy orders, and an exactly-one payment-subject constraint.
+      It remains synthetic-only; no real inventory or payment provider is enabled.
     - `[ ]` 11C3 payment/fulfilment orchestration.
     - `[ ]` 11C4 frontend/BFF cutover and prototype-route retirement.
     - `[ ]` 11C5 qualification evidence.

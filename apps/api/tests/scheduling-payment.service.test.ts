@@ -75,6 +75,7 @@ describe("SchedulingPaymentService", () => {
         payableUntil: new Date(Date.now() + 60_000).toISOString(),
         patientId: createOpaqueId(),
         patientPrincipalId,
+        pharmacyOrderId: null,
         providerCode: "SYNTHETIC",
         providerPaymentReference: "provider-reference",
         purpose: "CONSULTATION",

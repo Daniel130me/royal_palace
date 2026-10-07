@@ -11,6 +11,7 @@ const oidcClientAuthMethodSchema = z.enum(["client_secret_basic", "client_secret
 const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 const notificationDeliveryModeSchema = z.enum(["disabled", "synthetic"]);
 const clinicalWorkflowModeSchema = z.enum(["disabled", "synthetic"]);
+const inventoryGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
@@ -166,6 +167,8 @@ const serviceEnvironmentSchema = z
     CLAMAV_HOST: z.string().trim().min(1).optional(),
     CLAMAV_PORT: portSchema.optional(),
     CLINICAL_WORKFLOW_MODE: clinicalWorkflowModeSchema.default("disabled"),
+    INVENTORY_GATEWAY_MODE: inventoryGatewayModeSchema.default("disabled"),
+    INVENTORY_RESERVATION_TTL_SECONDS: paymentDurationSchema.default(900),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
@@ -313,6 +316,14 @@ const serviceEnvironmentSchema = z
       });
     }
 
+    if (value.INVENTORY_GATEWAY_MODE !== "disabled") {
+      context.addIssue({
+        code: "custom",
+        message: "must remain disabled until a production inventory provider is approved",
+        path: ["INVENTORY_GATEWAY_MODE"],
+      });
+    }
+
     if (value.AWS_REGION === undefined) {
       context.addIssue({
         code: "custom",
@@ -348,6 +359,10 @@ interface BaseServiceConfig {
   } | null;
   clinicalWorkflow: {
     mode: z.infer<typeof clinicalWorkflowModeSchema>;
+  };
+  inventoryGateway: {
+    mode: z.infer<typeof inventoryGatewayModeSchema>;
+    reservationTtlSeconds: number;
   };
   databaseUrl: string;
   dependencyTimeoutMs: number;
@@ -505,6 +520,10 @@ export function loadServiceConfig(
         ? null
         : Object.freeze({ host: values.CLAMAV_HOST, port: values.CLAMAV_PORT }),
     clinicalWorkflow: Object.freeze({ mode: values.CLINICAL_WORKFLOW_MODE }),
+    inventoryGateway: Object.freeze({
+      mode: values.INVENTORY_GATEWAY_MODE,
+      reservationTtlSeconds: values.INVENTORY_RESERVATION_TTL_SECONDS,
+    }),
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
     logLevel: values.LOG_LEVEL,

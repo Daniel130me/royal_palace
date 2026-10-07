@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     );
 
     const paymentPriorSchemaRoot = join(temporaryRoot, "payment-prior-prisma");
-    await copyMigrationSet(paymentPriorSchemaRoot, (name) => name !== PAYMENT_SUBJECT_MIGRATION);
+    await copyMigrationSet(paymentPriorSchemaRoot, (name) => name < PAYMENT_SUBJECT_MIGRATION);
     const paymentBackfillUrl = databaseUrlWithName(baseUrl, databaseNames.paymentBackfill);
     await runPrismaMigration(join(paymentPriorSchemaRoot, "schema.prisma"), paymentBackfillUrl);
     const backfillFixture = await seedPaymentBeforeSubjectMigration(paymentBackfillUrl);
@@ -81,11 +81,12 @@ async function main(): Promise<void> {
       databaseUrlWithName(baseUrl, databaseNames.repair),
     );
     await verifyDatabaseInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
+    await verifyPharmacyCommercialInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
     await verifyConcurrentBooking(databaseUrlWithName(baseUrl, databaseNames.clean));
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
-      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, transactional repair, and constraints.\n",
+      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial invariants, transactional repair, and constraints.\n",
     );
   } finally {
     for (const databaseName of Object.values(databaseNames).reverse()) {
@@ -858,6 +859,183 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       [childSpecialtyId, parentSpecialtyId],
       "P0001",
     );
+  } finally {
+    await client.end();
+  }
+}
+
+async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<void> {
+  const client = new Client({ connectionString: databaseUrl });
+  const patientPrincipalId = v7();
+  const practitionerPrincipalId = v7();
+  const patientId = v7();
+  const practitionerId = v7();
+  const pharmacyId = v7();
+  const feeId = v7();
+  const slotId = v7();
+  const appointmentId = v7();
+  const prescriptionId = v7();
+  const itemId = v7();
+  const routeId = v7();
+  const quoteId = v7();
+  const quoteLineId = v7();
+  const orderId = v7();
+  const paymentId = v7();
+
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now()), ($2, now())',
+      [patientPrincipalId, practitionerPrincipalId],
+    );
+    await client.query(
+      'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
+      [patientId, patientPrincipalId, "Commercial", "Patient"],
+    );
+    await client.query(
+      'INSERT INTO "practitioners" ("id", "principal_id", "display_name", "given_name", "family_name", "verification_status", "verified_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, now(), now())',
+      [
+        practitionerId,
+        practitionerPrincipalId,
+        "Commercial Practitioner",
+        "Commercial",
+        "Practitioner",
+        "VERIFIED",
+      ],
+    );
+    await client.query(
+      'INSERT INTO "organizations" ("id", "type", "verification_status", "verified_at", "legal_name", "display_name", "updated_at") VALUES ($1, $2, \'VERIFIED\', now(), $3, $4, now())',
+      [pharmacyId, "PHARMACY", "Commercial Pharmacy Limited", "Commercial Pharmacy"],
+    );
+    await client.query(
+      'INSERT INTO "consultation_fees" ("id", "practitioner_id", "mode", "amount_minor", "currency", "effective_from", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, now() - interval \'1 minute\', $6, $7, $7, now())',
+      [feeId, practitionerId, "VIDEO", 10000, "USD", "ACTIVE", practitionerPrincipalId],
+    );
+    await client.query(
+      'INSERT INTO "availability_slots" ("id", "practitioner_id", "consultation_fee_id", "starts_at", "ends_at", "status", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, now() + interval \'1 day\', now() + interval \'1 day 30 minutes\', $4, $5, now())',
+      [slotId, practitionerId, feeId, "BOOKED", practitionerPrincipalId],
+    );
+    await client.query(
+      'INSERT INTO "appointments" ("id", "patient_id", "practitioner_id", "availability_slot_id", "mode", "starts_at", "ends_at", "amount_minor", "currency", "status", "payment_due_at", "confirmed_at", "updated_at") SELECT $1, $2, $3, $4, $5, "starts_at", "ends_at", $6, $7, $8, now() + interval \'15 minutes\', now(), now() FROM "availability_slots" WHERE "id" = $4',
+      [appointmentId, patientId, practitionerId, slotId, "VIDEO", 10000, "USD", "CONFIRMED"],
+    );
+    await client.query(
+      'INSERT INTO "prescriptions" ("id", "prescription_number", "patient_id", "practitioner_id", "appointment_id", "jurisdiction_code", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, now())',
+      [
+        prescriptionId,
+        `RX-${prescriptionId}`,
+        patientId,
+        practitionerId,
+        appointmentId,
+        "GLOBAL.TEST",
+      ],
+    );
+    await client.query(
+      'INSERT INTO "prescription_items" ("id", "prescription_id", "line_number", "medication_name", "dose", "frequency", "quantity", "quantity_unit") VALUES ($1, $2, 1, $3, $4, $5, 2, $6)',
+      [itemId, prescriptionId, "Commercial medicine", "one tablet", "twice daily", "tablet"],
+    );
+    await client.query(
+      'UPDATE "prescriptions" SET "status" = \'SIGNED\', "content_digest" = $1, "attestation_method" = $2, "signed_at" = now(), "valid_until" = now() + interval \'1 day\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $3',
+      ["c".repeat(64), "SYNTHETIC_TEST", prescriptionId],
+    );
+    await client.query(
+      'INSERT INTO "prescription_routes" ("id", "prescription_id", "pharmacy_organization_id", "status", "sent_at", "updated_at") VALUES ($1, $2, $3, \'SENT\', now(), now())',
+      [routeId, prescriptionId, pharmacyId],
+    );
+    await client.query(
+      'UPDATE "prescriptions" SET "status" = \'SENT\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [prescriptionId],
+    );
+    await client.query(
+      'UPDATE "prescription_routes" SET "status" = \'ACCEPTED\', "accepted_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [routeId],
+    );
+    await client.query(
+      'UPDATE "prescriptions" SET "status" = \'ACCEPTED\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [prescriptionId],
+    );
+    await client.query(
+      'INSERT INTO "pharmacy_quotes" ("id", "quote_number", "prescription_id", "prescription_route_id", "pharmacy_organization_id", "patient_id", "fill_number", "currency", "subtotal_minor", "tax_minor", "fee_minor", "total_minor", "expires_at", "created_by_principal_id", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, 0, $7, 2000, 100, 50, 2150, now() + interval \'15 minutes\', $8, now())',
+      [
+        quoteId,
+        `QUOTE-${quoteId}`,
+        prescriptionId,
+        routeId,
+        pharmacyId,
+        patientId,
+        "USD",
+        patientPrincipalId,
+      ],
+    );
+    await client.query(
+      'INSERT INTO "pharmacy_quote_lines" ("id", "quote_id", "prescription_item_id", "line_number", "medication_name", "quantity", "quantity_unit", "unit_price_minor", "line_subtotal_minor") VALUES ($1, $2, $3, 1, $4, 2, $5, 1000, 2000)',
+      [quoteLineId, quoteId, itemId, "Commercial medicine", "tablet"],
+    );
+    await client.query(
+      'INSERT INTO "pharmacy_quote_charges" ("id", "quote_id", "type", "code", "label", "amount_minor") VALUES ($1, $2, \'TAX\', \'TEST_TAX\', \'Test tax\', 100), ($3, $2, \'FEE\', \'TEST_FEE\', \'Test fee\', 50)',
+      [v7(), quoteId, v7()],
+    );
+    await client.query(
+      'INSERT INTO "inventory_reservations" ("id", "quote_id", "provider_code", "provider_reservation_reference", "evidence_hash", "expires_at", "updated_at") SELECT $1, $2, $3, $4, $5, "expires_at", now() FROM "pharmacy_quotes" WHERE "id" = $2',
+      [v7(), quoteId, "SYNTHETIC_INVENTORY", `inventory_${quoteId}`, "d".repeat(64)],
+    );
+    await client.query("COMMIT");
+
+    await expectSqlState(
+      client,
+      'UPDATE "pharmacy_quote_lines" SET "line_subtotal_minor" = 1 WHERE "id" = $1',
+      [quoteLineId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "pharmacy_quotes" SET "total_minor" = 1, "updated_at" = now() WHERE "id" = $1',
+      [quoteId],
+      "P0001",
+    );
+    await client.query(
+      'UPDATE "pharmacy_quotes" SET "status" = \'ACCEPTED\', "accepted_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [quoteId],
+    );
+    await client.query(
+      'INSERT INTO "pharmacy_orders" ("id", "order_number", "quote_id", "prescription_id", "prescription_route_id", "pharmacy_organization_id", "patient_id", "accepted_by_principal_id", "accepted_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())',
+      [
+        orderId,
+        `ORDER-${orderId}`,
+        quoteId,
+        prescriptionId,
+        routeId,
+        pharmacyId,
+        patientId,
+        patientPrincipalId,
+      ],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "payments" ("id", "pharmacy_order_id", "purpose", "patient_id", "reference", "provider_code", "amount_minor", "currency", "payable_until", "updated_at") SELECT $1, $2, \'PHARMACY_ORDER\', $3, $4, \'UNASSIGNED\', 1, "currency", "expires_at", now() FROM "pharmacy_quotes" WHERE "id" = $5',
+      [v7(), orderId, patientId, `invalid_payment_${paymentId}`, quoteId],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "payments" ("id", "pharmacy_order_id", "purpose", "patient_id", "reference", "provider_code", "amount_minor", "currency", "payable_until", "updated_at") SELECT $1, $2, \'PHARMACY_ORDER\', $3, $4, \'UNASSIGNED\', "total_minor", "currency", "expires_at", now() FROM "pharmacy_quotes" WHERE "id" = $5',
+      [paymentId, orderId, patientId, `payment_${paymentId}`, quoteId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "payments" SET "pharmacy_order_id" = NULL, "appointment_id" = $1, "purpose" = \'CONSULTATION\', "updated_at" = now() WHERE "id" = $2',
+      [appointmentId, paymentId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "pharmacy_quotes" SET "status" = \'ACTIVE\', "accepted_at" = NULL, "updated_at" = now() WHERE "id" = $1',
+      [quoteId],
+      "P0001",
+    );
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
   } finally {
     await client.end();
   }

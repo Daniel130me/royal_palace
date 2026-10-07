@@ -16,6 +16,8 @@ export const AUTHORIZATION_POLICY = {
   MANAGE_PRACTITIONER_AVAILABILITY: "MANAGE_PRACTITIONER_AVAILABILITY",
   MANAGE_OWN_PRESCRIPTION: "MANAGE_OWN_PRESCRIPTION",
   MANAGE_PHARMACY_PRESCRIPTION: "MANAGE_PHARMACY_PRESCRIPTION",
+  MANAGE_PHARMACY_QUOTE: "MANAGE_PHARMACY_QUOTE",
+  ACCEPT_PHARMACY_QUOTE: "ACCEPT_PHARMACY_QUOTE",
   MANAGE_OWN_APPLICATION: "MANAGE_OWN_APPLICATION",
   REVIEW_APPLICATION: "REVIEW_APPLICATION",
   REVOKE_PRINCIPAL_SESSIONS: "REVOKE_PRINCIPAL_SESSIONS",
@@ -30,11 +32,13 @@ export const AUTHORIZATION_POLICY = {
   VIEW_APPOINTMENT: "VIEW_APPOINTMENT",
   ROUTE_PRESCRIPTION: "ROUTE_PRESCRIPTION",
   VIEW_PRESCRIPTION: "VIEW_PRESCRIPTION",
+  VIEW_PHARMACY_ORDER: "VIEW_PHARMACY_ORDER",
+  VIEW_PHARMACY_QUOTE: "VIEW_PHARMACY_QUOTE",
   EXPIRE_PRESCRIPTIONS: "EXPIRE_PRESCRIPTIONS",
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 8;
+export const AUTHORIZATION_POLICY_VERSION = 9;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -75,6 +79,8 @@ export interface AuthorizationPolicyContexts {
   };
   MANAGE_OWN_PRESCRIPTION: ResourceReference & { practitionerPrincipalId: string };
   MANAGE_PHARMACY_PRESCRIPTION: ResourceReference & { organizationId: string };
+  MANAGE_PHARMACY_QUOTE: ResourceReference & { organizationId: string };
+  ACCEPT_PHARMACY_QUOTE: ResourceReference & { patientPrincipalId: string };
   REVIEW_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVOKE_PRINCIPAL_SESSIONS: ResourceReference;
   RECORD_SETTLED_PATIENT_ACTIVITY: ResourceReference;
@@ -101,6 +107,14 @@ export interface AuthorizationPolicyContexts {
     patientPrincipalId: string;
     pharmacyOrganizationId?: string;
     practitionerPrincipalId: string;
+  };
+  VIEW_PHARMACY_ORDER: ResourceReference & {
+    organizationId: string;
+    patientPrincipalId: string;
+  };
+  VIEW_PHARMACY_QUOTE: ResourceReference & {
+    organizationId: string;
+    patientPrincipalId: string;
   };
   EXPIRE_PRESCRIPTIONS: ResourceReference;
 }

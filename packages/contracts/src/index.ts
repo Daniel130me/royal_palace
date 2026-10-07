@@ -496,10 +496,11 @@ export interface HostedCheckoutResponse {
 
 export interface PaymentStatusResponse {
   amountMinor: string;
-  appointmentId: string;
+  appointmentId: string | null;
   currency: string;
   id: string;
   payableUntil: string;
+  pharmacyOrderId: string | null;
   purpose: PaymentPurpose;
   status: PaymentStatus;
   updatedAt: string;
@@ -681,6 +682,74 @@ export type PharmacyPrescriptionResponse = Omit<
 export interface PharmacyPrescriptionListResponse {
   data: readonly PharmacyPrescriptionResponse[];
   pageInfo: CursorPageInfo;
+}
+
+export type PharmacyQuoteStatus = "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
+
+export interface PharmacyQuoteLineResponse {
+  id: string;
+  lineNumber: number;
+  lineSubtotalMinor: string;
+  medicationCode: string | null;
+  medicationCodeSystem: string | null;
+  medicationName: string;
+  prescriptionItemId: string;
+  quantity: string;
+  quantityUnit: string;
+  strength: string | null;
+  substitutionProposalId: string | null;
+  unitPriceMinor: string;
+}
+
+export interface PharmacyQuoteChargeResponse {
+  amountMinor: string;
+  code: string;
+  id: string;
+  label: string;
+  type: "TAX" | "FEE";
+}
+
+export interface PharmacyQuoteResponse {
+  charges: readonly PharmacyQuoteChargeResponse[];
+  createdAt: string;
+  currency: string;
+  expiresAt: string;
+  feeMinor: string;
+  fillNumber: number;
+  id: string;
+  inventoryReservation: { expiresAt: string; status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED" };
+  lines: readonly PharmacyQuoteLineResponse[];
+  orderId: string | null;
+  patientId: string;
+  pharmacyOrganizationId: string;
+  prescriptionId: string;
+  prescriptionRouteId: string;
+  quoteNumber: string;
+  status: PharmacyQuoteStatus;
+  subtotalMinor: string;
+  taxMinor: string;
+  totalMinor: string;
+  updatedAt: string;
+  version: number;
+}
+
+export type PharmacyOrderStatus =
+  "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "DISPUTED";
+
+export interface PharmacyOrderResponse {
+  acceptedAt: string;
+  createdAt: string;
+  id: string;
+  orderNumber: string;
+  patientId: string;
+  paymentId: string;
+  pharmacyOrganizationId: string;
+  prescriptionId: string;
+  prescriptionRouteId: string;
+  quote: PharmacyQuoteResponse;
+  status: PharmacyOrderStatus;
+  updatedAt: string;
+  version: number;
 }
 
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";

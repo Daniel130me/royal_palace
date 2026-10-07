@@ -142,12 +142,14 @@ function baselineRequest(
         },
       };
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
+    case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
       return {
         ...base,
         policy,
         context: { organizationId, resourceId, resourceType: "prescription" },
       };
     case AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION:
+    case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
       return {
         ...base,
         policy,
@@ -167,6 +169,18 @@ function baselineRequest(
           practitionerPrincipalId: targetPrincipalId,
           resourceId,
           resourceType: "prescription",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER:
+    case AUTHORIZATION_POLICY.VIEW_PHARMACY_QUOTE:
+      return {
+        ...base,
+        policy,
+        context: {
+          organizationId,
+          patientPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "pharmacy_commercial",
         },
       };
     case AUTHORIZATION_POLICY.VIEW_APPOINTMENT:
@@ -216,6 +230,8 @@ describe("PolicyEngine", () => {
     MANAGE_PRACTITIONER_AVAILABILITY: [],
     MANAGE_OWN_PRESCRIPTION: [],
     MANAGE_PHARMACY_PRESCRIPTION: [],
+    MANAGE_PHARMACY_QUOTE: [],
+    ACCEPT_PHARMACY_QUOTE: [],
     MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
     REVOKE_PRINCIPAL_SESSIONS: ["ADMINISTRATOR"],
@@ -230,6 +246,8 @@ describe("PolicyEngine", () => {
     VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
     ROUTE_PRESCRIPTION: [],
     VIEW_PRESCRIPTION: [],
+    VIEW_PHARMACY_ORDER: [],
+    VIEW_PHARMACY_QUOTE: [],
     EXPIRE_PRESCRIPTIONS: ["SYSTEM_WORKER"],
   };
 
@@ -363,6 +381,23 @@ describe("PolicyEngine", () => {
     ).toBe(true);
     expect(
       engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT, manager))
+        .allowed,
+    ).toBe(false);
+  });
+
+  it("separates pharmacy quote management from patient quote acceptance", () => {
+    const pharmacyMember = actor([], { organizationRoles: ["ORGANIZATION_STAFF"] });
+    const patient = actor(["PATIENT"], { principalId: targetPrincipalId });
+
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE, pharmacyMember))
+        .allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE, patient)).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE, pharmacyMember))
         .allowed,
     ).toBe(false);
   });

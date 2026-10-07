@@ -322,6 +322,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
         payableUntil: true,
         patient: { select: { principalId: true } },
         patientId: true,
+        pharmacyOrderId: true,
         purpose: true,
         providerCode: true,
         providerPaymentReference: true,
@@ -911,12 +912,13 @@ function mapAppointment(
 
 function mapPayment(row: {
   amountMinor: bigint;
-  appointmentId: string;
+  appointmentId: string | null;
   currency: string;
   id: string;
   payableUntil: Date;
   patient: { principalId: string };
   patientId: string;
+  pharmacyOrderId: string | null;
   purpose: "CONSULTATION" | "PHARMACY_ORDER";
   providerCode: string;
   providerPaymentReference: string | null;
@@ -932,6 +934,7 @@ function mapPayment(row: {
     payableUntil: row.payableUntil.toISOString(),
     patientId: row.patientId,
     patientPrincipalId: row.patient.principalId,
+    pharmacyOrderId: row.pharmacyOrderId,
     providerCode: row.providerCode,
     providerPaymentReference: row.providerPaymentReference,
     purpose: row.purpose,
@@ -1124,13 +1127,13 @@ async function updateAppointmentFromPayment(
 async function applyPaymentSubjectTransition(
   transaction: Prisma.TransactionClient,
   payment: {
-    appointment: { availabilitySlotId: string; id: string; status: string };
+    appointment: { availabilitySlotId: string; id: string; status: string } | null;
     purpose: "CONSULTATION" | "PHARMACY_ORDER";
   },
   paymentStatus: PaymentStatus,
   occurredAt: Date,
 ): Promise<void> {
-  if (payment.purpose !== "CONSULTATION") {
+  if (payment.purpose !== "CONSULTATION" || payment.appointment === null) {
     throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
   }
   await updateAppointmentFromPayment(transaction, payment.appointment, paymentStatus, occurredAt);

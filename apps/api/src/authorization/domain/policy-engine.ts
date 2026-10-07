@@ -55,6 +55,25 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.VIEW_PRESCRIPTION:
         return this.canViewPrescription(request.actor, request.context);
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
+      case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
+        return this.canManagePharmacyPrescription(
+          request.actor,
+          request.context.organizationId,
+          request.policy,
+        );
+      case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
+        return request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+          ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
+          : this.deny(request.policy, "quote_patient_ownership_required");
+      case AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER:
+      case AUTHORIZATION_POLICY.VIEW_PHARMACY_QUOTE:
+        if (
+          request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+        ) {
+          return this.allow(request.policy, "PATIENT", ALLOW.OWNER);
+        }
         return this.canManagePharmacyPrescription(
           request.actor,
           request.context.organizationId,

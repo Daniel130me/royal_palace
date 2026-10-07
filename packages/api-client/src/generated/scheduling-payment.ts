@@ -202,12 +202,14 @@ export interface components {
         Payment: {
             amountMinor: string;
             /** Format: uuid */
-            appointmentId: string;
+            appointmentId: string | null;
             currency: string;
             /** Format: uuid */
             id: string;
             /** Format: date-time */
             payableUntil: string;
+            /** Format: uuid */
+            pharmacyOrderId: string | null;
             /** @enum {string} */
             purpose: "CONSULTATION" | "PHARMACY_ORDER";
             status: components["schemas"]["PaymentStatus"];

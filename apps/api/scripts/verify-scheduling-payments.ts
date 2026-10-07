@@ -167,6 +167,7 @@ async function main(): Promise<void> {
     if (
       expirationResult.expired < 1 ||
       expiredPayment.status !== "EXPIRED" ||
+      expiredPayment.appointment === null ||
       expiredPayment.appointment.status !== "EXPIRED"
     ) {
       throw new Error("Reservation timeout did not expire appointment and payment atomically");

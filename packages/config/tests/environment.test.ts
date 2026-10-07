@@ -196,6 +196,31 @@ describe("loadServiceConfig", () => {
       }),
     ).toThrow(/CLINICAL_WORKFLOW_MODE/);
   });
+
+  it("keeps synthetic inventory reservations outside protected environments", () => {
+    const local = loadServiceConfig("api", {
+      ...validEnvironment,
+      INVENTORY_GATEWAY_MODE: "synthetic",
+      INVENTORY_RESERVATION_TTL_SECONDS: "600",
+    });
+    expect(local.inventoryGateway).toEqual({ mode: "synthetic", reservationTtlSeconds: 600 });
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        APP_ENV: "production",
+        AWS_REGION: "approved-region-1",
+        DATABASE_URL:
+          "postgresql://test-user:test-password@database.example.test:5432/test-db?sslmode=verify-full",
+        INVENTORY_GATEWAY_MODE: "synthetic",
+        OBJECT_STORAGE_ENDPOINT: "https://objects.example.test",
+        OIDC_CLIENT_AUTH_METHOD: "client_secret_basic",
+        OIDC_CLIENT_SECRET: "test-client-secret",
+        OIDC_ISSUER_URL: "https://identity.example.test",
+        OIDC_REDIRECT_URI: "https://app.example.test/api/bff/auth/callback",
+        REDIS_URL: "rediss://redis.example.test:6379/0",
+      }),
+    ).toThrow(/INVENTORY_GATEWAY_MODE/);
+  });
 });
 
 describe("loadWebConfig", () => {

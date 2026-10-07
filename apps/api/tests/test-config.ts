@@ -7,6 +7,7 @@ export const testConfig = loadServiceConfig("api", {
   CLAMAV_HOST: "127.0.0.1",
   CLAMAV_PORT: "3310",
   CLINICAL_WORKFLOW_MODE: "synthetic",
+  INVENTORY_GATEWAY_MODE: "synthetic",
   DATABASE_URL: "postgresql://test-user:test-password@127.0.0.1:5432/test-db",
   DEPENDENCY_TIMEOUT_MS: "1500",
   LOG_LEVEL: "silent",

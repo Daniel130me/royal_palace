@@ -335,6 +335,35 @@ enum PrescriptionRouteStatus {
   CANCELLED
 }
 
+enum PharmacyQuoteStatus {
+  ACTIVE
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+  SUPERSEDED
+}
+
+enum PharmacyQuoteChargeType {
+  TAX
+  FEE
+}
+
+enum InventoryReservationStatus {
+  HELD
+  RELEASED
+  CONSUMED
+  EXPIRED
+}
+
+enum PharmacyOrderStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  REFUND_PENDING
+  REFUNDED
+  DISPUTED
+}
+
 enum SubstitutionApprovalMode {
   DISABLED
   PATIENT_ONLY
@@ -400,6 +429,8 @@ model IdentityPrincipal {
   createdSubstitutionProposals PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
   substitutionDecisions        PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
   prescriptionDispenseEvents   PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
+  createdPharmacyQuotes        PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
+  acceptedPharmacyOrders       PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -424,6 +455,8 @@ model Patient {
   appointments        Appointment[]
   payments            Payment[]
   prescriptions       Prescription[]
+  pharmacyQuotes      PharmacyQuote[]
+  pharmacyOrders      PharmacyOrder[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -521,6 +554,8 @@ model Organization {
   practitionerApplicationSelections PractitionerApplicationDetail[]
   registrations                     OrganizationRegistration[]
   prescriptionRoutes                PrescriptionRoute[]
+  pharmacyQuotes                    PharmacyQuote[]
+  pharmacyOrders                    PharmacyOrder[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -1578,6 +1613,8 @@ model Prescription {
   routes                 PrescriptionRoute[]
   substitutionProposals  PrescriptionSubstitutionProposal[]
   dispenseEvents         PrescriptionDispenseEvent[]
+  pharmacyQuotes         PharmacyQuote[]
+  pharmacyOrders         PharmacyOrder[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "prescriptions_patient_created_idx")
   @@index([practitionerId, createdAt(sort: Desc), id(sort: Desc)], map: "prescriptions_practitioner_created_idx")
@@ -1607,6 +1644,7 @@ model PrescriptionItem {
   prescription          Prescription                       @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
   substitutionProposals PrescriptionSubstitutionProposal[]
   dispenseLines         PrescriptionDispenseLine[]
+  pharmacyQuoteLines    PharmacyQuoteLine[]
 
   @@unique([prescriptionId, lineNumber], map: "prescription_items_prescription_line_key")
   @@index([prescriptionId, id], map: "prescription_items_prescription_id_idx")
@@ -1645,21 +1683,149 @@ model PrescriptionRoute {
   pharmacyOrganization   Organization                       @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
   substitutionProposals  PrescriptionSubstitutionProposal[]
   dispenseEvents         PrescriptionDispenseEvent[]
+  pharmacyQuotes         PharmacyQuote[]
+  pharmacyOrders         PharmacyOrder[]
 
   @@index([pharmacyOrganizationId, status, sentAt(sort: Desc), id(sort: Desc)], map: "prescription_routes_pharmacy_queue_idx")
   @@index([prescriptionId, createdAt, id], map: "prescription_routes_prescription_idx")
   @@map("prescription_routes")
 }
 
+model PharmacyQuote {
+  id                     String                @id @db.Uuid
+  quoteNumber            String                @unique @map("quote_number") @db.VarChar(64)
+  prescriptionId         String                @map("prescription_id") @db.Uuid
+  prescriptionRouteId    String                @map("prescription_route_id") @db.Uuid
+  pharmacyOrganizationId String                @map("pharmacy_organization_id") @db.Uuid
+  patientId              String                @map("patient_id") @db.Uuid
+  fillNumber             Int                   @map("fill_number")
+  currency               String                @db.Char(3)
+  subtotalMinor          BigInt                @map("subtotal_minor")
+  taxMinor               BigInt                @default(0) @map("tax_minor")
+  feeMinor               BigInt                @default(0) @map("fee_minor")
+  totalMinor             BigInt                @map("total_minor")
+  status                 PharmacyQuoteStatus   @default(ACTIVE)
+  expiresAt              DateTime              @map("expires_at") @db.Timestamptz(6)
+  acceptedAt             DateTime?             @map("accepted_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?             @map("cancelled_at") @db.Timestamptz(6)
+  createdByPrincipalId   String                @map("created_by_principal_id") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                   @default(1)
+  prescription           Prescription          @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  prescriptionRoute      PrescriptionRoute     @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  pharmacyOrganization   Organization          @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  patient                Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  createdByPrincipal     IdentityPrincipal     @relation("PharmacyQuoteCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  lines                  PharmacyQuoteLine[]
+  charges                PharmacyQuoteCharge[]
+  inventoryReservation   InventoryReservation?
+  order                  PharmacyOrder?
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_patient_created_idx")
+  @@index([pharmacyOrganizationId, status, expiresAt, id], map: "pharmacy_quotes_org_status_expiry_idx")
+  @@index([prescriptionRouteId, fillNumber, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_route_fill_created_idx")
+  @@index([status, expiresAt, id], map: "pharmacy_quotes_expiry_idx")
+  @@map("pharmacy_quotes")
+}
+
+model PharmacyQuoteLine {
+  id                     String                            @id @db.Uuid
+  quoteId                String                            @map("quote_id") @db.Uuid
+  prescriptionItemId     String                            @map("prescription_item_id") @db.Uuid
+  substitutionProposalId String?                           @map("substitution_proposal_id") @db.Uuid
+  lineNumber             Int                               @map("line_number")
+  medicationCode         String?                           @map("medication_code") @db.VarChar(120)
+  medicationCodeSystem   String?                           @map("medication_code_system") @db.VarChar(255)
+  medicationName         String                            @map("medication_name") @db.VarChar(240)
+  strength               String?                           @db.VarChar(120)
+  quantity               Decimal                           @db.Decimal(12, 3)
+  quantityUnit           String                            @map("quantity_unit") @db.VarChar(64)
+  unitPriceMinor         BigInt                            @map("unit_price_minor")
+  lineSubtotalMinor      BigInt                            @map("line_subtotal_minor")
+  createdAt              DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  quote                  PharmacyQuote                     @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  prescriptionItem       PrescriptionItem                  @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
+  substitutionProposal   PrescriptionSubstitutionProposal? @relation(fields: [substitutionProposalId], references: [id], onDelete: Restrict)
+
+  @@unique([quoteId, lineNumber], map: "pharmacy_quote_lines_quote_line_key")
+  @@unique([quoteId, prescriptionItemId], map: "pharmacy_quote_lines_quote_item_key")
+  @@index([prescriptionItemId, createdAt, id], map: "pharmacy_quote_lines_item_created_idx")
+  @@index([substitutionProposalId, createdAt, id], map: "pharmacy_quote_lines_substitution_idx")
+  @@map("pharmacy_quote_lines")
+}
+
+model PharmacyQuoteCharge {
+  id          String                  @id @db.Uuid
+  quoteId     String                  @map("quote_id") @db.Uuid
+  type        PharmacyQuoteChargeType
+  code        String                  @db.VarChar(64)
+  label       String                  @db.VarChar(160)
+  amountMinor BigInt                  @map("amount_minor")
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  quote       PharmacyQuote           @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+
+  @@unique([quoteId, type, code], map: "pharmacy_quote_charges_quote_type_code_key")
+  @@index([quoteId, type, id], map: "pharmacy_quote_charges_quote_type_idx")
+  @@map("pharmacy_quote_charges")
+}
+
+model InventoryReservation {
+  id                           String                     @id @db.Uuid
+  quoteId                      String                     @unique @map("quote_id") @db.Uuid
+  providerCode                 String                     @map("provider_code") @db.VarChar(64)
+  providerReservationReference String?                    @unique @map("provider_reservation_reference") @db.VarChar(255)
+  evidenceHash                 String                     @map("evidence_hash") @db.Char(64)
+  status                       InventoryReservationStatus @default(HELD)
+  expiresAt                    DateTime                   @map("expires_at") @db.Timestamptz(6)
+  createdAt                    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                      Int                        @default(1)
+  quote                        PharmacyQuote              @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+
+  @@index([status, expiresAt, id], map: "inventory_reservations_status_expiry_idx")
+  @@map("inventory_reservations")
+}
+
+model PharmacyOrder {
+  id                     String              @id @db.Uuid
+  orderNumber            String              @unique @map("order_number") @db.VarChar(64)
+  quoteId                String              @unique @map("quote_id") @db.Uuid
+  prescriptionId         String              @map("prescription_id") @db.Uuid
+  prescriptionRouteId    String              @map("prescription_route_id") @db.Uuid
+  pharmacyOrganizationId String              @map("pharmacy_organization_id") @db.Uuid
+  patientId              String              @map("patient_id") @db.Uuid
+  status                 PharmacyOrderStatus @default(PENDING_PAYMENT)
+  acceptedByPrincipalId  String              @map("accepted_by_principal_id") @db.Uuid
+  acceptedAt             DateTime            @map("accepted_at") @db.Timestamptz(6)
+  confirmedAt            DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                 @default(1)
+  quote                  PharmacyQuote       @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  prescription           Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  prescriptionRoute      PrescriptionRoute   @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  pharmacyOrganization   Organization        @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  patient                Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  acceptedByPrincipal    IdentityPrincipal   @relation("PharmacyOrderAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
+  payment                Payment?
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_patient_created_idx")
+  @@index([pharmacyOrganizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_status_created_idx")
+  @@index([prescriptionId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_prescription_created_idx")
+  @@map("pharmacy_orders")
+}
+
 model PrescriptionJurisdictionPolicy {
-  id                       String                   @id @db.Uuid
-  jurisdictionCode         String                   @map("jurisdiction_code") @db.VarChar(32)
-  substitutionApprovalMode SubstitutionApprovalMode @default(DISABLED) @map("substitution_approval_mode")
-  effectiveFrom            DateTime                 @map("effective_from") @db.Timestamptz(6)
-  effectiveUntil           DateTime?                @map("effective_until") @db.Timestamptz(6)
-  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                  Int                      @default(1)
+  id                       String                             @id @db.Uuid
+  jurisdictionCode         String                             @map("jurisdiction_code") @db.VarChar(32)
+  substitutionApprovalMode SubstitutionApprovalMode           @default(DISABLED) @map("substitution_approval_mode")
+  effectiveFrom            DateTime                           @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil           DateTime?                          @map("effective_until") @db.Timestamptz(6)
+  createdAt                DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                                @default(1)
   substitutionProposals    PrescriptionSubstitutionProposal[]
 
   @@index([jurisdictionCode, effectiveFrom(sort: Desc), id(sort: Desc)], map: "prescription_jurisdiction_policies_effective_idx")
@@ -1691,6 +1857,7 @@ model PrescriptionSubstitutionProposal {
   createdByPrincipal           IdentityPrincipal                  @relation("SubstitutionProposalCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict, map: "prescription_substitution_proposal_created_by_principal_id_fkey")
   decisions                    PrescriptionSubstitutionDecision[]
   dispenseLines                PrescriptionDispenseLine[]
+  pharmacyQuoteLines           PharmacyQuoteLine[]
 
   @@index([prescriptionId, createdAt, id], map: "prescription_substitution_proposals_prescription_idx")
   @@index([routeId, status, createdAt, id], map: "prescription_substitution_proposals_route_status_idx")
@@ -1758,7 +1925,8 @@ model PrescriptionDispenseLine {
 
 model Payment {
   id                       String                   @id @db.Uuid
-  appointmentId            String                   @unique @map("appointment_id") @db.Uuid
+  appointmentId            String?                  @unique @map("appointment_id") @db.Uuid
+  pharmacyOrderId          String?                  @unique @map("pharmacy_order_id") @db.Uuid
   purpose                  PaymentPurpose           @default(CONSULTATION)
   patientId                String                   @map("patient_id") @db.Uuid
   reference                String                   @unique @db.VarChar(64)
@@ -1775,7 +1943,8 @@ model Payment {
   createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                  Int                      @default(1)
-  appointment              Appointment              @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  appointment              Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  pharmacyOrder            PharmacyOrder?           @relation(fields: [pharmacyOrderId], references: [id], onDelete: Restrict)
   patient                  Patient                  @relation(fields: [patientId], references: [id], onDelete: Restrict)
   checkoutSessions         PaymentCheckoutSession[]
   webhookEvents            PaymentWebhookEvent[]

@@ -75,7 +75,7 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 - [x] **11C1 — shared payment subject foundation:** generalize the existing payment,
       checkout, webhook, ledger, and reconciliation boundary from appointment-only
       ownership to an explicit payable subject without changing appointment behavior.
-- [ ] **11C2 — quote, reservation, and order core:** add immutable prescription-fill
+- [x] **11C2 — quote, reservation, and order core:** add immutable prescription-fill
       quotes, inventory reservation ports, patient acceptance, and pharmacy orders.
       Inventory remains operational evidence and never becomes the clinical source of
       truth.
@@ -432,3 +432,100 @@ activation; those remain in 11C2–11C5.
 inventory reservation evidence, explicit patient acceptance, and pharmacy orders. Real
 inventory/payment adapters and every jurisdiction remain disabled pending the recorded
 qualification decisions.
+
+## Checkpoint 11C2 completion report
+
+### Increment and scope
+
+Checkpoint 11C2 is complete. A verified pharmacy member can create a time-limited quote
+for an eligible routed prescription fill, and only the owning patient can accept it.
+Acceptance atomically creates a pharmacy order and its `PHARMACY_ORDER` payment. This
+checkpoint does not infer dispensing from payment, execute fulfilment, expose the new
+flow in the browser, calculate jurisdictional tax, or enable a real inventory/payment
+provider; those boundaries remain in 11C3–11C5.
+
+### Architecture and integrity
+
+- Migration `20261007220000_pharmacy_quote_order_core` adds normalized quote, line,
+  charge, reservation, and order aggregates with controlled statuses, relational
+  ownership, exact minor-unit arithmetic checks, legal transition guards, immutable
+  commercial snapshots, and deferred aggregate constraints.
+- A quote can contain only server-resolved prescription items or approved substitution
+  proposals. The service derives medication identity and the remaining dispensable
+  balance; clients cannot submit clinical snapshot text or exceed that balance.
+- Exactly one held inventory reservation must match every persisted quote and its
+  expiry. Inventory is a vendor-neutral operational port and never replaces signed
+  prescription, routing, substitution, or dispense facts.
+- Patient acceptance uses a serializable transaction. It changes one active quote to
+  `ACCEPTED`, creates one immutable order, and creates one purpose-scoped payment with
+  the exact quote owner, amount, currency, and expiry.
+- Payments now enforce exactly one relational subject: consultation payments reference
+  an appointment and pharmacy-order payments reference an order. Database triggers
+  reject mismatched owner, amount, currency, purpose, or payable period even when a
+  caller bypasses the application service.
+- Quote creation and acceptance have principal-scoped idempotency keys. Identical
+  retries return the completed resource; changed requests fail closed. A lost database
+  race compensates the inventory hold before surfacing failure.
+
+### Security, privacy, and performance
+
+- Explicit policies separate pharmacy quote management, patient acceptance, and
+  patient/pharmacy read access. Responses omit the private patient-principal linkage.
+- Protected environments reject every non-disabled inventory adapter. The synthetic
+  adapter creates deterministic opaque evidence only and is limited to local/test use.
+- Quote preparation resolves dispense balances and approved substitutions in bounded
+  grouped queries rather than issuing a query per line. Resource reads use primary or
+  unique indexes; operational expiry and organization queues have purpose-built
+  composite indexes. No unbounded commercial list endpoint was introduced.
+- Currency is a validated ISO code supplied per quote; amounts use integer minor units.
+  The design has no fixed country, currency, tax code, inventory vendor, payment vendor,
+  or cloud-provider assumption.
+
+### Verification evidence
+
+- Prisma formatting, generation, schema validation, contract generation/drift, lint,
+  type checks, repository tests, and production builds passed for all workspaces.
+- All 16 migrations passed clean installation, prior-schema upgrade, payment-subject
+  backfill, transactional repair, concurrent booking, and pharmacy-commercial database
+  invariants. The live disposable-database scheduling/payment and prescription
+  verifiers also passed after applying the current migration set.
+- Commercial service coverage proves fail-closed qualification, server-derived
+  snapshots, exact totals, overfill rejection before inventory access, patient-only
+  acceptance, deterministic inventory evidence, and no duplicate reservation on an
+  idempotent retry.
+- The dependency audit reported no known vulnerabilities; the separately documented
+  reviewed development-only advisory remains time-bounded for re-review.
+
+### Standards walkthrough
+
+- **Readable and extendable:** the controller, application service, repository, domain
+  ports, and adapters have distinct responsibilities. Payment subject expansion remains
+  explicit rather than relying on a weak polymorphic identifier.
+- **Security first:** authorization precedes sensitive access; production adapters fail
+  closed; ownership and commercial identity are independently enforced in PostgreSQL.
+- **Query conscious:** quote preparation avoids line-by-line reads, all operational
+  scans are indexed and bounded, and no dashboard-style N+1 or unpaginated API was
+  added.
+- **No magic or hard-coded assumptions:** reservation lifetime is configured, currency
+  is per quote, and jurisdiction/vendor choices remain outside the core domain.
+- **No short-term patching:** immutable snapshots, compensation, idempotency, deferred
+  aggregate checks, and relational subject constraints are implemented at the point
+  where the aggregates are introduced, not deferred as cleanup debt.
+
+### Known non-standard or deliberately incomplete boundaries
+
+- Synthetic inventory evidence is not proof of real stock and must never be presented
+  as such. Real inventory remains disabled until provider and region qualification.
+- Charge codes and amounts are immutable pharmacy-supplied snapshots, not output from a
+  qualified tax engine. Any automated jurisdictional calculation requires a separately
+  approved adapter and legal review.
+- Pharmacy-order webhook effects intentionally fail closed until 11C3 adds the reviewed
+  payment/order orchestration. Dispensing remains independent and immutable.
+- The browser still uses prototype pharmacy paths; 11C4 owns generated-client/BFF
+  cutover and removal of the replaced prototype routes.
+
+### Next checkpoint
+
+11C3 connects authenticated payment success, reversal, refund, and dispute facts to the
+pharmacy-order state machine, adds bounded fulfilment handoff state without implementing
+logistics, and preserves dispensing as an independent clinical workflow.
