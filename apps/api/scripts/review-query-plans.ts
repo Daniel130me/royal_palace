@@ -732,12 +732,14 @@ async function loadRepresentativeData(
   );
   await client.query(
     `INSERT INTO "payments"
-       ("id", "appointment_id", "patient_id", "reference", "provider_code",
-        "amount_minor", "currency", "updated_at")
-     SELECT input.payment_id, input.appointment_id, $1, 'query_plan_' || input.payment_id::text,
-            'UNASSIGNED', 12500, 'USD', now()
+       ("id", "appointment_id", "purpose", "patient_id", "reference", "provider_code",
+        "amount_minor", "currency", "payable_until", "updated_at")
+     SELECT input.payment_id, input.appointment_id, 'CONSULTATION', $1,
+            'query_plan_' || input.payment_id::text, 'UNASSIGNED', 12500, 'USD',
+            appointment."payment_due_at", now()
        FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
             AS input(payment_id, appointment_id, ordinality)
+       JOIN "appointments" AS appointment ON appointment."id" = input.appointment_id
       WHERE input.ordinality > 500`,
     [patientId, paymentIds, appointmentIds],
   );
