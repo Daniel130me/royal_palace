@@ -202,6 +202,10 @@ remains required before launch.
   enforcement are recorded in `docs/security/dependency-exceptions.md`.
 - A tracked-source credential-pattern scan passed. Gitleaks is not installed locally;
   the pinned remote CI action remains the authoritative full-history secret scan.
+- The PostgreSQL CI job builds the API's transitive workspace runtime dependencies
+  before executing standalone TypeScript verifiers. The dependency-derived package
+  selection prevents clean runners from relying on untracked local `dist` output and
+  automatically includes future internal runtime dependencies.
 
 The non-standard local verification constraint is Windows Application Control blocking
 Turbo/Vite native subprocesses inside the restricted sandbox. The equivalent recursive

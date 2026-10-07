@@ -108,6 +108,9 @@ jobs:
       - name: Install dependencies from lockfile
         run: pnpm install --frozen-lockfile
 
+      - name: Build API workspace runtime dependencies
+        run: pnpm build:api-runtime-dependencies
+
       - name: Verify migration history
         run: pnpm db:migrate:verify
 
