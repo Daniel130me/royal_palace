@@ -51,6 +51,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
   async findById(prescriptionId: string): Promise<PrescriptionAccessRecord | null> {
     const row = await this.database.prescription.findUnique({
       include: prescriptionInclude,
+      relationLoadStrategy: "join",
       where: { id: prescriptionId },
     });
     return row === null ? null : mapPrescription(row);
@@ -61,9 +62,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     draft: PrescriptionDraftInput;
     practitionerId: string;
   }): Promise<PrescriptionAccessRecord> {
-    return this.database.$transaction(async (transaction) => {
+    const prescriptionId = createOpaqueId();
+    await this.database.$transaction(async (transaction) => {
       await assertDraftReferences(transaction, input.draft, input.practitionerId);
-      const prescriptionId = createOpaqueId();
       await transaction.prescription.create({
         data: {
           appointmentId: input.draft.appointmentId,
@@ -87,13 +88,8 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
           updatedAt: new Date(),
         },
       });
-      return mapPrescription(
-        await transaction.prescription.findUniqueOrThrow({
-          include: prescriptionInclude,
-          where: { id: prescriptionId },
-        }),
-      );
     });
+    return requireLoaded(await this.findById(prescriptionId));
   }
 
   async updateDraft(input: {
@@ -102,7 +98,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     expectedVersion: number;
     prescriptionId: string;
   }): Promise<PrescriptionAccessRecord | null> {
-    return this.database.$transaction(async (transaction) => {
+    const updated = await this.database.$transaction(async (transaction) => {
       const current = await lockPrescription(transaction, input.prescriptionId);
       if (
         current === null ||
@@ -145,13 +141,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
           toStatus: "DRAFT",
         },
       });
-      return mapPrescription(
-        await transaction.prescription.findUniqueOrThrow({
-          include: prescriptionInclude,
-          where: { id: input.prescriptionId },
-        }),
-      );
+      return true;
     });
+    return updated === null ? null : requireLoaded(await this.findById(input.prescriptionId));
   }
 
   async sign(input: {
@@ -162,7 +154,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     prescriptionId: string;
     validUntil: Date;
   }): Promise<PrescriptionAccessRecord | null> {
-    return this.database.$transaction(async (transaction) => {
+    const signed = await this.database.$transaction(async (transaction) => {
       const now = new Date();
       const updated = await transaction.prescription.updateMany({
         data: {
@@ -188,8 +180,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
         reasonCode: "practitioner_attested",
         toStatus: "SIGNED",
       });
-      return loadMapped(transaction, input.prescriptionId);
+      return true;
     });
+    return signed === null ? null : requireLoaded(await this.findById(input.prescriptionId));
   }
 
   async routeToPharmacy(input: {
@@ -199,7 +192,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     prescriptionId: string;
   }): Promise<PrescriptionAccessRecord | null> {
     try {
-      return await this.database.$transaction(async (transaction) => {
+      const routed = await this.database.$transaction(async (transaction) => {
         const current = await lockPrescription(transaction, input.prescriptionId);
         if (
           current === null ||
@@ -238,8 +231,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
           reasonCode: "patient_selected_pharmacy",
           toStatus: "SENT",
         });
-        return loadMapped(transaction, input.prescriptionId);
+        return true;
       });
+      return routed === null ? null : requireLoaded(await this.findById(input.prescriptionId));
     } catch (error) {
       if (isConstraintConflict(error)) throw new PrescriptionConflictError("ACTIVE_ROUTE_EXISTS");
       throw error;
@@ -252,7 +246,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     organizationId: string;
     prescriptionId: string;
   }): Promise<PrescriptionAccessRecord | null> {
-    return this.database.$transaction(async (transaction) => {
+    const accepted = await this.database.$transaction(async (transaction) => {
       const current = await lockPrescription(transaction, input.prescriptionId);
       if (
         current === null ||
@@ -291,8 +285,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
         reasonCode: "pharmacy_accepted",
         toStatus: "ACCEPTED",
       });
-      return loadMapped(transaction, input.prescriptionId);
+      return true;
     });
+    return accepted === null ? null : requireLoaded(await this.findById(input.prescriptionId));
   }
 
   async cancel(input: {
@@ -301,7 +296,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     prescriptionId: string;
     reasonCode: string;
   }): Promise<PrescriptionAccessRecord | null> {
-    return this.database.$transaction(async (transaction) => {
+    const cancelled = await this.database.$transaction(async (transaction) => {
       const current = await lockPrescription(transaction, input.prescriptionId);
       if (
         current === null ||
@@ -329,8 +324,9 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
         toStatus: "CANCELLED",
         update: { cancelledAt: now, cancellationReasonCode: input.reasonCode },
       });
-      return loadMapped(transaction, input.prescriptionId);
+      return true;
     });
+    return cancelled === null ? null : requireLoaded(await this.findById(input.prescriptionId));
   }
 
   async expireDue(input: {
@@ -384,6 +380,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     const rows = await this.database.prescriptionRoute.findMany({
       include: { prescription: { include: prescriptionInclude } },
       orderBy: [{ sentAt: "desc" }, { id: "desc" }],
+      relationLoadStrategy: "join",
       take: input.limit + 1,
       where: {
         pharmacyOrganizationId: input.organizationId,
@@ -540,15 +537,6 @@ async function appendStatus(
   });
 }
 
-async function loadMapped(transaction: Prisma.TransactionClient, prescriptionId: string) {
-  return mapPrescription(
-    await transaction.prescription.findUniqueOrThrow({
-      include: prescriptionInclude,
-      where: { id: prescriptionId },
-    }),
-  );
-}
-
 function mapPrescription(row: PrescriptionRow): PrescriptionAccessRecord {
   const activeRoute = row.routes.find((route) => route.status !== "CANCELLED");
   if (row.practitioner.principalId === null) {
@@ -612,6 +600,11 @@ function mapPrescription(row: PrescriptionRow): PrescriptionAccessRecord {
     validUntil: row.validUntil?.toISOString() ?? null,
     version: row.version,
   };
+}
+
+function requireLoaded(record: PrescriptionAccessRecord | null): PrescriptionAccessRecord {
+  if (record === null) throw new PrescriptionConflictError("INVARIANT_VIOLATION");
+  return record;
 }
 
 function publicPrescription(record: PrescriptionAccessRecord): PrescriptionResponse {

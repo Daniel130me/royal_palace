@@ -1177,7 +1177,7 @@ model NotificationDelivery {
   replayedByPrincipalId String?                    @map("replayed_by_principal_id") @db.Uuid
   replayReason          String?                    @map("replay_reason") @db.VarChar(500)
   createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version               Int                        @default(1)
   recipient             IdentityPrincipal          @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
   replayOf              NotificationDelivery?      @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
@@ -1202,9 +1202,9 @@ model NotificationRecipientEndpoint {
   verifiedAt         DateTime                               @map("verified_at") @db.Timestamptz(6)
   invalidatedAt      DateTime?                              @map("invalidated_at") @db.Timestamptz(6)
   createdAt          DateTime                               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt          DateTime                               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version            Int                                    @default(1)
-  principal          IdentityPrincipal                      @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  principal          IdentityPrincipal                      @relation(fields: [principalId], references: [id], onDelete: Restrict, map: "notification_endpoints_principal_id_fkey")
 
   @@index([principalId, channel, invalidatedAt, verifiedAt(sort: Desc), id], map: "notification_endpoints_principal_channel_active_idx")
   @@map("notification_recipient_endpoints")
@@ -1220,7 +1220,7 @@ model NotificationPreference {
   withdrawnAt         DateTime?            @map("withdrawn_at") @db.Timestamptz(6)
   consentEvidenceCode String?              @map("consent_evidence_code") @db.VarChar(100)
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version             Int                  @default(1)
   principal           IdentityPrincipal    @relation(fields: [principalId], references: [id], onDelete: Restrict)
 

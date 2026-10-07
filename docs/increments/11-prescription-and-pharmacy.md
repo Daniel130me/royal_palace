@@ -209,6 +209,13 @@ workspace commands were run outside that restriction; remote Linux CI must still
 the canonical `pnpm verify`, audit policy, Gitleaks, PostgreSQL, and exact clean-tree
 gates before this checkpoint is treated as remotely integrated.
 
+The PostgreSQL JavaScript driver is explicitly pinned to the supported `8.16.3` release.
+Newer 8.x releases expose an unresolved Prisma `adapter-pg` transaction-query warning
+that upstream tracks as a future `pg@9` compatibility defect. Prescription relation
+hydration uses a single PostgreSQL join outside mutation transactions to minimize lock
+duration and avoid application-created concurrent queries on a transaction client. The
+pin must be re-evaluated with the Prisma adapter before any PostgreSQL driver upgrade.
+
 ### Observability and operational follow-up
 
 Every protected authorization decision uses the existing immutable authorization-audit
