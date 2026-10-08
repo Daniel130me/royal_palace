@@ -82,9 +82,13 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 - [x] **11C3 — payment and fulfilment orchestration:** connect successful, reversed,
       disputed, and refunded payment facts to the order state machine; keep dispensing
       independent; add pickup/delivery handoff without implementing logistics itself.
-- [x] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
+- [~] **11C4 — browser cutover and production replacement:** replace insecure prototype pharmacy
       pages and action routes with generated contracts and exact authenticated BFF
       allowlists; delete generic prescription/order CRUD exposure after parity tests.
+      The secure prescription/order cutover is complete, but client-approved prototype
+      capabilities deleted with the old implementation must be rebuilt through
+      checkpoints 11C4P-1–11C4P-5 in the
+      [prototype parity register](../PROTOTYPE_PRODUCTION_PARITY.md).
 - [!] **11C5 — qualification evidence:** the controlled
       [qualification record](../qualification/11c5-prescription-pharmacy-qualification.md)
       is prepared; complete financial/clinical-owner review and
@@ -95,9 +99,11 @@ The product owner approved the commercial rules on 2026-10-07: pharmacy-issued
 time-limited quotes; immutable line/tax/fee/currency snapshots; explicit patient
 acceptance and hosted checkout; payment and clinical dispensing as independent facts;
 pre-dispense refund initiation with post-dispense administrative disputes; a
-vendor-neutral inventory adapter; OTC deferral; and separate settlement/commission
-consumers. No production provider, tax policy, settlement policy, or jurisdiction is
-activated by this approval.
+vendor-neutral inventory adapter; OTC sequencing after the prescription-order core; and
+separate settlement/commission consumers. The 2026-10-08 parity clarification confirms
+that sequencing never removed OTC or any other approved prototype capability from the
+product scope. No production provider, tax policy, settlement policy, or jurisdiction
+is activated by this approval.
 
 ## Database and recovery
 
@@ -648,13 +654,17 @@ after parity and negative authorization tests pass.
 
 ### Increment and scope
 
-Checkpoint 11C4 is complete. Patient, practitioner, and pharmacy prescription, quote,
+Checkpoint 11C4's secure prescription/order cutover is complete, but the checkpoint is
+not product-complete. Patient, practitioner, and pharmacy prescription, quote,
 order, checkout, cancellation, and handoff screens now use the generated production
 contract through authenticated same-origin BFF routes. The replaced generic prescription,
 prescription-item, pharmacy-order, pharmacy-order-item, and uploaded-prescription resource
 exposure has been removed, as have the prototype issue, upload, direct-order, order-create,
-and order-progress actions. OTC commerce remains deliberately deferred rather than being
-reintroduced through an unqualified shortcut.
+and order-progress actions. The product owner clarified on 2026-10-08 that every
+client-approved prototype capability remains committed scope. Paper-upload, OTC/direct
+ordering, pharmacy inventory/catalogue, delivery, notifications, commercial reporting,
+settings, and administrator order oversight must therefore be rebuilt securely; their
+absence is tracked as a release-blocking corrective program rather than accepted deferral.
 
 ### Architecture and access boundaries
 
@@ -721,9 +731,10 @@ reintroduced through an unqualified shortcut.
 
 - Real clinical, inventory, payment, refund/dispute, and logistics providers remain
   disabled pending qualification. Synthetic success is not production approval.
-- Paper-prescription upload and direct OTC ordering were removed because no production
-  document-verification or OTC commercial policy exists yet. Reintroduction requires a
-  separately reviewed workflow, not restoration of the deleted generic routes.
+- Paper-prescription upload and direct OTC ordering currently lack production
+  document-verification and OTC commercial policies. They remain mandatory approved
+  capabilities and must be rebuilt through the corrective parity program, not restored
+  through the deleted generic routes.
 - An interactive UI smoke run was not claimed in this environment because its trusted
   browser automation bridge was unavailable. Contract, route-policy, production-build,
   and server-side integration evidence passed; 11C5 must capture qualified end-to-end

@@ -33,22 +33,27 @@ another.
 Complete this section before requesting sign-off. Any change after review requires a new
 record revision and re-approval of every affected area.
 
-| Scope item                     | Required value                                          | Current value                                   |
-| ------------------------------ | ------------------------------------------------------- | ----------------------------------------------- |
-| Application commit             | Full Git SHA                                            | `90b5c5045b1566e8a45021355bc8baa94305efba`      |
-| Database migrations            | First and last included migration                       | Through `20261008130000_pharmacy_list_indexes`  |
-| Prescription API contract      | Version and content hash                                | Version `1.4.0`; hash pending release packaging |
-| Deployment environment         | Stable environment identifier                           | Pending protected staging                       |
-| Launch jurisdiction            | Country/territory and subnational scope                 | **Decision required**                           |
-| Clinical terminology release   | Medication/diagnosis coding systems and versions        | **Decision required**                           |
-| Identity provider/tenant       | Provider-neutral adapter qualification reference        | Deferred Increment 04B                          |
-| Payment provider/account       | Provider, region, account owner, webhook mode           | **Decision required**                           |
-| Inventory provider/account     | Provider, region, account owner, consistency contract   | **Decision required**                           |
-| Object storage/malware service | Qualified provider and region reference                 | **Decision required**                           |
-| Notification provider/domain   | Qualified provider, region, sender domain               | **Decision required**                           |
-| Logistics provider             | Provider and service boundary, or `not in launch scope` | **Decision required**                           |
-| Data classification/retention  | Approved policy version                                 | **Decision required**                           |
-| Currency/tax policy            | ISO currency set and qualified tax source               | **Decision required**                           |
+| Scope item                     | Required value                                          | Current value                                                                          |
+| ------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Application commit             | Full Git SHA                                            | `90b5c5045b1566e8a45021355bc8baa94305efba`                                             |
+| Database migrations            | First and last included migration                       | Through `20261008130000_pharmacy_list_indexes`                                         |
+| Prescription API contract      | Version and content hash                                | Version `1.4.0`; hash pending release packaging                                        |
+| Deployment environment         | Stable environment identifier                           | Pending protected staging                                                              |
+| Launch jurisdiction            | Country/territory and subnational scope                 | Nigeria first; subnational scope pending                                               |
+| Clinical terminology release   | Medication/diagnosis coding systems and versions        | **Decision required**                                                                  |
+| Identity provider/tenant       | Provider-neutral adapter qualification reference        | Deferred Increment 04B                                                                 |
+| Payment provider/account       | Provider, region, account owner, webhook mode           | Flutterwave, Paystack, and Stripe are candidates; accounts/modes pending qualification |
+| Inventory provider/account     | Provider, region, account owner, consistency contract   | Internal Royal Palace inventory is required; production module pending 11C4P-2         |
+| Object storage/malware service | Qualified provider and region reference                 | **Decision required**                                                                  |
+| Notification provider/domain   | Qualified provider, region, sender domain               | **Decision required**                                                                  |
+| Logistics provider             | Provider and service boundary, or `not in launch scope` | **Decision required**                                                                  |
+| Data classification/retention  | Approved policy version                                 | **Decision required**                                                                  |
+| Currency/tax policy            | ISO currency set and qualified tax source               | **Decision required**                                                                  |
+
+Testing will use a protected environment and synthetic/test data. The product owner,
+client, and stakeholders will conduct the complete prototype-parity and workflow review;
+reviewer identities, dated verdicts, and evidence remain pending and must not be inferred
+by the implementation agent.
 
 ## Required reviewers and sign-off
 

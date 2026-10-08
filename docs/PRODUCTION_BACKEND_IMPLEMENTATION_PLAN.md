@@ -6,6 +6,14 @@
 
 **Purpose:** Replace the current prototype data and trust model with a secure, observable, maintainable production platform while preserving and progressively connecting the existing frontend.
 
+> **Client-approved scope rule:** The signed prototype is the minimum functional and
+> user-experience scope for the completed product. Production migration may replace
+> insecure code, storage, routes, and trust boundaries, but it must not remove, hide,
+> or silently defer an approved capability. Every prototype capability is tracked in
+> `docs/PROTOTYPE_PRODUCTION_PARITY.md` until stakeholders accept its production
+> equivalent. Final UAT and deployment are blocked until that parity register is
+> complete.
+
 > **Instruction to the implementation agent:** Treat this document as the controlling implementation specification. Do not implement the whole plan as one large change. Execute the numbered delivery increments in Section 19 in order, produce the evidence required by Section 20, and stop at every approval gate. Where this document says “must,” the instruction is mandatory. If the repository conflicts with this plan, document the conflict and stop for a decision instead of silently changing the architecture.
 
 ### Required first response from the implementation agent
@@ -67,7 +75,11 @@ The implementation agent must treat the following as release blockers:
 11. Prototype credentials, placeholder workflows, and demo data are present.
 12. Automated test coverage is far below what is required for public launch.
 
-Do not preserve any of these behaviors merely for backward compatibility. Preserve the visible product experience where useful, but replace the underlying trust model.
+Do not preserve any of these unsafe behaviors merely for backward compatibility.
+Preserve every client-approved user capability and the signed product experience, but
+replace the underlying trust model and implementation. If a secure production
+replacement is not ready, keep the capability open in the parity register rather than
+deleting it or describing it as cancelled scope.
 
 ## 4. Target architecture
 

@@ -240,10 +240,16 @@ that completes an increment.
       reversal, and dispute facts to pharmacy orders; adds patient cancellation,
       administrator-only post-dispense disputes, and dispense-gated pickup/delivery
       handoff. Real financial providers and logistics remain disabled.
-    - `[x]` 11C4 cuts patient, practitioner, and pharmacy prescription/order screens
+    - `[~]` 11C4 cut patient, practitioner, and pharmacy prescription/order screens
       over to generated production contracts and exact authenticated BFF allowlists;
-      removes the replaced prototype actions, generic CRUD exposure, paper-upload flow,
-      and unreachable pharmacy prototype screens; and adds indexed owner-scoped lists.
+      removed the replaced unsafe actions and generic CRUD exposure; and added indexed
+      owner-scoped lists. On 2026-10-08 the product owner clarified that the signed
+      prototype is mandatory functional scope. The deleted paper-upload, pharmacy
+      detail/OTC, inventory/catalogue, delivery, notification, commercial-reporting,
+      settings, and admin-order capabilities are therefore a release-blocking parity
+      regression, not cancelled scope. Corrective checkpoints 11C4P-1–11C4P-5 are
+      tracked in
+      [`PROTOTYPE_PRODUCTION_PARITY.md`](./PROTOTYPE_PRODUCTION_PARITY.md).
     - `[!]` 11C5 qualification evidence is open. The controlled evidence register and
       sign-off packet is in
       [`qualification/11c5-prescription-pharmacy-qualification.md`](./qualification/11c5-prescription-pharmacy-qualification.md).

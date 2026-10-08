@@ -23,6 +23,18 @@ All code written must be:
 
 ## Implementation discipline
 
+- Treat every user-visible capability in the client-approved prototype as committed
+  product scope. Do not delete, hide, defer indefinitely, or materially narrow a
+  prototype page, workflow, report, setting, or role capability without explicit
+  written product-owner approval naming that capability.
+- Replacing unsafe prototype code is required; removing the approved capability is
+  not. When a prototype implementation violates production standards, preserve its
+  intended user outcome in the prototype-parity register and rebuild it through the
+  production architecture, authorization, audit, and data model.
+- Maintain `docs/PROTOTYPE_PRODUCTION_PARITY.md` as a release-control artifact. Every
+  approved prototype capability must have a production owner, implementation status,
+  contract/data boundary, and acceptance evidence. Public deployment is blocked while
+  any item is missing, silently removed, or lacks stakeholder parity review.
 - Do not patch symptoms. Think long-term: scrutinize the architecture properly before
   implementing, and choose the design that survives the next increment.
 - Treat this repository as a public, safety-sensitive healthcare product, not a
@@ -142,6 +154,10 @@ All code written must be:
    continue between increment gates after validation, commit, and push; stop only for
    a material product, security, legal, infrastructure-cost, or production-data
    decision.
+4. After every frontend or workflow increment, reconcile the changed scope against the
+   prototype-parity register. The completion walkthrough must identify preserved,
+   replaced, temporarily unavailable, and newly production-connected capabilities;
+   “deleted because the prototype was unsafe” is not an acceptable disposition.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
