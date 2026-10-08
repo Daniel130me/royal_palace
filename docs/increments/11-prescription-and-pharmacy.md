@@ -79,7 +79,7 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
       quotes, inventory reservation ports, patient acceptance, and pharmacy orders.
       Inventory remains operational evidence and never becomes the clinical source of
       truth.
-- [ ] **11C3 — payment and fulfilment orchestration:** connect successful, reversed,
+- [x] **11C3 — payment and fulfilment orchestration:** connect successful, reversed,
       disputed, and refunded payment facts to the order state machine; keep dispensing
       independent; add pickup/delivery handoff without implementing logistics itself.
 - [ ] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
@@ -529,3 +529,115 @@ provider; those boundaries remain in 11C3–11C5.
 11C3 connects authenticated payment success, reversal, refund, and dispute facts to the
 pharmacy-order state machine, adds bounded fulfilment handoff state without implementing
 logistics, and preserves dispensing as an independent clinical workflow.
+
+## Checkpoint 11C3 completion report
+
+### Increment and scope
+
+Checkpoint 11C3 is complete. Authenticated provider payment facts now drive the matching
+pharmacy-order commercial state, while clinical dispensing remains an independent source
+of truth. Patients can cancel an unpaid order or initiate a pre-dispense refund; only an
+administrator can initiate the post-dispense dispute path. Pharmacy staff can prepare and
+complete a pickup or delivery handoff, but handoff completion requires explicit dispense
+evidence for every quoted line. This checkpoint does not implement logistics, execute a
+real refund/dispute, calculate manager commission reversals, or expose the flow in the
+browser; those remain separate bounded consumers or later checkpoints.
+
+### Architecture and integrity
+
+- Migration `20261008100000_pharmacy_order_orchestration` expands the controlled order
+  state machine and adds normalized handoff and resolution aggregates. Legal transitions,
+  immutable resolution/handoff identity, status timestamps, one pending resolution per
+  order, payment/order consistency, and dispense-before-handoff requirements are enforced
+  in PostgreSQL as well as the application layer.
+- Verified webhook processing validates the payment's relational subject before posting
+  effects. An on-time success atomically confirms the order and consumes its inventory
+  hold; cancellation or expiry cancels the unpaid order and releases the hold; partial and
+  final refunds, reversals, and disputes move the order to their corresponding states.
+  Late success and subject/state mismatches are retained as failed webhook evidence and do
+  not mutate money or order state.
+- Patient cancellation, pharmacy handoff, and administrative dispute commands use named
+  authorization policies, optimistic versions, principal-scoped idempotency keys, and
+  serializable transactions. Refund and dispute requests are durable outbox facts for a
+  separately qualified financial worker rather than direct provider calls inside HTTP
+  transactions.
+- Handoff method is a vendor-neutral `PICKUP`/`DELIVERY` boundary. No courier, routing, or
+  proof-of-delivery behavior is embedded in the pharmacy aggregate; the later logistics
+  slice can consume the handoff without rewriting commercial or clinical history.
+
+### Security, privacy, and performance
+
+- Only the owning patient can request cancellation, only a member of the order's pharmacy
+  can manage its handoff, and only an administrator can request a post-dispense dispute.
+  Managers receive no new patient, order, payment, handoff, or organization visibility.
+- Refund/dispute reason codes are bounded controlled identifiers, request payloads are
+  strict, money remains integer minor units with per-order currency, and no externally
+  supplied amount or patient identity is trusted.
+- Order reads load at most one latest resolution and one handoff. Dispense checks use one
+  bounded count or grouped aggregate query rather than a query per quote line. Primary,
+  unique, partial, and composite indexes cover point reads, pending-resolution uniqueness,
+  pharmacy work queues, handoff queues, and future financial consumers.
+- Real payment and inventory providers remain disabled. No country, currency, payment
+  vendor, inventory vendor, courier, cloud provider, or jurisdiction is hard-coded into
+  the workflow.
+
+### Verification evidence
+
+- All 17 migrations passed clean installation, foundation-to-current upgrade,
+  payment-subject backfill, transactional repair, concurrent booking, and the expanded
+  pharmacy-commercial invariant rehearsal. Schema drift was zero.
+- The live PostgreSQL scheduling/payment verifier passed immutable subject identity,
+  authenticated-event persistence, duplicate and reordered delivery, late pharmacy
+  payment rejection, order confirmation, inventory consumption, partial/final refund
+  orchestration, balanced ledger entries, outbox idempotency, reconciliation, and expiry.
+- Focused authorization and commercial-service tests cover patient ownership, pharmacy
+  membership, administrator-only dispute initiation, and the full named-policy matrix.
+  Generated OpenAPI output, contract drift, type checks, and lint passed before the final
+  workspace gate.
+- The final workspace gate passed all eight production packages: 485 API tests passed
+  with one environment-dependent storage test skipped, 16 worker tests passed with nine
+  external-service integration tests skipped, all 33 web tests passed, and every
+  production build completed. The patched Next.js `16.3.8` web build was repeated after
+  the security upgrade.
+- The production dependency audit identified the high-severity Next.js image-optimization
+  SSRF advisory in `16.3.6`; Next.js and its matching lint rules were upgraded to the
+  patched `16.3.8` line. The repeated production audit reports no known vulnerabilities;
+  the separately documented development-only advisory remains accepted until its
+  time-bounded review date.
+
+### Standards walkthrough
+
+- **Readable and extendable:** controller, application service, repository, payment
+  subject dispatcher, domain ports, and database invariants remain separate. Handoff and
+  resolution are explicit aggregates rather than nullable columns accumulated on orders.
+- **Security first:** every mutation is authenticated, policy-protected, idempotent, and
+  version-checked; PostgreSQL independently rejects illegal or incomplete aggregate state.
+- **Query conscious:** there are no unbounded list endpoints or line-by-line database
+  reads; current point and operational access paths have matching indexes.
+- **No magic or hard-coded assumptions:** state values and reason-code formats are
+  controlled, currency is carried from the immutable quote, and all external provider and
+  regional choices remain behind qualification gates.
+- **No short-term patching:** the enum upgrade removes and recreates its dependent
+  constraint/trigger transactionally; order/payment and dispense event/line aggregates are
+  rehearsed as atomic commits; refund/dispute execution is an outbox boundary rather than
+  an unreliable synchronous side effect.
+
+### Known non-standard or deliberately incomplete boundaries
+
+- `payment.refund.requested.v1` and `payment.dispute.requested.v1` are durable intents only.
+  A qualified provider adapter, retry/dead-letter worker, operational approval queue, and
+  reconciliation evidence are mandatory before a real financial action can be enabled.
+- Manager commission and settlement reversal consumption remains in the separately listed
+  settlement/payout slice. A refund changes payment, ledger, and pharmacy-order facts but
+  must not be represented as a completed manager-earning reversal until that idempotent
+  consumer is implemented and the commission eligibility policy is approved.
+- `DELIVERY` records the selected handoff boundary only. Courier assignment, location,
+  tracking, proof of delivery, and delivery exceptions remain in the logistics slice.
+- The browser still uses prototype pharmacy paths. 11C4 owns exact BFF allowlists,
+  generated-client integration, parity tests, and deletion of replaced prototype routes.
+
+### Next checkpoint
+
+11C4 connects the browser to the production pharmacy contracts through authenticated,
+exactly allowlisted BFF routes and removes the replaced prototype pharmacy actions only
+after parity and negative authorization tests pass.

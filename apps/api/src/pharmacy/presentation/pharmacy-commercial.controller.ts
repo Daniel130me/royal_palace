@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
   HttpException,
   Inject,
   Param,
@@ -71,6 +72,25 @@ const createQuoteSchema = z
     { path: ["lines"] },
   );
 const acceptQuoteSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
+const reasonCodeSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(100)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+  .transform((value) => value.toUpperCase());
+const prepareHandoffSchema = z
+  .object({
+    expectedOrderVersion: z.number().int().positive(),
+    method: z.enum(["PICKUP", "DELIVERY"]),
+  })
+  .strict();
+const completeHandoffSchema = z
+  .object({ expectedHandoffVersion: z.number().int().positive() })
+  .strict();
+const orderResolutionSchema = z
+  .object({ expectedVersion: z.number().int().positive(), reasonCode: reasonCodeSchema })
+  .strict();
 
 @Controller("v1/pharmacy")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -110,6 +130,46 @@ export class PharmacyCommercialController {
   getOrder(@Param("orderId") orderId: string, @Req() request: AuthenticatedInternalRequest) {
     return execute(() => this.commercial.getOrder(context(request), parse(idSchema, orderId)));
   }
+
+  @Post("orders/:orderId/handoff")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF)
+  prepareHandoff(
+    @Param("orderId") orderId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(prepareHandoffSchema, body);
+    return execute(() =>
+      this.commercial.prepareHandoff(
+        context(request),
+        parse(idSchema, orderId),
+        input.expectedOrderVersion,
+        input.method,
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
+  }
+
+  @Post("orders/:orderId/handoff/complete")
+  @HttpCode(200)
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF)
+  completeHandoff(
+    @Param("orderId") orderId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(completeHandoffSchema, body);
+    return execute(() =>
+      this.commercial.completeHandoff(
+        context(request),
+        parse(idSchema, orderId),
+        input.expectedHandoffVersion,
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
+  }
 }
 
 @Controller("v1/patient/pharmacy")
@@ -148,6 +208,55 @@ export class PatientPharmacyCommercialController {
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER)
   getOrder(@Param("orderId") orderId: string, @Req() request: AuthenticatedInternalRequest) {
     return execute(() => this.commercial.getOrder(context(request), parse(idSchema, orderId)));
+  }
+
+  @Post("orders/:orderId/cancel")
+  @HttpCode(200)
+  @PolicyProtected(AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER)
+  cancelOrder(
+    @Param("orderId") orderId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(orderResolutionSchema, body);
+    return execute(() =>
+      this.commercial.cancelOrder(
+        context(request),
+        parse(idSchema, orderId),
+        input.expectedVersion,
+        input.reasonCode,
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
+  }
+}
+
+@Controller("v1/admin/pharmacy")
+@UseGuards(AuthenticatedInternalRequestGuard)
+export class AdminPharmacyCommercialController {
+  constructor(
+    @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
+  ) {}
+
+  @Post("orders/:orderId/disputes")
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_DISPUTE)
+  requestDispute(
+    @Param("orderId") orderId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(orderResolutionSchema, body);
+    return execute(() =>
+      this.commercial.requestDispute(
+        context(request),
+        parse(idSchema, orderId),
+        input.expectedVersion,
+        input.reasonCode,
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
   }
 }
 

@@ -360,8 +360,33 @@ enum PharmacyOrderStatus {
   CONFIRMED
   CANCELLED
   REFUND_PENDING
+  PARTIALLY_REFUNDED
   REFUNDED
+  DISPUTE_PENDING
   DISPUTED
+}
+
+enum PharmacyOrderHandoffMethod {
+  PICKUP
+  DELIVERY
+}
+
+enum PharmacyOrderHandoffStatus {
+  READY
+  HANDED_OFF
+  CANCELLED
+}
+
+enum PharmacyOrderResolutionType {
+  CANCELLATION
+  REFUND
+  DISPUTE
+}
+
+enum PharmacyOrderResolutionStatus {
+  PENDING
+  COMPLETED
+  REJECTED
 }
 
 enum SubstitutionApprovalMode {
@@ -431,6 +456,9 @@ model IdentityPrincipal {
   prescriptionDispenseEvents   PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
   createdPharmacyQuotes        PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
   acceptedPharmacyOrders       PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
+  preparedPharmacyHandoffs     PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
+  completedPharmacyHandoffs    PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
+  pharmacyOrderResolutions     PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -1788,33 +1816,79 @@ model InventoryReservation {
 }
 
 model PharmacyOrder {
-  id                     String              @id @db.Uuid
-  orderNumber            String              @unique @map("order_number") @db.VarChar(64)
-  quoteId                String              @unique @map("quote_id") @db.Uuid
-  prescriptionId         String              @map("prescription_id") @db.Uuid
-  prescriptionRouteId    String              @map("prescription_route_id") @db.Uuid
-  pharmacyOrganizationId String              @map("pharmacy_organization_id") @db.Uuid
-  patientId              String              @map("patient_id") @db.Uuid
-  status                 PharmacyOrderStatus @default(PENDING_PAYMENT)
-  acceptedByPrincipalId  String              @map("accepted_by_principal_id") @db.Uuid
-  acceptedAt             DateTime            @map("accepted_at") @db.Timestamptz(6)
-  confirmedAt            DateTime?           @map("confirmed_at") @db.Timestamptz(6)
-  cancelledAt            DateTime?           @map("cancelled_at") @db.Timestamptz(6)
-  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                Int                 @default(1)
-  quote                  PharmacyQuote       @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  prescription           Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
-  prescriptionRoute      PrescriptionRoute   @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
-  pharmacyOrganization   Organization        @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
-  patient                Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  acceptedByPrincipal    IdentityPrincipal   @relation("PharmacyOrderAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
+  id                     String                    @id @db.Uuid
+  orderNumber            String                    @unique @map("order_number") @db.VarChar(64)
+  quoteId                String                    @unique @map("quote_id") @db.Uuid
+  prescriptionId         String                    @map("prescription_id") @db.Uuid
+  prescriptionRouteId    String                    @map("prescription_route_id") @db.Uuid
+  pharmacyOrganizationId String                    @map("pharmacy_organization_id") @db.Uuid
+  patientId              String                    @map("patient_id") @db.Uuid
+  status                 PharmacyOrderStatus       @default(PENDING_PAYMENT)
+  acceptedByPrincipalId  String                    @map("accepted_by_principal_id") @db.Uuid
+  acceptedAt             DateTime                  @map("accepted_at") @db.Timestamptz(6)
+  confirmedAt            DateTime?                 @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?                 @map("cancelled_at") @db.Timestamptz(6)
+  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                       @default(1)
+  quote                  PharmacyQuote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  prescription           Prescription              @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  prescriptionRoute      PrescriptionRoute         @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  pharmacyOrganization   Organization              @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  patient                Patient                   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  acceptedByPrincipal    IdentityPrincipal         @relation("PharmacyOrderAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
   payment                Payment?
+  handoff                PharmacyOrderHandoff?
+  resolutions            PharmacyOrderResolution[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_patient_created_idx")
   @@index([pharmacyOrganizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_status_created_idx")
   @@index([prescriptionId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_prescription_created_idx")
   @@map("pharmacy_orders")
+}
+
+model PharmacyOrderHandoff {
+  id                     String                     @id @db.Uuid
+  orderId                String                     @unique @map("order_id") @db.Uuid
+  method                 PharmacyOrderHandoffMethod
+  status                 PharmacyOrderHandoffStatus @default(READY)
+  handoffReference       String                     @unique @map("handoff_reference") @db.VarChar(64)
+  preparedByPrincipalId  String                     @map("prepared_by_principal_id") @db.Uuid
+  preparedAt             DateTime                   @map("prepared_at") @db.Timestamptz(6)
+  handedOffByPrincipalId String?                    @map("handed_off_by_principal_id") @db.Uuid
+  handedOffAt            DateTime?                  @map("handed_off_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?                  @map("cancelled_at") @db.Timestamptz(6)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                        @default(1)
+  order                  PharmacyOrder              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  preparedByPrincipal    IdentityPrincipal          @relation("PharmacyOrderHandoffPreparer", fields: [preparedByPrincipalId], references: [id], onDelete: Restrict)
+  handedOffByPrincipal   IdentityPrincipal?         @relation("PharmacyOrderHandoffCompleter", fields: [handedOffByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([status, preparedAt, id], map: "pharmacy_order_handoffs_status_prepared_idx")
+  @@map("pharmacy_order_handoffs")
+}
+
+model PharmacyOrderResolution {
+  id                     String                        @id @db.Uuid
+  orderId                String                        @map("order_id") @db.Uuid
+  type                   PharmacyOrderResolutionType
+  status                 PharmacyOrderResolutionStatus @default(PENDING)
+  reasonCode             String                        @map("reason_code") @db.VarChar(100)
+  amountMinor            BigInt                        @map("amount_minor")
+  currency               String                        @db.Char(3)
+  requestedByPrincipalId String                        @map("requested_by_principal_id") @db.Uuid
+  completedAt            DateTime?                     @map("completed_at") @db.Timestamptz(6)
+  rejectedAt             DateTime?                     @map("rejected_at") @db.Timestamptz(6)
+  createdAt              DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                           @default(1)
+  order                  PharmacyOrder                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  requestedByPrincipal   IdentityPrincipal             @relation("PharmacyOrderResolutionRequester", fields: [requestedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_order_resolutions_order_status_idx")
+  @@index([status, type, createdAt, id], map: "pharmacy_order_resolutions_status_type_idx")
+  @@map("pharmacy_order_resolutions")
 }
 
 model PrescriptionJurisdictionPolicy {

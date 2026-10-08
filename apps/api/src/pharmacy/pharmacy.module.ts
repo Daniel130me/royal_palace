@@ -18,6 +18,7 @@ import { PrismaPharmacyCommercialRepository } from "./infrastructure/prisma-phar
 import { PrismaPrescriptionRepository } from "./infrastructure/prisma-prescription.repository.js";
 import { SERVICE_CONFIG } from "../tokens.js";
 import {
+  AdminPharmacyCommercialController,
   PatientPharmacyCommercialController,
   PharmacyCommercialController,
 } from "./presentation/pharmacy-commercial.controller.js";
@@ -32,6 +33,7 @@ import {
 @Module({
   imports: [AuthorizationModule, IdentityModule],
   controllers: [
+    AdminPharmacyCommercialController,
     InternalPrescriptionController,
     PatientPharmacyCommercialController,
     PatientPrescriptionController,

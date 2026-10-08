@@ -294,6 +294,131 @@ export class PharmacyCommercialService {
     return response;
   }
 
+  async cancelOrder(
+    context: PharmacyCommercialRequestContext,
+    orderId: string,
+    expectedVersion: number,
+    reasonCode: string,
+    idempotencyKey: string,
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    const order = await this.requireOrder(orderId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: order.patientPrincipalId,
+        resourceId: order.id,
+        resourceType: "pharmacy_order",
+      },
+      policy: AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER,
+      requestId: context.requestId,
+    });
+    const updated = await this.repository.cancelOrder({
+      expectedVersion,
+      idempotencyKey,
+      orderId,
+      patientPrincipalId: context.actor.principalId,
+      reasonCode,
+      requestHash: hashRequest({ expectedVersion, orderId, reasonCode }),
+    });
+    if (updated === null) throw orderConflict();
+    return updated;
+  }
+
+  async prepareHandoff(
+    context: PharmacyCommercialRequestContext,
+    orderId: string,
+    expectedOrderVersion: number,
+    method: "PICKUP" | "DELIVERY",
+    idempotencyKey: string,
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    const order = await this.requireOrder(orderId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        organizationId: order.pharmacyOrganizationId,
+        resourceId: order.id,
+        resourceType: "pharmacy_order_handoff",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF,
+      requestId: context.requestId,
+    });
+    const updated = await this.repository.prepareHandoff({
+      expectedOrderVersion,
+      idempotencyKey,
+      method,
+      orderId,
+      principalId: context.actor.principalId,
+      requestHash: hashRequest({ expectedOrderVersion, method, orderId }),
+    });
+    if (updated === null) throw orderConflict();
+    return updated;
+  }
+
+  async completeHandoff(
+    context: PharmacyCommercialRequestContext,
+    orderId: string,
+    expectedHandoffVersion: number,
+    idempotencyKey: string,
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    const order = await this.requireOrder(orderId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        organizationId: order.pharmacyOrganizationId,
+        resourceId: order.id,
+        resourceType: "pharmacy_order_handoff",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF,
+      requestId: context.requestId,
+    });
+    const updated = await this.repository.completeHandoff({
+      expectedHandoffVersion,
+      idempotencyKey,
+      orderId,
+      principalId: context.actor.principalId,
+      requestHash: hashRequest({ expectedHandoffVersion, orderId }),
+    });
+    if (updated === null) throw orderConflict();
+    return updated;
+  }
+
+  async requestDispute(
+    context: PharmacyCommercialRequestContext,
+    orderId: string,
+    expectedVersion: number,
+    reasonCode: string,
+    idempotencyKey: string,
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { resourceId: orderId, resourceType: "pharmacy_order" },
+      policy: AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_DISPUTE,
+      requestId: context.requestId,
+    });
+    const updated = await this.repository.requestDispute({
+      expectedVersion,
+      idempotencyKey,
+      orderId,
+      principalId: context.actor.principalId,
+      reasonCode,
+      requestHash: hashRequest({ expectedVersion, orderId, reasonCode }),
+    });
+    if (updated === null) throw orderConflict();
+    return updated;
+  }
+
+  private async requireOrder(orderId: string) {
+    const order = await this.repository.findOrder(orderId);
+    if (order === null) {
+      throw new PharmacyCommercialFlowError("order_not_found", 404, "Order was not found");
+    }
+    return order;
+  }
+
   private assertCommercialWorkflowEnabled(): void {
     if (
       this.config.clinicalWorkflow.mode !== "synthetic" ||
@@ -306,6 +431,14 @@ export class PharmacyCommercialService {
       );
     }
   }
+}
+
+function orderConflict(): PharmacyCommercialFlowError {
+  return new PharmacyCommercialFlowError(
+    "pharmacy_order_conflict",
+    409,
+    "Order could not be changed in its current state",
+  );
 }
 
 function resolveQuoteLines(

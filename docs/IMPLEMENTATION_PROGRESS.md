@@ -236,7 +236,10 @@ that completes an increment.
       arithmetic, vendor-neutral inventory reservation evidence, explicit patient
       acceptance, pharmacy orders, and an exactly-one payment-subject constraint.
       It remains synthetic-only; no real inventory or payment provider is enabled.
-    - `[ ]` 11C3 payment/fulfilment orchestration.
+    - `[x]` 11C3 connects authenticated success, cancellation, expiry, refund,
+      reversal, and dispute facts to pharmacy orders; adds patient cancellation,
+      administrator-only post-dispense disputes, and dispense-gated pickup/delivery
+      handoff. Real financial providers and logistics remain disabled.
     - `[ ]` 11C4 frontend/BFF cutover and prototype-route retirement.
     - `[ ]` 11C5 qualification evidence.
   - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and

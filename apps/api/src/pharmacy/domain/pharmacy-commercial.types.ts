@@ -87,6 +87,9 @@ export class PharmacyCommercialConflictError extends Error {
       | "IDEMPOTENCY_CONFLICT"
       | "INVALID_PRESCRIPTION_STATE"
       | "INVENTORY_RESERVATION_INVALID"
+      | "ADMIN_DISPUTE_REQUIRED"
+      | "DISPENSE_EVIDENCE_REQUIRED"
+      | "ORDER_NOT_ACTIONABLE"
       | "QUOTE_NOT_ACCEPTABLE"
       | "VERSION_CONFLICT"
       | "INVARIANT_VIOLATION",
@@ -117,6 +120,21 @@ export interface PharmacyCommercialRepository {
     preparation: PharmacyQuotePreparation;
     requestHash: string;
   }): Promise<PharmacyQuoteResponse | null>;
+  cancelOrder(input: {
+    expectedVersion: number;
+    idempotencyKey: string;
+    orderId: string;
+    patientPrincipalId: string;
+    reasonCode: string;
+    requestHash: string;
+  }): Promise<PharmacyOrderResponse | null>;
+  completeHandoff(input: {
+    expectedHandoffVersion: number;
+    idempotencyKey: string;
+    orderId: string;
+    principalId: string;
+    requestHash: string;
+  }): Promise<PharmacyOrderResponse | null>;
   findOrder(orderId: string): Promise<
     | (PharmacyOrderResponse & {
         patientPrincipalId: string;
@@ -138,6 +156,22 @@ export interface PharmacyCommercialRepository {
       })
     | null
   >;
+  prepareHandoff(input: {
+    expectedOrderVersion: number;
+    idempotencyKey: string;
+    method: "PICKUP" | "DELIVERY";
+    orderId: string;
+    principalId: string;
+    requestHash: string;
+  }): Promise<PharmacyOrderResponse | null>;
+  requestDispute(input: {
+    expectedVersion: number;
+    idempotencyKey: string;
+    orderId: string;
+    principalId: string;
+    reasonCode: string;
+    requestHash: string;
+  }): Promise<PharmacyOrderResponse | null>;
 }
 
 export const PHARMACY_COMMERCIAL_REPOSITORY = Symbol("PHARMACY_COMMERCIAL_REPOSITORY");

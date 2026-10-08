@@ -608,7 +608,15 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       },
     });
     const payment = await transaction.payment.findUnique({
-      include: { appointment: true, patient: { select: { principalId: true } } },
+      include: {
+        appointment: true,
+        patient: { select: { principalId: true } },
+        pharmacyOrder: {
+          include: {
+            quote: { include: { inventoryReservation: true } },
+          },
+        },
+      },
       where: { reference: input.event.paymentReference },
     });
     if (payment === null) {
@@ -708,6 +716,18 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       });
       await markInboxProcessed(transaction, inboxId);
       return { duplicate: false, paymentId: payment.id, status: payment.status };
+    }
+    const subjectFailure = validatePaymentSubjectEvent(payment, input.event);
+    if (subjectFailure !== null) {
+      return this.failWebhook(
+        transaction,
+        input,
+        inboxId,
+        webhookId,
+        payment.id,
+        subjectFailure,
+        payment.status,
+      );
     }
     await transaction.paymentWebhookEvent.create({
       data: {
@@ -1128,15 +1148,254 @@ async function applyPaymentSubjectTransition(
   transaction: Prisma.TransactionClient,
   payment: {
     appointment: { availabilitySlotId: string; id: string; status: string } | null;
+    payableUntil: Date;
+    pharmacyOrder: {
+      id: string;
+      quote: {
+        inventoryReservation: {
+          expiresAt: Date;
+          id: string;
+          status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+        } | null;
+      };
+      status:
+        | "PENDING_PAYMENT"
+        | "CONFIRMED"
+        | "CANCELLED"
+        | "REFUND_PENDING"
+        | "PARTIALLY_REFUNDED"
+        | "REFUNDED"
+        | "DISPUTE_PENDING"
+        | "DISPUTED";
+    } | null;
     purpose: "CONSULTATION" | "PHARMACY_ORDER";
   },
   paymentStatus: PaymentStatus,
   occurredAt: Date,
 ): Promise<void> {
-  if (payment.purpose !== "CONSULTATION" || payment.appointment === null) {
+  if (payment.purpose === "CONSULTATION" && payment.appointment !== null) {
+    await updateAppointmentFromPayment(transaction, payment.appointment, paymentStatus, occurredAt);
+    return;
+  }
+  if (payment.purpose === "PHARMACY_ORDER" && payment.pharmacyOrder !== null) {
+    await updatePharmacyOrderFromPayment(
+      transaction,
+      payment.pharmacyOrder,
+      paymentStatus,
+      occurredAt,
+    );
+    return;
+  }
+  throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+}
+
+function validatePaymentSubjectEvent(
+  payment: {
+    appointment: { id: string } | null;
+    payableUntil: Date;
+    pharmacyOrder: {
+      quote: {
+        inventoryReservation: {
+          expiresAt: Date;
+          status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+        } | null;
+      };
+      status:
+        | "PENDING_PAYMENT"
+        | "CONFIRMED"
+        | "CANCELLED"
+        | "REFUND_PENDING"
+        | "PARTIALLY_REFUNDED"
+        | "REFUNDED"
+        | "DISPUTE_PENDING"
+        | "DISPUTED";
+    } | null;
+    purpose: "CONSULTATION" | "PHARMACY_ORDER";
+  },
+  event: VerifiedPaymentEvent,
+): string | null {
+  if (payment.purpose === "CONSULTATION") {
+    return payment.appointment === null ? "PAYMENT_SUBJECT_INVARIANT_VIOLATION" : null;
+  }
+  const order = payment.pharmacyOrder;
+  if (order === null || order.quote.inventoryReservation === null) {
+    return "PAYMENT_SUBJECT_INVARIANT_VIOLATION";
+  }
+  if (["PENDING", "FAILED"].includes(event.eventType)) {
+    return order.status === "PENDING_PAYMENT" ? null : "PHARMACY_ORDER_STATE_MISMATCH";
+  }
+  if (["EXPIRED", "CANCELLED"].includes(event.eventType)) {
+    return order.status === "PENDING_PAYMENT" ? null : "PHARMACY_ORDER_STATE_MISMATCH";
+  }
+  if (event.eventType === "SUCCEEDED") {
+    return order.status === "PENDING_PAYMENT" &&
+      order.quote.inventoryReservation.status === "HELD" &&
+      event.occurredAt <= payment.payableUntil &&
+      event.occurredAt <= order.quote.inventoryReservation.expiresAt
+      ? null
+      : "PHARMACY_ORDER_NOT_PAYABLE";
+  }
+  const financiallyActive = [
+    "CONFIRMED",
+    "REFUND_PENDING",
+    "PARTIALLY_REFUNDED",
+    "DISPUTE_PENDING",
+    "DISPUTED",
+  ].includes(order.status);
+  return financiallyActive ? null : "PHARMACY_ORDER_STATE_MISMATCH";
+}
+
+async function updatePharmacyOrderFromPayment(
+  transaction: Prisma.TransactionClient,
+  order: {
+    id: string;
+    quote: { inventoryReservation: { id: string } | null };
+    status: string;
+  },
+  paymentStatus: PaymentStatus,
+  occurredAt: Date,
+): Promise<void> {
+  const now = new Date();
+  const reservation = order.quote.inventoryReservation;
+  if (reservation === null) {
     throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
   }
-  await updateAppointmentFromPayment(transaction, payment.appointment, paymentStatus, occurredAt);
+  if (paymentStatus === "SUCCEEDED") {
+    const [updatedOrder, updatedReservation] = await Promise.all([
+      transaction.pharmacyOrder.updateMany({
+        data: {
+          confirmedAt: occurredAt,
+          status: "CONFIRMED",
+          updatedAt: now,
+          version: { increment: 1 },
+        },
+        where: { id: order.id, status: "PENDING_PAYMENT" },
+      }),
+      transaction.inventoryReservation.updateMany({
+        data: { status: "CONSUMED", updatedAt: now, version: { increment: 1 } },
+        where: { id: reservation.id, status: "HELD" },
+      }),
+    ]);
+    if (updatedOrder.count !== 1 || updatedReservation.count !== 1) {
+      throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+    }
+    return;
+  }
+  if (paymentStatus === "FAILED") return;
+  if (["EXPIRED", "CANCELLED"].includes(paymentStatus)) {
+    const updatedOrder = await transaction.pharmacyOrder.updateMany({
+      data: {
+        cancelledAt: occurredAt,
+        status: "CANCELLED",
+        updatedAt: now,
+        version: { increment: 1 },
+      },
+      where: { id: order.id, status: "PENDING_PAYMENT" },
+    });
+    const updatedReservation = await transaction.inventoryReservation.updateMany({
+      data: {
+        status: paymentStatus === "EXPIRED" ? "EXPIRED" : "RELEASED",
+        updatedAt: now,
+        version: { increment: 1 },
+      },
+      where: { id: reservation.id, status: "HELD" },
+    });
+    if (updatedOrder.count !== 1 || updatedReservation.count !== 1) {
+      throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+    }
+    return;
+  }
+  if (paymentStatus === "PARTIALLY_REFUNDED") {
+    await requireOneOrderUpdate(
+      transaction,
+      order.id,
+      "PARTIALLY_REFUNDED",
+      ["CONFIRMED", "REFUND_PENDING", "PARTIALLY_REFUNDED"],
+      now,
+    );
+    await cancelReadyHandoff(transaction, order.id, occurredAt);
+    return;
+  }
+  if (["REFUNDED", "REVERSED"].includes(paymentStatus)) {
+    await requireOneOrderUpdate(
+      transaction,
+      order.id,
+      "REFUNDED",
+      ["CONFIRMED", "REFUND_PENDING", "PARTIALLY_REFUNDED", "DISPUTE_PENDING", "DISPUTED"],
+      now,
+    );
+    await transaction.pharmacyOrderResolution.updateMany({
+      data: {
+        completedAt: occurredAt,
+        status: "COMPLETED",
+        updatedAt: now,
+        version: { increment: 1 },
+      },
+      where: { orderId: order.id, status: "PENDING", type: "REFUND" },
+    });
+    await cancelReadyHandoff(transaction, order.id, occurredAt);
+    return;
+  }
+  if (paymentStatus === "DISPUTED") {
+    await requireOneOrderUpdate(
+      transaction,
+      order.id,
+      "DISPUTED",
+      ["CONFIRMED", "REFUND_PENDING", "PARTIALLY_REFUNDED", "DISPUTE_PENDING"],
+      now,
+    );
+    await transaction.pharmacyOrderResolution.updateMany({
+      data: {
+        completedAt: occurredAt,
+        status: "COMPLETED",
+        updatedAt: now,
+        version: { increment: 1 },
+      },
+      where: { orderId: order.id, status: "PENDING", type: "DISPUTE" },
+    });
+    await transaction.pharmacyOrderResolution.updateMany({
+      data: {
+        rejectedAt: occurredAt,
+        status: "REJECTED",
+        updatedAt: now,
+        version: { increment: 1 },
+      },
+      where: { orderId: order.id, status: "PENDING", type: "REFUND" },
+    });
+    await cancelReadyHandoff(transaction, order.id, occurredAt);
+  }
+}
+
+async function requireOneOrderUpdate(
+  transaction: Prisma.TransactionClient,
+  orderId: string,
+  status: "PARTIALLY_REFUNDED" | "REFUNDED" | "DISPUTED",
+  currentStatuses: readonly (
+    "CONFIRMED" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "DISPUTE_PENDING" | "DISPUTED"
+  )[],
+  now: Date,
+): Promise<void> {
+  const update = await transaction.pharmacyOrder.updateMany({
+    data: { status, updatedAt: now, version: { increment: 1 } },
+    where: { id: orderId, status: { in: [...currentStatuses] } },
+  });
+  if (update.count !== 1) throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+}
+
+async function cancelReadyHandoff(
+  transaction: Prisma.TransactionClient,
+  orderId: string,
+  occurredAt: Date,
+): Promise<void> {
+  await transaction.pharmacyOrderHandoff.updateMany({
+    data: {
+      cancelledAt: occurredAt,
+      status: "CANCELLED",
+      updatedAt: new Date(),
+      version: { increment: 1 },
+    },
+    where: { orderId, status: "READY" },
+  });
 }
 
 function activityTypeForPaymentPurpose(

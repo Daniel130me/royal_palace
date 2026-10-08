@@ -1,4 +1,8 @@
-import type { CurrentSession, PharmacyQuoteResponse } from "@royal-palace/contracts";
+import type {
+  CurrentSession,
+  PharmacyOrderResponse,
+  PharmacyQuoteResponse,
+} from "@royal-palace/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthorizationService } from "../src/authorization/application/authorization.service.js";
@@ -87,6 +91,31 @@ function quoteFrom(prepared: PharmacyQuotePreparation): PharmacyQuoteResponse {
     totalMinor: "1000",
     updatedAt: now.toISOString(),
     version: 1,
+  };
+}
+
+function orderFrom(
+  prepared: PharmacyQuotePreparation,
+  overrides: Partial<PharmacyOrderResponse> = {},
+): PharmacyOrderResponse {
+  const now = new Date().toISOString();
+  return {
+    acceptedAt: now,
+    createdAt: now,
+    handoff: null,
+    id: createOpaqueId(),
+    latestResolution: null,
+    orderNumber: `ORDER-${createOpaqueId()}`,
+    patientId: prepared.patientId,
+    paymentId: createOpaqueId(),
+    pharmacyOrganizationId: createOpaqueId(),
+    prescriptionId: prepared.prescriptionId,
+    prescriptionRouteId: prepared.routeId,
+    quote: quoteFrom(prepared),
+    status: "CONFIRMED",
+    updatedAt: now,
+    version: 1,
+    ...overrides,
   };
 }
 
@@ -278,6 +307,90 @@ describe("PharmacyCommercialService", () => {
         "accept-key-123",
       ),
     ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("authorizes the owning patient before initiating cancellation", async () => {
+    const prepared = preparation();
+    const order = orderFrom(prepared);
+    const response = { ...order, status: "REFUND_PENDING" as const, version: 2 };
+    const cancelOrder = vi.fn<PharmacyCommercialRepository["cancelOrder"]>(async () => response);
+    const service = createService({
+      cancelOrder,
+      findOrder: vi.fn(async () => ({
+        ...order,
+        patientPrincipalId: prepared.patientPrincipalId,
+      })),
+    });
+
+    await expect(
+      service.cancelOrder(
+        {
+          actor: session("PATIENT", { principalId: prepared.patientPrincipalId }),
+          requestId: "request-cancel-order",
+        },
+        order.id,
+        order.version,
+        "PATIENT_REQUEST",
+        "cancel-order-key",
+      ),
+    ).resolves.toEqual(response);
+    expect(cancelOrder).toHaveBeenCalledOnce();
+  });
+
+  it("restricts fulfilment handoff to the order pharmacy membership", async () => {
+    const prepared = preparation();
+    const order = orderFrom(prepared);
+    const service = createService({
+      findOrder: vi.fn(async () => ({
+        ...order,
+        patientPrincipalId: prepared.patientPrincipalId,
+      })),
+      prepareHandoff: vi.fn(async () => order),
+    });
+
+    await expect(
+      service.prepareHandoff(
+        {
+          actor: session("ORGANIZATION_STAFF", { organizationId: createOpaqueId() }),
+          requestId: "request-wrong-pharmacy-handoff",
+        },
+        order.id,
+        order.version,
+        "PICKUP",
+        "prepare-handoff-key",
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("allows only platform administration to initiate a post-dispense dispute", async () => {
+    const prepared = preparation();
+    const order = orderFrom(prepared);
+    const requestDispute = vi.fn<PharmacyCommercialRepository["requestDispute"]>(async () => ({
+      ...order,
+      status: "DISPUTE_PENDING",
+      version: 2,
+    }));
+    const service = createService({ requestDispute });
+
+    await expect(
+      service.requestDispute(
+        { actor: session("SUPPORT"), requestId: "request-support-dispute" },
+        order.id,
+        order.version,
+        "POST_DISPENSE_REVIEW",
+        "request-dispute-key",
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await expect(
+      service.requestDispute(
+        { actor: session("ADMINISTRATOR"), requestId: "request-admin-dispute" },
+        order.id,
+        order.version,
+        "POST_DISPENSE_REVIEW",
+        "request-dispute-key",
+      ),
+    ).resolves.toMatchObject({ status: "DISPUTE_PENDING", version: 2 });
+    expect(requestDispute).toHaveBeenCalledOnce();
   });
 });
 

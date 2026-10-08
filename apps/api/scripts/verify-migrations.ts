@@ -881,6 +881,9 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
   const quoteLineId = v7();
   const orderId = v7();
   const paymentId = v7();
+  const handoffId = v7();
+  const dispenseEventId = v7();
+  const resolutionId = v7();
 
   await client.connect();
   try {
@@ -998,29 +1001,42 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
       'UPDATE "pharmacy_quotes" SET "status" = \'ACCEPTED\', "accepted_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
       [quoteId],
     );
-    await client.query(
-      'INSERT INTO "pharmacy_orders" ("id", "order_number", "quote_id", "prescription_id", "prescription_route_id", "pharmacy_organization_id", "patient_id", "accepted_by_principal_id", "accepted_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())',
-      [
-        orderId,
-        `ORDER-${orderId}`,
-        quoteId,
-        prescriptionId,
-        routeId,
-        pharmacyId,
-        patientId,
-        patientPrincipalId,
-      ],
-    );
+    const insertOrder = async (): Promise<void> => {
+      await client.query(
+        'INSERT INTO "pharmacy_orders" ("id", "order_number", "quote_id", "prescription_id", "prescription_route_id", "pharmacy_organization_id", "patient_id", "accepted_by_principal_id", "accepted_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())',
+        [
+          orderId,
+          `ORDER-${orderId}`,
+          quoteId,
+          prescriptionId,
+          routeId,
+          pharmacyId,
+          patientId,
+          patientPrincipalId,
+        ],
+      );
+    };
+
+    // Orders and their payment snapshots form one aggregate and must commit
+    // atomically. Rehearse both the rejected snapshot and the valid commit so
+    // the deferred commercial-state guard is exercised on a realistic write.
+    await client.query("BEGIN");
+    await insertOrder();
     await expectSqlState(
       client,
       'INSERT INTO "payments" ("id", "pharmacy_order_id", "purpose", "patient_id", "reference", "provider_code", "amount_minor", "currency", "payable_until", "updated_at") SELECT $1, $2, \'PHARMACY_ORDER\', $3, $4, \'UNASSIGNED\', 1, "currency", "expires_at", now() FROM "pharmacy_quotes" WHERE "id" = $5',
       [v7(), orderId, patientId, `invalid_payment_${paymentId}`, quoteId],
       "P0001",
     );
+    await client.query("ROLLBACK");
+
+    await client.query("BEGIN");
+    await insertOrder();
     await client.query(
       'INSERT INTO "payments" ("id", "pharmacy_order_id", "purpose", "patient_id", "reference", "provider_code", "amount_minor", "currency", "payable_until", "updated_at") SELECT $1, $2, \'PHARMACY_ORDER\', $3, $4, \'UNASSIGNED\', "total_minor", "currency", "expires_at", now() FROM "pharmacy_quotes" WHERE "id" = $5',
       [paymentId, orderId, patientId, `payment_${paymentId}`, quoteId],
     );
+    await client.query("COMMIT");
     await expectSqlState(
       client,
       'UPDATE "payments" SET "pharmacy_order_id" = NULL, "appointment_id" = $1, "purpose" = \'CONSULTATION\', "updated_at" = now() WHERE "id" = $2',
@@ -1031,6 +1047,74 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
       client,
       'UPDATE "pharmacy_quotes" SET "status" = \'ACTIVE\', "accepted_at" = NULL, "updated_at" = now() WHERE "id" = $1',
       [quoteId],
+      "P0001",
+    );
+    await client.query("BEGIN");
+    await client.query(
+      'UPDATE "payments" SET "status" = \'SUCCEEDED\', "provider_code" = \'SYNTHETIC\', "provider_payment_reference" = $1, "provider_occurred_at" = now(), "succeeded_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $2',
+      [`provider_${paymentId}`, paymentId],
+    );
+    await client.query(
+      'UPDATE "inventory_reservations" SET "status" = \'CONSUMED\', "updated_at" = now(), "version" = "version" + 1 WHERE "quote_id" = $1',
+      [quoteId],
+    );
+    await client.query(
+      'UPDATE "pharmacy_orders" SET "status" = \'CONFIRMED\', "confirmed_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [orderId],
+    );
+    await client.query("COMMIT");
+    await client.query(
+      'INSERT INTO "pharmacy_order_handoffs" ("id", "order_id", "method", "handoff_reference", "prepared_by_principal_id", "prepared_at", "updated_at") VALUES ($1, $2, \'PICKUP\', $3, $4, now(), now())',
+      [handoffId, orderId, `HANDOFF-${handoffId}`, practitionerPrincipalId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "pharmacy_order_handoffs" SET "status" = \'HANDED_OFF\', "handed_off_by_principal_id" = $1, "handed_off_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $2',
+      [practitionerPrincipalId, handoffId],
+      "P0001",
+    );
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "prescription_dispense_events" ("id", "prescription_id", "route_id", "event_number", "request_digest", "actor_principal_id", "occurred_at") VALUES ($1, $2, $3, 1, $4, $5, now())',
+      [dispenseEventId, prescriptionId, routeId, "e".repeat(64), practitionerPrincipalId],
+    );
+    await client.query(
+      'INSERT INTO "prescription_dispense_lines" ("id", "dispense_event_id", "prescription_item_id", "fill_number", "quantity", "quantity_unit", "dispensed_medication_name") VALUES ($1, $2, $3, 0, 2, $4, $5)',
+      [v7(), dispenseEventId, itemId, "tablet", "Commercial medicine"],
+    );
+    await client.query("COMMIT");
+    await client.query(
+      'UPDATE "pharmacy_order_handoffs" SET "status" = \'HANDED_OFF\', "handed_off_by_principal_id" = $1, "handed_off_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $2',
+      [practitionerPrincipalId, handoffId],
+    );
+    await client.query("BEGIN");
+    await client.query(
+      'INSERT INTO "pharmacy_order_resolutions" ("id", "order_id", "type", "reason_code", "amount_minor", "currency", "requested_by_principal_id", "updated_at") VALUES ($1, $2, \'DISPUTE\', \'POST_DISPENSE_REVIEW\', 2150, \'USD\', $3, now())',
+      [resolutionId, orderId, practitionerPrincipalId],
+    );
+    await client.query(
+      'UPDATE "pharmacy_orders" SET "status" = \'DISPUTE_PENDING\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [orderId],
+    );
+    await client.query("COMMIT");
+    await client.query("BEGIN");
+    await client.query(
+      'UPDATE "payments" SET "status" = \'DISPUTED\', "provider_occurred_at" = now(), "terminal_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [paymentId],
+    );
+    await client.query(
+      'UPDATE "pharmacy_order_resolutions" SET "status" = \'COMPLETED\', "completed_at" = now(), "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [resolutionId],
+    );
+    await client.query(
+      'UPDATE "pharmacy_orders" SET "status" = \'DISPUTED\', "updated_at" = now(), "version" = "version" + 1 WHERE "id" = $1',
+      [orderId],
+    );
+    await client.query("COMMIT");
+    await expectSqlState(
+      client,
+      'UPDATE "pharmacy_order_resolutions" SET "reason_code" = \'CHANGED\', "updated_at" = now() WHERE "id" = $1',
+      [resolutionId],
       "P0001",
     );
   } catch (error) {

@@ -56,18 +56,30 @@ export class PolicyEngine {
         return this.canViewPrescription(request.actor, request.context);
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
+      case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
         return this.canManagePharmacyPrescription(
           request.actor,
           request.context.organizationId,
           request.policy,
         );
       case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
+      case AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER:
         return request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId
           ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
-          : this.deny(request.policy, "quote_patient_ownership_required");
+          : this.deny(request.policy, "patient_ownership_required");
       case AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER:
       case AUTHORIZATION_POLICY.VIEW_PHARMACY_QUOTE:
+        {
+          const platform = this.firstPlatformRole(request.actor, ["SUPPORT", "ADMINISTRATOR"]);
+          if (platform !== null) {
+            return this.allow(
+              request.policy,
+              platform,
+              PLATFORM_ALLOW_REASON[platform] ?? "allowed_platform_role",
+            );
+          }
+        }
         if (
           request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId
@@ -89,6 +101,7 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.ADMINISTER_NOTIFICATION_DELIVERY:
       case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
       case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
+      case AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_DISPUTE:
       case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:

@@ -11,6 +11,10 @@ import {
 
 const CREATE_QUOTE_OPERATION = "CREATE_PHARMACY_QUOTE";
 const ACCEPT_QUOTE_OPERATION = "ACCEPT_PHARMACY_QUOTE";
+const CANCEL_ORDER_OPERATION = "CANCEL_PHARMACY_ORDER";
+const PREPARE_HANDOFF_OPERATION = "PREPARE_PHARMACY_HANDOFF";
+const COMPLETE_HANDOFF_OPERATION = "COMPLETE_PHARMACY_HANDOFF";
+const REQUEST_DISPUTE_OPERATION = "REQUEST_PHARMACY_ORDER_DISPUTE";
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 const quoteInclude = {
@@ -22,9 +26,19 @@ const quoteInclude = {
 } satisfies Prisma.PharmacyQuoteInclude;
 
 const orderInclude = {
-  payment: { select: { id: true } },
+  handoff: true,
+  payment: {
+    select: {
+      amountMinor: true,
+      currency: true,
+      id: true,
+      refundedAmountMinor: true,
+      status: true,
+    },
+  },
   patient: { select: { principalId: true } },
   quote: { include: quoteInclude },
+  resolutions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 },
 } satisfies Prisma.PharmacyOrderInclude;
 
 type QuoteRecord = Prisma.PharmacyQuoteGetPayload<{ include: typeof quoteInclude }>;
@@ -474,6 +488,289 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
     }
   }
 
+  async cancelOrder(input: Parameters<PharmacyCommercialRepository["cancelOrder"]>[0]) {
+    return this.runOrderMutation(input, CANCEL_ORDER_OPERATION, async (transaction, order, now) => {
+      if (order.patient.principalId !== input.patientPrincipalId) {
+        throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+      }
+      if (order.version !== input.expectedVersion) return false;
+      if (await hasDispenseEvidence(transaction, order)) {
+        throw new PharmacyCommercialConflictError("ADMIN_DISPUTE_REQUIRED");
+      }
+      const payment = order.payment;
+      if (payment === null) throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+      const remainingAmount = payment.amountMinor - payment.refundedAmountMinor;
+      if (remainingAmount <= 0n) {
+        throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+      }
+
+      if (order.status === "PENDING_PAYMENT") {
+        if (!["CREATED", "PENDING", "FAILED"].includes(payment.status)) {
+          throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+        }
+        await transaction.payment.update({
+          data: {
+            status: "CANCELLED",
+            terminalAt: now,
+            updatedAt: now,
+            version: { increment: 1 },
+          },
+          where: { id: payment.id },
+        });
+        await transaction.paymentStatusHistory.create({
+          data: {
+            fromStatus: payment.status,
+            id: createOpaqueId(),
+            occurredAt: now,
+            paymentId: payment.id,
+            reasonCode: "PATIENT_CANCELLED_PHARMACY_ORDER",
+            toStatus: "CANCELLED",
+          },
+        });
+        const updated = await transaction.pharmacyOrder.updateMany({
+          data: {
+            cancelledAt: now,
+            status: "CANCELLED",
+            updatedAt: now,
+            version: { increment: 1 },
+          },
+          where: { id: order.id, status: "PENDING_PAYMENT", version: input.expectedVersion },
+        });
+        if (updated.count !== 1) return false;
+        await transaction.inventoryReservation.updateMany({
+          data: { status: "RELEASED", updatedAt: now, version: { increment: 1 } },
+          where: { quoteId: order.quoteId, status: "HELD" },
+        });
+        await transaction.paymentCheckoutSession.updateMany({
+          data: { status: "ABANDONED" },
+          where: { paymentId: payment.id, status: "ACTIVE" },
+        });
+        await transaction.pharmacyOrderResolution.create({
+          data: {
+            amountMinor: remainingAmount,
+            completedAt: now,
+            currency: payment.currency,
+            id: createOpaqueId(),
+            orderId: order.id,
+            reasonCode: input.reasonCode,
+            requestedByPrincipalId: input.patientPrincipalId,
+            status: "COMPLETED",
+            type: "CANCELLATION",
+            updatedAt: now,
+          },
+        });
+        return true;
+      }
+
+      if (!["CONFIRMED", "PARTIALLY_REFUNDED"].includes(order.status)) {
+        throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+      }
+      const resolutionId = createOpaqueId();
+      await transaction.pharmacyOrderResolution.create({
+        data: {
+          amountMinor: remainingAmount,
+          currency: payment.currency,
+          id: resolutionId,
+          orderId: order.id,
+          reasonCode: input.reasonCode,
+          requestedByPrincipalId: input.patientPrincipalId,
+          type: "REFUND",
+          updatedAt: now,
+        },
+      });
+      const updated = await transaction.pharmacyOrder.updateMany({
+        data: { status: "REFUND_PENDING", updatedAt: now, version: { increment: 1 } },
+        where: {
+          id: order.id,
+          status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] },
+          version: input.expectedVersion,
+        },
+      });
+      if (updated.count !== 1) return false;
+      await cancelReadyHandoff(transaction, order.id, now);
+      await createResolutionOutboxEvent(transaction, {
+        amountMinor: remainingAmount,
+        currency: payment.currency,
+        eventType: "payment.refund.requested.v1",
+        orderId: order.id,
+        paymentId: payment.id,
+        resolutionId,
+      });
+      return true;
+    });
+  }
+
+  async prepareHandoff(input: Parameters<PharmacyCommercialRepository["prepareHandoff"]>[0]) {
+    return this.runOrderMutation(
+      input,
+      PREPARE_HANDOFF_OPERATION,
+      async (transaction, order, now) => {
+        if (order.status !== "CONFIRMED" || order.version !== input.expectedOrderVersion)
+          return false;
+        if (order.handoff !== null) {
+          throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+        }
+        const handoffId = createOpaqueId();
+        await transaction.pharmacyOrderHandoff.create({
+          data: {
+            handoffReference: `HANDOFF-${handoffId.toUpperCase()}`,
+            id: handoffId,
+            method: input.method,
+            orderId: order.id,
+            preparedAt: now,
+            preparedByPrincipalId: input.principalId,
+            updatedAt: now,
+          },
+        });
+        return true;
+      },
+    );
+  }
+
+  async completeHandoff(input: Parameters<PharmacyCommercialRepository["completeHandoff"]>[0]) {
+    return this.runOrderMutation(
+      input,
+      COMPLETE_HANDOFF_OPERATION,
+      async (transaction, order, now) => {
+        if (order.status !== "CONFIRMED" || order.handoff?.status !== "READY") return false;
+        if (order.handoff.version !== input.expectedHandoffVersion) return false;
+        if (!(await hasCompleteDispenseEvidence(transaction, order))) {
+          throw new PharmacyCommercialConflictError("DISPENSE_EVIDENCE_REQUIRED");
+        }
+        const updated = await transaction.pharmacyOrderHandoff.updateMany({
+          data: {
+            handedOffAt: now,
+            handedOffByPrincipalId: input.principalId,
+            status: "HANDED_OFF",
+            updatedAt: now,
+            version: { increment: 1 },
+          },
+          where: { id: order.handoff.id, status: "READY", version: input.expectedHandoffVersion },
+        });
+        return updated.count === 1;
+      },
+    );
+  }
+
+  async requestDispute(input: Parameters<PharmacyCommercialRepository["requestDispute"]>[0]) {
+    return this.runOrderMutation(
+      input,
+      REQUEST_DISPUTE_OPERATION,
+      async (transaction, order, now) => {
+        if (order.version !== input.expectedVersion) return false;
+        if (!(await hasDispenseEvidence(transaction, order))) {
+          throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+        }
+        if (!["CONFIRMED", "PARTIALLY_REFUNDED", "REFUND_PENDING"].includes(order.status)) {
+          throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+        }
+        const payment = order.payment;
+        if (payment === null) throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+        const remainingAmount = payment.amountMinor - payment.refundedAmountMinor;
+        if (remainingAmount <= 0n) {
+          throw new PharmacyCommercialConflictError("ORDER_NOT_ACTIONABLE");
+        }
+        await transaction.pharmacyOrderResolution.updateMany({
+          data: { rejectedAt: now, status: "REJECTED", updatedAt: now, version: { increment: 1 } },
+          where: { orderId: order.id, status: "PENDING", type: "REFUND" },
+        });
+        const resolutionId = createOpaqueId();
+        await transaction.pharmacyOrderResolution.create({
+          data: {
+            amountMinor: remainingAmount,
+            currency: payment.currency,
+            id: resolutionId,
+            orderId: order.id,
+            reasonCode: input.reasonCode,
+            requestedByPrincipalId: input.principalId,
+            type: "DISPUTE",
+            updatedAt: now,
+          },
+        });
+        const updated = await transaction.pharmacyOrder.updateMany({
+          data: { status: "DISPUTE_PENDING", updatedAt: now, version: { increment: 1 } },
+          where: {
+            id: order.id,
+            status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUND_PENDING"] },
+            version: input.expectedVersion,
+          },
+        });
+        if (updated.count !== 1) return false;
+        await cancelReadyHandoff(transaction, order.id, now);
+        await createResolutionOutboxEvent(transaction, {
+          amountMinor: remainingAmount,
+          currency: payment.currency,
+          eventType: "payment.dispute.requested.v1",
+          orderId: order.id,
+          paymentId: payment.id,
+          resolutionId,
+        });
+        return true;
+      },
+    );
+  }
+
+  private async runOrderMutation(
+    input: {
+      idempotencyKey: string;
+      orderId: string;
+      requestHash: string;
+      principalId?: string;
+      patientPrincipalId?: string;
+    },
+    operation: string,
+    mutate: (
+      transaction: Prisma.TransactionClient,
+      order: OrderRecord,
+      now: Date,
+    ) => Promise<boolean>,
+  ): Promise<PharmacyOrderResponse | null> {
+    const principalId = input.principalId ?? input.patientPrincipalId;
+    if (principalId === undefined) {
+      throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+    }
+    try {
+      return await this.database.$transaction(
+        async (transaction) => {
+          const replay = await findOrderIdempotencyReplay(transaction, {
+            key: input.idempotencyKey,
+            operation,
+            principalId,
+            requestHash: input.requestHash,
+          });
+          if (replay !== null) return replay;
+          const order = await transaction.pharmacyOrder.findUnique({
+            include: orderInclude,
+            where: { id: input.orderId },
+          });
+          if (order === null) return null;
+          const now = new Date();
+          const idempotencyId = await startOrderIdempotency(transaction, {
+            key: input.idempotencyKey,
+            operation,
+            principalId,
+            requestHash: input.requestHash,
+          });
+          if (!(await mutate(transaction, order, now))) {
+            throw new PharmacyCommercialConflictError("VERSION_CONFLICT");
+          }
+          await completeOrderIdempotency(transaction, idempotencyId, order.id, now);
+          return mapOrder(
+            await transaction.pharmacyOrder.findUniqueOrThrow({
+              include: orderInclude,
+              where: { id: order.id },
+            }),
+          );
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof PharmacyCommercialConflictError) throw error;
+      if (isSerializationOrConstraintConflict(error)) return null;
+      throw error;
+    }
+  }
+
   async findQuote(quoteId: string) {
     const quote = await this.database.pharmacyQuote.findUnique({
       include: quoteInclude,
@@ -575,7 +872,34 @@ function mapOrder(row: OrderRecord): PharmacyOrderResponse {
   return {
     acceptedAt: row.acceptedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
+    handoff:
+      row.handoff === null
+        ? null
+        : {
+            handedOffAt: row.handoff.handedOffAt?.toISOString() ?? null,
+            handoffReference: row.handoff.handoffReference,
+            id: row.handoff.id,
+            method: row.handoff.method,
+            preparedAt: row.handoff.preparedAt.toISOString(),
+            status: row.handoff.status,
+            version: row.handoff.version,
+          },
     id: row.id,
+    latestResolution:
+      row.resolutions[0] === undefined
+        ? null
+        : {
+            amountMinor: row.resolutions[0].amountMinor.toString(),
+            completedAt: row.resolutions[0].completedAt?.toISOString() ?? null,
+            createdAt: row.resolutions[0].createdAt.toISOString(),
+            currency: row.resolutions[0].currency,
+            id: row.resolutions[0].id,
+            reasonCode: row.resolutions[0].reasonCode,
+            rejectedAt: row.resolutions[0].rejectedAt?.toISOString() ?? null,
+            status: row.resolutions[0].status,
+            type: row.resolutions[0].type,
+            version: row.resolutions[0].version,
+          },
     orderNumber: row.orderNumber,
     patientId: row.patientId,
     paymentId: row.payment.id,
@@ -598,9 +922,155 @@ function sumCharges(
     .reduce((total, charge) => total + charge.amountMinor, 0n);
 }
 
+async function hasDispenseEvidence(
+  transaction: Prisma.TransactionClient,
+  order: OrderRecord,
+): Promise<boolean> {
+  return (
+    (await transaction.prescriptionDispenseLine.count({
+      where: {
+        dispenseEvent: { routeId: order.prescriptionRouteId },
+        fillNumber: order.quote.fillNumber,
+        prescriptionItemId: { in: order.quote.lines.map((line) => line.prescriptionItemId) },
+      },
+    })) > 0
+  );
+}
+
+async function hasCompleteDispenseEvidence(
+  transaction: Prisma.TransactionClient,
+  order: OrderRecord,
+): Promise<boolean> {
+  const totals = await transaction.prescriptionDispenseLine.groupBy({
+    _sum: { quantity: true },
+    by: ["prescriptionItemId"],
+    where: {
+      dispenseEvent: { routeId: order.prescriptionRouteId },
+      fillNumber: order.quote.fillNumber,
+      prescriptionItemId: { in: order.quote.lines.map((line) => line.prescriptionItemId) },
+    },
+  });
+  const byItem = new Map(
+    totals.map((total) => [total.prescriptionItemId, total._sum.quantity ?? new Prisma.Decimal(0)]),
+  );
+  return order.quote.lines.every((line) =>
+    (byItem.get(line.prescriptionItemId) ?? new Prisma.Decimal(0)).gte(line.quantity),
+  );
+}
+
+async function findOrderIdempotencyReplay(
+  transaction: Prisma.TransactionClient,
+  input: { key: string; operation: string; principalId: string; requestHash: string },
+): Promise<PharmacyOrderResponse | null> {
+  const existing = await transaction.idempotencyKey.findUnique({
+    where: {
+      principalId_operation_key: {
+        key: input.key,
+        operation: input.operation,
+        principalId: input.principalId,
+      },
+    },
+  });
+  if (existing === null) return null;
+  if (
+    existing.requestHash !== input.requestHash ||
+    existing.status !== "COMPLETED" ||
+    existing.resourceId === null
+  ) {
+    throw new PharmacyCommercialConflictError("IDEMPOTENCY_CONFLICT");
+  }
+  const order = await transaction.pharmacyOrder.findUnique({
+    include: orderInclude,
+    where: { id: existing.resourceId },
+  });
+  if (order === null) throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+  return mapOrder(order);
+}
+
+async function startOrderIdempotency(
+  transaction: Prisma.TransactionClient,
+  input: { key: string; operation: string; principalId: string; requestHash: string },
+): Promise<string> {
+  const id = createOpaqueId();
+  await transaction.idempotencyKey.create({
+    data: {
+      expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+      id,
+      key: input.key,
+      operation: input.operation,
+      principalId: input.principalId,
+      requestHash: input.requestHash,
+      updatedAt: new Date(),
+    },
+  });
+  return id;
+}
+
+async function completeOrderIdempotency(
+  transaction: Prisma.TransactionClient,
+  idempotencyId: string,
+  orderId: string,
+  now: Date,
+): Promise<void> {
+  await transaction.idempotencyKey.update({
+    data: {
+      resourceId: orderId,
+      resourceType: "pharmacy_order",
+      responseStatusCode: 200,
+      status: "COMPLETED",
+      updatedAt: now,
+    },
+    where: { id: idempotencyId },
+  });
+}
+
+async function cancelReadyHandoff(
+  transaction: Prisma.TransactionClient,
+  orderId: string,
+  cancelledAt: Date,
+): Promise<void> {
+  await transaction.pharmacyOrderHandoff.updateMany({
+    data: {
+      cancelledAt,
+      status: "CANCELLED",
+      updatedAt: new Date(),
+      version: { increment: 1 },
+    },
+    where: { orderId, status: "READY" },
+  });
+}
+
+async function createResolutionOutboxEvent(
+  transaction: Prisma.TransactionClient,
+  input: {
+    amountMinor: bigint;
+    currency: string;
+    eventType: "payment.refund.requested.v1" | "payment.dispute.requested.v1";
+    orderId: string;
+    paymentId: string;
+    resolutionId: string;
+  },
+): Promise<void> {
+  await transaction.outboxEvent.create({
+    data: {
+      aggregateId: input.paymentId,
+      aggregateType: "payment",
+      eventType: input.eventType,
+      id: createOpaqueId(),
+      payload: {
+        amountMinor: input.amountMinor.toString(),
+        currency: input.currency,
+        orderId: input.orderId,
+        paymentId: input.paymentId,
+        resolutionId: input.resolutionId,
+      },
+    },
+  });
+}
+
 function isSerializationOrConstraintConflict(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
-    (error.code === "P2002" || error.code === "P2034")
+    (error.code === "P2002" || error.code === "P2004" || error.code === "P2034")
   );
 }

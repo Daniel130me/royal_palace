@@ -52,6 +52,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pharmacy/orders/{orderId}/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preparePharmacyOrderHandoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/orders/{orderId}/handoff/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completePharmacyOrderHandoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/patient/pharmacy/quotes/{quoteId}": {
         parameters: {
             query?: never;
@@ -94,6 +126,38 @@ export interface paths {
         get: operations["getPharmacyOrderForPatient"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/orders/{orderId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelPharmacyOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pharmacy/orders/{orderId}/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestPharmacyOrderDispute"];
         delete?: never;
         options?: never;
         head?: never;
@@ -347,6 +411,18 @@ export interface components {
         AcceptPharmacyQuoteInput: {
             expectedVersion: number;
         };
+        PreparePharmacyOrderHandoffInput: {
+            expectedOrderVersion: number;
+            /** @enum {string} */
+            method: "PICKUP" | "DELIVERY";
+        };
+        CompletePharmacyOrderHandoffInput: {
+            expectedHandoffVersion: number;
+        };
+        PharmacyOrderResolutionInput: {
+            expectedVersion: number;
+            reasonCode: string;
+        };
         CreatePharmacyQuoteInput: {
             /** @default [] */
             charges: components["schemas"]["PharmacyQuoteChargeInput"][];
@@ -440,8 +516,10 @@ export interface components {
             acceptedAt: string;
             /** Format: date-time */
             createdAt: string;
+            handoff: components["schemas"]["PharmacyOrderHandoff"] | null;
             /** Format: uuid */
             id: string;
+            latestResolution: components["schemas"]["PharmacyOrderResolution"] | null;
             orderNumber: string;
             /** Format: uuid */
             patientId: string;
@@ -455,9 +533,41 @@ export interface components {
             prescriptionRouteId: string;
             quote: components["schemas"]["PharmacyQuote"];
             /** @enum {string} */
-            status: "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "DISPUTED";
+            status: "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "REFUNDED" | "DISPUTE_PENDING" | "DISPUTED";
             /** Format: date-time */
             updatedAt: string;
+            version: number;
+        };
+        PharmacyOrderHandoff: {
+            /** Format: date-time */
+            handedOffAt: string | null;
+            handoffReference: string;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            method: "PICKUP" | "DELIVERY";
+            /** Format: date-time */
+            preparedAt: string;
+            /** @enum {string} */
+            status: "READY" | "HANDED_OFF" | "CANCELLED";
+            version: number;
+        };
+        PharmacyOrderResolution: {
+            amountMinor: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            /** Format: uuid */
+            id: string;
+            reasonCode: string;
+            /** Format: date-time */
+            rejectedAt: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "COMPLETED" | "REJECTED";
+            /** @enum {string} */
+            type: "CANCELLATION" | "REFUND" | "DISPUTE";
             version: number;
         };
         CursorPageInfo: {
@@ -857,6 +967,58 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    preparePharmacyOrderHandoff: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreparePharmacyOrderHandoffInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyOrderResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    completePharmacyOrderHandoff: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompletePharmacyOrderHandoffInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["PharmacyOrderResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     getPharmacyQuoteForPatient: {
         parameters: {
             query?: never;
@@ -918,6 +1080,58 @@ export interface operations {
             200: components["responses"]["PharmacyOrderResponse"];
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    cancelPharmacyOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PharmacyOrderResolutionInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["PharmacyOrderResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    requestPharmacyOrderDispute: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PharmacyOrderResolutionInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyOrderResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };

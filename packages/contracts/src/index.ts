@@ -734,12 +734,50 @@ export interface PharmacyQuoteResponse {
 }
 
 export type PharmacyOrderStatus =
-  "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "DISPUTED";
+  | "PENDING_PAYMENT"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "REFUND_PENDING"
+  | "PARTIALLY_REFUNDED"
+  | "REFUNDED"
+  | "DISPUTE_PENDING"
+  | "DISPUTED";
+
+export type PharmacyOrderHandoffMethod = "PICKUP" | "DELIVERY";
+export type PharmacyOrderHandoffStatus = "READY" | "HANDED_OFF" | "CANCELLED";
+
+export interface PharmacyOrderHandoffResponse {
+  handedOffAt: string | null;
+  handoffReference: string;
+  id: string;
+  method: PharmacyOrderHandoffMethod;
+  preparedAt: string;
+  status: PharmacyOrderHandoffStatus;
+  version: number;
+}
+
+export type PharmacyOrderResolutionType = "CANCELLATION" | "REFUND" | "DISPUTE";
+export type PharmacyOrderResolutionStatus = "PENDING" | "COMPLETED" | "REJECTED";
+
+export interface PharmacyOrderResolutionResponse {
+  amountMinor: string;
+  completedAt: string | null;
+  createdAt: string;
+  currency: string;
+  id: string;
+  reasonCode: string;
+  rejectedAt: string | null;
+  status: PharmacyOrderResolutionStatus;
+  type: PharmacyOrderResolutionType;
+  version: number;
+}
 
 export interface PharmacyOrderResponse {
   acceptedAt: string;
   createdAt: string;
+  handoff: PharmacyOrderHandoffResponse | null;
   id: string;
+  latestResolution: PharmacyOrderResolutionResponse | null;
   orderNumber: string;
   patientId: string;
   paymentId: string;

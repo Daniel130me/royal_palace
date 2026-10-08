@@ -16,6 +16,11 @@ interface Fixture {
   providerPaymentReference: string;
 }
 
+interface PharmacyFixture extends Fixture {
+  orderId: string;
+  quoteId: string;
+}
+
 async function main(): Promise<void> {
   const databaseUrl = requireDisposableDatabase().toString();
   const database = new PrismaService({ databaseUrl } as ServiceConfig);
@@ -173,8 +178,74 @@ async function main(): Promise<void> {
       throw new Error("Reservation timeout did not expire appointment and payment atomically");
     }
 
+    const pharmacy = await createPharmacyFixture(database, "pharmacy-lifecycle");
+    await repository.saveHostedCheckout({
+      checkoutUrl: `https://checkout.synthetic.invalid/${pharmacy.paymentId}`,
+      expiresAt: new Date(Date.now() + 10 * 60_000),
+      paymentId: pharmacy.paymentId,
+      providerCode: "SYNTHETIC",
+      providerPaymentReference: pharmacy.providerPaymentReference,
+      providerSessionReference: `session-${pharmacy.paymentId}`,
+    });
+    const pharmacySuccess = await repository.processVerifiedWebhook({
+      event: event(pharmacy, "SUCCEEDED", 2_150n, "pharmacy-success"),
+      payloadHash: hash("f"),
+    });
+    const confirmedOrder = await database.pharmacyOrder.findUniqueOrThrow({
+      include: { quote: { include: { inventoryReservation: true } } },
+      where: { id: pharmacy.orderId },
+    });
+    if (
+      pharmacySuccess.status !== "SUCCEEDED" ||
+      confirmedOrder.status !== "CONFIRMED" ||
+      confirmedOrder.quote.inventoryReservation?.status !== "CONSUMED"
+    ) {
+      throw new Error("Successful pharmacy payment did not confirm the order and consume its hold");
+    }
+    await repository.processVerifiedWebhook({
+      event: event(pharmacy, "PARTIALLY_REFUNDED", 150n, "pharmacy-partial-refund"),
+      payloadHash: hash("a"),
+    });
+    await repository.processVerifiedWebhook({
+      event: event(pharmacy, "REFUNDED", 2_000n, "pharmacy-final-refund"),
+      payloadHash: hash("b"),
+    });
+    const refundedOrder = await database.pharmacyOrder.findUniqueOrThrow({
+      where: { id: pharmacy.orderId },
+    });
+    if (refundedOrder.status !== "REFUNDED") {
+      throw new Error("Authenticated pharmacy refund facts did not resolve the order");
+    }
+
+    const late = await createPharmacyFixture(database, "late-pharmacy-payment");
+    await repository.saveHostedCheckout({
+      checkoutUrl: `https://checkout.synthetic.invalid/${late.paymentId}`,
+      expiresAt: new Date(Date.now() + 10 * 60_000),
+      paymentId: late.paymentId,
+      providerCode: "SYNTHETIC",
+      providerPaymentReference: late.providerPaymentReference,
+      providerSessionReference: `session-${late.paymentId}`,
+    });
+    await repository.processVerifiedWebhook({
+      event: {
+        ...event(late, "SUCCEEDED", 2_150n, "late-pharmacy-success"),
+        occurredAt: new Date(late.paymentDueAt.getTime() + 1),
+      },
+      payloadHash: hash("c"),
+    });
+    const rejectedLatePayment = await database.payment.findUniqueOrThrow({
+      include: { pharmacyOrder: true },
+      where: { id: late.paymentId },
+    });
+    if (
+      rejectedLatePayment.status !== "PENDING" ||
+      rejectedLatePayment.pharmacyOrder?.status !== "PENDING_PAYMENT"
+    ) {
+      throw new Error("Late pharmacy success bypassed the payable-period and inventory guard");
+    }
+
     process.stdout.write(
-      "Scheduling/payment verification passed: immutable purpose/payable period, retries, authenticated-event persistence, duplicates, reordering, refunds, ledger balance, outbox idempotency, reconciliation, and expiry.\n",
+      "Scheduling/payment verification passed: immutable purpose/payable period, retries, authenticated-event persistence, duplicates, reordering, refunds, pharmacy-order orchestration, late-payment rejection, ledger balance, outbox idempotency, reconciliation, and expiry.\n",
     );
   } finally {
     await database.$disconnect();
@@ -285,6 +356,255 @@ async function createFixture(
     paymentReference,
     principalId,
     providerPaymentReference,
+  };
+}
+
+async function createPharmacyFixture(
+  database: PrismaService,
+  label: string,
+): Promise<PharmacyFixture> {
+  const principalId = v7();
+  const patientId = v7();
+  const practitionerId = v7();
+  const pharmacyId = v7();
+  const feeId = v7();
+  const slotId = v7();
+  const appointmentId = v7();
+  const prescriptionId = v7();
+  const prescriptionItemId = v7();
+  const routeId = v7();
+  const quoteId = v7();
+  const orderId = v7();
+  const paymentId = v7();
+  const paymentReference = `payment_${paymentId}`;
+  const providerPaymentReference = `provider-${paymentId}`;
+  const now = new Date();
+  const startsAt = new Date(now.getTime() + 7 * 24 * 60 * 60_000);
+  const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
+  const paymentDueAt = new Date(now.getTime() + 15 * 60_000);
+
+  await database.$transaction(async (transaction) => {
+    await transaction.identityPrincipal.create({ data: { id: principalId, updatedAt: now } });
+    await transaction.patient.create({
+      data: {
+        familyName: "Patient",
+        givenName: label,
+        id: patientId,
+        principalId,
+        updatedAt: now,
+      },
+    });
+    await transaction.practitioner.create({
+      data: {
+        displayName: `${label} Practitioner`,
+        familyName: "Practitioner",
+        givenName: label,
+        id: practitionerId,
+        updatedAt: now,
+        verificationStatus: "VERIFIED",
+        verifiedAt: now,
+      },
+    });
+    await transaction.organization.create({
+      data: {
+        displayName: `${label} Pharmacy`,
+        id: pharmacyId,
+        legalName: `${label} Pharmacy Limited`,
+        type: "PHARMACY",
+        updatedAt: now,
+        verificationStatus: "VERIFIED",
+        verifiedAt: now,
+      },
+    });
+    await transaction.consultationFee.create({
+      data: {
+        amountMinor: 10_000n,
+        approvedByPrincipalId: principalId,
+        createdByPrincipalId: principalId,
+        currency: "USD",
+        effectiveFrom: new Date(now.getTime() - 60_000),
+        id: feeId,
+        mode: "VIDEO",
+        practitionerId,
+        status: "ACTIVE",
+        updatedAt: now,
+      },
+    });
+    await transaction.availabilitySlot.create({
+      data: {
+        consultationFeeId: feeId,
+        createdByPrincipalId: principalId,
+        endsAt,
+        id: slotId,
+        practitionerId,
+        startsAt,
+        status: "BOOKED",
+        updatedAt: now,
+      },
+    });
+    await transaction.appointment.create({
+      data: {
+        amountMinor: 10_000n,
+        availabilitySlotId: slotId,
+        confirmedAt: now,
+        currency: "USD",
+        endsAt,
+        id: appointmentId,
+        mode: "VIDEO",
+        patientId,
+        paymentDueAt,
+        practitionerId,
+        startsAt,
+        status: "CONFIRMED",
+        updatedAt: now,
+      },
+    });
+    await transaction.prescription.create({
+      data: {
+        appointmentId,
+        id: prescriptionId,
+        items: {
+          create: {
+            dose: "one tablet",
+            frequency: "twice daily",
+            id: prescriptionItemId,
+            lineNumber: 1,
+            medicationName: "Commercial medicine",
+            quantity: "2.000",
+            quantityUnit: "tablet",
+          },
+        },
+        jurisdictionCode: "GLOBAL.TEST",
+        patientId,
+        practitionerId,
+        prescriptionNumber: `RX-${prescriptionId}`,
+        updatedAt: now,
+      },
+    });
+    await transaction.prescription.update({
+      data: {
+        attestationMethod: "SYNTHETIC_TEST",
+        contentDigest: hash("a"),
+        signedAt: now,
+        status: "SIGNED",
+        updatedAt: now,
+        validUntil: paymentDueAt,
+        version: { increment: 1 },
+      },
+      where: { id: prescriptionId },
+    });
+    await transaction.prescriptionRoute.create({
+      data: {
+        id: routeId,
+        pharmacyOrganizationId: pharmacyId,
+        prescriptionId,
+        sentAt: now,
+        status: "SENT",
+        updatedAt: now,
+      },
+    });
+    await transaction.prescription.update({
+      data: { status: "SENT", updatedAt: now, version: { increment: 1 } },
+      where: { id: prescriptionId },
+    });
+    await transaction.prescriptionRoute.update({
+      data: { acceptedAt: now, status: "ACCEPTED", updatedAt: now, version: { increment: 1 } },
+      where: { id: routeId },
+    });
+    await transaction.prescription.update({
+      data: { status: "ACCEPTED", updatedAt: now, version: { increment: 1 } },
+      where: { id: prescriptionId },
+    });
+    await transaction.pharmacyQuote.create({
+      data: {
+        charges: {
+          create: [
+            { amountMinor: 100n, code: "TEST_TAX", id: v7(), label: "Test tax", type: "TAX" },
+            { amountMinor: 50n, code: "TEST_FEE", id: v7(), label: "Test fee", type: "FEE" },
+          ],
+        },
+        createdByPrincipalId: principalId,
+        currency: "USD",
+        expiresAt: paymentDueAt,
+        feeMinor: 50n,
+        fillNumber: 0,
+        id: quoteId,
+        inventoryReservation: {
+          create: {
+            evidenceHash: hash("b"),
+            expiresAt: paymentDueAt,
+            id: v7(),
+            providerCode: "SYNTHETIC_INVENTORY",
+            providerReservationReference: `inventory-${quoteId}`,
+            updatedAt: now,
+          },
+        },
+        lines: {
+          create: {
+            id: v7(),
+            lineNumber: 1,
+            lineSubtotalMinor: 2_000n,
+            medicationName: "Commercial medicine",
+            prescriptionItemId,
+            quantity: "2.000",
+            quantityUnit: "tablet",
+            unitPriceMinor: 1_000n,
+          },
+        },
+        patientId,
+        pharmacyOrganizationId: pharmacyId,
+        prescriptionId,
+        prescriptionRouteId: routeId,
+        quoteNumber: `QUOTE-${quoteId}`,
+        subtotalMinor: 2_000n,
+        taxMinor: 100n,
+        totalMinor: 2_150n,
+        updatedAt: now,
+      },
+    });
+    await transaction.pharmacyQuote.update({
+      data: { acceptedAt: now, status: "ACCEPTED", updatedAt: now, version: { increment: 1 } },
+      where: { id: quoteId },
+    });
+    await transaction.pharmacyOrder.create({
+      data: {
+        acceptedAt: now,
+        acceptedByPrincipalId: principalId,
+        id: orderId,
+        orderNumber: `ORDER-${orderId}`,
+        patientId,
+        pharmacyOrganizationId: pharmacyId,
+        prescriptionId,
+        prescriptionRouteId: routeId,
+        quoteId,
+        updatedAt: now,
+      },
+    });
+    await transaction.payment.create({
+      data: {
+        amountMinor: 2_150n,
+        currency: "USD",
+        id: paymentId,
+        patientId,
+        payableUntil: paymentDueAt,
+        pharmacyOrderId: orderId,
+        providerCode: "UNASSIGNED",
+        purpose: "PHARMACY_ORDER",
+        reference: paymentReference,
+        updatedAt: now,
+      },
+    });
+  });
+  return {
+    appointmentId,
+    orderId,
+    patientId,
+    paymentDueAt,
+    paymentId,
+    paymentReference,
+    principalId,
+    providerPaymentReference,
+    quoteId,
   };
 }
 
