@@ -244,7 +244,11 @@ that completes an increment.
       over to generated production contracts and exact authenticated BFF allowlists;
       removes the replaced prototype actions, generic CRUD exposure, paper-upload flow,
       and unreachable pharmacy prototype screens; and adds indexed owner-scoped lists.
-    - `[ ]` 11C5 qualification evidence.
+    - `[!]` 11C5 qualification evidence is open. The controlled evidence register and
+      sign-off packet is in
+      [`qualification/11c5-prescription-pharmacy-qualification.md`](./qualification/11c5-prescription-pharmacy-qualification.md).
+      Real activation remains blocked on the recorded clinical, pharmacy, legal/privacy,
+      financial, security, operations, provider, jurisdiction, and UAT decisions.
   - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the pharmacy/prescription slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

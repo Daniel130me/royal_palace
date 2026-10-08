@@ -85,7 +85,9 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 - [x] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
       pages and action routes with generated contracts and exact authenticated BFF
       allowlists; delete generic prescription/order CRUD exposure after parity tests.
-- [ ] **11C5 — qualification evidence:** complete financial/clinical-owner review and
+- [!] **11C5 — qualification evidence:** the controlled
+      [qualification record](../qualification/11c5-prescription-pharmacy-qualification.md)
+      is prepared; complete financial/clinical-owner review and
       keep real inventory, payment, and clinical activation disabled until every
       provider and jurisdiction gate is approved.
 
@@ -732,3 +734,18 @@ reintroduced through an unqualified shortcut.
 11C5 records product, clinical, pharmacy-operations, privacy/security, and financial-owner
 qualification evidence. It must not enable any real provider or jurisdiction merely because
 the synthetic workflow and browser cutover are complete.
+
+## Checkpoint 11C5 readiness report
+
+The controlled qualification record now binds review to the immutable application commit,
+migration boundary, API contract, environment, provider set, and jurisdiction. It defines
+the required accountable reviewers, evidence register, end-to-end and negative-access
+scenarios, clinical/pharmacy and financial/inventory questions, and a separate fail-closed
+activation record. It also records every material decision the implementation agent must
+not infer.
+
+This is readiness evidence, not approval. No qualified reviewers, launch jurisdiction,
+production providers, protected staging environment, or real-data policy have yet been
+supplied. `CLINICAL_WORKFLOW_MODE` and every real provider therefore remain disabled, and
+11C5 stays open until the linked record contains named owners, evidence links, dated
+verdicts, and an approved narrowly scoped activation.
