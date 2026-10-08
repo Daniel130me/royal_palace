@@ -8,6 +8,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -91,6 +92,12 @@ const completeHandoffSchema = z
 const orderResolutionSchema = z
   .object({ expectedVersion: z.number().int().positive(), reasonCode: reasonCodeSchema })
   .strict();
+const listSchema = z
+  .object({
+    cursor: z.string().trim().min(1).max(1024).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+  })
+  .strict();
 
 @Controller("v1/pharmacy")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -98,6 +105,38 @@ export class PharmacyCommercialController {
   constructor(
     @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
   ) {}
+
+  @Get("quotes")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE)
+  listQuotes(
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.commercial.listPharmacyQuotes(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(listSchema, query),
+      ),
+    );
+  }
+
+  @Get("orders")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF)
+  listOrders(
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.commercial.listPharmacyOrders(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(listSchema, query),
+      ),
+    );
+  }
 
   @Post("prescriptions/:prescriptionId/quotes")
   @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE)
@@ -178,6 +217,22 @@ export class PatientPharmacyCommercialController {
   constructor(
     @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
   ) {}
+
+  @Get("quotes")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE)
+  listQuotes(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.commercial.listPatientQuotes(context(request), parse(listSchema, query)),
+    );
+  }
+
+  @Get("orders")
+  @PolicyProtected(AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER)
+  listOrders(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.commercial.listPatientOrders(context(request), parse(listSchema, query)),
+    );
+  }
 
   @Get("quotes/:quoteId")
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_PHARMACY_QUOTE)

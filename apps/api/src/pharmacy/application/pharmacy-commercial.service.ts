@@ -235,6 +235,51 @@ export class PharmacyCommercialService {
     return response;
   }
 
+  async listPatientQuotes(
+    context: PharmacyCommercialRequestContext,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: "patient_pharmacy_quote_list",
+      },
+      policy: AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE,
+      requestId: context.requestId,
+    });
+    return this.repository.listQuotes({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      patientPrincipalId: context.actor.principalId,
+    });
+  }
+
+  async listPharmacyQuotes(
+    context: PharmacyCommercialRequestContext,
+    organizationId: string,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        organizationId,
+        resourceId: organizationId,
+        resourceType: "pharmacy_quote_list",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE,
+      requestId: context.requestId,
+    });
+    return this.repository.listQuotes({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      pharmacyOrganizationId: organizationId,
+    });
+  }
+
   async acceptQuote(
     context: PharmacyCommercialRequestContext,
     quoteId: string,
@@ -292,6 +337,51 @@ export class PharmacyCommercialService {
     });
     const { patientPrincipalId: _privatePatientPrincipalId, ...response } = order;
     return response;
+  }
+
+  async listPatientOrders(
+    context: PharmacyCommercialRequestContext,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: "patient_pharmacy_order_list",
+      },
+      policy: AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER,
+      requestId: context.requestId,
+    });
+    return this.repository.listOrders({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      patientPrincipalId: context.actor.principalId,
+    });
+  }
+
+  async listPharmacyOrders(
+    context: PharmacyCommercialRequestContext,
+    organizationId: string,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        organizationId,
+        resourceId: organizationId,
+        resourceType: "pharmacy_order_list",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF,
+      requestId: context.requestId,
+    });
+    return this.repository.listOrders({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      pharmacyOrganizationId: organizationId,
+    });
   }
 
   async cancelOrder(
@@ -524,4 +614,19 @@ function invalidLine(code: string, message: string): PharmacyCommercialFlowError
 
 function hashRequest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function decodeCreatedCursor(value: string): { createdAt: Date; id: string } {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof decoded.createdAt !== "string" || typeof decoded.id !== "string") throw new Error();
+    const createdAt = new Date(decoded.createdAt);
+    if (!Number.isFinite(createdAt.getTime())) throw new Error();
+    return { createdAt, id: decoded.id };
+  } catch {
+    throw new PharmacyCommercialFlowError("invalid_cursor", 400, "Cursor is invalid");
+  }
 }

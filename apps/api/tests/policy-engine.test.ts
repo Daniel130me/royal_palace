@@ -39,7 +39,7 @@ function actor(
     memberships:
       options.organizationRoles === undefined
         ? []
-        : [{ organizationId, roles: options.organizationRoles }],
+        : [{ organizationId, organizationType: "HOSPITAL", roles: options.organizationRoles }],
     principalId: options.principalId ?? createOpaqueId(),
     roles,
     sessionId: createOpaqueId(),

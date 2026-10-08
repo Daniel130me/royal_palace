@@ -13,7 +13,6 @@ import {
   ScrollText,
   MessageSquareWarning,
   CalendarDays,
-  Package,
   Truck,
   Users,
   BarChart3,
@@ -35,7 +34,6 @@ import { AdminSettlements } from "./pages/settlements";
 import { AdminAudit } from "./pages/audit";
 import { AdminComplaints } from "./pages/complaints";
 import { AdminAppointments } from "./pages/appointments";
-import { AdminOrders } from "./pages/orders";
 import { AdminDeliveries } from "./pages/deliveries";
 import { AdminUsers } from "./pages/users";
 import { AdminReports } from "./pages/reports";
@@ -60,7 +58,6 @@ export function AdminPortal() {
     { label: "Audit Trail", page: "audit", icon: ScrollText },
     { label: "Complaints", page: "complaints", icon: MessageSquareWarning },
     { label: "Appointments", page: "appointments", icon: CalendarDays },
-    { label: "Pharmacy Orders", page: "orders", icon: Package },
     { label: "Deliveries", page: "deliveries", icon: Truck },
     { label: "Users", page: "users", icon: Users },
     { label: "Reports", page: "reports", icon: BarChart3 },
@@ -103,8 +100,6 @@ export function AdminPortal() {
         <AdminComplaints />
       ) : page === "appointments" ? (
         <AdminAppointments />
-      ) : page === "orders" ? (
-        <AdminOrders />
       ) : page === "deliveries" ? (
         <AdminDeliveries />
       ) : page === "users" ? (

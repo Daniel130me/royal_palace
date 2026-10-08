@@ -1,208 +1,175 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useNav, navigate } from "@/lib/nav";
-import { pharmacyOrderService } from "@/lib/services";
-import type { PharmacyOrder } from "@/types";
-import { PageHeader, EmptyState, LoadingState, SectionCard } from "@/components/healthcare/page-header";
-import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
+import { CreditCard, Package, Receipt, Truck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
 import {
-  Package, ChevronRight, MapPin, Truck, CheckCircle2, Building2, Receipt,
-  CircleDot,
-} from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { createdAt } from "../lib/runtime-fields";
+  EmptyState,
+  LoadingState,
+  PageHeader,
+  SectionCard,
+} from "@/components/healthcare/page-header";
+import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Button } from "@/components/ui/button";
+import { formatDate, formatMinorCurrency } from "@/lib/format";
+import { navigate, useNav } from "@/lib/nav";
+import { productionPrescriptionService, schedulingPaymentService } from "@/lib/services";
 
-const DELIVERY_STEPS: { key: string; label: string }[] = [
-  { key: "assigned", label: "Order placed" },
-  { key: "accepted", label: "Driver accepted" },
-  { key: "picked_up", label: "Picked up" },
-  { key: "in_transit", label: "In transit" },
-  { key: "delivered", label: "Delivered" },
-];
-
-const ORDER_STEP_INDEX: Record<string, number> = {
-  paid: 0, prescription_under_review: 0, clarification_required: 0, accepted: 0,
-  partially_available: 0, rejected: 0, preparing: 1, ready_for_pickup: 1,
-  picked_up: 2, in_transit: 3, delivered: 4, cancelled: -1, refunded: -1,
-};
+type Order = PrescriptionComponents["schemas"]["PharmacyOrder"];
 
 export function PatientOrderDetail() {
-  const { view } = useNav();
-  const id = view.params?.id;
-  const [order, setOrder] = useState<PharmacyOrder | null>(null);
+  const orderId = useNav().view.params.id;
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
+  const load = useCallback(async () => {
+    if (!orderId) return;
     setLoading(true);
-    pharmacyOrderService.get(id)
-      .then((o) => { if (!cancelled) setOrder(o); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Order not found"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [id]);
+    try {
+      setOrder(await productionPrescriptionService.patient.order(orderId));
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Order could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function beginCheckout() {
+    if (order === null) return;
+    setBusy(true);
+    try {
+      const checkout = await schedulingPaymentService.createCheckout(
+        order.paymentId,
+        crypto.randomUUID(),
+      );
+      window.location.assign(checkout.checkoutUrl);
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Checkout could not be created");
+      setBusy(false);
+    }
+  }
+
+  async function cancel() {
+    if (order === null) return;
+    setBusy(true);
+    try {
+      setOrder(
+        await productionPrescriptionService.patient.cancelOrder(
+          order.id,
+          order.version,
+          "PATIENT_REQUESTED",
+          crypto.randomUUID(),
+        ),
+      );
+      toast.success("Cancellation requested");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Order could not be cancelled");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) return <LoadingState label="Loading order…" />;
-  if (error || !order) return (
-    <EmptyState
-      title="Order not found"
-      description={error ?? ""}
-      action={<Button onClick={() => navigate("patient", "orders")}>Back to orders</Button>}
-    />
-  );
-
-  const delivery = order.delivery ?? null;
-  const currentStep = ORDER_STEP_INDEX[order.status] ?? 0;
+  if (error !== null || order === null) {
+    return (
+      <EmptyState
+        title="Order unavailable"
+        description={error ?? "Order was not found"}
+        action={<Button onClick={() => navigate("patient", "orders")}>Back</Button>}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={order.orderNumber}
-        description={`Placed ${formatDate(createdAt(order) ?? order.orderNumber)}`}
         back
-        actions={<StatusBadge status={order.status} />}
+        title={order.orderNumber}
+        description={`Created ${formatDate(order.createdAt)}`}
+        actions={<StatusBadge status={order.status.toLowerCase()} />}
       />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Items */}
-          <SectionCard title={`Items (${order.items?.length ?? 0})`} icon={Package} dense>
-            {(order.items ?? []).length === 0 ? (
-              <div className="p-5"><p className="text-sm text-muted-foreground">No items on this order.</p></div>
-            ) : (
-              <ul className="divide-y divide-border/60">
-                {order.items!.map((it) => (
-                  <li key={it.id} className="px-4 sm:px-5 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm">{it.productName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Qty {it.quantity} · {formatCurrency(it.unitPrice)} each</p>
-                      </div>
-                      <p className="font-semibold text-sm shrink-0">{formatCurrency(it.unitPrice * it.quantity)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-
-          {/* Delivery tracking — vertical timeline */}
-          {delivery ? (
-            <SectionCard title="Delivery tracking" icon={Truck}>
-              <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">From</p>
-                  <p className="font-medium">{delivery.pickupLocation}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">To</p>
-                  <p className="font-medium">{delivery.deliveryLocation}</p>
-                </div>
-              </div>
-
-              {/* Vertical timeline */}
-              <ol className="relative space-y-4 pl-7">
-                <div className="absolute left-[13px] top-2 bottom-2 w-0.5 bg-border" aria-hidden />
-                {DELIVERY_STEPS.map((s, i) => {
-                  const done = i <= currentStep;
-                  return (
-                    <li key={s.key} className="relative">
-                      <span className={`absolute -left-7 top-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-card ${
-                        done ? "border-primary text-primary" : "border-border text-muted-foreground"
-                      }`}>
-                        {done ? <CheckCircle2 className="h-4 w-4" /> : <CircleDot className="h-3 w-3" />}
-                      </span>
-                      <div className={done ? "" : "opacity-60"}>
-                        <p className={`text-sm ${done ? "font-medium" : "text-muted-foreground"}`}>{s.label}</p>
-                        {i === currentStep && (
-                          <p className="text-xs text-primary mt-0.5">Current status</p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-
-              <Separator className="my-4" />
-
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Driver</p>
-                  <p className="font-medium">{delivery.logisticsProvider?.name ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Verification code</p>
-                  <p className="font-mono font-medium">{delivery.verificationCode}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Recipient</p>
-                  <p className="font-medium">{delivery.recipientName}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <StatusBadge status={delivery.status} size="sm" />
-                </div>
-                {delivery.handlingInstruction && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-muted-foreground">Handling</p>
-                    <p className="text-sm">{delivery.handlingInstruction}</p>
-                  </div>
-                )}
-              </div>
-            </SectionCard>
+      {order.status === "PENDING_PAYMENT" && (
+        <div className="flex flex-wrap gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <Button onClick={beginCheckout} disabled={busy}>
+            <CreditCard className="h-4 w-4" /> Continue to secure checkout
+          </Button>
+          <Button variant="outline" onClick={cancel} disabled={busy}>
+            Cancel order
+          </Button>
+        </div>
+      )}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <SectionCard title="Quote snapshot" icon={Receipt}>
+          <dl className="space-y-2 text-sm">
+            <Row label="Quote" value={order.quote.quoteNumber} />
+            <Row
+              label="Subtotal"
+              value={formatMinorCurrency(order.quote.subtotalMinor, order.quote.currency)}
+            />
+            <Row
+              label="Tax"
+              value={formatMinorCurrency(order.quote.taxMinor, order.quote.currency)}
+            />
+            <Row
+              label="Fees"
+              value={formatMinorCurrency(order.quote.feeMinor, order.quote.currency)}
+            />
+            <Row
+              label="Total"
+              value={formatMinorCurrency(order.quote.totalMinor, order.quote.currency)}
+            />
+          </dl>
+        </SectionCard>
+        <SectionCard title="Handoff" icon={Truck}>
+          {order.handoff === null ? (
+            <p className="text-sm text-muted-foreground">
+              The pharmacy has not prepared pickup or delivery handoff.
+            </p>
           ) : (
-            <SectionCard title="Delivery" icon={MapPin}>
-              <p className="text-sm text-muted-foreground">
-                Delivery not yet arranged. The pharmacy will assign a driver once the order is accepted.
-              </p>
-            </SectionCard>
+            <dl className="space-y-2 text-sm">
+              <Row label="Method" value={order.handoff.method} />
+              <Row label="Reference" value={order.handoff.handoffReference} />
+              <Row label="Status" value={order.handoff.status} />
+            </dl>
           )}
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-6">
-          <SectionCard title="Pharmacy" icon={Building2}>
-            <dl className="text-sm space-y-2.5">
-              <Row label="Pharmacy" value={order.pharmacy?.name ?? "—"} />
-              <Row label="Address" value={order.pharmacy ? `${order.pharmacy.address}, ${order.pharmacy.city}` : "—"} />
-              <Row label="Phone" value={order.pharmacy?.phone ?? "—"} />
-              <Row label="Status" value={<StatusBadge status={order.status} size="sm" />} />
-            </dl>
-          </SectionCard>
-
-          <SectionCard title="Payment" icon={Receipt}>
-            <dl className="text-sm space-y-2.5">
-              <Row label="Subtotal" value={formatCurrency(order.subtotal)} />
-              <Row label="Delivery fee" value={formatCurrency(order.deliveryFee)} />
-              <Separator className="my-1" />
-              <Row label="Total paid" value={<span className="font-bold text-base text-primary">{formatCurrency(order.total)}</span>} />
-              <Row label="Payment status" value={<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 capitalize">{order.paymentStatus}</Badge>} />
-              {order.verificationCode && (
-                <Row label="Order code" value={<span className="font-mono">{order.verificationCode}</span>} />
-              )}
-            </dl>
-          </SectionCard>
-
-          <SectionCard title="Delivery address" icon={MapPin}>
-            <p className="text-sm">{order.deliveryAddress ?? <span className="text-muted-foreground">Pickup at pharmacy</span>}</p>
-          </SectionCard>
-        </div>
+        </SectionCard>
       </div>
+      <SectionCard title={`Items (${order.quote.lines.length})`} icon={Package} dense>
+        <ul className="divide-y">
+          {order.quote.lines.map((line) => (
+            <li key={line.id} className="flex justify-between gap-4 p-4 text-sm">
+              <div>
+                <p className="font-medium">
+                  {line.medicationName} {line.strength ?? ""}
+                </p>
+                <p className="text-muted-foreground">
+                  {line.quantity} {line.quantityUnit}
+                </p>
+              </div>
+              <p className="font-medium">
+                {formatMinorCurrency(line.lineSubtotalMinor, order.quote.currency)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-start gap-2">
-      <dt className="text-muted-foreground shrink-0">{label}</dt>
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-medium text-right">{value}</dd>
     </div>
   );

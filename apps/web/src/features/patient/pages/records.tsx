@@ -3,13 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import {
-  appointmentService, prescriptionService, labRequestService, pharmacyOrderService,
-  referralService, carePlanService, encounterService, diagnosisService,
+  appointmentService,
+  productionPrescriptionService,
+  labRequestService,
+  referralService,
+  carePlanService,
+  encounterService,
+  diagnosisService,
 } from "@/lib/services";
 import type {
-  Appointment, ClinicalEncounter, Prescription, LaboratoryRequest, PharmacyOrder,
-  Referral, CarePlan, Diagnosis, HealthRecordItem,
+  Appointment,
+  ClinicalEncounter,
+  LaboratoryRequest,
+  Referral,
+  CarePlan,
+  Diagnosis,
+  HealthRecordItem,
 } from "@/types";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
+type Prescription = PrescriptionComponents["schemas"]["Prescription"];
+type PharmacyOrder = PrescriptionComponents["schemas"]["PharmacyOrder"];
 import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
@@ -17,15 +30,27 @@ import { Badge } from "@/components/ui/badge";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { CompactListItem, ExpandableCard, StatTile } from "@/components/healthcare/compact-list";
 import {
-  Stethoscope, Pill, FlaskConical, Package, ArrowRight, HeartPulse, AlertCircle,
-  Activity, FileText, ShieldCheck, User, Building2, CheckCircle2,
+  Stethoscope,
+  Pill,
+  FlaskConical,
+  Package,
+  ArrowRight,
+  HeartPulse,
+  AlertCircle,
+  Activity,
+  FileText,
+  ShieldCheck,
+  User,
+  Building2,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime, fullName } from "@/lib/format";
 import { createdAt } from "../lib/runtime-fields";
 import { usePatientContext } from "../use-patient-context";
 
-type TimelineKind = "consultation" | "prescription" | "laboratory" | "referral" | "order" | "diagnosis";
+type TimelineKind =
+  "consultation" | "prescription" | "laboratory" | "referral" | "order" | "diagnosis";
 interface TimelineItem {
   id: string;
   kind: TimelineKind;
@@ -79,38 +104,47 @@ export function PatientRecords() {
     setLoading(true);
     Promise.all([
       appointmentService.list({ patientId: profile.id }),
-      prescriptionService.list({ patientId: profile.id }),
+      productionPrescriptionService.patient.list(undefined, 50).then((page) => [...page.data]),
       labRequestService.list({ patientId: profile.id }),
-      pharmacyOrderService.list({ patientId: profile.id }),
+      productionPrescriptionService.patient.orders(undefined, 50).then((page) => [...page.data]),
       referralService.list({ patientId: profile.id }),
       carePlanService.list(profile.id),
       diagnosisService.list(profile.id),
-    ]).then(async ([appts, rx, labs, ords, refs, plans, dx]) => {
-      if (cancelled) return;
-      setAppointments(appts);
-      setPrescriptions(rx);
-      setLabRequests(labs);
-      setOrders(ords);
-      setReferrals(refs);
-      setCarePlans(plans);
-      setDiagnoses(dx);
-      const completed = appts.filter((a) => a.status === "completed");
-      const encs: ClinicalEncounter[] = [];
-      for (const a of completed) {
-        try {
-          const e = await encounterService.byAppointment(a.id);
-          if (e) encs.push(e);
-        } catch { /* skip */ }
-      }
-      if (!cancelled) setEncounters(encs);
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    ])
+      .then(async ([appts, rx, labs, ords, refs, plans, dx]) => {
+        if (cancelled) return;
+        setAppointments(appts);
+        setPrescriptions(rx);
+        setLabRequests(labs);
+        setOrders(ords);
+        setReferrals(refs);
+        setCarePlans(plans);
+        setDiagnoses(dx);
+        const completed = appts.filter((a) => a.status === "completed");
+        const encs: ClinicalEncounter[] = [];
+        for (const a of completed) {
+          try {
+            const e = await encounterService.byAppointment(a.id);
+            if (e) encs.push(e);
+          } catch {
+            /* skip */
+          }
+        }
+        if (!cancelled) setEncounters(encs);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [profile?.id]);
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
     encounters.forEach((e) => {
-      const subtitle = e.documentation?.diagnosis || e.documentation?.chiefComplaint || "Clinical encounter";
+      const subtitle =
+        e.documentation?.diagnosis || e.documentation?.chiefComplaint || "Clinical encounter";
       items.push({
         id: `enc-${e.id}`,
         kind: "consultation",
@@ -134,22 +168,24 @@ export function PatientRecords() {
       });
     });
     prescriptions.forEach((p) => {
-      const meds = (p.items ?? []).map((i) => i.medicine).join(", ");
+      const meds = p.items.map((i) => i.medicationName).join(", ");
       items.push({
         id: `rx-${p.id}`,
         kind: "prescription",
-        date: p.validityStartDate,
+        date: p.createdAt,
         title: `Prescription ${p.prescriptionNumber}`,
-        subtitle: `${p.items?.length ?? 0} item(s) · Issued by ${p.provider ? fullName(p.provider) : "Provider"}`,
-        status: p.status,
+        subtitle: `${p.items.length} item(s) · Issued by ${p.practitioner.displayName}`,
+        status: p.status.toLowerCase(),
         ref: p.prescriptionNumber,
         detail: meds ? (
           <div className="space-y-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Items</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Items
+            </p>
             <p className="text-xs text-foreground leading-relaxed">{meds}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
-              <span>Issued: {formatDate(p.validityStartDate)}</span>
-              <span>Expires: {formatDate(p.expiryDate)}</span>
+              <span>Issued: {formatDate(p.createdAt)}</span>
+              <span>Expires: {formatDate(p.validUntil)}</span>
             </div>
           </div>
         ) : undefined,
@@ -170,9 +206,15 @@ export function PatientRecords() {
         ref: l.requestNumber,
         detail: hasResult ? (
           <div className="space-y-2">
-            <Row label="Value" value={`${l.result!.value}${l.result!.unit ? ` ${l.result!.unit}` : ""}`} />
+            <Row
+              label="Value"
+              value={`${l.result!.value}${l.result!.unit ? ` ${l.result!.unit}` : ""}`}
+            />
             <Row label="Reference range" value={l.result!.referenceRange ?? "—"} />
-            <Row label="Indicator" value={<span className="capitalize">{l.result!.abnormalIndicator ?? "normal"}</span>} />
+            <Row
+              label="Indicator"
+              value={<span className="capitalize">{l.result!.abnormalIndicator ?? "normal"}</span>}
+            />
             <Row label="Lab" value={l.result!.laboratory?.name ?? "—"} />
           </div>
         ) : undefined,
@@ -195,10 +237,10 @@ export function PatientRecords() {
       items.push({
         id: `ord-${o.id}`,
         kind: "order",
-        date: createdAt(o) ?? o.orderNumber,
+        date: o.createdAt,
         title: `Pharmacy order ${o.orderNumber}`,
-        subtitle: `${o.pharmacy?.name ?? "Pharmacy"} · ${o.items?.length ?? 0} item(s)`,
-        status: o.status,
+        subtitle: `${o.quote.lines.length} item(s) · ${o.quote.currency} ${o.quote.totalMinor} minor units`,
+        status: o.status.toLowerCase(),
         ref: o.orderNumber,
         onClick: () => navigate("patient", "order", { id: o.id }),
       });
@@ -212,21 +254,28 @@ export function PatientRecords() {
   const activeConditions = profile.conditions.filter((c) => c.status === "active");
   const activeAllergies = profile.allergies.filter((c) => c.status === "active");
   const activeMedications = profile.medications.filter((c) => c.status === "active");
-  const activeReferrals = referrals.filter((r) => !["completed", "expired", "declined"].includes(r.status));
+  const activeReferrals = referrals.filter(
+    (r) => !["completed", "expired", "declined"].includes(r.status),
+  );
   const activeCarePlans = carePlans.filter((c) => c.status === "active");
   const recentTimeline = timeline.slice(0, 3);
-  const filteredTimeline = filter === "all"
-    ? timeline
-    : filter === "consultation"
-      ? timeline.filter((t) => t.kind === "consultation" || t.kind === "diagnosis")
-      : timeline.filter((t) => t.kind === filter);
+  const filteredTimeline =
+    filter === "all"
+      ? timeline
+      : filter === "consultation"
+        ? timeline.filter((t) => t.kind === "consultation" || t.kind === "diagnosis")
+        : timeline.filter((t) => t.kind === filter);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Health Records"
         description="A unified view of your clinical journey."
-        actions={<Button variant="outline" size="sm" onClick={() => navigate("patient", "consent")}>Manage access</Button>}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => navigate("patient", "consent")}>
+            Manage access
+          </Button>
+        }
       />
 
       <SegmentedControl<RecordsTab>
@@ -246,7 +295,10 @@ export function PatientRecords() {
           medications={activeMedications}
           referralCount={activeReferrals.length}
           recent={recentTimeline}
-          onSeeAllTimeline={() => { setTab("timeline"); setFilter("all"); }}
+          onSeeAllTimeline={() => {
+            setTab("timeline");
+            setFilter("all");
+          }}
         />
       )}
 
@@ -255,11 +307,13 @@ export function PatientRecords() {
           {/* Filter chips — horizontal scroll on mobile */}
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
             {FILTER_CHIPS.map((c) => {
-              const count = c.value === "all"
-                ? timeline.length
-                : c.value === "consultation"
-                  ? timeline.filter((t) => t.kind === "consultation" || t.kind === "diagnosis").length
-                  : timeline.filter((t) => t.kind === c.value).length;
+              const count =
+                c.value === "all"
+                  ? timeline.length
+                  : c.value === "consultation"
+                    ? timeline.filter((t) => t.kind === "consultation" || t.kind === "diagnosis")
+                        .length
+                    : timeline.filter((t) => t.kind === c.value).length;
               const active = filter === c.value;
               return (
                 <button
@@ -269,18 +323,30 @@ export function PatientRecords() {
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all tap-highlight-none",
                     active
                       ? "bg-primary text-primary-foreground shadow-soft"
-                      : "bg-card border border-border/60 text-muted-foreground hover:text-foreground"
+                      : "bg-card border border-border/60 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {c.label}
-                  <span className={cn("ml-1.5", active ? "text-primary-foreground/80" : "text-muted-foreground/70")}>{count}</span>
+                  <span
+                    className={cn(
+                      "ml-1.5",
+                      active ? "text-primary-foreground/80" : "text-muted-foreground/70",
+                    )}
+                  >
+                    {count}
+                  </span>
                 </button>
               );
             })}
           </div>
 
           {filteredTimeline.length === 0 ? (
-            <EmptyState icon={FileText} title="No records" description="Nothing in this category yet." compact />
+            <EmptyState
+              icon={FileText}
+              title="No records"
+              description="Nothing in this category yet."
+              compact
+            />
           ) : (
             <div className="space-y-2">
               {filteredTimeline.map((it) => {
@@ -290,7 +356,12 @@ export function PatientRecords() {
                   <ExpandableCard
                     key={it.id}
                     leading={
-                      <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl ring-1", tone.bg)}>
+                      <div
+                        className={cn(
+                          "flex h-9 w-9 items-center justify-center rounded-xl ring-1",
+                          tone.bg,
+                        )}
+                      >
                         <Icon className={cn("h-4 w-4", tone.text)} />
                       </div>
                     }
@@ -299,7 +370,9 @@ export function PatientRecords() {
                     trailing={
                       <div className="flex flex-col items-end gap-1">
                         <StatusBadge status={it.status} size="sm" />
-                        <span className="text-[10px] text-muted-foreground">{formatDateTime(it.date)}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDateTime(it.date)}
+                        </span>
                       </div>
                     }
                   >
@@ -307,10 +380,20 @@ export function PatientRecords() {
                       {it.detail}
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                         <span className="capitalize">{it.kind}</span>
-                        {it.ref && <><span>·</span><span>{it.ref}</span></>}
+                        {it.ref && (
+                          <>
+                            <span>·</span>
+                            <span>{it.ref}</span>
+                          </>
+                        )}
                       </div>
                       {it.onClick && (
-                        <Button size="sm" variant="outline" onClick={it.onClick} className="w-full sm:w-auto">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={it.onClick}
+                          className="w-full sm:w-auto"
+                        >
                           Open details <ArrowRight className="h-3 w-3" />
                         </Button>
                       )}
@@ -323,15 +406,18 @@ export function PatientRecords() {
         </div>
       )}
 
-      {tab === "care-plan" && (
-        <CarePlanTab plans={activeCarePlans} />
-      )}
+      {tab === "care-plan" && <CarePlanTab plans={activeCarePlans} />}
     </div>
   );
 }
 
 function SummaryTab({
-  conditions, allergies, medications, referralCount, recent, onSeeAllTimeline,
+  conditions,
+  allergies,
+  medications,
+  referralCount,
+  recent,
+  onSeeAllTimeline,
 }: {
   conditions: HealthRecordItem[];
   allergies: HealthRecordItem[];
@@ -344,10 +430,34 @@ function SummaryTab({
     <div className="space-y-4">
       {/* 4 StatTiles */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatTile label="Conditions" value={conditions.length} icon={Activity} tone="warning" onClick={onSeeAllTimeline} />
-        <StatTile label="Allergies" value={allergies.length} icon={AlertCircle} tone="danger" onClick={onSeeAllTimeline} />
-        <StatTile label="Medicines" value={medications.length} icon={Pill} tone="info" onClick={onSeeAllTimeline} />
-        <StatTile label="Referrals" value={referralCount} icon={ArrowRight} tone="violet" onClick={onSeeAllTimeline} />
+        <StatTile
+          label="Conditions"
+          value={conditions.length}
+          icon={Activity}
+          tone="warning"
+          onClick={onSeeAllTimeline}
+        />
+        <StatTile
+          label="Allergies"
+          value={allergies.length}
+          icon={AlertCircle}
+          tone="danger"
+          onClick={onSeeAllTimeline}
+        />
+        <StatTile
+          label="Medicines"
+          value={medications.length}
+          icon={Pill}
+          tone="info"
+          onClick={onSeeAllTimeline}
+        />
+        <StatTile
+          label="Referrals"
+          value={referralCount}
+          icon={ArrowRight}
+          tone="violet"
+          onClick={onSeeAllTimeline}
+        />
       </div>
 
       {/* Inline lists */}
@@ -360,13 +470,20 @@ function SummaryTab({
       {/* Recent activity */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent activity</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent activity
+          </p>
           <button onClick={onSeeAllTimeline} className="text-xs font-medium text-primary">
             See all
           </button>
         </div>
         {recent.length === 0 ? (
-          <EmptyState icon={FileText} title="No recent activity" description="Your clinical timeline will grow as you consult with providers." compact />
+          <EmptyState
+            icon={FileText}
+            title="No recent activity"
+            description="Your clinical timeline will grow as you consult with providers."
+            compact
+          />
         ) : (
           <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
             {recent.map((it) => {
@@ -376,7 +493,12 @@ function SummaryTab({
                 <CompactListItem
                   key={it.id}
                   leading={
-                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg ring-1", tone.bg)}>
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-lg ring-1",
+                        tone.bg,
+                      )}
+                    >
                       <Icon className={cn("h-3.5 w-3.5", tone.text)} />
                     </div>
                   }
@@ -394,13 +516,19 @@ function SummaryTab({
   );
 }
 
-function HealthMiniList({ label, tone, icon: Icon, items }: {
+function HealthMiniList({
+  label,
+  tone,
+  icon: Icon,
+  items,
+}: {
   label: string;
   tone: "amber" | "rose" | "sky";
   icon: React.ComponentType<{ className?: string }>;
   items: HealthRecordItem[];
 }) {
-  const dotColor = tone === "amber" ? "bg-amber-500" : tone === "rose" ? "bg-rose-500" : "bg-sky-500";
+  const dotColor =
+    tone === "amber" ? "bg-amber-500" : tone === "rose" ? "bg-rose-500" : "bg-sky-500";
   return (
     <div className="rounded-xl border border-border/60 bg-card p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -431,7 +559,10 @@ function HealthMiniList({ label, tone, icon: Icon, items }: {
 function ProvenanceBadge({ source }: { source: HealthRecordItem["source"] }) {
   if (source === "provider-confirmed") {
     return (
-      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] gap-0.5 h-4 px-1">
+      <Badge
+        variant="outline"
+        className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] gap-0.5 h-4 px-1"
+      >
         <ShieldCheck className="h-2.5 w-2.5" /> Confirmed
       </Badge>
     );
@@ -470,7 +601,11 @@ function CarePlanTab({ plans }: { plans: CarePlan[] }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-sm">{plan.title}</p>
-              {plan.description && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{plan.description}</p>}
+              {plan.description && (
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  {plan.description}
+                </p>
+              )}
               <p className="text-[11px] text-muted-foreground mt-1">
                 {formatDate(plan.startDate)} → {plan.endDate ? formatDate(plan.endDate) : "Ongoing"}
               </p>
@@ -479,7 +614,9 @@ function CarePlanTab({ plans }: { plans: CarePlan[] }) {
           </div>
           {plan.goals.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Goals</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                Goals
+              </p>
               <div className="flex flex-wrap gap-2">
                 {plan.goals.map((g, i) => (
                   <span
@@ -508,9 +645,15 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function iconFor(k: TimelineKind) {
-  return k === "consultation" ? Stethoscope :
-    k === "prescription" ? Pill :
-    k === "laboratory" ? FlaskConical :
-    k === "referral" ? ArrowRight :
-    k === "order" ? Package : Activity;
+  return k === "consultation"
+    ? Stethoscope
+    : k === "prescription"
+      ? Pill
+      : k === "laboratory"
+        ? FlaskConical
+        : k === "referral"
+          ? ArrowRight
+          : k === "order"
+            ? Package
+            : Activity;
 }

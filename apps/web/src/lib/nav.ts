@@ -72,11 +72,29 @@ function authorizedView(session: Session | null, requested: ViewState): ViewStat
 }
 
 function toLegacySession(session: CurrentSession): Session | null {
-  const role = selectPortalRole(session.roles);
-  return role === null ? null : { role, userId: session.principalId };
+  const role = selectPortalRole(session.roles, session.memberships);
+  return role === null
+    ? null
+    : {
+        memberships: session.memberships.map(({ organizationId, organizationType }) => ({
+          organizationId,
+          organizationType,
+        })),
+        profileId:
+          role === "patient" || role === "doctor"
+            ? session.principalId
+            : session.memberships.find(
+                (membership) => organizationPortalRole(membership.organizationType) === role,
+              )?.organizationId,
+        role,
+        userId: session.principalId,
+      };
 }
 
-function selectPortalRole(roles: readonly PlatformRole[]): UserRole | null {
+function selectPortalRole(
+  roles: readonly PlatformRole[],
+  memberships: CurrentSession["memberships"],
+): UserRole | null {
   const precedence: readonly [PlatformRole, UserRole][] = [
     ["ADMINISTRATOR", "admin"],
     ["SUPPORT", "support"],
@@ -87,7 +105,19 @@ function selectPortalRole(roles: readonly PlatformRole[]): UserRole | null {
     ["PATIENT", "patient"],
     ["ORGANIZATION_APPLICANT", "patient"],
   ];
-  return precedence.find(([role]) => roles.includes(role))?.[1] ?? null;
+  return (
+    precedence.find(([role]) => roles.includes(role))?.[1] ??
+    memberships
+      .filter((membership) => membership.roles.includes("ORGANIZATION_STAFF"))
+      .map((membership) => organizationPortalRole(membership.organizationType))[0] ??
+    null
+  );
+}
+
+function organizationPortalRole(
+  type: CurrentSession["memberships"][number]["organizationType"],
+): UserRole {
+  return type === "PHARMACY" ? "pharmacy" : type === "LABORATORY" ? "laboratory" : "hospital";
 }
 
 export const useNav = create<NavState>((set, get) => ({

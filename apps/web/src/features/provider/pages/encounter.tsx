@@ -6,23 +6,20 @@ import {
   encounterService,
   patientService,
   appointmentService,
-  prescriptionService,
+  productionPrescriptionService,
   labRequestService,
 } from "@/lib/services";
-import {
-  normalizeEncounter,
-  normalizePatient,
-  normalizeLabRequest,
-} from "../normalize";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
+import { normalizeEncounter, normalizePatient, normalizeLabRequest } from "../normalize";
 import type {
   ClinicalEncounter,
   Patient,
   Appointment,
-  Prescription,
   LaboratoryRequest,
   EncounterDocumentation,
   FileMeta,
 } from "@/types";
+type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,10 +40,26 @@ import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  User, AlertCircle, Activity, Pill, FlaskConical,
-  CalendarClock, Stethoscope, Save, Lock, CheckCircle2, Send, Share2,
-  FlaskConical as LabIcon, FileText, Plus, ShieldCheck,
-  ClipboardList, Stethoscope as StethoscopeIcon, HeartPulse, ListChecks,
+  User,
+  AlertCircle,
+  Activity,
+  Pill,
+  FlaskConical,
+  CalendarClock,
+  Stethoscope,
+  Save,
+  Lock,
+  CheckCircle2,
+  Send,
+  Share2,
+  FlaskConical as LabIcon,
+  FileText,
+  Plus,
+  ShieldCheck,
+  ClipboardList,
+  Stethoscope as StethoscopeIcon,
+  HeartPulse,
+  ListChecks,
 } from "lucide-react";
 import { PrescriptionDialog } from "../prescription-dialog";
 import { LabRequestDialog } from "../lab-request-dialog";
@@ -77,8 +90,22 @@ type DocWithCode = EncounterDocumentation & { diagnosisCode?: string };
 
 type MobileTab = "patient" | "notes" | "actions";
 
-function SoapField({ label, value, onChange, disabled, placeholder, required, error }: {
-  label: string; value: string | undefined; onChange: (v: string) => void; disabled: boolean; placeholder?: string; required?: boolean; error?: boolean;
+function SoapField({
+  label,
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  required,
+  error,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (v: string) => void;
+  disabled: boolean;
+  placeholder?: string;
+  required?: boolean;
+  error?: boolean;
 }) {
   return (
     <div>
@@ -108,13 +135,23 @@ function AutosaveChip({ state }: { state: "idle" | "saving" | "saved" }) {
         state === "saving"
           ? "border-amber-200 bg-amber-50 text-amber-700"
           : state === "saved"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : ""
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : ""
       }`}
     >
-      {state === "saving" ? (<><Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…</>) :
-       state === "saved" ? (<><CheckCircle2 className="h-3 w-3 mr-1" /> Saved</>) :
-       (<><Save className="h-3 w-3 mr-1" /> Autosave on</>)}
+      {state === "saving" ? (
+        <>
+          <Save className="h-3 w-3 mr-1 animate-pulse" /> Saving…
+        </>
+      ) : state === "saved" ? (
+        <>
+          <CheckCircle2 className="h-3 w-3 mr-1" /> Saved
+        </>
+      ) : (
+        <>
+          <Save className="h-3 w-3 mr-1" /> Autosave on
+        </>
+      )}
     </Badge>
   );
 }
@@ -155,7 +192,12 @@ export function ProviderEncounter() {
       setEncounter(norm);
       const initialDoc = norm.documentation;
       setDoc(initialDoc);
-      setDiagnosisCode(initialDoc.diagnosis ? (initialDoc as EncounterDocumentation & { diagnosisCode?: string }).diagnosisCode ?? "" : "");
+      setDiagnosisCode(
+        initialDoc.diagnosis
+          ? ((initialDoc as EncounterDocumentation & { diagnosisCode?: string }).diagnosisCode ??
+              "")
+          : "",
+      );
       setAttachments(initialDoc.attachments ?? []);
       lastSavedRef.current = JSON.stringify(initialDoc);
 
@@ -163,7 +205,9 @@ export function ProviderEncounter() {
         const [p, appts, rxs, labs] = await Promise.all([
           patientService.get(norm.patientId),
           appointmentService.list({ patientId: norm.patientId }),
-          prescriptionService.list({ patientId: norm.patientId }),
+          productionPrescriptionService.provider
+            .list(norm.patientId, undefined, 50)
+            .then((page) => [...page.data]),
           labRequestService.list({ patientId: norm.patientId }),
         ]);
         setPatient(normalizePatient(p));
@@ -206,7 +250,10 @@ export function ProviderEncounter() {
     };
   }, [doc, diagnosisCode, attachments, encounter]);
 
-  function update<K extends keyof EncounterDocumentation>(key: K, value: EncounterDocumentation[K]) {
+  function update<K extends keyof EncounterDocumentation>(
+    key: K,
+    value: EncounterDocumentation[K],
+  ) {
     setDoc((prev) => ({ ...prev, [key]: value }));
   }
   function updateVital(key: string, value: string) {
@@ -217,7 +264,13 @@ export function ProviderEncounter() {
     const name = names[Math.floor(Math.random() * names.length)];
     setAttachments((prev) => [
       ...prev,
-      { id: `ATT-${Date.now().toString(36)}`, name, type: name.endsWith(".pdf") ? "application/pdf" : "image/jpeg", size: 100_000 + Math.floor(Math.random() * 200_000), uploadedAt: new Date().toISOString() },
+      {
+        id: `ATT-${Date.now().toString(36)}`,
+        name,
+        type: name.endsWith(".pdf") ? "application/pdf" : "image/jpeg",
+        size: 100_000 + Math.floor(Math.random() * 200_000),
+        uploadedAt: new Date().toISOString(),
+      },
     ]);
   }
   function removeAttachment(idx: number) {
@@ -226,9 +279,9 @@ export function ProviderEncounter() {
 
   async function complete() {
     if (!encounter) return;
-    const missing = REQUIRED_FIELDS
-      .filter((f) => !doc[f.key] || String(doc[f.key]).trim() === "")
-      .map((f) => f.key as string);
+    const missing = REQUIRED_FIELDS.filter(
+      (f) => !doc[f.key] || String(doc[f.key]).trim() === "",
+    ).map((f) => f.key as string);
     if (missing.length > 0) {
       setMissingFields(missing);
       toast.error(`Cannot complete: ${missing.length} required field(s) missing.`);
@@ -252,15 +305,15 @@ export function ProviderEncounter() {
   const locked = !!encounter?.locked;
   const recentEncounters = useMemo(
     () => history.filter((a) => a.encounter && a.encounter.id !== id).slice(0, 5),
-    [history, id]
+    [history, id],
   );
-  const recentLabs = useMemo(
-    () => labRequests.filter((l) => l.result).slice(0, 5),
-    [labRequests]
-  );
+  const recentLabs = useMemo(() => labRequests.filter((l) => l.result).slice(0, 5), [labRequests]);
   const activeRx = useMemo(
-    () => prescriptions.filter((p) => ["issued", "awaiting_pharmacy", "partially_fulfilled"].includes(p.status)).slice(0, 5),
-    [prescriptions]
+    () =>
+      prescriptions
+        .filter((p) => ["SIGNED", "SENT", "ACCEPTED", "PARTIALLY_DISPENSED"].includes(p.status))
+        .slice(0, 5),
+    [prescriptions],
   );
 
   const isMissing = (key: keyof EncounterDocumentation) => missingFields.includes(key as string);
@@ -320,9 +373,15 @@ export function ProviderEncounter() {
       {locked && (
         <Alert className="mb-5 border-emerald-200 bg-emerald-50">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          <AlertTitle className="text-emerald-800">Signed Clinical Record — This consultation is locked.</AlertTitle>
+          <AlertTitle className="text-emerald-800">
+            Signed Clinical Record — This consultation is locked.
+          </AlertTitle>
           <AlertDescription className="text-emerald-700">
-            Signed on {encounter.signedAt ? formatDate(encounter.signedAt) : "—"} by {encounter.provider ? `${encounter.provider.title} ${encounter.provider.lastName}` : "the consulting provider"}. The documentation below is read-only.
+            Signed on {encounter.signedAt ? formatDate(encounter.signedAt) : "—"} by{" "}
+            {encounter.provider
+              ? `${encounter.provider.title} ${encounter.provider.lastName}`
+              : "the consulting provider"}
+            . The documentation below is read-only.
           </AlertDescription>
         </Alert>
       )}
@@ -383,9 +442,7 @@ export function ProviderEncounter() {
           />
         )}
 
-        {mobileTab === "notes" && (
-          <NotesPanel {...sharedPanelProps} />
-        )}
+        {mobileTab === "notes" && <NotesPanel {...sharedPanelProps} />}
 
         {mobileTab === "actions" && (
           <ActionsPanel
@@ -409,7 +466,9 @@ export function ProviderEncounter() {
             <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
             <div className="text-xs flex-1 min-w-0">
               <p className="font-semibold text-emerald-800">Signed clinical record</p>
-              <p className="text-emerald-700 text-[10px] truncate">Read-only — consultation locked</p>
+              <p className="text-emerald-700 text-[10px] truncate">
+                Read-only — consultation locked
+              </p>
             </div>
           </div>
         ) : (
@@ -417,9 +476,13 @@ export function ProviderEncounter() {
             <div className="flex-1 min-w-0 text-xs">
               <p className="font-semibold leading-tight">Complete consultation</p>
               {missingFields.length > 0 ? (
-                <p className="text-rose-600 text-[10px] truncate">{missingFields.length} required field(s) missing</p>
+                <p className="text-rose-600 text-[10px] truncate">
+                  {missingFields.length} required field(s) missing
+                </p>
               ) : (
-                <p className="text-muted-foreground text-[10px] truncate">Validates & signs the record</p>
+                <p className="text-muted-foreground text-[10px] truncate">
+                  Validates & signs the record
+                </p>
               )}
             </div>
             <Button size="sm" disabled={completing} onClick={complete} className="shrink-0">
@@ -435,7 +498,7 @@ export function ProviderEncounter() {
         open={rxOpen}
         onOpenChange={setRxOpen}
         patient={patient}
-        encounterId={encounter.id}
+        appointmentId={encounter.appointmentId}
         providerId={providerId}
         onIssued={() => {
           setRxOpen(false);
@@ -451,7 +514,9 @@ export function ProviderEncounter() {
         providerId={providerId}
         onCreated={() => {
           setLabOpen(false);
-          toast.success("Laboratory request created.", { description: "The patient can now book a lab appointment." });
+          toast.success("Laboratory request created.", {
+            description: "The patient can now book a lab appointment.",
+          });
           load();
         }}
       />
@@ -464,7 +529,9 @@ export function ProviderEncounter() {
         prefillDiagnosis={doc.diagnosis}
         onCreated={() => {
           setRefOpen(false);
-          toast.success("Referral sent.", { description: "Record access grant created for the recipient." });
+          toast.success("Referral sent.", {
+            description: "Record access grant created for the recipient.",
+          });
           load();
         }}
       />
@@ -486,7 +553,10 @@ interface NotesPanelProps {
   recentLabs: LaboratoryRequest[];
   activeRx: Prescription[];
   doc: EncounterDocumentation;
-  update: <K extends keyof EncounterDocumentation>(key: K, value: EncounterDocumentation[K]) => void;
+  update: <K extends keyof EncounterDocumentation>(
+    key: K,
+    value: EncounterDocumentation[K],
+  ) => void;
   updateVital: (key: string, value: string) => void;
   diagnosisCode: string;
   setDiagnosisCode: (v: string) => void;
@@ -507,9 +577,18 @@ interface NotesPanelProps {
 
 function NotesPanel(props: NotesPanelProps) {
   const {
-    doc, update, updateVital, diagnosisCode, setDiagnosisCode,
-    locked, saving, missingFields, isMissing,
-    attachments, addMockAttachment, removeAttachment,
+    doc,
+    update,
+    updateVital,
+    diagnosisCode,
+    setDiagnosisCode,
+    locked,
+    saving,
+    missingFields,
+    isMissing,
+    attachments,
+    addMockAttachment,
+    removeAttachment,
   } = props;
 
   // Render the inner SOAP content once.
@@ -532,15 +611,71 @@ function NotesPanel(props: NotesPanelProps) {
 
       {/* Subjective */}
       <div className="space-y-3">
-        <SoapField label="Consultation Reason" required error={isMissing("consultationReason")} value={doc.consultationReason} onChange={(v) => update("consultationReason", v)} disabled={locked} placeholder="Why the patient is being seen today." />
-        <SoapField label="Chief Complaint" value={doc.chiefComplaint} onChange={(v) => update("chiefComplaint", v)} disabled={locked} placeholder="In the patient's own words." />
-        <SoapField label="History of Present Illness" value={doc.historyPresentIllness} onChange={(v) => update("historyPresentIllness", v)} disabled={locked} placeholder="Onset, course, severity, modifying factors." />
-        <SoapField label="Relevant Medical History" required error={isMissing("relevantMedicalHistory")} value={doc.relevantMedicalHistory} onChange={(v) => update("relevantMedicalHistory", v)} disabled={locked} placeholder="Past conditions, hospitalisations, surgeries." />
-        <SoapField label="Medication History" required error={isMissing("medicationHistory")} value={doc.medicationHistory} onChange={(v) => update("medicationHistory", v)} disabled={locked} placeholder="Current and recent medications, adherence." />
-        <SoapField label="Allergy Confirmation" required error={isMissing("allergyConfirmation")} value={doc.allergyConfirmation} onChange={(v) => update("allergyConfirmation", v)} disabled={locked} placeholder="Confirm allergies reviewed with patient (or 'No known allergies')." />
+        <SoapField
+          label="Consultation Reason"
+          required
+          error={isMissing("consultationReason")}
+          value={doc.consultationReason}
+          onChange={(v) => update("consultationReason", v)}
+          disabled={locked}
+          placeholder="Why the patient is being seen today."
+        />
+        <SoapField
+          label="Chief Complaint"
+          value={doc.chiefComplaint}
+          onChange={(v) => update("chiefComplaint", v)}
+          disabled={locked}
+          placeholder="In the patient's own words."
+        />
+        <SoapField
+          label="History of Present Illness"
+          value={doc.historyPresentIllness}
+          onChange={(v) => update("historyPresentIllness", v)}
+          disabled={locked}
+          placeholder="Onset, course, severity, modifying factors."
+        />
+        <SoapField
+          label="Relevant Medical History"
+          required
+          error={isMissing("relevantMedicalHistory")}
+          value={doc.relevantMedicalHistory}
+          onChange={(v) => update("relevantMedicalHistory", v)}
+          disabled={locked}
+          placeholder="Past conditions, hospitalisations, surgeries."
+        />
+        <SoapField
+          label="Medication History"
+          required
+          error={isMissing("medicationHistory")}
+          value={doc.medicationHistory}
+          onChange={(v) => update("medicationHistory", v)}
+          disabled={locked}
+          placeholder="Current and recent medications, adherence."
+        />
+        <SoapField
+          label="Allergy Confirmation"
+          required
+          error={isMissing("allergyConfirmation")}
+          value={doc.allergyConfirmation}
+          onChange={(v) => update("allergyConfirmation", v)}
+          disabled={locked}
+          placeholder="Confirm allergies reviewed with patient (or 'No known allergies')."
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <SoapField label="Family History" value={doc.familyHistory} onChange={(v) => update("familyHistory", v)} disabled={locked} placeholder="Hereditary conditions." />
-          <SoapField label="Social History" value={doc.socialHistory} onChange={(v) => update("socialHistory", v)} disabled={locked} placeholder="Occupation, smoking, alcohol, lifestyle." />
+          <SoapField
+            label="Family History"
+            value={doc.familyHistory}
+            onChange={(v) => update("familyHistory", v)}
+            disabled={locked}
+            placeholder="Hereditary conditions."
+          />
+          <SoapField
+            label="Social History"
+            value={doc.socialHistory}
+            onChange={(v) => update("socialHistory", v)}
+            disabled={locked}
+            placeholder="Occupation, smoking, alcohol, lifestyle."
+          />
         </div>
       </div>
     </>
@@ -553,7 +688,9 @@ function NotesPanel(props: NotesPanelProps) {
         <div className="grid gap-3 sm:grid-cols-3 mt-1.5">
           {VITAL_KEYS.map((v) => (
             <div key={v.key}>
-              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">{v.label}</Label>
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {v.label}
+              </Label>
               <Input
                 value={(doc.vitalSigns ?? {})[v.key] ?? ""}
                 onChange={(e) => updateVital(v.key, e.target.value)}
@@ -564,13 +701,27 @@ function NotesPanel(props: NotesPanelProps) {
           ))}
         </div>
       </div>
-      <SoapField label="Examination Findings" value={doc.examinationFindings} onChange={(v) => update("examinationFindings", v)} disabled={locked} placeholder="System-by-system examination." />
+      <SoapField
+        label="Examination Findings"
+        value={doc.examinationFindings}
+        onChange={(v) => update("examinationFindings", v)}
+        disabled={locked}
+        placeholder="System-by-system examination."
+      />
     </div>
   );
 
   const assessmentContent = (
     <div className="space-y-3">
-      <SoapField label="Assessment" required error={isMissing("assessment")} value={doc.assessment} onChange={(v) => update("assessment", v)} disabled={locked} placeholder="Clinical impression and reasoning." />
+      <SoapField
+        label="Assessment"
+        required
+        error={isMissing("assessment")}
+        value={doc.assessment}
+        onChange={(v) => update("assessment", v)}
+        disabled={locked}
+        placeholder="Clinical impression and reasoning."
+      />
       <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
         <div>
           <Label className="text-xs font-medium text-muted-foreground">
@@ -584,28 +735,70 @@ function NotesPanel(props: NotesPanelProps) {
             aria-invalid={isMissing("diagnosis") || undefined}
             className={`mt-1 ${isMissing("diagnosis") ? "ring-2 ring-rose-400/60 border-rose-300" : ""}`}
           />
-          {isMissing("diagnosis") && <p className="mt-1 text-[11px] text-rose-600">This field is required.</p>}
+          {isMissing("diagnosis") && (
+            <p className="mt-1 text-[11px] text-rose-600">This field is required.</p>
+          )}
         </div>
         <div>
           <Label className="text-xs font-medium text-muted-foreground">Provisional code</Label>
-          <Input value={diagnosisCode} onChange={(e) => setDiagnosisCode(e.target.value)} disabled={locked} placeholder="e.g. I10 (ICD-10)" className="mt-1" />
+          <Input
+            value={diagnosisCode}
+            onChange={(e) => setDiagnosisCode(e.target.value)}
+            disabled={locked}
+            placeholder="e.g. I10 (ICD-10)"
+            className="mt-1"
+          />
         </div>
       </div>
-      <SoapField label="Differential Diagnosis" value={doc.differentialDiagnosis} onChange={(v) => update("differentialDiagnosis", v)} disabled={locked} placeholder="Alternative diagnoses considered." />
+      <SoapField
+        label="Differential Diagnosis"
+        value={doc.differentialDiagnosis}
+        onChange={(v) => update("differentialDiagnosis", v)}
+        disabled={locked}
+        placeholder="Alternative diagnoses considered."
+      />
     </div>
   );
 
   const planContent = (
     <div className="space-y-3">
-      <SoapField label="Treatment Plan" required error={isMissing("treatmentPlan")} value={doc.treatmentPlan} onChange={(v) => update("treatmentPlan", v)} disabled={locked} placeholder="Investigations, medications, interventions." />
-      <SoapField label="Patient Instructions" value={doc.patientInstructions} onChange={(v) => update("patientInstructions", v)} disabled={locked} placeholder="Lifestyle, dosing, expected course." />
-      <SoapField label="Safety-Netting" value={doc.safetyNetting} onChange={(v) => update("safetyNetting", v)} disabled={locked} placeholder="Red flags — when to return urgently." />
+      <SoapField
+        label="Treatment Plan"
+        required
+        error={isMissing("treatmentPlan")}
+        value={doc.treatmentPlan}
+        onChange={(v) => update("treatmentPlan", v)}
+        disabled={locked}
+        placeholder="Investigations, medications, interventions."
+      />
+      <SoapField
+        label="Patient Instructions"
+        value={doc.patientInstructions}
+        onChange={(v) => update("patientInstructions", v)}
+        disabled={locked}
+        placeholder="Lifestyle, dosing, expected course."
+      />
+      <SoapField
+        label="Safety-Netting"
+        value={doc.safetyNetting}
+        onChange={(v) => update("safetyNetting", v)}
+        disabled={locked}
+        placeholder="Red flags — when to return urgently."
+      />
     </div>
   );
 
   const followUpContent = (
     <div className="space-y-3">
-      <SoapField label="Follow-Up" required error={isMissing("followUp")} value={doc.followUp} onChange={(v) => update("followUp", v)} disabled={locked} placeholder="When to review, what to monitor." />
+      <SoapField
+        label="Follow-Up"
+        required
+        error={isMissing("followUp")}
+        value={doc.followUp}
+        onChange={(v) => update("followUp", v)}
+        disabled={locked}
+        placeholder="When to review, what to monitor."
+      />
       <div>
         <Label className="text-xs font-medium text-muted-foreground">Attachments</Label>
         <div className="mt-2 space-y-2">
@@ -613,13 +806,25 @@ function NotesPanel(props: NotesPanelProps) {
             <p className="text-xs text-muted-foreground">No attachments.</p>
           ) : (
             attachments.map((f, i) => (
-              <div key={f.id} className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/20 p-2.5">
+              <div
+                key={f.id}
+                className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/20 p-2.5"
+              >
                 <div className="text-xs min-w-0">
                   <span className="font-medium">{f.name}</span>
-                  <span className="text-muted-foreground ml-2">{Math.round(f.size / 1024)} KB · {relativeDay(f.uploadedAt)}</span>
+                  <span className="text-muted-foreground ml-2">
+                    {Math.round(f.size / 1024)} KB · {relativeDay(f.uploadedAt)}
+                  </span>
                 </div>
                 {!locked && (
-                  <Button size="sm" variant="ghost" className="h-7 text-rose-600 hover:text-rose-700" onClick={() => removeAttachment(i)}>Remove</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-rose-600 hover:text-rose-700"
+                    onClick={() => removeAttachment(i)}
+                  >
+                    Remove
+                  </Button>
                 )}
               </div>
             ))
@@ -674,7 +879,9 @@ function NotesPanel(props: NotesPanelProps) {
         {missingFields.length > 0 && (
           <Alert className="border-rose-200 bg-rose-50">
             <AlertCircle className="h-4 w-4 text-rose-600" />
-            <AlertTitle className="text-rose-800">{missingFields.length} required field(s) missing</AlertTitle>
+            <AlertTitle className="text-rose-800">
+              {missingFields.length} required field(s) missing
+            </AlertTitle>
             <AlertDescription className="text-rose-700">
               <ul className="list-disc ml-4 text-xs space-y-0.5">
                 {missingFields.map((m) => {
@@ -689,8 +896,28 @@ function NotesPanel(props: NotesPanelProps) {
         <ExpandableCard
           title="Subjective"
           subtitle="Reason · HPI · history · allergies"
-          leading={<div className="rounded-lg bg-sky-50 p-2"><ClipboardList className="h-4 w-4 text-sky-600" /></div>}
-          trailing={missingFields.some((m) => ["consultationReason", "relevantMedicalHistory", "medicationHistory", "allergyConfirmation"].includes(m)) ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]">!</Badge> : undefined}
+          leading={
+            <div className="rounded-lg bg-sky-50 p-2">
+              <ClipboardList className="h-4 w-4 text-sky-600" />
+            </div>
+          }
+          trailing={
+            missingFields.some((m) =>
+              [
+                "consultationReason",
+                "relevantMedicalHistory",
+                "medicationHistory",
+                "allergyConfirmation",
+              ].includes(m),
+            ) ? (
+              <Badge
+                variant="outline"
+                className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]"
+              >
+                !
+              </Badge>
+            ) : undefined
+          }
           defaultOpen
         >
           <div className="space-y-3">{soapContent}</div>
@@ -699,7 +926,11 @@ function NotesPanel(props: NotesPanelProps) {
         <ExpandableCard
           title="Objective"
           subtitle="Vitals · examination"
-          leading={<div className="rounded-lg bg-emerald-50 p-2"><HeartPulse className="h-4 w-4 text-emerald-600" /></div>}
+          leading={
+            <div className="rounded-lg bg-emerald-50 p-2">
+              <HeartPulse className="h-4 w-4 text-emerald-600" />
+            </div>
+          }
         >
           {objectiveContent}
         </ExpandableCard>
@@ -707,8 +938,21 @@ function NotesPanel(props: NotesPanelProps) {
         <ExpandableCard
           title="Assessment"
           subtitle="Impression · diagnosis"
-          leading={<div className="rounded-lg bg-violet-50 p-2"><StethoscopeIcon className="h-4 w-4 text-violet-600" /></div>}
-          trailing={missingFields.includes("diagnosis") || missingFields.includes("assessment") ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]">!</Badge> : undefined}
+          leading={
+            <div className="rounded-lg bg-violet-50 p-2">
+              <StethoscopeIcon className="h-4 w-4 text-violet-600" />
+            </div>
+          }
+          trailing={
+            missingFields.includes("diagnosis") || missingFields.includes("assessment") ? (
+              <Badge
+                variant="outline"
+                className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]"
+              >
+                !
+              </Badge>
+            ) : undefined
+          }
         >
           {assessmentContent}
         </ExpandableCard>
@@ -716,8 +960,21 @@ function NotesPanel(props: NotesPanelProps) {
         <ExpandableCard
           title="Plan"
           subtitle="Treatment · instructions · safety-netting"
-          leading={<div className="rounded-lg bg-amber-50 p-2"><ListChecks className="h-4 w-4 text-amber-600" /></div>}
-          trailing={missingFields.includes("treatmentPlan") ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]">!</Badge> : undefined}
+          leading={
+            <div className="rounded-lg bg-amber-50 p-2">
+              <ListChecks className="h-4 w-4 text-amber-600" />
+            </div>
+          }
+          trailing={
+            missingFields.includes("treatmentPlan") ? (
+              <Badge
+                variant="outline"
+                className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]"
+              >
+                !
+              </Badge>
+            ) : undefined
+          }
         >
           {planContent}
         </ExpandableCard>
@@ -725,8 +982,21 @@ function NotesPanel(props: NotesPanelProps) {
         <ExpandableCard
           title="Follow-up & Attachments"
           subtitle="Review plan · files"
-          leading={<div className="rounded-lg bg-primary/10 p-2"><CalendarClock className="h-4 w-4 text-primary" /></div>}
-          trailing={missingFields.includes("followUp") ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]">!</Badge> : undefined}
+          leading={
+            <div className="rounded-lg bg-primary/10 p-2">
+              <CalendarClock className="h-4 w-4 text-primary" />
+            </div>
+          }
+          trailing={
+            missingFields.includes("followUp") ? (
+              <Badge
+                variant="outline"
+                className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]"
+              >
+                !
+              </Badge>
+            ) : undefined
+          }
         >
           {followUpContent}
         </ExpandableCard>
@@ -762,48 +1032,102 @@ const ACTION_TONES = {
   complete: "bg-primary text-primary-foreground",
 };
 
-function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setLabOpen, setRefOpen, doc, variant }: ActionsPanelProps) {
+function ActionsPanel({
+  encounter,
+  locked,
+  completing,
+  complete,
+  setRxOpen,
+  setLabOpen,
+  setRefOpen,
+  doc,
+  variant,
+}: ActionsPanelProps) {
   // Desktop sidebar variant — preserved verbatim from the original layout
   if (variant === "sidebar") {
     return (
       <SectionCard title="Clinical actions" icon={Stethoscope}>
         <div className="space-y-2">
-          <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setRxOpen(true)}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            disabled={locked}
+            onClick={() => setRxOpen(true)}
+          >
             <Pill className="h-4 w-4 mr-2" /> Create prescription
           </Button>
-          <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setLabOpen(true)}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            disabled={locked}
+            onClick={() => setLabOpen(true)}
+          >
             <LabIcon className="h-4 w-4 mr-2" /> Order laboratory test
           </Button>
-          <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => setRefOpen(true)}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            disabled={locked}
+            onClick={() => setRefOpen(true)}
+          >
             <Share2 className="h-4 w-4 mr-2" /> Create referral
           </Button>
-          <Button variant="outline" className="w-full justify-start" disabled={locked} onClick={() => toast.success("Follow-up booked", { description: "A follow-up appointment slot has been reserved. The patient will be notified." })}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            disabled={locked}
+            onClick={() =>
+              toast.success("Follow-up booked", {
+                description:
+                  "A follow-up appointment slot has been reserved. The patient will be notified.",
+              })
+            }
+          >
             <CalendarClock className="h-4 w-4 mr-2" /> Book follow-up
           </Button>
-          <Button variant="outline" className="w-full justify-start" disabled={locked || !doc.patientInstructions} onClick={() => toast.success("Patient instructions sent", { description: "Instructions have been delivered to the patient's inbox." })}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            disabled={locked || !doc.patientInstructions}
+            onClick={() =>
+              toast.success("Patient instructions sent", {
+                description: "Instructions have been delivered to the patient's inbox.",
+              })
+            }
+          >
             <Send className="h-4 w-4 mr-2" /> Send patient instructions
           </Button>
 
           <Separator className="my-3" />
 
           <div className="rounded-xl border border-border/80 bg-muted/20 p-3">
-            <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Linked records</p>
+            <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
+              Linked records
+            </p>
             <div className="space-y-1.5 text-xs">
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Prescriptions</span>
-                <Badge variant="secondary" className="h-5 text-[10px]">{encounter.prescriptions?.length ?? 0}</Badge>
+                <Badge variant="secondary" className="h-5 text-[10px]">
+                  {encounter.prescriptions?.length ?? 0}
+                </Badge>
               </p>
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Lab requests</span>
-                <Badge variant="secondary" className="h-5 text-[10px]">{encounter.labRequests?.length ?? 0}</Badge>
+                <Badge variant="secondary" className="h-5 text-[10px]">
+                  {encounter.labRequests?.length ?? 0}
+                </Badge>
               </p>
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Referrals</span>
-                <Badge variant="secondary" className="h-5 text-[10px]">{encounter.referrals?.length ?? 0}</Badge>
+                <Badge variant="secondary" className="h-5 text-[10px]">
+                  {encounter.referrals?.length ?? 0}
+                </Badge>
               </p>
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Diagnoses</span>
-                <Badge variant="secondary" className="h-5 text-[10px]">{encounter.diagnoses?.length ?? 0}</Badge>
+                <Badge variant="secondary" className="h-5 text-[10px]">
+                  {encounter.diagnoses?.length ?? 0}
+                </Badge>
               </p>
             </div>
           </div>
@@ -814,7 +1138,9 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
               <ShieldCheck className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
               <p className="text-xs font-semibold text-emerald-800">Record signed</p>
-              <p className="text-[10px] text-emerald-600 mt-0.5">This clinical record is locked and cannot be modified.</p>
+              <p className="text-[10px] text-emerald-600 mt-0.5">
+                This clinical record is locked and cannot be modified.
+              </p>
             </div>
           ) : (
             <Button className="w-full" size="lg" disabled={completing} onClick={complete}>
@@ -831,8 +1157,12 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
           <Separator className="my-3" />
 
           <div className="text-xs space-y-1">
-            <p className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">Consultation fee</p>
-            <p className="font-semibold text-base text-foreground">{encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}</p>
+            <p className="text-muted-foreground uppercase tracking-wider text-[10px] font-semibold">
+              Consultation fee
+            </p>
+            <p className="font-semibold text-base text-foreground">
+              {encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}
+            </p>
             <p className="text-[10px] text-muted-foreground">Patient-facing price · read only</p>
           </div>
         </div>
@@ -872,7 +1202,10 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
       icon: CalendarClock,
       tone: ACTION_TONES.followup,
       disabled: locked,
-      onClick: () => toast.success("Follow-up booked", { description: "A follow-up appointment slot has been reserved." }),
+      onClick: () =>
+        toast.success("Follow-up booked", {
+          description: "A follow-up appointment slot has been reserved.",
+        }),
     },
     {
       label: "Send patient instructions",
@@ -880,7 +1213,10 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
       icon: Send,
       tone: ACTION_TONES.send,
       disabled: locked || !doc.patientInstructions,
-      onClick: () => toast.success("Patient instructions sent", { description: "Instructions have been delivered to the patient's inbox." }),
+      onClick: () =>
+        toast.success("Patient instructions sent", {
+          description: "Instructions have been delivered to the patient's inbox.",
+        }),
     },
   ];
 
@@ -894,8 +1230,13 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
           { label: "Refs", value: encounter.referrals?.length ?? 0 },
           { label: "Dx", value: encounter.diagnoses?.length ?? 0 },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border/60 bg-card p-2.5 text-center">
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium leading-none">{s.label}</p>
+          <div
+            key={s.label}
+            className="rounded-xl border border-border/60 bg-card p-2.5 text-center"
+          >
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium leading-none">
+              {s.label}
+            </p>
             <p className="text-base font-bold tabular-nums leading-none mt-1">{s.value}</p>
           </div>
         ))}
@@ -930,8 +1271,12 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
       <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold leading-none">Consultation fee</p>
-            <p className="font-bold text-base mt-1">{encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold leading-none">
+              Consultation fee
+            </p>
+            <p className="font-bold text-base mt-1">
+              {encounter.appointment ? formatCurrency(encounter.appointment.price) : "—"}
+            </p>
           </div>
           <p className="text-[10px] text-muted-foreground">Patient-facing · read only</p>
         </div>
@@ -941,7 +1286,9 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center">
           <ShieldCheck className="h-7 w-7 text-emerald-600 mx-auto mb-1.5" />
           <p className="text-sm font-semibold text-emerald-800">Record signed</p>
-          <p className="text-[11px] text-emerald-700 mt-0.5">This clinical record is locked and read-only.</p>
+          <p className="text-[11px] text-emerald-700 mt-0.5">
+            This clinical record is locked and read-only.
+          </p>
         </div>
       )}
     </div>
@@ -950,7 +1297,15 @@ function ActionsPanel({ encounter, locked, completing, complete, setRxOpen, setL
 
 function ChevronRightSmall() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-muted-foreground">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3.5 w-3.5 text-muted-foreground"
+    >
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
@@ -981,13 +1336,18 @@ function PatientSummaryBody({
       <div className="p-4 border-b border-border/60 flex items-center gap-3">
         <Avatar className="h-11 w-11">
           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-            {patient.firstName[0]}{patient.lastName[0]}
+            {patient.firstName[0]}
+            {patient.lastName[0]}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">{patient.firstName} {patient.lastName}</p>
+          <p className="text-sm font-semibold truncate">
+            {patient.firstName} {patient.lastName}
+          </p>
           <p className="text-xs text-muted-foreground truncate">{patient.patientNumber}</p>
-          <p className="text-xs text-muted-foreground">{age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}</p>
+          <p className="text-xs text-muted-foreground">
+            {age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"}
+          </p>
         </div>
       </div>
 
@@ -1001,7 +1361,9 @@ function PatientSummaryBody({
             {activeAllergies.map((a, i) => (
               <div key={i} className="text-xs flex items-start gap-1.5">
                 <span className="font-semibold text-rose-800">{a.name}</span>
-                <span className="text-rose-500 text-[10px] uppercase tracking-wider">{a.source.replace(/_/g, " ")}</span>
+                <span className="text-rose-500 text-[10px] uppercase tracking-wider">
+                  {a.source.replace(/_/g, " ")}
+                </span>
               </div>
             ))}
           </div>
@@ -1019,7 +1381,11 @@ function PatientSummaryBody({
         <ExpandableCard
           title="Active conditions"
           subtitle={`${activeConditions.length} active`}
-          leading={<div className="rounded-lg bg-emerald-50 p-1.5"><Activity className="h-4 w-4 text-emerald-600" /></div>}
+          leading={
+            <div className="rounded-lg bg-emerald-50 p-1.5">
+              <Activity className="h-4 w-4 text-emerald-600" />
+            </div>
+          }
           className="border-0 rounded-none"
           defaultOpen
         >
@@ -1030,7 +1396,9 @@ function PatientSummaryBody({
               {activeConditions.map((c, i) => (
                 <li key={i} className="text-xs">
                   <span className="font-medium">{c.name}</span>
-                  <span className="text-muted-foreground ml-1 text-[10px] uppercase tracking-wider">· {c.source.replace(/_/g, " ")}</span>
+                  <span className="text-muted-foreground ml-1 text-[10px] uppercase tracking-wider">
+                    · {c.source.replace(/_/g, " ")}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1040,7 +1408,11 @@ function PatientSummaryBody({
         <ExpandableCard
           title="Current medications"
           subtitle={`${patient.medications.length} on record`}
-          leading={<div className="rounded-lg bg-violet-50 p-1.5"><Pill className="h-4 w-4 text-violet-600" /></div>}
+          leading={
+            <div className="rounded-lg bg-violet-50 p-1.5">
+              <Pill className="h-4 w-4 text-violet-600" />
+            </div>
+          }
           className="border-0 rounded-none"
         >
           {patient.medications.length === 0 ? (
@@ -1048,7 +1420,9 @@ function PatientSummaryBody({
           ) : (
             <ul className="space-y-1">
               {patient.medications.map((m, i) => (
-                <li key={i} className="text-xs">{m.name}</li>
+                <li key={i} className="text-xs">
+                  {m.name}
+                </li>
               ))}
             </ul>
           )}
@@ -1057,7 +1431,11 @@ function PatientSummaryBody({
         <ExpandableCard
           title="Recent consultations"
           subtitle={`${recentEncounters.length} prior`}
-          leading={<div className="rounded-lg bg-sky-50 p-1.5"><Stethoscope className="h-4 w-4 text-sky-600" /></div>}
+          leading={
+            <div className="rounded-lg bg-sky-50 p-1.5">
+              <Stethoscope className="h-4 w-4 text-sky-600" />
+            </div>
+          }
           className="border-0 rounded-none"
         >
           {recentEncounters.length === 0 ? (
@@ -1066,13 +1444,20 @@ function PatientSummaryBody({
             <ul className="space-y-1.5">
               {recentEncounters.map((a) => (
                 <li key={a.id} className="text-xs">
-                  <button className="text-left w-full hover:underline tap-highlight-none" onClick={() => a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })}>
-                    <span className="font-medium">{formatDate(a.date)}</span> · {a.provider ? `${a.provider.lastName}` : ""}
-                    {a.encounter?.documentation && typeof a.encounter.documentation === "object" && (
-                      <span className="block text-muted-foreground truncate">
-                        {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
-                      </span>
-                    )}
+                  <button
+                    className="text-left w-full hover:underline tap-highlight-none"
+                    onClick={() =>
+                      a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })
+                    }
+                  >
+                    <span className="font-medium">{formatDate(a.date)}</span> ·{" "}
+                    {a.provider ? `${a.provider.lastName}` : ""}
+                    {a.encounter?.documentation &&
+                      typeof a.encounter.documentation === "object" && (
+                        <span className="block text-muted-foreground truncate">
+                          {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
+                        </span>
+                      )}
                   </button>
                 </li>
               ))}
@@ -1083,7 +1468,11 @@ function PatientSummaryBody({
         <ExpandableCard
           title="Recent lab results"
           subtitle={`${recentLabs.length} available`}
-          leading={<div className="rounded-lg bg-amber-50 p-1.5"><FlaskConical className="h-4 w-4 text-amber-600" /></div>}
+          leading={
+            <div className="rounded-lg bg-amber-50 p-1.5">
+              <FlaskConical className="h-4 w-4 text-amber-600" />
+            </div>
+          }
           className="border-0 rounded-none"
         >
           {recentLabs.length === 0 ? (
@@ -1093,9 +1482,16 @@ function PatientSummaryBody({
               {recentLabs.map((l) => (
                 <li key={l.id} className="text-xs">
                   <span className="font-medium">{l.result?.test}</span>
-                  <span className="text-muted-foreground ml-1">{l.result?.value} {l.result?.unit}</span>
+                  <span className="text-muted-foreground ml-1">
+                    {l.result?.value} {l.result?.unit}
+                  </span>
                   {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" && (
-                    <Badge variant="outline" className="ml-1 text-[10px] border-rose-200 text-rose-700 h-5">{l.result.abnormalIndicator}</Badge>
+                    <Badge
+                      variant="outline"
+                      className="ml-1 text-[10px] border-rose-200 text-rose-700 h-5"
+                    >
+                      {l.result.abnormalIndicator}
+                    </Badge>
                   )}
                 </li>
               ))}
@@ -1106,7 +1502,11 @@ function PatientSummaryBody({
         <ExpandableCard
           title="Active prescriptions"
           subtitle={`${activeRx.length} active`}
-          leading={<div className="rounded-lg bg-primary/10 p-1.5"><Pill className="h-4 w-4 text-primary" /></div>}
+          leading={
+            <div className="rounded-lg bg-primary/10 p-1.5">
+              <Pill className="h-4 w-4 text-primary" />
+            </div>
+          }
           className="border-0 rounded-none"
         >
           {activeRx.length === 0 ? (
@@ -1116,7 +1516,9 @@ function PatientSummaryBody({
               {activeRx.map((rx) => (
                 <li key={rx.id} className="text-xs">
                   <span className="font-medium">{rx.prescriptionNumber}</span>
-                  <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">Expires {formatDate(rx.expiryDate)}</span>
+                  <span className="text-muted-foreground block text-[10px] uppercase tracking-wider">
+                    Expires {formatDate(rx.validUntil)}
+                  </span>
                 </li>
               ))}
             </ul>

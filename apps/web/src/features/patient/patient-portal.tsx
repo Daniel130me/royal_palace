@@ -10,8 +10,6 @@ import { PatientBook } from "./pages/book";
 import { PatientRecords } from "./pages/records";
 import { PatientPrescriptions } from "./pages/prescriptions";
 import { PatientPrescriptionDetail } from "./pages/prescription-detail";
-import { PatientUploadPrescription } from "./pages/upload-prescription";
-import { PatientUploads } from "./pages/uploads";
 import { PatientLaboratory } from "./pages/laboratory";
 import { PatientOrders } from "./pages/orders";
 import { PatientOrderDetail } from "./pages/order-detail";
@@ -23,11 +21,21 @@ import { PatientSettings } from "./pages/settings";
 import { PatientConsultation } from "./pages/consultation";
 import { PatientPharmacies } from "./pages/pharmacies";
 import { PatientLaboratories } from "./pages/laboratories";
-import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
 import { PatientHospitals } from "./pages/hospitals";
 import {
-  LayoutDashboard, Stethoscope, CalendarDays, FileText, Pill, FlaskConical,
-  Package, Users, ShieldCheck, CreditCard, Bell, Settings, Upload, Building2,
+  LayoutDashboard,
+  Stethoscope,
+  CalendarDays,
+  FileText,
+  Pill,
+  FlaskConical,
+  Package,
+  Users,
+  ShieldCheck,
+  CreditCard,
+  Bell,
+  Settings,
+  Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/healthcare/app-shell";
 import { usePatientContext } from "./use-patient-context";
@@ -46,7 +54,6 @@ export function PatientPortal() {
     { label: "Orders", page: "orders", icon: Package, mobile: true },
     { label: "Appointments", page: "appointments", icon: CalendarDays },
     { label: "Prescriptions", page: "prescriptions", icon: Pill },
-    { label: "My Uploads", page: "uploads", icon: Upload },
     { label: "Laboratory", page: "laboratory", icon: FlaskConical },
     { label: "Hospitals", page: "hospitals", icon: Building2 },
     { label: "Family", page: "family", icon: Users },
@@ -58,31 +65,51 @@ export function PatientPortal() {
 
   return (
     <AppShell portal="patient" brand="Royal Palace" navItems={navItems} notifications={unread}>
-      {page === "dashboard" ? <PatientDashboard /> :
-       page === "services" ? <PatientServices /> :
-       page === "doctors" ? <PatientDoctors /> :
-       page === "appointments" ? <PatientAppointments /> :
-       page === "appointment" ? <PatientAppointmentDetail /> :
-       page === "book" ? <PatientBook /> :
-       page === "consultation" ? <PatientConsultation /> :
-       page === "pharmacies" ? <PatientPharmacies /> :
-       page === "laboratories" ? <PatientLaboratories /> :
-       page === "hospitals" ? <PatientHospitals /> :
-       page === "pharmacy" ? <PatientPharmacyDetail /> :
-       page === "upload-prescription" ? <PatientUploadPrescription /> :
-       page === "uploads" ? <PatientUploads /> :
-       page === "records" ? <PatientRecords /> :
-       page === "prescriptions" ? <PatientPrescriptions /> :
-       page === "prescription" ? <PatientPrescriptionDetail /> :
-       page === "laboratory" ? <PatientLaboratory /> :
-       page === "orders" ? <PatientOrders /> :
-       page === "order" ? <PatientOrderDetail /> :
-       page === "family" ? <PatientFamily /> :
-       page === "consent" ? <PatientConsent /> :
-       page === "payments" ? <PatientPayments /> :
-       page === "notifications" ? <PatientNotifications /> :
-       page === "settings" ? <PatientSettings /> :
-       <PatientDashboard />}
+      {page === "dashboard" ? (
+        <PatientDashboard />
+      ) : page === "services" ? (
+        <PatientServices />
+      ) : page === "doctors" ? (
+        <PatientDoctors />
+      ) : page === "appointments" ? (
+        <PatientAppointments />
+      ) : page === "appointment" ? (
+        <PatientAppointmentDetail />
+      ) : page === "book" ? (
+        <PatientBook />
+      ) : page === "consultation" ? (
+        <PatientConsultation />
+      ) : page === "pharmacies" ? (
+        <PatientPharmacies />
+      ) : page === "laboratories" ? (
+        <PatientLaboratories />
+      ) : page === "hospitals" ? (
+        <PatientHospitals />
+      ) : page === "records" ? (
+        <PatientRecords />
+      ) : page === "prescriptions" ? (
+        <PatientPrescriptions />
+      ) : page === "prescription" ? (
+        <PatientPrescriptionDetail />
+      ) : page === "laboratory" ? (
+        <PatientLaboratory />
+      ) : page === "orders" ? (
+        <PatientOrders />
+      ) : page === "order" ? (
+        <PatientOrderDetail />
+      ) : page === "family" ? (
+        <PatientFamily />
+      ) : page === "consent" ? (
+        <PatientConsent />
+      ) : page === "payments" ? (
+        <PatientPayments />
+      ) : page === "notifications" ? (
+        <PatientNotifications />
+      ) : page === "settings" ? (
+        <PatientSettings />
+      ) : (
+        <PatientDashboard />
+      )}
     </AppShell>
   );
 }

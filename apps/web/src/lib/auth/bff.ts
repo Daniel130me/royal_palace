@@ -74,7 +74,12 @@ export async function callIdentityApi<T>(
 export async function callAuthenticatedApi<T>(
   request: NextRequest,
   apiPath: string,
-  options: { body?: unknown; idempotencyKey?: string; method?: "GET" | "PATCH" | "POST" } = {},
+  options: {
+    body?: unknown;
+    idempotencyKey?: string;
+    method?: "GET" | "PATCH" | "POST";
+    organizationId?: string;
+  } = {},
 ): Promise<T> {
   const sessionReference = readSessionId(request);
   const method = options.method ?? "GET";
@@ -103,6 +108,9 @@ export async function callAuthenticatedApi<T>(
         ...(options.idempotencyKey === undefined
           ? {}
           : { "idempotency-key": options.idempotencyKey }),
+        ...(options.organizationId === undefined
+          ? {}
+          : { "x-organization-id": options.organizationId }),
         ...(traceparent === null ? {} : { traceparent }),
         "x-request-id": id,
         ...signatureHeaders,
@@ -130,6 +138,7 @@ export async function proxyAuthenticatedApi(
   request: NextRequest,
   apiPath: string,
   method: "GET" | "PATCH" | "POST",
+  options: { organizationId?: string } = {},
 ): Promise<NextResponse> {
   try {
     if (method !== "GET") requireCsrf(request);
@@ -139,12 +148,91 @@ export async function proxyAuthenticatedApi(
       body,
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
       method,
+      ...options,
     });
     return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const response = authErrorResponse(error);
     if (response.status === 401) clearAuthCookies(response);
     return response;
+  }
+}
+
+/** Copies only the bounded pagination parameters accepted by production list contracts. */
+export function authenticatedListPath(
+  request: NextRequest,
+  apiPath: string,
+  options: { allowPatientId?: boolean } = {},
+): string {
+  const output = new URLSearchParams();
+  const cursor = request.nextUrl.searchParams.get("cursor");
+  const limit = request.nextUrl.searchParams.get("limit");
+  if (cursor !== null) {
+    if (cursor.length < 1 || cursor.length > 1024) {
+      throw new BffAuthError("Cursor is invalid", 400, "invalid_request");
+    }
+    output.set("cursor", cursor);
+  }
+  if (limit !== null) {
+    if (!/^\d{1,2}$/.test(limit) || Number(limit) < 1 || Number(limit) > 50) {
+      throw new BffAuthError("Limit is invalid", 400, "invalid_request");
+    }
+    output.set("limit", limit);
+  }
+  const patientId = request.nextUrl.searchParams.get("patientId");
+  if (options.allowPatientId && patientId !== null) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(patientId)
+    ) {
+      throw new BffAuthError("Patient ID is invalid", 400, "invalid_request");
+    }
+    output.set("patientId", patientId);
+  }
+  const query = output.toString();
+  return query.length === 0 ? apiPath : `${apiPath}?${query}`;
+}
+
+export function requiredOrganizationId(request: NextRequest): string {
+  const organizationId = request.headers.get("x-organization-id");
+  if (
+    organizationId === null ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      organizationId,
+    )
+  ) {
+    throw new BffAuthError("Organization ID is invalid", 400, "invalid_request");
+  }
+  return organizationId;
+}
+
+export function proxyAuthenticatedList(
+  request: NextRequest,
+  apiPath: string,
+  options: { allowPatientId?: boolean; requireOrganization?: boolean } = {},
+): Promise<NextResponse> | NextResponse {
+  try {
+    const organizationId = options.requireOrganization
+      ? requiredOrganizationId(request)
+      : undefined;
+    return proxyAuthenticatedApi(request, authenticatedListPath(request, apiPath, options), "GET", {
+      ...(organizationId === undefined ? {} : { organizationId }),
+    });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export function proxyAuthenticatedOrganizationApi(
+  request: NextRequest,
+  apiPath: string,
+  method: "GET" | "PATCH" | "POST",
+): Promise<NextResponse> | NextResponse {
+  try {
+    return proxyAuthenticatedApi(request, apiPath, method, {
+      organizationId: requiredOrganizationId(request),
+    });
+  } catch (error) {
+    return authErrorResponse(error);
   }
 }
 

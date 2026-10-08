@@ -57,7 +57,7 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 - [x] Keep the workflow synthetic-only and fail closed in protected environments.
 - [x] Publish the direct service OpenAPI contract, generated TypeScript types, and
       deterministic contract-drift check. Browser/BFF exposure remains deferred to 11C.
-- [ ] Connect the frontend and retire the corresponding prototype issue/upload/order
+- [x] Connect the frontend and retire the corresponding prototype issue/upload/order
       routes only after the complete pharmacy slice is available.
 
 ### 11B — dispensing, substitution, and refill accounting
@@ -82,7 +82,7 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
 - [x] **11C3 — payment and fulfilment orchestration:** connect successful, reversed,
       disputed, and refunded payment facts to the order state machine; keep dispensing
       independent; add pickup/delivery handoff without implementing logistics itself.
-- [ ] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
+- [x] **11C4 — browser cutover and prototype retirement:** replace prototype pharmacy
       pages and action routes with generated contracts and exact authenticated BFF
       allowlists; delete generic prescription/order CRUD exposure after parity tests.
 - [ ] **11C5 — qualification evidence:** complete financial/clinical-owner review and
@@ -641,3 +641,94 @@ browser; those remain separate bounded consumers or later checkpoints.
 11C4 connects the browser to the production pharmacy contracts through authenticated,
 exactly allowlisted BFF routes and removes the replaced prototype pharmacy actions only
 after parity and negative authorization tests pass.
+
+## Checkpoint 11C4 completion report
+
+### Increment and scope
+
+Checkpoint 11C4 is complete. Patient, practitioner, and pharmacy prescription, quote,
+order, checkout, cancellation, and handoff screens now use the generated production
+contract through authenticated same-origin BFF routes. The replaced generic prescription,
+prescription-item, pharmacy-order, pharmacy-order-item, and uploaded-prescription resource
+exposure has been removed, as have the prototype issue, upload, direct-order, order-create,
+and order-progress actions. OTC commerce remains deliberately deferred rather than being
+reintroduced through an unqualified shortcut.
+
+### Architecture and access boundaries
+
+- Patient and practitioner prescription history, patient quote/order history, and pharmacy
+  quote/order work queues are owner-scoped cursor APIs. The browser cannot supply a patient
+  principal or pharmacy identity to broaden access; patient ownership comes from the
+  authenticated principal, while pharmacy organization selection is re-authorized against
+  the authenticated membership on every API request.
+- BFF catch-all files are constrained by exact segment counts, UUID validation, bounded
+  query forwarding, method-specific CSRF enforcement, and the production route allowlist.
+  Arbitrary paths and forged query fields fail closed.
+- Organization membership now carries its organization type from the identity repository
+  to the browser session. Portal selection and organization identifiers therefore come
+  from authenticated membership rather than a legacy user-role or profile-id assumption.
+- Generated OpenAPI types remain the browser service boundary. The clinical/commercial
+  domain services, authorization policies, repositories, controllers, BFF, and UI remain
+  separately owned layers so a later mobile client or new fulfillment channel does not
+  require weakening the API.
+
+### Data and performance
+
+- Lists use descending `(created_at, id)` cursor pagination with a maximum page size of 50;
+  there are no unbounded prescription, quote, or order reads.
+- Patient and practitioner prescription indexes already matched the new query shapes.
+  Migration `20261008130000_pharmacy_list_indexes` adds organization/time indexes for the
+  pharmacy quote and order work queues, and related aggregates are loaded with join
+  strategy instead of per-row reads.
+- The prescription verification is repeatable, exercises patient and practitioner list
+  ownership against PostgreSQL, and continues to verify the indexed 5,000-route work queue.
+
+### Verification evidence
+
+- Formatting, lint, generated-contract drift, and type checks passed for all eight
+  production packages.
+- The complete test gate passed: 489 API tests with one environment-dependent storage test
+  skipped, 35 web tests, 16 worker tests with nine external-service integration tests
+  skipped, and all package tests.
+- All 18 migrations passed clean-install, prior-schema upgrade, payment-subject backfill,
+  transactional repair, and pharmacy-commercial invariant rehearsals. Both Prisma schemas
+  validate, and the live PostgreSQL prescription verifier passed owner-scoped lists plus
+  the existing clinical integrity and concurrency checks.
+- Every production package built successfully, including the Next.js route manifest and
+  standalone server package. The production dependency audit found no known
+  vulnerabilities; the documented development-only advisory remains time-bound for review.
+
+### Standards walkthrough
+
+- **Readable and extendable:** contract, policy, application, persistence, BFF, and UI
+  responsibilities remain explicit. Shared list helpers remove duplication without hiding
+  authorization decisions.
+- **Security first:** patient identity is never accepted from list query parameters,
+  pharmacy identity is membership-checked, CSRF and idempotency protections remain intact,
+  and all replaced generic clinical/commercial CRUD paths are deleted.
+- **Query conscious:** every growing list is bounded and cursor-indexed, aggregate loading
+  avoids N+1 reads, and dedicated organization/time indexes support the pharmacy queues.
+- **No magic or hard-coded assumptions:** currencies remain ISO values supplied by the
+  immutable quote; organization type is authenticated data; country, jurisdiction,
+  inventory, payment, cloud, and logistics providers remain configurable or gated.
+- **No short-term patching:** unsafe prototype functionality and dead screens were removed
+  instead of wrapped; prescription creation now uses the required appointment identity;
+  and the verifier was made repeatable rather than relying on a one-run database.
+
+### Known non-standard or deliberately incomplete boundaries
+
+- Real clinical, inventory, payment, refund/dispute, and logistics providers remain
+  disabled pending qualification. Synthetic success is not production approval.
+- Paper-prescription upload and direct OTC ordering were removed because no production
+  document-verification or OTC commercial policy exists yet. Reintroduction requires a
+  separately reviewed workflow, not restoration of the deleted generic routes.
+- An interactive UI smoke run was not claimed in this environment because its trusted
+  browser automation bridge was unavailable. Contract, route-policy, production-build,
+  and server-side integration evidence passed; 11C5 must capture qualified end-to-end
+  browser evidence in the release environment.
+
+### Next checkpoint
+
+11C5 records product, clinical, pharmacy-operations, privacy/security, and financial-owner
+qualification evidence. It must not enable any real provider or jurisdiction merely because
+the synthetic workflow and browser cutover are complete.

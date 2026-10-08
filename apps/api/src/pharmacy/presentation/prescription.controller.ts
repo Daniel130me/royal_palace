@@ -95,6 +95,7 @@ const queueSchema = z
     limit: z.coerce.number().int().min(1).max(50).default(25),
   })
   .strict();
+const providerListSchema = queueSchema.extend({ patientId: idSchema.optional() }).strict();
 const expirationSchema = z
   .object({ limit: z.coerce.number().int().min(1).max(100).default(100) })
   .strict();
@@ -172,6 +173,14 @@ const eventListSchema = z
 @UseGuards(AuthenticatedInternalRequestGuard)
 export class ProviderPrescriptionController {
   constructor(@Inject(PrescriptionService) private readonly prescriptions: PrescriptionService) {}
+
+  @Get()
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION)
+  list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.prescriptions.listForPractitioner(context(request), parse(providerListSchema, query)),
+    );
+  }
 
   @Post()
   @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION)
@@ -294,6 +303,14 @@ export class PrescriptionReadController {
 @UseGuards(AuthenticatedInternalRequestGuard)
 export class PatientPrescriptionController {
   constructor(@Inject(PrescriptionService) private readonly prescriptions: PrescriptionService) {}
+
+  @Get()
+  @PolicyProtected(AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION)
+  list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.prescriptions.listForPatient(context(request), parse(queueSchema, query)),
+    );
+  }
 
   @Post(":prescriptionId/send")
   @HttpCode(HttpStatus.OK)

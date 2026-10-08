@@ -810,6 +810,34 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     };
   }
 
+  async listByPatient(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId: string;
+  }): Promise<PrescriptionListResponse> {
+    return this.listOwned({
+      cursor: input.cursor,
+      limit: input.limit,
+      where: { patient: { principalId: input.patientPrincipalId } },
+    });
+  }
+
+  async listByPractitioner(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientId?: string;
+    practitionerPrincipalId: string;
+  }): Promise<PrescriptionListResponse> {
+    return this.listOwned({
+      cursor: input.cursor,
+      limit: input.limit,
+      where: {
+        ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
+        practitioner: { principalId: input.practitionerPrincipalId },
+      },
+    });
+  }
+
   async listDispenseEvents(input: {
     cursor?: { id: string; occurredAt: Date };
     limit: number;
@@ -848,6 +876,49 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
       },
     };
   }
+
+  private async listOwned(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    where: Prisma.PrescriptionWhereInput;
+  }): Promise<PrescriptionListResponse> {
+    const rows = await this.database.prescription.findMany({
+      include: prescriptionInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      relationLoadStrategy: "join",
+      take: input.limit + 1,
+      where: {
+        ...input.where,
+        ...(input.cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: input.cursor.createdAt } },
+                { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
+              ],
+            }),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const visible = rows.slice(0, input.limit);
+    const balances = await loadDispenseBalances(
+      this.database,
+      visible.map((row) => row.id),
+    );
+    return {
+      data: visible.map((row) => publicPrescription(mapPrescription(row, balances))),
+      pageInfo: { endCursor: createdCursor(visible.at(-1)), hasNextPage },
+    };
+  }
+}
+
+function createdCursor(row: { createdAt: Date; id: string } | undefined): string | null {
+  return row === undefined
+    ? null
+    : Buffer.from(
+        JSON.stringify({ createdAt: row.createdAt.toISOString(), id: row.id }),
+        "utf8",
+      ).toString("base64url");
 }
 
 async function assertDraftReferences(

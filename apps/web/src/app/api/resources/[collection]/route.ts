@@ -16,14 +16,12 @@ import {
   serializeProvider,
   serializeService,
   serializeEncounter,
-  serializePrescription,
   serializeLabRequest,
   serializeLabBooking,
   serializeReferral,
   serializeApplication,
   serializeCarePlan,
   serializeAccessGrant,
-  serializePharmacyOrder,
 } from "@/lib/serialize";
 
 const MODELS = [
@@ -42,13 +40,9 @@ const MODELS = [
   "appointment",
   "clinicalEncounter",
   "diagnosis",
-  "prescription",
-  "prescriptionItem",
   "laboratoryRequest",
   "laboratoryBooking",
   "laboratoryResult",
-  "pharmacyOrder",
-  "pharmacyOrderItem",
   "delivery",
   "referral",
   "recordAccessGrant",
@@ -61,7 +55,6 @@ const MODELS = [
   "complaint",
   "auditLog",
   "payoutRequest",
-  "uploadedPrescription",
 ] as const;
 
 export { MODELS };
@@ -71,18 +64,15 @@ type ModelName = (typeof MODELS)[number];
 const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   appointment: { patient: true, provider: true, encounter: true, payment: true },
   clinicalEncounter: { appointment: true, patient: true, provider: true, prescriptions: true, labRequests: true, referrals: true, diagnoses: true },
-  prescription: { patient: true, provider: true, items: true, pharmacyOrders: true, pharmacy: true },
   laboratoryRequest: { patient: true, provider: true, booking: true, result: true },
   laboratoryBooking: { laboratory: true, patient: true, request: true },
   hospital: { services: true },
   laboratoryResult: { laboratory: true, patient: true },
-  pharmacyOrder: { patient: true, pharmacy: true, prescription: true, items: true, delivery: true },
   pharmacyProduct: { pharmacy: true },
   delivery: { logisticsProvider: true, order: true },
   referral: { patient: true, sender: true, recipient: true },
   providerApplication: { provider: true },
   service: { prices: true },
-  uploadedPrescription: { patient: true },
 };
 
 export { INCLUDES };
@@ -140,8 +130,6 @@ function serializeMany(collection: string, rows: unknown[]): unknown[] {
       return rows.map((r) => serializeService(r as Record<string, unknown>));
     case "clinicalEncounter":
       return rows.map((r) => serializeEncounter(r as Record<string, unknown>));
-    case "prescription":
-      return rows.map((r) => serializePrescription(r as Record<string, unknown>));
     case "laboratoryRequest":
       return rows.map((r) => serializeLabRequest(r as Record<string, unknown>));
     case "laboratoryBooking":
@@ -152,8 +140,6 @@ function serializeMany(collection: string, rows: unknown[]): unknown[] {
       return rows.map((r) => serializeCarePlan(r as Record<string, unknown>));
     case "recordAccessGrant":
       return rows.map((r) => serializeAccessGrant(r as Record<string, unknown>));
-    case "pharmacyOrder":
-      return rows.map((r) => serializePharmacyOrder(r as Record<string, unknown>));
     default:
       return rows;
   }

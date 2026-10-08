@@ -1751,6 +1751,7 @@ model PharmacyQuote {
   order                  PharmacyOrder?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_patient_created_idx")
+  @@index([pharmacyOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_org_created_idx")
   @@index([pharmacyOrganizationId, status, expiresAt, id], map: "pharmacy_quotes_org_status_expiry_idx")
   @@index([prescriptionRouteId, fillNumber, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_route_fill_created_idx")
   @@index([status, expiresAt, id], map: "pharmacy_quotes_expiry_idx")
@@ -1842,6 +1843,7 @@ model PharmacyOrder {
   resolutions            PharmacyOrderResolution[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_patient_created_idx")
+  @@index([pharmacyOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_created_idx")
   @@index([pharmacyOrganizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_status_created_idx")
   @@index([prescriptionId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_prescription_created_idx")
   @@map("pharmacy_orders")

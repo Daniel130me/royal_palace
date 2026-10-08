@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CSRF_COOKIE,
   CSRF_HEADER,
+  authenticatedListPath,
   callAuthenticatedApi,
   readSessionId,
   requireCsrf,
@@ -90,5 +91,45 @@ describe("BFF authentication boundary", () => {
       method: "POST",
     });
     expect(() => requireCsrf(crossSite)).toThrow("Request origin is not allowed");
+  });
+
+  it("copies only bounded pagination inputs to upstream list routes", () => {
+    const request = new NextRequest(
+      "http://127.0.0.1:3000/api/patient/prescriptions?cursor=opaque&limit=50&patientId=forged",
+    );
+    expect(authenticatedListPath(request, "/v1/patient/prescriptions")).toBe(
+      "/v1/patient/prescriptions?cursor=opaque&limit=50",
+    );
+    expect(() =>
+      authenticatedListPath(
+        new NextRequest("http://127.0.0.1:3000/api/patient/prescriptions?limit=500"),
+        "/v1/patient/prescriptions",
+      ),
+    ).toThrow("Limit is invalid");
+  });
+
+  it("forwards an explicitly scoped organization without trusting actor identifiers", async () => {
+    const sessionId = "0199a18e-a400-7000-8000-000000000001";
+    const organizationId = "0199a18e-a400-7000-8000-000000000902";
+    const cookieResponse = NextResponse.json({ ok: true });
+    setAuthenticatedCookies(cookieResponse, sessionId, "csrf-token");
+    const encryptedSession = cookieResponse.cookies.get(SESSION_COOKIE)?.value ?? "";
+    const request = new NextRequest("http://127.0.0.1:3000/api/pharmacy/orders", {
+      headers: { cookie: `${SESSION_COOKIE}=${encryptedSession}` },
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }),
+        ),
+      );
+
+    await callAuthenticatedApi(request, "/v1/pharmacy/orders", { organizationId });
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("x-organization-id")).toBe(organizationId);
+    expect(headers.get("x-rp-session-reference")).toBe(sessionId);
+    fetchMock.mockRestore();
   });
 });

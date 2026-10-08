@@ -155,6 +155,51 @@ export class PrescriptionService {
       : pharmacyPrescription(prescription);
   }
 
+  async listForPatient(
+    context: PrescriptionRequestContext,
+    input: { cursor?: string; limit: number },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: "patient_prescription_list",
+      },
+      policy: AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return this.repository.listByPatient({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      patientPrincipalId: context.actor.principalId,
+    });
+  }
+
+  async listForPractitioner(
+    context: PrescriptionRequestContext,
+    input: { cursor?: string; limit: number; patientId?: string },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        practitionerPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: "practitioner_prescription_list",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+    return this.repository.listByPractitioner({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
+      practitionerPrincipalId: context.actor.principalId,
+    });
+  }
+
   async routeToPharmacy(
     context: PrescriptionRequestContext,
     prescriptionId: string,
@@ -625,6 +670,21 @@ function decodeEventCursor(value: string): { id: string; occurredAt: Date } {
     const occurredAt = new Date(decoded.occurredAt);
     if (!Number.isFinite(occurredAt.getTime())) throw new Error();
     return { id: decoded.id, occurredAt };
+  } catch {
+    throw new PrescriptionFlowError("invalid_cursor", 400, "Cursor is invalid");
+  }
+}
+
+function decodeCreatedCursor(value: string): { createdAt: Date; id: string } {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof decoded.createdAt !== "string" || typeof decoded.id !== "string") throw new Error();
+    const createdAt = new Date(decoded.createdAt);
+    if (!Number.isFinite(createdAt.getTime())) throw new Error();
+    return { createdAt, id: decoded.id };
   } catch {
     throw new PrescriptionFlowError("invalid_cursor", 400, "Cursor is invalid");
   }

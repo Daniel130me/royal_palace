@@ -14,17 +14,19 @@ async function main(): Promise<void> {
   const repository = new PrismaPrescriptionRepository(database, notificationConfig);
   try {
     const fixture = await createFixture(database);
+    const jurisdictionCode = `TEST-${v7().slice(0, 8).toUpperCase()}`;
     await expectDatabaseRejection(
       () =>
         database.$executeRawUnsafe(
           `INSERT INTO "prescriptions"
              ("id", "prescription_number", "patient_id", "practitioner_id",
               "jurisdiction_code", "updated_at")
-           VALUES ($1::uuid, $2, $3::uuid, $4::uuid, 'CA-ON', now())`,
+           VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5, now())`,
           v7(),
           `RX-NO-APPOINTMENT-${v7()}`,
           fixture.patientId,
           fixture.practitionerId,
+          jurisdictionCode,
         ),
       "Prescription without a care-relationship appointment was not rejected",
     );
@@ -47,11 +49,28 @@ async function main(): Promise<void> {
             substitutionAllowed: true,
           },
         ],
-        jurisdictionCode: "CA-ON",
+        jurisdictionCode,
         patientId: fixture.patientId,
       },
       practitionerId: fixture.practitionerId,
     });
+    const patientPage = await repository.listByPatient({
+      limit: 25,
+      patientPrincipalId: fixture.patientPrincipalId,
+    });
+    const practitionerPage = await repository.listByPractitioner({
+      limit: 25,
+      patientId: fixture.patientId,
+      practitionerPrincipalId: fixture.practitionerPrincipalId,
+    });
+    if (
+      patientPage.data[0]?.id !== draft.id ||
+      practitionerPage.data[0]?.id !== draft.id ||
+      patientPage.pageInfo.hasNextPage ||
+      practitionerPage.pageInfo.hasNextPage
+    ) {
+      throw new Error("Owner-scoped prescription list queries did not return the draft");
+    }
     const validUntil = new Date(Date.now() + 86_400_000);
     const signed = await repository.sign({
       actorPrincipalId: fixture.practitionerPrincipalId,
@@ -118,7 +137,7 @@ async function main(): Promise<void> {
       data: {
         effectiveFrom: new Date(Date.now() - 60_000),
         id: policyId,
-        jurisdictionCode: "CA-ON",
+        jurisdictionCode,
         substitutionApprovalMode: "PATIENT_AND_PRACTITIONER",
         updatedAt: new Date(),
       },
@@ -129,7 +148,7 @@ async function main(): Promise<void> {
           data: {
             effectiveFrom: new Date(Date.now() - 30_000),
             id: v7(),
-            jurisdictionCode: "CA-ON",
+            jurisdictionCode,
             substitutionApprovalMode: "PATIENT_ONLY",
             updatedAt: new Date(),
           },
@@ -472,7 +491,7 @@ async function main(): Promise<void> {
     const queuePlan = await verifyPharmacyQueuePlan(database, fixture);
 
     process.stdout.write(
-      `Prescription verification passed: signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
+      `Prescription verification passed: owner-scoped lists, signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
     );
   } finally {
     await database.$disconnect();

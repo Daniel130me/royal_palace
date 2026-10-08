@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/v1/pharmacy/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyQuotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pharmacy/prescriptions/{prescriptionId}/quotes": {
         parameters: {
             query?: never;
@@ -100,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/patient/pharmacy/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientPharmacyQuotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/patient/pharmacy/quotes/{quoteId}/accept": {
         parameters: {
             query?: never;
@@ -124,6 +172,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getPharmacyOrderForPatient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientPharmacyOrders"];
         put?: never;
         post?: never;
         delete?: never;
@@ -171,7 +235,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["listProviderPrescriptions"];
         put?: never;
         post: operations["createPrescriptionDraft"];
         delete?: never;
@@ -286,6 +350,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["sendPrescriptionToPharmacy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/prescriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientPrescriptions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -511,6 +591,10 @@ export interface components {
             updatedAt: string;
             version: number;
         };
+        PharmacyQuoteList: {
+            data: components["schemas"]["PharmacyQuote"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
         PharmacyOrder: {
             /** Format: date-time */
             acceptedAt: string;
@@ -537,6 +621,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             version: number;
+        };
+        PharmacyOrderList: {
+            data: components["schemas"]["PharmacyOrder"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
         };
         PharmacyOrderHandoff: {
             /** Format: date-time */
@@ -798,6 +886,10 @@ export interface components {
             appointmentId: string;
             clinicalNote: string | null;
         };
+        PrescriptionList: {
+            data: components["schemas"]["Prescription"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
         /** @description Prescription view with appointmentId and clinicalNote omitted. */
         PharmacyPrescription: components["schemas"]["PrescriptionBase"];
         PharmacyPrescriptionList: {
@@ -851,6 +943,15 @@ export interface components {
                 "application/json": components["schemas"]["Prescription"];
             };
         };
+        /** @description Bounded owner-scoped prescription page */
+        PrescriptionListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PrescriptionList"];
+            };
+        };
         /** @description Patient-accepted pharmacy order with its immutable quote snapshot and payment reference */
         PharmacyOrderResponse: {
             headers: {
@@ -860,6 +961,15 @@ export interface components {
                 "application/json": components["schemas"]["PharmacyOrder"];
             };
         };
+        /** @description Bounded actor-scoped pharmacy-order page */
+        PharmacyOrderListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyOrderList"];
+            };
+        };
         /** @description Time-limited, immutable pharmacy quote snapshot */
         PharmacyQuoteResponse: {
             headers: {
@@ -867,6 +977,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["PharmacyQuote"];
+            };
+        };
+        /** @description Bounded actor-scoped pharmacy-quote page */
+        PharmacyQuoteListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyQuoteList"];
             };
         };
         /** @description Substitution proposal with immutable consent and approval decisions */
@@ -896,6 +1015,8 @@ export interface components {
         PrescriptionId: string;
         ProposalId: string;
         RequestId: string;
+        Cursor: string;
+        Limit: number;
     };
     requestBodies: never;
     headers: never;
@@ -903,6 +1024,48 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listPharmacyQuotes: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyQuoteListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listPharmacyOrders: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyOrderListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     createPharmacyQuote: {
         parameters: {
             query?: never;
@@ -1038,6 +1201,26 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    listPatientPharmacyQuotes: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyQuoteListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     acceptPharmacyQuote: {
         parameters: {
             query?: never;
@@ -1080,6 +1263,26 @@ export interface operations {
             200: components["responses"]["PharmacyOrderResponse"];
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listPatientPharmacyOrders: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyOrderListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };
@@ -1132,6 +1335,27 @@ export interface operations {
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listProviderPrescriptions: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                patientId?: string;
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PrescriptionListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };
@@ -1346,6 +1570,26 @@ export interface operations {
             400: components["responses"]["InvalidRequest"];
             403: components["responses"]["AccessDenied"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listPatientPrescriptions: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PrescriptionListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };

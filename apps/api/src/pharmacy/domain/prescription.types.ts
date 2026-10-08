@@ -135,6 +135,17 @@ export interface PrescriptionRepository {
     limit: number;
     organizationId: string;
   }): Promise<PrescriptionListResponse>;
+  listByPatient(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId: string;
+  }): Promise<PrescriptionListResponse>;
+  listByPractitioner(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientId?: string;
+    practitionerPrincipalId: string;
+  }): Promise<PrescriptionListResponse>;
   listDispenseEvents(input: {
     cursor?: { id: string; occurredAt: Date };
     limit: number;

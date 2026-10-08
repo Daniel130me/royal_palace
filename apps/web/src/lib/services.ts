@@ -6,8 +6,10 @@ import {
   createManagerClient,
   createOnboardingClient,
   createPublicDiscoveryClient,
+  createPrescriptionClient,
   createSchedulingPaymentClient,
 } from "@royal-palace/api-client";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
 import type {
   OnboardingApplicationDetail,
   OnboardingApplicationListResponse,
@@ -62,9 +64,7 @@ import type {
   Patient,
   Payment,
   Pharmacy,
-  PharmacyOrder,
   PharmacyProduct,
-  Prescription,
   Provider,
   ProviderApplication,
   RecordAccessGrant,
@@ -83,7 +83,6 @@ import type {
   LogisticsProvider,
   ProviderVerificationStatus,
   EncounterDocumentation,
-  UploadedPrescription,
 } from "@/types";
 
 // --- generic fetchers (deserialize JSON string fields handled by API) ---
@@ -112,8 +111,6 @@ export const pharmacyService = {
     resource.create<PharmacyProduct>("pharmacyProduct", data),
   updateProduct: (id: string, data: Partial<PharmacyProduct>) =>
     resource.update<PharmacyProduct>("pharmacyProduct", id, data),
-  orders: (pharmacyId: string) => resource.list<PharmacyOrder>("pharmacyOrder", { pharmacyId }),
-  order: (id: string) => resource.get<PharmacyOrder>("pharmacyOrder", id),
 };
 
 export const laboratoryService = {
@@ -148,6 +145,201 @@ const generatedManagerClient = createManagerClient({ fetch: authenticatedGenerat
 const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
   fetch: authenticatedGeneratedFetch,
 });
+const generatedPrescriptionClient = createPrescriptionClient({ fetch: prescriptionBffFetch });
+
+export const productionPrescriptionService = {
+  provider: {
+    list: (patientId?: string, cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/provider/prescriptions", {
+          params: { header: requestHeader(), query: { cursor, limit, patientId } },
+        })
+        .then(unwrapGeneratedResponse),
+    createDraft: (body: PrescriptionComponents["schemas"]["PrescriptionDraftInput"]) =>
+      generatedPrescriptionClient
+        .POST("/v1/provider/prescriptions", { body, params: { header: requestHeader() } })
+        .then(unwrapGeneratedResponse),
+    sign: (prescriptionId: string, expectedVersion: number, validUntil: string) =>
+      generatedPrescriptionClient
+        .POST("/v1/provider/prescriptions/{prescriptionId}/sign", {
+          body: { expectedVersion, validUntil },
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  patient: {
+    list: (cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/prescriptions", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    get: (prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/prescriptions/{prescriptionId}", {
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+    send: (prescriptionId: string, pharmacyOrganizationId: string, expectedVersion: number) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/prescriptions/{prescriptionId}/send", {
+          body: { expectedVersion, pharmacyOrganizationId },
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+    quotes: (cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/pharmacy/quotes", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    acceptQuote: (quoteId: string, expectedVersion: number, idempotencyKey: string) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/pharmacy/quotes/{quoteId}/accept", {
+          body: { expectedVersion },
+          params: {
+            header: { ...requestHeader(), "Idempotency-Key": idempotencyKey },
+            path: { quoteId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    orders: (cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/pharmacy/orders", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    order: (orderId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/pharmacy/orders/{orderId}", {
+          params: { header: requestHeader(), path: { orderId } },
+        })
+        .then(unwrapGeneratedResponse),
+    cancelOrder: (
+      orderId: string,
+      expectedVersion: number,
+      reasonCode: string,
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/pharmacy/orders/{orderId}/cancel", {
+          body: { expectedVersion, reasonCode },
+          params: {
+            header: { ...requestHeader(), "Idempotency-Key": idempotencyKey },
+            path: { orderId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  pharmacy: {
+    prescription: (prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/prescriptions/{prescriptionId}", {
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+    prescriptions: (organizationId: string, cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/prescriptions", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    acceptPrescription: (organizationId: string, prescriptionId: string, expectedVersion: number) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/prescriptions/{prescriptionId}/accept", {
+          body: { expectedVersion },
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    createQuote: (
+      organizationId: string,
+      prescriptionId: string,
+      body: PrescriptionComponents["schemas"]["CreatePharmacyQuoteInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/prescriptions/{prescriptionId}/quotes", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "x-organization-id": organizationId,
+            },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    quotes: (organizationId: string, cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/quotes", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    orders: (organizationId: string, cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/orders", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    order: (orderId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/orders/{orderId}", {
+          params: { header: requestHeader(), path: { orderId } },
+        })
+        .then(unwrapGeneratedResponse),
+    prepareHandoff: (
+      organizationId: string,
+      orderId: string,
+      body: { expectedOrderVersion: number; method: "PICKUP" | "DELIVERY" },
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/orders/{orderId}/handoff", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "x-organization-id": organizationId,
+            },
+            path: { orderId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    completeHandoff: (
+      organizationId: string,
+      orderId: string,
+      expectedHandoffVersion: number,
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/orders/{orderId}/handoff/complete", {
+          body: { expectedHandoffVersion },
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "x-organization-id": organizationId,
+            },
+            path: { orderId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+};
 
 export const onboardingService = {
   listOwn: () => generatedOnboardingClient.GET("/api/applications").then(unwrapGeneratedResponse),
@@ -348,6 +540,29 @@ async function authenticatedGeneratedFetch(
   return fetch(request);
 }
 
+function csrfHeader() {
+  return { "x-rp-csrf-token": csrfToken() ?? "" };
+}
+
+function requestHeader() {
+  return { ...csrfHeader(), "x-request-id": crypto.randomUUID() };
+}
+
+function prescriptionBffFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const source = input instanceof Request ? input.url : String(input);
+  const url = new URL(
+    source,
+    typeof window === "undefined" ? "http://localhost" : window.location.origin,
+  );
+  if (!url.pathname.startsWith("/v1/")) throw new Error("Prescription client path is invalid");
+  url.pathname = `/api/${url.pathname.slice(4)}`;
+  const target = `${url.pathname}${url.search}`;
+  return authenticatedGeneratedFetch(
+    input instanceof Request ? new Request(target, input) : target,
+    input instanceof Request ? undefined : init,
+  );
+}
+
 type PublicOrganizationQuery = {
   country?: string;
   cursor?: string;
@@ -540,13 +755,6 @@ export const encounterService = {
     ),
 };
 
-export const prescriptionService = {
-  list: (params?: Record<string, string>) => resource.list<Prescription>("prescription", params),
-  get: (id: string) => resource.get<Prescription>("prescription", id),
-  issue: (body: Record<string, unknown>) =>
-    action("issue-prescription", body).then((r) => r.data as Prescription),
-};
-
 export const labRequestService = {
   list: (params?: Record<string, string>) =>
     resource.list<LaboratoryRequest>("laboratoryRequest", params),
@@ -559,18 +767,6 @@ export const labRequestService = {
     action("progress-lab", { bookingId, status, actorId }).then((r) => r.data as LaboratoryBooking),
   publishResult: (body: Record<string, unknown>) =>
     action("publish-lab-result", body).then((r) => r.data as LaboratoryResult),
-};
-
-export const pharmacyOrderService = {
-  list: (params?: Record<string, string>) => resource.list<PharmacyOrder>("pharmacyOrder", params),
-  get: (id: string) => resource.get<PharmacyOrder>("pharmacyOrder", id),
-  create: (body: Record<string, unknown>) =>
-    action("create-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
-  // Direct OTC order — no prescription required (uncontrolled meds only)
-  directOrder: (body: Record<string, unknown>) =>
-    action("direct-pharmacy-order", body).then((r) => r.data as PharmacyOrder),
-  progress: (orderId: string, status: string, actorId: string) =>
-    action("progress-order", { orderId, status, actorId }).then((r) => r.data as PharmacyOrder),
 };
 
 export const deliveryService = {
@@ -679,19 +875,6 @@ export const payoutService = {
     action("request-payout", body).then((r) => r.data as PayoutRequest),
   update: (id: string, data: Partial<PayoutRequest>) =>
     resource.update<PayoutRequest>("payoutRequest", id, data),
-};
-
-// --- uploaded prescriptions (patient-supplied paper Rx) ---
-export const uploadedPrescriptionService = {
-  list: (patientId: string) =>
-    resource.list<UploadedPrescription>("uploadedPrescription", { patientId }),
-  listForPharmacy: (pharmacyId: string) =>
-    resource.list<UploadedPrescription>("uploadedPrescription", { pharmacyId }),
-  get: (id: string) => resource.get<UploadedPrescription>("uploadedPrescription", id),
-  upload: (body: Record<string, unknown>) =>
-    action("upload-prescription", body).then((r) => r.data as UploadedPrescription),
-  update: (id: string, data: Partial<UploadedPrescription>) =>
-    resource.update<UploadedPrescription>("uploadedPrescription", id, data),
 };
 
 export type { ProviderVerificationStatus };

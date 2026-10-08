@@ -24,7 +24,7 @@ function session(
     memberships:
       options.organizationId === undefined
         ? []
-        : [{ organizationId: options.organizationId, roles: [role] }],
+        : [{ organizationId: options.organizationId, organizationType: "PHARMACY", roles: [role] }],
     principalId: options.principalId ?? createOpaqueId(),
     roles: [role],
     sessionId: createOpaqueId(),
@@ -249,6 +249,41 @@ describe("PrescriptionService", () => {
         current.id,
       ),
     ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("scopes patient prescription lists to the authenticated principal", async () => {
+    const principalId = createOpaqueId();
+    const listByPatient = vi.fn<PrescriptionRepository["listByPatient"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+
+    await createService({ listByPatient }).listForPatient(
+      { actor: session("PATIENT", { principalId }), requestId: "request-patient-list" },
+      { limit: 25 },
+    );
+
+    expect(listByPatient).toHaveBeenCalledWith({ limit: 25, patientPrincipalId: principalId });
+  });
+
+  it("scopes practitioner prescription lists to the authenticated issuer", async () => {
+    const principalId = createOpaqueId();
+    const patientId = createOpaqueId();
+    const listByPractitioner = vi.fn<PrescriptionRepository["listByPractitioner"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+
+    await createService({ listByPractitioner }).listForPractitioner(
+      { actor: session("PROVIDER", { principalId }), requestId: "request-practitioner-list" },
+      { limit: 10, patientId },
+    );
+
+    expect(listByPractitioner).toHaveBeenCalledWith({
+      limit: 10,
+      patientId,
+      practitionerPrincipalId: principalId,
+    });
   });
 
   it("allows only assigned pharmacy members to accept a routed prescription", async () => {

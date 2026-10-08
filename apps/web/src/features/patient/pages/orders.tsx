@@ -1,127 +1,134 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { pharmacyOrderService } from "@/lib/services";
-import type { PharmacyOrder, PharmacyOrderStatus } from "@/types";
-import { PageHeader, EmptyState, SkeletonGrid } from "@/components/healthcare/page-header";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
+import { Package, Receipt } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  EmptyState,
+  PageHeader,
+  SectionCard,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { CompactListItem } from "@/components/healthcare/compact-list";
-import { Package, Search } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { createdAt } from "../lib/runtime-fields";
-import { usePatientContext } from "../use-patient-context";
+import { formatDate, formatMinorCurrency } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { productionPrescriptionService } from "@/lib/services";
 
-const ACTIVE: PharmacyOrderStatus[] = ["paid", "prescription_under_review", "clarification_required", "accepted", "partially_available", "preparing", "ready_for_pickup", "picked_up", "in_transit"];
-const DELIVERED: PharmacyOrderStatus[] = ["delivered"];
-
-type OrderTab = "active" | "delivered" | "all";
+type Quote = PrescriptionComponents["schemas"]["PharmacyQuote"];
+type Order = PrescriptionComponents["schemas"]["PharmacyOrder"];
 
 export function PatientOrders() {
-  const { profile } = usePatientContext();
-  const [orders, setOrders] = useState<PharmacyOrder[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<OrderTab>("active");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [quotePage, orderPage] = await Promise.all([
+        productionPrescriptionService.patient.quotes(),
+        productionPrescriptionService.patient.orders(),
+      ]);
+      setQuotes([...quotePage.data]);
+      setOrders([...orderPage.data]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Pharmacy activity could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!profile) return;
-    let cancelled = false;
-    setLoading(true);
-    pharmacyOrderService.list({ patientId: profile.id })
-      .then((rows) => { if (!cancelled) setOrders(rows); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load orders"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [profile?.id]);
+    void load();
+  }, [load]);
 
-  const filtered = useMemo(() => {
-    return orders
-      .filter((o) => !search.trim() || o.orderNumber.toLowerCase().includes(search.toLowerCase()) || (o.pharmacy?.name ?? "").toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => new Date(createdAt(b) ?? b.orderNumber).getTime() - new Date(createdAt(a) ?? a.orderNumber).getTime());
-  }, [orders, search]);
-
-  const counts = useMemo(() => ({
-    active: orders.filter((o) => ACTIVE.includes(o.status)).length,
-    delivered: orders.filter((o) => DELIVERED.includes(o.status)).length,
-    all: orders.length,
-  }), [orders]);
-
-  const rows = filtered.filter((o) =>
-    tab === "all" ? true : tab === "active" ? ACTIVE.includes(o.status) : DELIVERED.includes(o.status)
-  );
+  async function accept(quote: Quote) {
+    setBusyId(quote.id);
+    try {
+      const order = await productionPrescriptionService.patient.acceptQuote(
+        quote.id,
+        quote.version,
+        crypto.randomUUID(),
+      );
+      toast.success("Quote accepted. Complete payment in the secure checkout flow.");
+      navigate("patient", "order", { id: order.id });
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Quote could not be accepted");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="Pharmacy Orders" description="Track your medicine orders and deliveries." />
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by order or pharmacy…"
-          className="pl-9"
-        />
-      </div>
-
-      <SegmentedControl<OrderTab>
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: "active", label: "Active", badge: counts.active || undefined },
-          { value: "delivered", label: "Delivered", badge: counts.delivered || undefined },
-          { value: "all", label: "All" },
-        ]}
-      />
-
+    <div className="space-y-6">
+      <PageHeader title="Pharmacy orders" description="Review quotes and track accepted orders." />
       {loading ? (
-        <SkeletonGrid count={3} />
-      ) : error ? (
-        <EmptyState title="Could not load orders" description={error} />
-      ) : rows.length === 0 ? (
-        orders.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            title="No pharmacy orders"
-            description="Place an order from your prescriptions page."
-            action={<Button onClick={() => navigate("patient", "prescriptions")}>View prescriptions</Button>}
-          />
-        ) : (
-          <EmptyState
-            icon={Package}
-            title={search ? "No matches" : `No ${tab} orders`}
-            description={search ? "Try a different search term." : "Switch tabs to see other orders."}
-            compact
-          />
-        )
+        <SkeletonGrid count={4} />
+      ) : error !== null ? (
+        <EmptyState title="Could not load pharmacy activity" description={error} />
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-          {rows.map((o) => (
-            <CompactListItem
-              key={o.id}
-              leading={
-                <div className="rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100">
-                  <Package className="h-4 w-4 text-amber-600" />
-                </div>
-              }
-              title={o.orderNumber}
-              subtitle={`${o.pharmacy?.name ?? "Pharmacy"} · ${o.items?.length ?? 0} item(s) · ${formatDate(createdAt(o) ?? o.orderNumber)}`}
-              trailing={
-                <div className="flex flex-col items-end gap-1.5">
-                  <span className="text-sm font-semibold">{formatCurrency(o.total)}</span>
-                  <StatusBadge status={o.status} size="sm" />
-                </div>
-              }
-              onClick={() => navigate("patient", "order", { id: o.id })}
-              chevron
-            />
-          ))}
-        </div>
+        <>
+          <SectionCard title="Quotes awaiting your decision" icon={Receipt} dense>
+            {quotes.filter((quote) => quote.status === "ACTIVE").length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">No active quotes.</p>
+            ) : (
+              <ul className="divide-y">
+                {quotes
+                  .filter((quote) => quote.status === "ACTIVE")
+                  .map((quote) => (
+                    <li
+                      key={quote.id}
+                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-medium">{quote.quoteNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatMinorCurrency(quote.totalMinor, quote.currency)} · expires{" "}
+                          {formatDate(quote.expiresAt)}
+                        </p>
+                      </div>
+                      <Button onClick={() => accept(quote)} disabled={busyId === quote.id}>
+                        Review and accept
+                      </Button>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Orders" icon={Package} dense>
+            {orders.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">No accepted pharmacy orders.</p>
+            ) : (
+              <ul className="divide-y">
+                {orders.map((order) => (
+                  <li key={order.id}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-muted/40"
+                      onClick={() => navigate("patient", "order", { id: order.id })}
+                    >
+                      <div>
+                        <p className="font-medium">{order.orderNumber}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatMinorCurrency(order.quote.totalMinor, order.quote.currency)} ·{" "}
+                          {formatDate(order.createdAt)}
+                        </p>
+                      </div>
+                      <StatusBadge status={order.status.toLowerCase()} size="sm" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </>
       )}
     </div>
   );

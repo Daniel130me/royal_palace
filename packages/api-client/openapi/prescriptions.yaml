@@ -1,11 +1,37 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
 paths:
+  /v1/pharmacy/quotes:
+    get:
+      operationId: listPharmacyQuotes
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyQuoteListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/pharmacy/orders:
+    get:
+      operationId: listPharmacyOrders
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyOrderListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/pharmacy/prescriptions/{prescriptionId}/quotes:
     post:
       operationId: createPharmacyQuote
@@ -96,6 +122,18 @@ paths:
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/patient/pharmacy/quotes:
+    get:
+      operationId: listPatientPharmacyQuotes
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyQuoteListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/patient/pharmacy/quotes/{quoteId}/accept:
     post:
       operationId: acceptPharmacyQuote
@@ -125,6 +163,18 @@ paths:
         "200": { $ref: "#/components/responses/PharmacyOrderResponse" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/patient/pharmacy/orders:
+    get:
+      operationId: listPatientPharmacyOrders
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyOrderListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/patient/pharmacy/orders/{orderId}/cancel:
     post:
@@ -165,6 +215,20 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/provider/prescriptions:
+    get:
+      operationId: listProviderPrescriptions
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - in: query
+          name: patientId
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { $ref: "#/components/responses/PrescriptionListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
     post:
       operationId: createPrescriptionDraft
       parameters: [{ $ref: "#/components/parameters/RequestId" }]
@@ -334,6 +398,18 @@ paths:
         "400": { $ref: "#/components/responses/InvalidRequest" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/patient/prescriptions:
+    get:
+      operationId: listPatientPrescriptions
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/PrescriptionListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/patient/prescriptions/{prescriptionId}/substitutions/{proposalId}/consent:
     post:
@@ -523,6 +599,14 @@ components:
       name: x-request-id
       required: true
       schema: { type: string, minLength: 1 }
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string, minLength: 1, maxLength: 1024 }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
   responses:
     AccessDenied:
       description: Authenticated actor is not authorized for the resource
@@ -549,16 +633,31 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Prescription" }
+    PrescriptionListResponse:
+      description: Bounded owner-scoped prescription page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PrescriptionList" }
     PharmacyOrderResponse:
       description: Patient-accepted pharmacy order with its immutable quote snapshot and payment reference
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PharmacyOrder" }
+    PharmacyOrderListResponse:
+      description: Bounded actor-scoped pharmacy-order page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PharmacyOrderList" }
     PharmacyQuoteResponse:
       description: Time-limited, immutable pharmacy quote snapshot
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PharmacyQuote" }
+    PharmacyQuoteListResponse:
+      description: Bounded actor-scoped pharmacy-quote page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PharmacyQuoteList" }
     SubstitutionProposalResponse:
       description: Substitution proposal with immutable consent and approval decisions
       content:
@@ -733,6 +832,13 @@ components:
         totalMinor: { type: string, pattern: "^\\d+$" }
         updatedAt: { type: string, format: date-time }
         version: { type: integer, minimum: 1 }
+    PharmacyQuoteList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PharmacyQuote" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     PharmacyOrder:
       type: object
       additionalProperties: false
@@ -790,6 +896,13 @@ components:
           }
         updatedAt: { type: string, format: date-time }
         version: { type: integer, minimum: 1 }
+    PharmacyOrderList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PharmacyOrder" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     PharmacyOrderHandoff:
       type: object
       additionalProperties: false
@@ -1178,6 +1291,13 @@ components:
           properties:
             appointmentId: { type: string, format: uuid }
             clinicalNote: { type: [string, "null"] }
+    PrescriptionList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Prescription" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     PharmacyPrescription:
       description: Prescription view with appointmentId and clinicalNote omitted.
       $ref: "#/components/schemas/PrescriptionBase"

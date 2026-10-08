@@ -1,4 +1,9 @@
-import type { PharmacyOrderResponse, PharmacyQuoteResponse } from "@royal-palace/contracts";
+import type {
+  PharmacyOrderListResponse,
+  PharmacyOrderResponse,
+  PharmacyQuoteListResponse,
+  PharmacyQuoteResponse,
+} from "@royal-palace/contracts";
 
 export interface PharmacyQuoteLineInput {
   prescriptionItemId: string;
@@ -156,6 +161,18 @@ export interface PharmacyCommercialRepository {
       })
     | null
   >;
+  listOrders(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId?: string;
+    pharmacyOrganizationId?: string;
+  }): Promise<PharmacyOrderListResponse>;
+  listQuotes(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId?: string;
+    pharmacyOrganizationId?: string;
+  }): Promise<PharmacyQuoteListResponse>;
   prepareHandoff(input: {
     expectedOrderVersion: number;
     idempotencyKey: string;

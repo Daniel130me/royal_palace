@@ -12,6 +12,7 @@ export type PlatformRole =
 
 export interface AuthenticatedMembership {
   organizationId: string;
+  organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY";
   roles: readonly PlatformRole[];
 }
 
@@ -788,6 +789,16 @@ export interface PharmacyOrderResponse {
   status: PharmacyOrderStatus;
   updatedAt: string;
   version: number;
+}
+
+export interface PharmacyQuoteListResponse {
+  data: readonly PharmacyQuoteResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface PharmacyOrderListResponse {
+  data: readonly PharmacyOrderResponse[];
+  pageInfo: CursorPageInfo;
 }
 
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";

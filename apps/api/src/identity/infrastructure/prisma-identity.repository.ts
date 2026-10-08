@@ -269,6 +269,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
                 OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: input.now } }],
               },
               select: {
+                organization: { select: { type: true } },
                 organizationId: true,
                 roleAssignments: {
                   where: {
@@ -312,6 +313,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
       idleExpiresAt: idleExpiresAt.toISOString(),
       memberships: session.principal.memberships.map((membership) => ({
         organizationId: membership.organizationId,
+        organizationType: membership.organization.type,
         roles: membership.roleAssignments.map((assignment) => assignment.role as PlatformRole),
       })),
       principalId: session.principal.id,

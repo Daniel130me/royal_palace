@@ -812,6 +812,84 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
       ? null
       : { ...mapOrder(order), patientPrincipalId: order.patient.principalId };
   }
+
+  async listOrders(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId?: string;
+    pharmacyOrganizationId?: string;
+  }) {
+    const rows = await this.database.pharmacyOrder.findMany({
+      include: orderInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      relationLoadStrategy: "join",
+      take: input.limit + 1,
+      where: {
+        ...(input.patientPrincipalId === undefined
+          ? {}
+          : { patient: { principalId: input.patientPrincipalId } }),
+        ...(input.pharmacyOrganizationId === undefined
+          ? {}
+          : { pharmacyOrganizationId: input.pharmacyOrganizationId }),
+        ...createdBefore(input.cursor),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const visible = rows.slice(0, input.limit);
+    return {
+      data: visible.map(mapOrder),
+      pageInfo: { endCursor: createdCursor(visible.at(-1)), hasNextPage },
+    };
+  }
+
+  async listQuotes(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    patientPrincipalId?: string;
+    pharmacyOrganizationId?: string;
+  }) {
+    const rows = await this.database.pharmacyQuote.findMany({
+      include: quoteInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      relationLoadStrategy: "join",
+      take: input.limit + 1,
+      where: {
+        ...(input.patientPrincipalId === undefined
+          ? {}
+          : { patient: { principalId: input.patientPrincipalId } }),
+        ...(input.pharmacyOrganizationId === undefined
+          ? {}
+          : { pharmacyOrganizationId: input.pharmacyOrganizationId }),
+        ...createdBefore(input.cursor),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const visible = rows.slice(0, input.limit);
+    return {
+      data: visible.map(mapQuote),
+      pageInfo: { endCursor: createdCursor(visible.at(-1)), hasNextPage },
+    };
+  }
+}
+
+function createdBefore(cursor: { createdAt: Date; id: string } | undefined) {
+  return cursor === undefined
+    ? {}
+    : {
+        OR: [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ],
+      };
+}
+
+function createdCursor(row: { createdAt: Date; id: string } | undefined): string | null {
+  return row === undefined
+    ? null
+    : Buffer.from(
+        JSON.stringify({ createdAt: row.createdAt.toISOString(), id: row.id }),
+        "utf8",
+      ).toString("base64url");
 }
 
 function mapQuote(row: QuoteRecord): PharmacyQuoteResponse {

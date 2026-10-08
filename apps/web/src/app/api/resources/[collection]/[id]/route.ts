@@ -9,14 +9,12 @@ import {
   serializeProvider,
   serializeService,
   serializeEncounter,
-  serializePrescription,
   serializeLabRequest,
   serializeLabBooking,
   serializeReferral,
   serializeApplication,
   serializeCarePlan,
   serializeAccessGrant,
-  serializePharmacyOrder,
 } from "@/lib/serialize";
 
 function serializeOne(collection: string, row: unknown): unknown {
@@ -31,8 +29,6 @@ function serializeOne(collection: string, row: unknown): unknown {
       return serializeService(row as Record<string, unknown>);
     case "clinicalEncounter":
       return serializeEncounter(row as Record<string, unknown>);
-    case "prescription":
-      return serializePrescription(row as Record<string, unknown>);
     case "laboratoryRequest":
       return serializeLabRequest(row as Record<string, unknown>);
     case "laboratoryBooking":
@@ -43,8 +39,6 @@ function serializeOne(collection: string, row: unknown): unknown {
       return serializeCarePlan(row as Record<string, unknown>);
     case "recordAccessGrant":
       return serializeAccessGrant(row as Record<string, unknown>);
-    case "pharmacyOrder":
-      return serializePharmacyOrder(row as Record<string, unknown>);
     default:
       return row;
   }

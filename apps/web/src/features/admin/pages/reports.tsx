@@ -2,25 +2,50 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
-import { appointmentService, providerService, settlementService, pharmacyOrderService } from "@/lib/services";
+import { appointmentService, providerService, settlementService } from "@/lib/services";
 import { resource } from "@/lib/api-client";
-import type { Appointment, Provider, Settlement, PharmacyOrder, Payment } from "@/types";
-import { PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid, SectionCard } from "@/components/healthcare/page-header";
+import type { Appointment, Provider, Settlement, Payment } from "@/types";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  SkeletonGrid,
+  SectionCard,
+} from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
 import { formatCurrency } from "@/lib/format";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import { BarChart3, TrendingUp, Users, Stethoscope, Activity } from "lucide-react";
 
-const CATEGORY_COLORS = ["#10b981", "#f59e0b", "#0ea5e9", "#8b5cf6", "#ec4899", "#14b8a6", "#f43f5e"];
+const CATEGORY_COLORS = [
+  "#10b981",
+  "#f59e0b",
+  "#0ea5e9",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f43f5e",
+];
 
 export function AdminReports() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [orders, setOrders] = useState<PharmacyOrder[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,21 +57,21 @@ export function AdminReports() {
       appointmentService.list(),
       providerService.list(),
       settlementService.list(),
-      pharmacyOrderService.list(),
       resource.list<Payment>("payment"),
     ])
-      .then(([a, p, s, o, pay]) => {
+      .then(([a, p, s, pay]) => {
         setAppts(a);
         setProviders(p);
         setSettlements(s);
-        setOrders(o);
         setPayments(pay);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load reports"))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   // Consultations over time (last 14 days)
   const consultsOverTime = useMemo(() => {
@@ -56,7 +81,11 @@ export function AdminReports() {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const ds = d.toISOString().slice(0, 10);
-      days.push({ date: ds, label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), count: 0 });
+      days.push({
+        date: ds,
+        label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+        count: 0,
+      });
     }
     for (const a of appts) {
       const found = days.find((d) => d.date === a.date);
@@ -69,7 +98,10 @@ export function AdminReports() {
   const revenueByType = useMemo(() => {
     const map = new Map<string, { name: string; value: number }>();
     for (const s of settlements) {
-      const entry = map.get(s.entityType) ?? { name: s.entityType.charAt(0).toUpperCase() + s.entityType.slice(1), value: 0 };
+      const entry = map.get(s.entityType) ?? {
+        name: s.entityType.charAt(0).toUpperCase() + s.entityType.slice(1),
+        value: 0,
+      };
       entry.value += s.commissionAmount;
       map.set(s.entityType, entry);
     }
@@ -78,16 +110,27 @@ export function AdminReports() {
 
   // Top providers by appointments
   const topProviders = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; specialty: string; appointments: number; revenue: number }>();
+    const map = new Map<
+      string,
+      { id: string; name: string; specialty: string; appointments: number; revenue: number }
+    >();
     for (const a of appts) {
       const p = providers.find((x) => x.id === a.providerId);
       if (!p) continue;
-      const entry = map.get(p.id) ?? { id: p.id, name: `${p.title} ${p.firstName} ${p.lastName}`, specialty: p.specialty, appointments: 0, revenue: 0 };
+      const entry = map.get(p.id) ?? {
+        id: p.id,
+        name: `${p.title} ${p.firstName} ${p.lastName}`,
+        specialty: p.specialty,
+        appointments: 0,
+        revenue: 0,
+      };
       entry.appointments += 1;
       if (a.paymentStatus === "paid") entry.revenue += a.price;
       map.set(p.id, entry);
     }
-    return Array.from(map.values()).sort((a, b) => b.appointments - a.appointments).slice(0, 5);
+    return Array.from(map.values())
+      .sort((a, b) => b.appointments - a.appointments)
+      .slice(0, 5);
   }, [appts, providers]);
 
   // Payments trend (cumulative)
@@ -98,7 +141,11 @@ export function AdminReports() {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const ds = d.toISOString().slice(0, 10);
-      days.push({ date: ds, label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), total: 0 });
+      days.push({
+        date: ds,
+        label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+        total: 0,
+      });
     }
     for (const p of payments) {
       const ds = new Date(p.createdAt).toISOString().slice(0, 10);
@@ -106,7 +153,10 @@ export function AdminReports() {
       if (found && p.status === "successful") found.total += p.amount;
     }
     let cum = 0;
-    return days.map((d) => { cum += d.total; return { ...d, cumulative: cum }; });
+    return days.map((d) => {
+      cum += d.total;
+      return { ...d, cumulative: cum };
+    });
   }, [payments]);
 
   // Status distribution
@@ -115,11 +165,16 @@ export function AdminReports() {
     for (const a of appts) {
       map.set(a.status, (map.get(a.status) ?? 0) + 1);
     }
-    return Array.from(map.entries()).map(([name, value]) => ({ name: name.replace(/_/g, " "), value }));
+    return Array.from(map.entries()).map(([name, value]) => ({
+      name: name.replace(/_/g, " "),
+      value,
+    }));
   }, [appts]);
 
   const totalRevenue = settlements.reduce((s, x) => s + x.commissionAmount, 0);
-  const totalGMV = payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0);
+  const totalGMV = payments
+    .filter((p) => p.status === "successful")
+    .reduce((s, p) => s + p.amount, 0);
   const avgTicket = payments.length ? totalGMV / payments.length : 0;
 
   if (loading) {
@@ -141,15 +196,33 @@ export function AdminReports() {
       <PageHeader
         title="Reports & Insights"
         description="High-level platform trends derived from live data."
-        breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Reports" }]}
+        breadcrumbs={[
+          { label: "Admin", onClick: () => navigate("admin", "dashboard") },
+          { label: "Reports" },
+        ]}
       />
 
       {/* Top stats — StatTiles */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatTile label="Gross Txn Value" value={formatCurrency(totalGMV)} icon={TrendingUp} tone="success" />
-        <StatTile label="Platform Revenue" value={formatCurrency(totalRevenue)} icon={Activity} tone="success" />
+        <StatTile
+          label="Gross Txn Value"
+          value={formatCurrency(totalGMV)}
+          icon={TrendingUp}
+          tone="success"
+        />
+        <StatTile
+          label="Platform Revenue"
+          value={formatCurrency(totalRevenue)}
+          icon={Activity}
+          tone="success"
+        />
         <StatTile label="Avg Ticket" value={formatCurrency(avgTicket)} icon={Users} tone="info" />
-        <StatTile label="Top Provider Apps" value={topProviders[0]?.appointments ?? 0} icon={Stethoscope} tone="violet" />
+        <StatTile
+          label="Top Provider Apps"
+          value={topProviders[0]?.appointments ?? 0}
+          icon={Stethoscope}
+          tone="violet"
+        />
       </div>
 
       {/* Charts grid — stacks on mobile */}
@@ -175,7 +248,13 @@ export function AdminReports() {
               <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
               <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
               <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Line type="monotone" dataKey="cumulative" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} />
+              <Line
+                type="monotone"
+                dataKey="cumulative"
+                stroke="#0ea5e9"
+                strokeWidth={2}
+                dot={{ r: 2 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -189,7 +268,15 @@ export function AdminReports() {
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={revenueByType} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(entry) => `${entry.name}`}>
+                <Pie
+                  data={revenueByType}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  label={(entry) => `${entry.name}`}
+                >
                   {revenueByType.map((_, i) => (
                     <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
                   ))}
@@ -207,7 +294,11 @@ export function AdminReports() {
             <p className="text-sm text-muted-foreground text-center py-12">No appointment data.</p>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={statusDistribution} layout="vertical" margin={{ top: 5, right: 16, left: 8, bottom: 0 }}>
+              <BarChart
+                data={statusDistribution}
+                layout="vertical"
+                margin={{ top: 5, right: 16, left: 8, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
@@ -222,14 +313,18 @@ export function AdminReports() {
       {/* Top providers as CompactListItem list */}
       <SectionCard title="Top providers" icon={Stethoscope} dense>
         {topProviders.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No provider activity yet.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No provider activity yet.
+          </p>
         ) : (
           <div className="divide-y divide-border/40">
             {topProviders.map((p, i) => (
               <CompactListItem
                 key={p.id}
                 leading={
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
+                  >
                     {i + 1}
                   </div>
                 }
@@ -238,7 +333,9 @@ export function AdminReports() {
                 trailing={
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-sm font-semibold">{p.appointments} appts</span>
-                    <span className="text-xs text-emerald-700">{formatCurrency(p.revenue)} paid</span>
+                    <span className="text-xs text-emerald-700">
+                      {formatCurrency(p.revenue)} paid
+                    </span>
                   </div>
                 }
                 onClick={undefined}
@@ -248,9 +345,13 @@ export function AdminReports() {
         )}
       </SectionCard>
 
-      {appts.length === 0 && orders.length === 0 && payments.length === 0 && (
+      {appts.length === 0 && payments.length === 0 && (
         <div className="mt-6">
-          <EmptyState icon={BarChart3} title="No data available yet" description="Reports will populate as the platform processes transactions." />
+          <EmptyState
+            icon={BarChart3}
+            title="No data available yet"
+            description="Reports will populate as the platform processes transactions."
+          />
         </div>
       )}
     </div>

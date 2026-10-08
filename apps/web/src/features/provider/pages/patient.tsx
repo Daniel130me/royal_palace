@@ -6,11 +6,12 @@ import { useProviderContext } from "../use-provider-context";
 import {
   patientService,
   appointmentService,
-  prescriptionService,
+  productionPrescriptionService,
   labRequestService,
   referralService,
   encounterService,
 } from "@/lib/services";
+import type { PrescriptionComponents } from "@royal-palace/api-client";
 import { resource } from "@/lib/api-client";
 import {
   normalizePatient,
@@ -19,14 +20,8 @@ import {
   normalizeReferral,
   WithTimestamps,
 } from "../normalize";
-import type {
-  Patient,
-  Appointment,
-  Prescription,
-  LaboratoryRequest,
-  Referral,
-  ClinicalEncounter,
-} from "@/types";
+import type { Patient, Appointment, LaboratoryRequest, Referral, ClinicalEncounter } from "@/types";
+type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -41,9 +36,22 @@ import {
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { ExpandableCard, CompactListItem } from "@/components/healthcare/compact-list";
 import {
-  AlertCircle, Activity, Pill, FlaskConical, Share2,
-  Stethoscope, FileText, Phone, Mail, MapPin, Calendar, PlayCircle, FileSearch,
-  ShieldCheck, User, Clock,
+  AlertCircle,
+  Activity,
+  Pill,
+  FlaskConical,
+  Share2,
+  Stethoscope,
+  FileText,
+  Phone,
+  Mail,
+  MapPin,
+  Calendar,
+  PlayCircle,
+  FileSearch,
+  ShieldCheck,
+  User,
+  Clock,
 } from "lucide-react";
 import { formatDate, formatTime, relativeDay, fullName, age, initials } from "@/lib/format";
 import { toast } from "sonner";
@@ -72,7 +80,9 @@ export function ProviderPatientDetail() {
       const [p, appts, rxs, labs, refs, encs] = await Promise.all([
         patientService.get(id),
         appointmentService.list({ patientId: id }),
-        prescriptionService.list({ patientId: id }),
+        productionPrescriptionService.provider
+          .list(id, undefined, 50)
+          .then((page) => [...page.data]),
         labRequestService.list({ patientId: id }),
         referralService.list({ patientId: id }),
         resource.list<ClinicalEncounter>("clinicalEncounter", { patientId: id }),
@@ -112,7 +122,11 @@ export function ProviderPatientDetail() {
   const activeAllergies = patient.allergies.filter((a) => a.status === "active");
   const todayStr = new Date().toISOString().slice(0, 10);
   const upcomingAppts = appointments
-    .filter((a) => a.date >= todayStr && ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status))
+    .filter(
+      (a) =>
+        a.date >= todayStr &&
+        ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status),
+    )
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const pastAppts = appointments
     .filter((a) => a.date < todayStr || ["completed", "no_show", "cancelled"].includes(a.status))
@@ -148,15 +162,20 @@ export function ProviderPatientDetail() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate">{fullName(patient)}</p>
           <p className="text-xs text-muted-foreground truncate">
-            {age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"} · {patient.genotype ?? "—"}
+            {age(patient.dateOfBirth) ?? "—"}y · {patient.gender} · {patient.bloodGroup ?? "?"} ·{" "}
+            {patient.genotype ?? "—"}
           </p>
         </div>
         {activeAllergies.length > 0 ? (
           <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 shrink-0">
-            <AlertCircle className="h-3 w-3 mr-1" /> {activeAllergies.length} allergy{activeAllergies.length > 1 ? "ies" : ""}
+            <AlertCircle className="h-3 w-3 mr-1" /> {activeAllergies.length} allergy
+            {activeAllergies.length > 1 ? "ies" : ""}
           </Badge>
         ) : (
-          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 shrink-0">
+          <Badge
+            variant="outline"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700 shrink-0"
+          >
             <ShieldCheck className="h-3 w-3 mr-1" /> No allergies
           </Badge>
         )}
@@ -173,10 +192,16 @@ export function ProviderPatientDetail() {
               {relativeDay(upcomingAppts[0].date)} · {formatTime(upcomingAppts[0].time)}
             </p>
             <p className="text-xs text-emerald-700 capitalize truncate">
-              {upcomingAppts[0].consultationChannel.replace(/_/g, " ")} · {upcomingAppts[0].status.replace(/_/g, " ")}
+              {upcomingAppts[0].consultationChannel.replace(/_/g, " ")} ·{" "}
+              {upcomingAppts[0].status.replace(/_/g, " ")}
             </p>
           </div>
-          <Button size="sm" variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-100" onClick={() => navigate("provider", "appointment", { id: upcomingAppts[0].id })}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+            onClick={() => navigate("provider", "appointment", { id: upcomingAppts[0].id })}
+          >
             View
           </Button>
         </div>
@@ -203,42 +228,63 @@ export function ProviderPatientDetail() {
             <div className="p-4 space-y-3 border-b border-border/60">
               <div className="grid sm:grid-cols-2 gap-2.5 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5 shrink-0" /> <span>{formatDate(patient.dateOfBirth)}</span>
+                  <Calendar className="h-3.5 w-3.5 shrink-0" />{" "}
+                  <span>{formatDate(patient.dateOfBirth)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3.5 w-3.5 shrink-0" /> <span>{patient.phone}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{patient.email}</span>
+                  <Mail className="h-3.5 w-3.5 shrink-0" />{" "}
+                  <span className="truncate">{patient.email}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" /> <span>{patient.city}, {patient.state}</span>
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />{" "}
+                  <span>
+                    {patient.city}, {patient.state}
+                  </span>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-4 divide-x divide-border/60 border-b border-border/60">
               <div className="p-3 text-center">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Blood</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Blood
+                </p>
                 <p className="font-semibold mt-0.5">{patient.bloodGroup ?? "—"}</p>
               </div>
               <div className="p-3 text-center">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Genotype</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Genotype
+                </p>
                 <p className="font-semibold mt-0.5">{patient.genotype ?? "—"}</p>
               </div>
               <div className="p-3 text-center">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Height</p>
-                <p className="font-semibold mt-0.5">{patient.height ? `${patient.height}cm` : "—"}</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Height
+                </p>
+                <p className="font-semibold mt-0.5">
+                  {patient.height ? `${patient.height}cm` : "—"}
+                </p>
               </div>
               <div className="p-3 text-center">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">Weight</p>
-                <p className="font-semibold mt-0.5">{patient.weight ? `${patient.weight}kg` : "—"}</p>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Weight
+                </p>
+                <p className="font-semibold mt-0.5">
+                  {patient.weight ? `${patient.weight}kg` : "—"}
+                </p>
               </div>
             </div>
             {patient.emergencyName && (
               <div className="p-3 bg-amber-50 border-b border-amber-200">
-                <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">Emergency contact</p>
+                <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">
+                  Emergency contact
+                </p>
                 <p className="text-xs mt-1 font-medium text-amber-900">{patient.emergencyName}</p>
-                <p className="text-xs text-amber-700">{patient.emergencyPhone} ({patient.emergencyRel})</p>
+                <p className="text-xs text-amber-700">
+                  {patient.emergencyPhone} ({patient.emergencyRel})
+                </p>
               </div>
             )}
           </SectionCard>
@@ -254,12 +300,21 @@ export function ProviderPatientDetail() {
                   <div key={i} className="text-sm flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="font-semibold text-rose-800">{a.name}</span>
-                      <p className="text-xs text-rose-600 mt-0.5 capitalize">{a.source.replace(/_/g, " ")} · {formatDate(a.recordedAt)}</p>
+                      <p className="text-xs text-rose-600 mt-0.5 capitalize">
+                        {a.source.replace(/_/g, " ")} · {formatDate(a.recordedAt)}
+                      </p>
                     </div>
                     {a.status === "resolved" ? (
-                      <Badge variant="outline" className="h-5 text-[10px] shrink-0">resolved</Badge>
+                      <Badge variant="outline" className="h-5 text-[10px] shrink-0">
+                        resolved
+                      </Badge>
                     ) : (
-                      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px] shrink-0">active</Badge>
+                      <Badge
+                        variant="outline"
+                        className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px] shrink-0"
+                      >
+                        active
+                      </Badge>
                     )}
                   </div>
                 ))}
@@ -276,20 +331,37 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Conditions"
             subtitle={`${patient.conditions.length} recorded`}
-            leading={<div className="rounded-lg bg-amber-50 p-2"><Activity className="h-4 w-4 text-amber-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-amber-50 p-2">
+                <Activity className="h-4 w-4 text-amber-600" />
+              </div>
+            }
             defaultOpen
           >
-            {patient.conditions.length === 0 ? <p className="text-xs text-muted-foreground">None recorded.</p> : (
+            {patient.conditions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">None recorded.</p>
+            ) : (
               <ul className="space-y-2">
                 {patient.conditions.map((c, i) => (
                   <li key={i} className="text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{c.name}</span>
-                      {c.status === "active"
-                        ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 h-5 text-[10px]">active</Badge>
-                        : <Badge variant="outline" className="h-5 text-[10px]">resolved</Badge>}
+                      {c.status === "active" ? (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-200 bg-amber-50 text-amber-700 h-5 text-[10px]"
+                        >
+                          active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="h-5 text-[10px]">
+                          resolved
+                        </Badge>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">{c.source.replace(/_/g, " ")} · {formatDate(c.recordedAt)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                      {c.source.replace(/_/g, " ")} · {formatDate(c.recordedAt)}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -300,14 +372,22 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Medications"
             subtitle={`${patient.medications.length} on record`}
-            leading={<div className="rounded-lg bg-violet-50 p-2"><Pill className="h-4 w-4 text-violet-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-violet-50 p-2">
+                <Pill className="h-4 w-4 text-violet-600" />
+              </div>
+            }
           >
-            {patient.medications.length === 0 ? <p className="text-xs text-muted-foreground">None on record.</p> : (
+            {patient.medications.length === 0 ? (
+              <p className="text-xs text-muted-foreground">None on record.</p>
+            ) : (
               <ul className="space-y-1.5">
                 {patient.medications.map((m, i) => (
                   <li key={i} className="text-sm flex items-center justify-between gap-2">
                     <span className="font-medium">{m.name}</span>
-                    <Badge variant="outline" className="text-[10px] capitalize h-5">{m.source.replace(/_/g, " ")}</Badge>
+                    <Badge variant="outline" className="text-[10px] capitalize h-5">
+                      {m.source.replace(/_/g, " ")}
+                    </Badge>
                   </li>
                 ))}
               </ul>
@@ -323,15 +403,28 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Encounters"
             subtitle={`${encounters.length} on record`}
-            leading={<div className="rounded-lg bg-sky-50 p-2"><Stethoscope className="h-4 w-4 text-sky-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-sky-50 p-2">
+                <Stethoscope className="h-4 w-4 text-sky-600" />
+              </div>
+            }
             defaultOpen
           >
             {encounters.length === 0 ? (
-              <EmptyState icon={Stethoscope} title="No encounters" description="This patient has no recorded clinical encounters." compact />
+              <EmptyState
+                icon={Stethoscope}
+                title="No encounters"
+                description="This patient has no recorded clinical encounters."
+                compact
+              />
             ) : (
               <div className="divide-y divide-border/40 -mx-1">
                 {encounters
-                  .sort((a, b) => ((b as WithTimestamps<ClinicalEncounter>).createdAt ?? "").localeCompare((a as WithTimestamps<ClinicalEncounter>).createdAt ?? ""))
+                  .sort((a, b) =>
+                    ((b as WithTimestamps<ClinicalEncounter>).createdAt ?? "").localeCompare(
+                      (a as WithTimestamps<ClinicalEncounter>).createdAt ?? "",
+                    ),
+                  )
                   .map((e) => (
                     <CompactListItem
                       key={e.id}
@@ -340,7 +433,14 @@ export function ProviderPatientDetail() {
                       trailing={
                         <div className="flex items-center gap-1.5">
                           <StatusBadge status={e.status} size="sm" />
-                          {e.locked && <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">signed</Badge>}
+                          {e.locked && (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]"
+                            >
+                              signed
+                            </Badge>
+                          )}
                         </div>
                       }
                       onClick={() => navigate("provider", "encounter", { id: e.id })}
@@ -355,31 +455,45 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Prescriptions"
             subtitle={`${prescriptions.length} issued`}
-            leading={<div className="rounded-lg bg-emerald-50 p-2"><Pill className="h-4 w-4 text-emerald-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-emerald-50 p-2">
+                <Pill className="h-4 w-4 text-emerald-600" />
+              </div>
+            }
           >
             {prescriptions.length === 0 ? (
-              <EmptyState icon={Pill} title="No prescriptions" description="No prescriptions have been issued to this patient." compact />
+              <EmptyState
+                icon={Pill}
+                title="No prescriptions"
+                description="No prescriptions have been issued to this patient."
+                compact
+              />
             ) : (
               <div className="space-y-2">
                 {prescriptions
-                  .sort((a, b) => ((b as WithTimestamps<Prescription>).createdAt ?? "").localeCompare((a as WithTimestamps<Prescription>).createdAt ?? ""))
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
                   .map((rx) => (
                     <div key={rx.id} className="rounded-xl border border-border/60 bg-muted/20 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold">{rx.prescriptionNumber}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Issued {formatDate((rx as WithTimestamps<Prescription>).createdAt)} · {rx.items?.length ?? 0} item(s) · valid until {formatDate(rx.expiryDate)}
+                            Issued {formatDate(rx.createdAt)} · {rx.items.length} item(s) · valid
+                            until {formatDate(rx.validUntil)}
                           </p>
                         </div>
-                        <StatusBadge status={rx.status} size="sm" />
+                        <StatusBadge status={rx.status.toLowerCase()} size="sm" />
                       </div>
                       {rx.items && rx.items.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs border-t border-border/60 pt-2">
                           {rx.items.map((it) => (
                             <li key={it.id} className="flex items-center justify-between gap-2">
-                              <span className="font-medium truncate">{it.medicine} {it.strength} · {it.dose} {it.frequency}</span>
-                              <span className="text-muted-foreground shrink-0">Qty {it.quantity}</span>
+                              <span className="font-medium truncate">
+                                {it.medicationName} {it.strength ?? ""} · {it.dose} {it.frequency}
+                              </span>
+                              <span className="text-muted-foreground shrink-0">
+                                {it.quantity} {it.quantityUnit}
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -394,10 +508,19 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Lab results"
             subtitle={`${labResults.length} available`}
-            leading={<div className="rounded-lg bg-violet-50 p-2"><FlaskConical className="h-4 w-4 text-violet-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-violet-50 p-2">
+                <FlaskConical className="h-4 w-4 text-violet-600" />
+              </div>
+            }
           >
             {labResults.length === 0 ? (
-              <EmptyState icon={FlaskConical} title="No lab results" description="No laboratory results available for this patient." compact />
+              <EmptyState
+                icon={FlaskConical}
+                title="No lab results"
+                description="No laboratory results available for this patient."
+                compact
+              />
             ) : (
               <div className="space-y-2">
                 {labResults.map((l) => (
@@ -405,20 +528,37 @@ export function ProviderPatientDetail() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold">{l.result?.test}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{l.result?.resultDate ? formatDate(l.result.resultDate) : "—"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {l.result?.resultDate ? formatDate(l.result.resultDate) : "—"}
+                        </p>
                         <p className="text-sm mt-1.5">
-                          <span className="font-semibold">{l.result?.value}</span> <span className="text-muted-foreground">{l.result?.unit}</span>
-                          <span className="text-xs text-muted-foreground ml-2">(ref {l.result?.referenceRange})</span>
+                          <span className="font-semibold">{l.result?.value}</span>{" "}
+                          <span className="text-muted-foreground">{l.result?.unit}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (ref {l.result?.referenceRange})
+                          </span>
                         </p>
                       </div>
                       {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" ? (
-                        <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{l.result.abnormalIndicator}</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]"
+                        >
+                          {l.result.abnormalIndicator}
+                        </Badge>
                       ) : (
-                        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">normal</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]"
+                        >
+                          normal
+                        </Badge>
                       )}
                     </div>
                     {l.result?.interpretation && (
-                      <p className="text-xs text-muted-foreground mt-2 border-t border-border/60 pt-2 leading-relaxed">{l.result.interpretation}</p>
+                      <p className="text-xs text-muted-foreground mt-2 border-t border-border/60 pt-2 leading-relaxed">
+                        {l.result.interpretation}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -430,10 +570,19 @@ export function ProviderPatientDetail() {
           <ExpandableCard
             title="Referrals"
             subtitle={`${referrals.length} total`}
-            leading={<div className="rounded-lg bg-amber-50 p-2"><Share2 className="h-4 w-4 text-amber-600" /></div>}
+            leading={
+              <div className="rounded-lg bg-amber-50 p-2">
+                <Share2 className="h-4 w-4 text-amber-600" />
+              </div>
+            }
           >
             {referrals.length === 0 ? (
-              <EmptyState icon={Share2} title="No referrals" description="No referrals for this patient." compact />
+              <EmptyState
+                icon={Share2}
+                title="No referrals"
+                description="No referrals for this patient."
+                compact
+              />
             ) : (
               <div className="divide-y divide-border/40 -mx-1">
                 {referrals.map((r) => (
@@ -463,13 +612,22 @@ export function ProviderPatientDetail() {
               Upcoming ({upcomingAppts.length})
             </p>
             {upcomingAppts.length === 0 ? (
-              <EmptyState icon={Calendar} title="No upcoming appointments" description="Future consultations will appear here." compact />
+              <EmptyState
+                icon={Calendar}
+                title="No upcoming appointments"
+                description="Future consultations will appear here."
+                compact
+              />
             ) : (
               <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
                 {upcomingAppts.map((a) => (
                   <CompactListItem
                     key={a.id}
-                    leading={<div className="rounded-lg bg-emerald-50 p-1.5"><Calendar className="h-4 w-4 text-emerald-600" /></div>}
+                    leading={
+                      <div className="rounded-lg bg-emerald-50 p-1.5">
+                        <Calendar className="h-4 w-4 text-emerald-600" />
+                      </div>
+                    }
                     title={`${relativeDay(a.date)} · ${formatTime(a.time)}`}
                     subtitle={`${a.consultationChannel.replace(/_/g, " ")} · ${intakeReason(a)}`}
                     trailing={<StatusBadge status={a.status} size="sm" />}
@@ -486,13 +644,22 @@ export function ProviderPatientDetail() {
               Past appointments ({pastAppts.length})
             </p>
             {pastAppts.length === 0 ? (
-              <EmptyState icon={Clock} title="No past appointments" description="Past consultations will appear here." compact />
+              <EmptyState
+                icon={Clock}
+                title="No past appointments"
+                description="Past consultations will appear here."
+                compact
+              />
             ) : (
               <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
                 {pastAppts.slice(0, 15).map((a) => (
                   <CompactListItem
                     key={a.id}
-                    leading={<div className="rounded-lg bg-muted p-1.5"><Clock className="h-4 w-4 text-muted-foreground" /></div>}
+                    leading={
+                      <div className="rounded-lg bg-muted p-1.5">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    }
                     title={`${formatDate(a.date)} · ${formatTime(a.time)}`}
                     subtitle={a.consultationChannel.replace(/_/g, " ")}
                     trailing={<StatusBadge status={a.status} size="sm" />}
@@ -507,9 +674,15 @@ export function ProviderPatientDetail() {
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4 flex items-center gap-3">
             <FileSearch className="h-5 w-5 text-muted-foreground shrink-0" />
             <p className="text-xs text-muted-foreground flex-1 leading-relaxed">
-              This is a read-only clinical view. Start a new encounter from an existing appointment, or from the appointments list.
+              This is a read-only clinical view. Start a new encounter from an existing appointment,
+              or from the appointments list.
             </p>
-            <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigate("provider", "appointments")}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => navigate("provider", "appointments")}
+            >
               <FileText className="h-4 w-4 mr-1" /> Appointments
             </Button>
           </div>

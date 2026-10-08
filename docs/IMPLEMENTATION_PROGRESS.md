@@ -240,7 +240,10 @@ that completes an increment.
       reversal, and dispute facts to pharmacy orders; adds patient cancellation,
       administrator-only post-dispense disputes, and dispense-gated pickup/delivery
       handoff. Real financial providers and logistics remain disabled.
-    - `[ ]` 11C4 frontend/BFF cutover and prototype-route retirement.
+    - `[x]` 11C4 cuts patient, practitioner, and pharmacy prescription/order screens
+      over to generated production contracts and exact authenticated BFF allowlists;
+      removes the replaced prototype actions, generic CRUD exposure, paper-upload flow,
+      and unreachable pharmacy prototype screens; and adds indexed owner-scoped lists.
     - `[ ]` 11C5 qualification evidence.
   - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the pharmacy/prescription slice.

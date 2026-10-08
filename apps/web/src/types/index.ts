@@ -28,6 +28,10 @@ export interface User {
 }
 
 export interface Session {
+  memberships: readonly {
+    organizationId: string;
+    organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+  }[];
   userId: string;
   role: UserRole;
   profileId?: string;
@@ -222,12 +226,7 @@ export interface Diagnosis {
 }
 
 export type PrescriptionStatus =
-  | "issued"
-  | "awaiting_pharmacy"
-  | "partially_fulfilled"
-  | "fulfilled"
-  | "expired"
-  | "cancelled";
+  "issued" | "awaiting_pharmacy" | "partially_fulfilled" | "fulfilled" | "expired" | "cancelled";
 
 export interface Prescription {
   id: string;
@@ -732,11 +731,7 @@ export type ManagerOrganizationType = "pharmacy" | "laboratory" | "hospital";
 export type ManagerActivityType = "consultation" | "pharmacy" | "laboratory" | "hospital";
 
 export type ManagerEmploymentStatus =
-  | "full_time"
-  | "contract"
-  | "probation"
-  | "suspended"
-  | "offboarding";
+  "full_time" | "contract" | "probation" | "suspended" | "offboarding";
 
 export type ManagerVerificationStatus = "pending" | "verified" | "rejected" | "suspended";
 
@@ -750,22 +745,14 @@ export type ManagerAssignmentSource =
   | "reassignment";
 
 export type ManagerApplicationStatus =
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "information_required"
-  | "approved"
-  | "rejected";
+  "draft" | "submitted" | "under_review" | "information_required" | "approved" | "rejected";
 
 /** Organization payments are platform-facing fees only — never patient transactions. */
-export type OrganizationTransactionType = "subscription" | "renewal" | "platform_fee" | "service_fee";
+export type OrganizationTransactionType =
+  "subscription" | "renewal" | "platform_fee" | "service_fee";
 
 export type OrganizationPaymentStatus =
-  | "pending"
-  | "successful"
-  | "failed"
-  | "cancelled"
-  | "refunded";
+  "pending" | "successful" | "failed" | "cancelled" | "refunded";
 
 export type ManagerEarningEntryType = "earning" | "reversal";
 

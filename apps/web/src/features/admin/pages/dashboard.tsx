@@ -3,27 +3,56 @@
 import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import {
-  patientService, providerService, applicationService, appointmentService,
-  pharmacyOrderService, deliveryService, settlementService, auditService,
-  complaintService, adminService,
+  patientService,
+  providerService,
+  applicationService,
+  appointmentService,
+  deliveryService,
+  settlementService,
+  auditService,
+  complaintService,
+  adminService,
 } from "@/lib/services";
 import { resource } from "@/lib/api-client";
 import type {
-  Patient, Provider, ProviderApplication, Appointment, PharmacyOrder,
-  Delivery, Settlement, AuditLog, Complaint, Payment,
+  Patient,
+  Provider,
+  ProviderApplication,
+  Appointment,
+  Delivery,
+  Settlement,
+  AuditLog,
+  Complaint,
+  Payment,
 } from "@/types";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import {
-  PageHeader, ErrorState, EmptyState, SkeletonGrid,
+  PageHeader,
+  ErrorState,
+  EmptyState,
+  SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatCurrency, formatDateTime, relativeDay, initials } from "@/lib/format";
 import {
-  Users, UserCheck, Stethoscope, ClipboardCheck, CalendarDays, FlaskConical,
-  Package, Truck, Wallet, TrendingUp, AlertCircle, ShieldAlert, ScrollText,
-  BadgeCheck, Clock, ArrowRight, ChevronRight,
+  Users,
+  UserCheck,
+  Stethoscope,
+  ClipboardCheck,
+  CalendarDays,
+  FlaskConical,
+  Truck,
+  Wallet,
+  TrendingUp,
+  AlertCircle,
+  ShieldAlert,
+  ScrollText,
+  BadgeCheck,
+  Clock,
+  ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +65,6 @@ export function AdminDashboard() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [applications, setApplications] = useState<ProviderApplication[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [orders, setOrders] = useState<PharmacyOrder[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
@@ -52,7 +80,6 @@ export function AdminDashboard() {
       providerService.list(),
       applicationService.list(),
       appointmentService.list(),
-      pharmacyOrderService.list(),
       deliveryService.list(),
       resource.list<Payment>("payment"),
       settlementService.list(),
@@ -60,12 +87,11 @@ export function AdminDashboard() {
       complaintService.list(),
       resource.list<unknown>("laboratoryBooking"),
     ])
-      .then(([p, pr, ap, apt, ord, del, pay, stl, aud, cmp, lab]) => {
+      .then(([p, pr, ap, apt, del, pay, stl, aud, cmp, lab]) => {
         setPatients(p);
         setProviders(pr);
         setApplications(ap);
         setAppointments(apt);
-        setOrders(ord);
         setDeliveries(del);
         setPayments(pay);
         setSettlements(stl);
@@ -83,16 +109,36 @@ export function AdminDashboard() {
     load();
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const todayStr = startOfDayStr();
   const primaryPatients = useMemo(() => patients.filter((p) => !p.parentPatientId), [patients]);
-  const verifiedProviders = useMemo(() => providers.filter((p) => p.verificationStatus === "approved"), [providers]);
-  const pendingVerifications = useMemo(() => applications.filter((a) => ["submitted", "under_review"].includes(a.status)), [applications]);
-  const todaysAppointments = useMemo(() => appointments.filter((a) => a.date === todayStr), [appointments, todayStr]);
-  const grossTransactionValue = useMemo(() => payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0), [payments]);
-  const platformRevenue = useMemo(() => settlements.reduce((s, x) => s + x.commissionAmount, 0), [settlements]);
-  const openComplaints = useMemo(() => complaints.filter((c) => ["open", "investigating"].includes(c.status)), [complaints]);
+  const verifiedProviders = useMemo(
+    () => providers.filter((p) => p.verificationStatus === "approved"),
+    [providers],
+  );
+  const pendingVerifications = useMemo(
+    () => applications.filter((a) => ["submitted", "under_review"].includes(a.status)),
+    [applications],
+  );
+  const todaysAppointments = useMemo(
+    () => appointments.filter((a) => a.date === todayStr),
+    [appointments, todayStr],
+  );
+  const grossTransactionValue = useMemo(
+    () => payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0),
+    [payments],
+  );
+  const platformRevenue = useMemo(
+    () => settlements.reduce((s, x) => s + x.commissionAmount, 0),
+    [settlements],
+  );
+  const openComplaints = useMemo(
+    () => complaints.filter((c) => ["open", "investigating"].includes(c.status)),
+    [complaints],
+  );
   const expiringLicences = useMemo(() => {
     const now = Date.now();
     const limit = 90 * 86400000;
@@ -117,7 +163,8 @@ export function AdminDashboard() {
   const recentAudit = audit.slice(0, 4);
   void adminService;
 
-  const actionNeededCount = pendingVerifications.length + openComplaints.length + expiringLicences.length;
+  const actionNeededCount =
+    pendingVerifications.length + openComplaints.length + expiringLicences.length;
 
   return (
     <div className="space-y-5">
@@ -125,10 +172,19 @@ export function AdminDashboard() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground leading-tight">Admin Console</p>
-          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">Platform overview 👋</h1>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">Provider verification · pricing · settlements · compliance</p>
+          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
+            Platform overview 👋
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            Provider verification · pricing · settlements · compliance
+          </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => navigate("admin", "audit")} className="shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => navigate("admin", "audit")}
+          className="shrink-0"
+        >
           <ScrollText className="h-4 w-4" /> Audit
         </Button>
       </div>
@@ -149,7 +205,8 @@ export function AdminDashboard() {
                   {actionNeededCount} item{actionNeededCount === 1 ? "" : "s"} need attention
                 </p>
                 <p className="text-xs text-amber-700 mt-0.5 truncate">
-                  {pendingVerifications.length} pending verifications · {openComplaints.length} open complaints · {expiringLicences.length} expiring licences
+                  {pendingVerifications.length} pending verifications · {openComplaints.length} open
+                  complaints · {expiringLicences.length} expiring licences
                 </p>
               </div>
             </div>
@@ -165,7 +222,9 @@ export function AdminDashboard() {
             <div>
               <p className="text-sm text-emerald-50/90">All caught up</p>
               <p className="text-xl font-bold mt-1">Review audit trail</p>
-              <p className="text-xs text-emerald-100/80 mt-1">Recent platform activity at a glance</p>
+              <p className="text-xs text-emerald-100/80 mt-1">
+                Recent platform activity at a glance
+              </p>
             </div>
             <div className="rounded-full bg-white/20 p-3">
               <ArrowRight className="h-5 w-5" />
@@ -176,10 +235,34 @@ export function AdminDashboard() {
 
       {/* StatTiles row */}
       <div className="grid grid-cols-4 gap-2.5">
-        <StatTile label="Patients" value={patients.length} icon={Users} tone="info" onClick={() => navigate("admin", "users")} />
-        <StatTile label="Providers" value={verifiedProviders.length} icon={Stethoscope} tone="success" onClick={() => navigate("admin", "providers")} />
-        <StatTile label="Orders" value={orders.length} icon={Package} tone="warning" onClick={() => navigate("admin", "orders")} />
-        <StatTile label="Revenue" value={formatCurrency(platformRevenue)} icon={Wallet} tone="success" onClick={() => navigate("admin", "settlements")} />
+        <StatTile
+          label="Patients"
+          value={patients.length}
+          icon={Users}
+          tone="info"
+          onClick={() => navigate("admin", "users")}
+        />
+        <StatTile
+          label="Providers"
+          value={verifiedProviders.length}
+          icon={Stethoscope}
+          tone="success"
+          onClick={() => navigate("admin", "providers")}
+        />
+        <StatTile
+          label="Appointments"
+          value={appointments.length}
+          icon={CalendarDays}
+          tone="warning"
+          onClick={() => navigate("admin", "appointments")}
+        />
+        <StatTile
+          label="Revenue"
+          value={formatCurrency(platformRevenue)}
+          icon={Wallet}
+          tone="success"
+          onClick={() => navigate("admin", "settlements")}
+        />
       </div>
 
       {/* Action needed list */}
@@ -199,7 +282,11 @@ export function AdminDashboard() {
                       </AvatarFallback>
                     </Avatar>
                   }
-                  title={provider ? `${provider.title} ${provider.firstName} ${provider.lastName}` : app.providerId}
+                  title={
+                    provider
+                      ? `${provider.title} ${provider.firstName} ${provider.lastName}`
+                      : app.providerId
+                  }
                   subtitle={`${provider?.specialty ?? "—"} · submitted ${relativeDay(app.submittedAt)}`}
                   trailing={<StatusBadge status={app.status} size="sm" />}
                   onClick={() => navigate("admin", "provider", { id: app.providerId })}
@@ -210,7 +297,11 @@ export function AdminDashboard() {
             {openComplaints.slice(0, 2).map((c) => (
               <CompactListItem
                 key={c.id}
-                leading={<div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100"><ShieldAlert className="h-4 w-4 text-rose-600" /></div>}
+                leading={
+                  <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
+                    <ShieldAlert className="h-4 w-4 text-rose-600" />
+                  </div>
+                }
                 title={c.subject}
                 subtitle={`${c.complainantType} · ${relativeDay(c.createdAt)}`}
                 trailing={<StatusBadge status={c.status} size="sm" />}
@@ -224,10 +315,33 @@ export function AdminDashboard() {
 
       {/* Secondary stats */}
       <div className="grid grid-cols-4 gap-2.5">
-        <StatTile label="Today" value={todaysAppointments.length} icon={CalendarDays} tone="info" onClick={() => navigate("admin", "appointments")} />
-        <StatTile label="Labs" value={labBookings.length} icon={FlaskConical} tone="violet" onClick={() => navigate("admin", "appointments")} />
-        <StatTile label="Deliveries" value={deliveries.length} icon={Truck} tone="info" onClick={() => navigate("admin", "deliveries")} />
-        <StatTile label="GTV" value={formatCurrency(grossTransactionValue)} icon={TrendingUp} tone="success" />
+        <StatTile
+          label="Today"
+          value={todaysAppointments.length}
+          icon={CalendarDays}
+          tone="info"
+          onClick={() => navigate("admin", "appointments")}
+        />
+        <StatTile
+          label="Labs"
+          value={labBookings.length}
+          icon={FlaskConical}
+          tone="violet"
+          onClick={() => navigate("admin", "appointments")}
+        />
+        <StatTile
+          label="Deliveries"
+          value={deliveries.length}
+          icon={Truck}
+          tone="info"
+          onClick={() => navigate("admin", "deliveries")}
+        />
+        <StatTile
+          label="GTV"
+          value={formatCurrency(grossTransactionValue)}
+          icon={TrendingUp}
+          tone="success"
+        />
       </div>
 
       {/* Expiring licences alert */}
@@ -241,7 +355,9 @@ export function AdminDashboard() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-amber-900">Expiring licences</p>
-            <p className="text-xs text-amber-700 truncate">{expiringLicences.length} provider(s) with licences expiring within 90 days</p>
+            <p className="text-xs text-amber-700 truncate">
+              {expiringLicences.length} provider(s) with licences expiring within 90 days
+            </p>
           </div>
           <ArrowRight className="h-4 w-4 text-amber-700 shrink-0" />
         </button>
@@ -255,10 +371,18 @@ export function AdminDashboard() {
             {recentAudit.map((a) => (
               <CompactListItem
                 key={a.id}
-                leading={<div className="rounded-lg bg-muted p-2"><Clock className="h-4 w-4 text-muted-foreground" /></div>}
+                leading={
+                  <div className="rounded-lg bg-muted p-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                }
                 title={a.description}
                 subtitle={`${a.actorRole} · ${a.action.replace(/_/g, " ")}`}
-                trailing={<span className="text-[10px] text-muted-foreground">{formatDateTime(a.timestamp)}</span>}
+                trailing={
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDateTime(a.timestamp)}
+                  </span>
+                }
                 onClick={() => navigate("admin", "audit")}
                 chevron
               />
@@ -269,13 +393,29 @@ export function AdminDashboard() {
 
       {/* More stats */}
       <div className="grid grid-cols-2 gap-2.5">
-        <StatTile label="Primary patients" value={primaryPatients.length} icon={UserCheck} tone="success" onClick={() => navigate("admin", "users")} />
-        <StatTile label="Verified providers" value={verifiedProviders.length} icon={BadgeCheck} tone="success" onClick={() => navigate("admin", "providers")} />
+        <StatTile
+          label="Primary patients"
+          value={primaryPatients.length}
+          icon={UserCheck}
+          tone="success"
+          onClick={() => navigate("admin", "users")}
+        />
+        <StatTile
+          label="Verified providers"
+          value={verifiedProviders.length}
+          icon={BadgeCheck}
+          tone="success"
+          onClick={() => navigate("admin", "providers")}
+        />
       </div>
     </div>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">{children}</p>;
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+      {children}
+    </p>
+  );
 }

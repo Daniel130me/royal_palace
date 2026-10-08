@@ -30,7 +30,7 @@ function session(
     memberships:
       options.organizationId === undefined
         ? []
-        : [{ organizationId: options.organizationId, roles: [role] }],
+        : [{ organizationId: options.organizationId, organizationType: "PHARMACY", roles: [role] }],
     principalId: options.principalId ?? createOpaqueId(),
     roles: [role],
     sessionId: createOpaqueId(),
@@ -307,6 +307,52 @@ describe("PharmacyCommercialService", () => {
         "accept-key-123",
       ),
     ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("scopes commercial lists to the authenticated patient", async () => {
+    const principalId = createOpaqueId();
+    const listQuotes = vi.fn<PharmacyCommercialRepository["listQuotes"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const listOrders = vi.fn<PharmacyCommercialRepository["listOrders"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const service = createService({ listOrders, listQuotes });
+    const context = {
+      actor: session("PATIENT", { principalId }),
+      requestId: "request-patient-commercial-list",
+    };
+
+    await service.listPatientQuotes(context, { limit: 25 });
+    await service.listPatientOrders(context, { limit: 25 });
+
+    expect(listQuotes).toHaveBeenCalledWith({ limit: 25, patientPrincipalId: principalId });
+    expect(listOrders).toHaveBeenCalledWith({ limit: 25, patientPrincipalId: principalId });
+  });
+
+  it("scopes pharmacy commercial lists to an authorized organization membership", async () => {
+    const organizationId = createOpaqueId();
+    const listQuotes = vi.fn<PharmacyCommercialRepository["listQuotes"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const listOrders = vi.fn<PharmacyCommercialRepository["listOrders"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const service = createService({ listOrders, listQuotes });
+    const context = {
+      actor: session("ORGANIZATION_STAFF", { organizationId }),
+      requestId: "request-pharmacy-commercial-list",
+    };
+
+    await service.listPharmacyQuotes(context, organizationId, { limit: 10 });
+    await service.listPharmacyOrders(context, organizationId, { limit: 10 });
+
+    expect(listQuotes).toHaveBeenCalledWith({ limit: 10, pharmacyOrganizationId: organizationId });
+    expect(listOrders).toHaveBeenCalledWith({ limit: 10, pharmacyOrganizationId: organizationId });
   });
 
   it("authorizes the owning patient before initiating cancellation", async () => {

@@ -7,19 +7,7 @@ import { PharmacyPrescriptions } from "./pages/prescriptions";
 import { PharmacyPrescriptionDetail } from "./pages/prescription";
 import { PharmacyOrders } from "./pages/orders";
 import { PharmacyOrderDetail } from "./pages/order";
-import { PharmacyProducts } from "./pages/products";
-import { PharmacyProductDetail } from "./pages/product";
-import { PharmacyInventory } from "./pages/inventory";
-import { PharmacyDeliveries } from "./pages/deliveries";
-import { PharmacyCommissions } from "./pages/commissions";
-import { PharmacySettlements } from "./pages/settlements";
-import { PharmacyPayouts } from "./pages/payouts";
-import { PharmacyNotifications } from "./pages/notifications";
-import { PharmacySettings } from "./pages/settings";
-import {
-  LayoutDashboard, FileText, Package, Pill, Boxes, Truck,
-  TrendingUp, Wallet, Bell, Settings,
-} from "lucide-react";
+import { LayoutDashboard, FileText, Package } from "lucide-react";
 
 export function PharmacyPortal() {
   const { view } = useNav();
@@ -29,32 +17,21 @@ export function PharmacyPortal() {
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
     { label: "Prescriptions", page: "prescriptions", icon: FileText },
     { label: "Orders", page: "orders", icon: Package },
-    { label: "Products", page: "products", icon: Pill },
-    { label: "Inventory", page: "inventory", icon: Boxes },
-    { label: "Deliveries", page: "deliveries", icon: Truck },
-    { label: "Earnings", page: "commissions", icon: TrendingUp },
-    { label: "Settlements", page: "settlements", icon: Wallet },
-    { label: "Payouts", page: "payouts", icon: Wallet },
-    { label: "Notifications", page: "notifications", icon: Bell },
-    { label: "Settings", page: "settings", icon: Settings },
   ];
 
   return (
     <AppShell portal="pharmacy" brand="Royal Palace" navItems={navItems} notifications={0}>
-      {page === "prescriptions" ? <PharmacyPrescriptions /> :
-       page === "prescription" ? <PharmacyPrescriptionDetail /> :
-       page === "orders" ? <PharmacyOrders /> :
-       page === "order" ? <PharmacyOrderDetail /> :
-       page === "products" ? <PharmacyProducts /> :
-       page === "product" ? <PharmacyProductDetail /> :
-       page === "inventory" ? <PharmacyInventory /> :
-       page === "deliveries" ? <PharmacyDeliveries /> :
-       page === "commissions" ? <PharmacyCommissions /> :
-       page === "settlements" ? <PharmacySettlements /> :
-       page === "payouts" ? <PharmacyPayouts /> :
-       page === "notifications" ? <PharmacyNotifications /> :
-       page === "settings" ? <PharmacySettings /> :
-       <PharmacyDashboard />}
+      {page === "prescriptions" ? (
+        <PharmacyPrescriptions />
+      ) : page === "prescription" ? (
+        <PharmacyPrescriptionDetail />
+      ) : page === "orders" ? (
+        <PharmacyOrders />
+      ) : page === "order" ? (
+        <PharmacyOrderDetail />
+      ) : (
+        <PharmacyDashboard />
+      )}
     </AppShell>
   );
 }
