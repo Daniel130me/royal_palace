@@ -250,6 +250,15 @@ that completes an increment.
       regression, not cancelled scope. Corrective checkpoints 11C4P-1–11C4P-5 are
       tracked in
       [`PROTOTYPE_PRODUCTION_PARITY.md`](./PROTOTYPE_PRODUCTION_PARITY.md).
+      - `[x]` 11C4P-1 records 139 approved capabilities across 11 portals, retains all
+        signed visual references, and runs a fail-closed parity verifier before every
+        workspace verification/CI run. Functional navigation returns with each secure
+        production replacement rather than exposing broken prototype routes.
+      - `[ ]` 11C4P-2 internal pharmacy catalogue and inventory ledger.
+      - `[ ]` 11C4P-3 OTC/direct ordering.
+      - `[ ]` 11C4P-4 scanned-prescription upload and verification history.
+      - `[ ]` 11C4P-5 notifications, settings, delivery integration, and admin order
+        oversight.
     - `[!]` 11C5 qualification evidence is open. The controlled evidence register and
       sign-off packet is in
       [`qualification/11c5-prescription-pharmacy-qualification.md`](./qualification/11c5-prescription-pharmacy-qualification.md).

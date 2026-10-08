@@ -28,18 +28,28 @@ single current branch:
 - `5f66f633f6c5e1fc39aaa684b9e3d2404c043bb1` — last repository state before the
   Increment 11C4 prototype-screen deletions and the immediate comparison point for that
   corrective work.
+- `13915dc2e90e126c9176bbdfb4abc3b8c01c0243` — approved onboarding and governed
+  clinical-catalogue expansion that added capabilities beyond the signed visual
+  prototype; those additions are protected by the same no-removal rule.
 - Repository audit on 2026-10-08 found only `main` and `feat_prod` locally/remotely and
   no remaining stash. Older prototype commits remain reachable in repository history.
 - The root visual references remain present: patient dashboard, booking, encounter,
   records/timeline, pharmacy, laboratory, logistics, administrator, and public-home
   desktop/mobile PNGs are part of the parity review evidence.
+- The machine-readable scope lock is
+  [`prototype-parity.manifest.json`](./prototype-parity.manifest.json). The root
+  `verify:prototype-parity` command validates its schema, immutable baseline identities,
+  capability count, unique IDs, current production-file references, visual references,
+  corrective checkpoints, every referenced artifact in the approved Git history, and
+  this register. It runs first in `pnpm verify`; the main CI checkout retains full
+  history so historical verification cannot be skipped by a shallow clone.
 - Production work is not permitted to reinterpret a missing current file as product
   approval to remove its capability.
 - The complete source inventory is reproducible with:
 
   ```text
   git ls-tree -r --name-only 5ffd023 src/features src/app/api
-  git ls-tree -r --name-only 6bbfa55 apps/web/src/features apps/web/src/app/api
+  git ls-tree -r --name-only 6bbfa55 src/features src/app/api
   git ls-tree -r --name-only 5f66f633f6c5e1fc39aaa684b9e3d2404c043bb1 apps/web/src/features apps/web/src/app/api
   ```
 
@@ -115,8 +125,10 @@ not need to return because the approved user outcomes must use the production se
 The corrective work is split into reviewable production slices rather than a bulk
 restoration of prototype code:
 
-1. `11C4P-1` — restore navigation and full parity inventory; add tests that prevent an
-   approved capability from disappearing silently.
+1. `11C4P-1` — lock the full approved capability/visual inventory and add automated
+   verification that prevents current files or corrective tracking from disappearing
+   silently. Navigation is restored with each functional production replacement rather
+   than pointing users at broken or insecure prototype routes.
 2. `11C4P-2` — internal pharmacy catalogue and inventory ledger, including lots,
    expiry, stock movements, reservations, bounded lists, indexes, and audit.
 3. `11C4P-3` — OTC/direct ordering on the shared quote/order/payment foundation.
@@ -166,3 +178,64 @@ approver, reason, date, and replacement behavior.
 - **Non-standard condition flagged:** the active frontend currently lacks the corrective
   items listed above. This is a known product regression and a release blocker until the
   secure replacements pass parity review.
+
+## Checkpoint 11C4P-1 completion report
+
+### Scope and architecture
+
+Checkpoint 11C4P-1 is complete at the scope-control boundary. The machine-readable
+manifest records 139 approved capabilities across administrator, authentication,
+hospital, laboratory, logistics, manager, patient, pharmacy, practitioner, public, and
+support portals. It binds them to the immutable prototype lineage, 16 signed visual
+references, a production status, and an owning delivery checkpoint.
+
+The verifier is a repository-level release guard rather than frontend runtime code. It
+validates manifest structure, full baseline SHAs, unique portal/capability identifiers,
+the locked capability count, allowed non-removal states, delivery checkpoints, visual
+assets, required production files, and the presence of this controlling register. It
+runs before the existing workspace gates through `pnpm verify`.
+
+### Verification evidence
+
+- The live repository manifest passes with 139 capabilities across 11 portals, all 16
+  visual references present, and 138 distinct historical source artifacts confirmed in
+  their declared immutable commits. One source page intentionally represents two
+  related administrator capabilities.
+- Four isolated failure-mode tests prove that the verifier accepts a complete manifest
+  and rejects a missing connected screen, the forbidden `REMOVED` status, and a silent
+  capability-count reduction.
+- Formatting, all eight workspace lint and type-check jobs, the complete API/web/worker
+  and package test suites, all eight production builds, and both Prisma schema
+  validations passed after the guard was added.
+- The production dependency audit found no known vulnerabilities. The existing reviewed
+  development-only advisory remains time-bound for review on 2026-11-07.
+- The local aggregate `pnpm verify` wrapper could not be used directly because the
+  desktop host injected pnpm 11.25.0 into nested scripts while the repository requires
+  11.19.0. Every constituent gate was therefore run with Corepack explicitly pinned to
+  11.19.0. Remote CI remains the canonical aggregate check because it activates the
+  pinned version before invoking `pnpm verify`.
+
+### Standards review
+
+- **Readable and maintainable:** the manifest is data, while validation behavior and
+  failure-mode tests remain in small dedicated scripts. Capability status is independent
+  of the current filename layout.
+- **Security first:** the guard preserves approved outcomes without restoring browser-
+  trusted identity, generic CRUD, unscanned files, or simulated provider authority.
+- **Performance conscious:** the verifier performs bounded linear filesystem checks and
+  adds no runtime query or browser cost.
+- **Extendable:** new portals and capabilities are additive manifest entries with an
+  explicit checkpoint; production paths can change without rewriting historical scope.
+- **No magic or hard-coded regional assumptions:** immutable prototype SHAs and the
+  client-approved capability count are deliberate release-control constants. Nigeria
+  remains a launch profile, not reusable domain behavior.
+- **Non-standard boundary:** capability parity is now mechanically guarded, but the
+  corrective features are not yet implemented or stakeholder-accepted. Navigation will
+  return with each functional secure replacement rather than expose dead routes.
+
+### Next checkpoint
+
+11C4P-2 implements the internal pharmacy catalogue and inventory ledger, including
+products/SKUs, stock locations, batches/lots, expiry, immutable stock movements,
+adjustments, reservations, dispensing linkage, bounded operational lists, indexes,
+authorization, audit, generated contracts, and the approved pharmacy screens.

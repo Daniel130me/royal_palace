@@ -1,0 +1,901 @@
+{
+  "schemaVersion": 1,
+  "expectedCapabilityCount": 139,
+  "baselines": {
+    "original": {
+      "commit": "5ffd023844f7c3b355f18ae41a61c9112c56c1e9",
+      "description": "Final approved prototype fix before the production implementation plan"
+    },
+    "expanded": {
+      "commit": "6bbfa55e1e17249a8e00ec58269c92280ce6993a",
+      "description": "Approved hospital, enrollment, and privacy-minimized manager expansion"
+    },
+    "pre11c4": {
+      "commit": "5f66f633f6c5e1fc39aaa684b9e3d2404c043bb1",
+      "description": "Last state before the Increment 11C4 prototype-screen deletions"
+    },
+    "onboarding": {
+      "commit": "13915dc2e90e126c9176bbdfb4abc3b8c01c0243",
+      "description": "Approved production onboarding and governed clinical catalogue expansion"
+    }
+  },
+  "visualReferences": [
+    "app-admin-mobile.png",
+    "app-dash-mobile.png",
+    "app-encounter-desktop.png",
+    "app-encounter-mobile.png",
+    "app-lab-mobile.png",
+    "app-logistics-mobile.png",
+    "app-pharmacy-mobile.png",
+    "app-records-mobile.png",
+    "app-records-timeline.png",
+    "design-desktop-encounter.png",
+    "design-mobile-book.png",
+    "design-mobile-patient-dash.png",
+    "final-patient-dash.png",
+    "home-screenshot.png",
+    "redesign-home.png",
+    "redesign-mobile-dash.png"
+  ],
+  "portals": [
+    {
+      "id": "admin",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/admin",
+      "productionRoot": "apps/web/src/features/admin",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "admin-portal.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11C4P"
+        },
+        {
+          "id": "appointments",
+          "file": "pages/appointments.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        { "id": "audit", "file": "pages/audit.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "clinical-catalogue",
+          "file": "pages/clinical-catalogue.tsx",
+          "prototypeBaseline": "onboarding",
+          "prototypeRoot": "apps/web/src/features/admin",
+          "status": "CONNECTED",
+          "checkpoint": "07"
+        },
+        {
+          "id": "complaints",
+          "file": "pages/complaints.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11"
+        },
+        {
+          "id": "deliveries",
+          "file": "pages/deliveries.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "manager-applications",
+          "file": "pages/manager-applications.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "manager-earnings",
+          "file": "pages/manager-earnings.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "manager-support",
+          "file": "pages/manager-support.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "manager-detail",
+          "file": "pages/manager.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "managers",
+          "file": "pages/managers.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "orders",
+          "file": "pages/orders.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-5",
+          "productionFiles": []
+        },
+        {
+          "id": "payments",
+          "file": "pages/payments.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "pharmacy-commissions",
+          "file": "pages/pharmacy-commissions.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "pricing",
+          "file": "pages/pricing.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-reporting"
+        },
+        {
+          "id": "provider-detail",
+          "file": "pages/provider.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "07"
+        },
+        {
+          "id": "providers",
+          "file": "pages/providers.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "07"
+        },
+        {
+          "id": "reports",
+          "file": "pages/reports.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-reporting"
+        },
+        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "settlements",
+          "file": "pages/settlements.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "users",
+          "file": "pages/users.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-identity-admin"
+        },
+        {
+          "id": "provider-verification",
+          "file": "pages/providers.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "07"
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/auth",
+      "productionRoot": "apps/web/src/features/auth",
+      "capabilities": [
+        { "id": "login", "file": "login-page.tsx", "status": "CONNECTED", "checkpoint": "04A" },
+        {
+          "id": "patient-signup",
+          "file": "signup-page.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "07"
+        },
+        {
+          "id": "organization-signup",
+          "file": "organization-signup-page.tsx",
+          "prototypeBaseline": "onboarding",
+          "prototypeRoot": "apps/web/src/features/auth",
+          "status": "CONNECTED",
+          "checkpoint": "07"
+        },
+        {
+          "id": "practitioner-signup",
+          "file": "practitioner-signup-page.tsx",
+          "prototypeBaseline": "onboarding",
+          "prototypeRoot": "apps/web/src/features/auth",
+          "status": "CONNECTED",
+          "checkpoint": "07"
+        },
+        {
+          "id": "persona-switcher",
+          "file": "persona-switcher.tsx",
+          "status": "REVIEW_REQUIRED",
+          "checkpoint": "04B-UAT",
+          "productionFiles": []
+        }
+      ]
+    },
+    {
+      "id": "hospital",
+      "prototypeBaseline": "expanded",
+      "prototypeRoot": "src/features/hospital",
+      "productionRoot": "apps/web/src/features/hospital",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "hospital-portal.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-hospital"
+        }
+      ]
+    },
+    {
+      "id": "laboratory",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/laboratory",
+      "productionRoot": "apps/web/src/features/laboratory",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "laboratory-portal.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "bookings",
+          "file": "pages/bookings.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "critical-results",
+          "file": "pages/critical-results.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "notifications",
+          "file": "pages/notifications.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "payouts",
+          "file": "pages/payouts.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "request-detail",
+          "file": "pages/request.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "requests",
+          "file": "pages/requests.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "result-new",
+          "file": "pages/result-new.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "results",
+          "file": "pages/results.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "services",
+          "file": "pages/services.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "settlements",
+          "file": "pages/settlements.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        }
+      ]
+    },
+    {
+      "id": "logistics",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/logistics",
+      "productionRoot": "apps/web/src/features/logistics",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "logistics-portal.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "assignments",
+          "file": "pages/assignments.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "delivery-detail",
+          "file": "pages/delivery.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "earnings",
+          "file": "pages/earnings.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "history",
+          "file": "pages/history.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-logistics"
+        },
+        {
+          "id": "payouts",
+          "file": "pages/payouts.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        }
+      ]
+    },
+    {
+      "id": "manager",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/manager",
+      "productionRoot": "apps/web/src/features/manager",
+      "capabilities": [
+        { "id": "portal", "file": "manager-portal.tsx", "status": "CONNECTED", "checkpoint": "08" },
+        {
+          "id": "applications",
+          "file": "pages/applications.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "bank-details",
+          "file": "pages/bank-details.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "earnings",
+          "file": "pages/earnings.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "laboratories",
+          "file": "pages/laboratories.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "08-parity"
+        },
+        {
+          "id": "laboratory-detail",
+          "file": "pages/laboratory.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "08-parity"
+        },
+        {
+          "id": "notifications",
+          "file": "pages/notifications.tsx",
+          "status": "PENDING",
+          "checkpoint": "10"
+        },
+        {
+          "id": "onboarding-links",
+          "file": "pages/onboard.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "payouts",
+          "file": "pages/payouts.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "pharmacies",
+          "file": "pages/pharmacies.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "08-parity"
+        },
+        {
+          "id": "pharmacy-detail",
+          "file": "pages/pharmacy.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "08-parity"
+        },
+        { "id": "profile", "file": "pages/profile.tsx", "status": "CONNECTED", "checkpoint": "08" },
+        { "id": "reports", "file": "pages/reports.tsx", "status": "CONNECTED", "checkpoint": "08" },
+        {
+          "id": "resources",
+          "file": "pages/resources.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-reporting"
+        },
+        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        { "id": "support", "file": "pages/support.tsx", "status": "CONNECTED", "checkpoint": "08" },
+        {
+          "id": "ticket-detail",
+          "file": "pages/ticket.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        },
+        {
+          "id": "transactions",
+          "file": "pages/transactions.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "08"
+        }
+      ]
+    },
+    {
+      "id": "patient",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/patient",
+      "productionRoot": "apps/web/src/features/patient",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "patient-portal.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11"
+        },
+        {
+          "id": "appointment-detail",
+          "file": "pages/appointment-detail.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "appointments",
+          "file": "pages/appointments.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        { "id": "booking", "file": "pages/book.tsx", "status": "CONNECTED", "checkpoint": "09" },
+        {
+          "id": "consent",
+          "file": "pages/consent.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "consultation",
+          "file": "pages/consultation.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11"
+        },
+        { "id": "doctors", "file": "pages/doctors.tsx", "status": "CONNECTED", "checkpoint": "06" },
+        {
+          "id": "family",
+          "file": "pages/family.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "hospitals",
+          "file": "pages/hospitals.tsx",
+          "prototypeBaseline": "expanded",
+          "prototypeRoot": "src/features/patient",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "laboratories",
+          "file": "pages/laboratories.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "laboratory-detail",
+          "file": "pages/laboratory.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "notifications",
+          "file": "pages/notifications.tsx",
+          "status": "PENDING",
+          "checkpoint": "10"
+        },
+        {
+          "id": "order-detail",
+          "file": "pages/order-detail.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        { "id": "orders", "file": "pages/orders.tsx", "status": "CONNECTED", "checkpoint": "11C4" },
+        {
+          "id": "payments",
+          "file": "pages/payments.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "pharmacies",
+          "file": "pages/pharmacies.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "pharmacy-detail",
+          "file": "pages/pharmacy-detail.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-3",
+          "productionFiles": []
+        },
+        {
+          "id": "prescription-detail",
+          "file": "pages/prescription-detail.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "prescriptions",
+          "file": "pages/prescriptions.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "records",
+          "file": "pages/records.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "services",
+          "file": "pages/services.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "upload-prescription",
+          "file": "pages/upload-prescription.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-4",
+          "productionFiles": []
+        },
+        {
+          "id": "prescription-uploads",
+          "file": "pages/uploads.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-4",
+          "productionFiles": []
+        }
+      ]
+    },
+    {
+      "id": "pharmacy",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/pharmacy",
+      "productionRoot": "apps/web/src/features/pharmacy",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "pharmacy-portal.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11C4P"
+        },
+        {
+          "id": "commissions",
+          "file": "pages/commissions.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11-settlements",
+          "productionFiles": []
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "deliveries",
+          "file": "pages/deliveries.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-5",
+          "productionFiles": []
+        },
+        {
+          "id": "inventory",
+          "file": "pages/inventory.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-2",
+          "productionFiles": []
+        },
+        {
+          "id": "notifications",
+          "file": "pages/notifications.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-5",
+          "productionFiles": []
+        },
+        {
+          "id": "order-detail",
+          "file": "pages/order.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        { "id": "orders", "file": "pages/orders.tsx", "status": "CONNECTED", "checkpoint": "11C4" },
+        {
+          "id": "payouts",
+          "file": "pages/payouts.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11-settlements",
+          "productionFiles": []
+        },
+        {
+          "id": "prescription-detail",
+          "file": "pages/prescription.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "prescriptions",
+          "file": "pages/prescriptions.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "product-detail",
+          "file": "pages/product.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-2",
+          "productionFiles": []
+        },
+        {
+          "id": "products",
+          "file": "pages/products.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-2",
+          "productionFiles": []
+        },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11C4P-5",
+          "productionFiles": []
+        },
+        {
+          "id": "settlements",
+          "file": "pages/settlements.tsx",
+          "status": "CORRECTIVE",
+          "checkpoint": "11-settlements",
+          "productionFiles": []
+        }
+      ]
+    },
+    {
+      "id": "provider",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/provider",
+      "productionRoot": "apps/web/src/features/provider",
+      "capabilities": [
+        {
+          "id": "portal",
+          "file": "provider-portal.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11"
+        },
+        {
+          "id": "appointment-detail",
+          "file": "pages/appointment.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "appointments",
+          "file": "pages/appointments.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "availability",
+          "file": "pages/availability.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "09"
+        },
+        {
+          "id": "dashboard",
+          "file": "pages/dashboard.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11"
+        },
+        {
+          "id": "earnings",
+          "file": "pages/earnings.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "encounter",
+          "file": "pages/encounter.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "laboratory-requests",
+          "file": "pages/laboratory-requests.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "notifications",
+          "file": "pages/notifications.tsx",
+          "status": "PENDING",
+          "checkpoint": "10"
+        },
+        {
+          "id": "patient-detail",
+          "file": "pages/patient.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "patients",
+          "file": "pages/patients.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "payouts",
+          "file": "pages/payouts.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-settlements"
+        },
+        {
+          "id": "prescriptions",
+          "file": "pages/prescriptions.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "referrals",
+          "file": "pages/referrals.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        },
+        {
+          "id": "results",
+          "file": "pages/results.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "verification",
+          "file": "pages/verification.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "07"
+        },
+        {
+          "id": "lab-request-dialog",
+          "file": "lab-request-dialog.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-laboratory"
+        },
+        {
+          "id": "prescription-dialog",
+          "file": "prescription-dialog.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11C4"
+        },
+        {
+          "id": "referral-dialog",
+          "file": "referral-dialog.tsx",
+          "status": "PENDING",
+          "checkpoint": "11-clinical"
+        }
+      ]
+    },
+    {
+      "id": "public",
+      "prototypeBaseline": "original",
+      "prototypeRoot": "src/features/public",
+      "productionRoot": "apps/web/src/features/public",
+      "capabilities": [
+        {
+          "id": "site",
+          "file": "public-site.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "06-parity"
+        },
+        { "id": "home", "file": "pages/home.tsx", "status": "PENDING", "checkpoint": "06-parity" },
+        { "id": "help", "file": "pages/help.tsx", "status": "PENDING", "checkpoint": "06-parity" },
+        {
+          "id": "how-it-works",
+          "file": "pages/how-it-works.tsx",
+          "status": "PENDING",
+          "checkpoint": "06-parity"
+        },
+        {
+          "id": "laboratories",
+          "file": "pages/laboratories.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "pharmacies",
+          "file": "pages/pharmacies.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "pricing",
+          "file": "pages/pricing.tsx",
+          "status": "PENDING",
+          "checkpoint": "06-parity"
+        },
+        {
+          "id": "provider-profile",
+          "file": "pages/provider-profile.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "providers",
+          "file": "pages/providers.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        },
+        {
+          "id": "services",
+          "file": "pages/services.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "06"
+        }
+      ]
+    },
+    {
+      "id": "support",
+      "prototypeBaseline": "expanded",
+      "prototypeRoot": "src/features/support",
+      "productionRoot": "apps/web/src/features/support",
+      "capabilities": [
+        { "id": "portal", "file": "support-portal.tsx", "status": "CONNECTED", "checkpoint": "08" }
+      ]
+    }
+  ]
+}
