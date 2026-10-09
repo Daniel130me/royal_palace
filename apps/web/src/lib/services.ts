@@ -232,6 +232,124 @@ export const productionPrescriptionService = {
         .then(unwrapGeneratedResponse),
   },
   pharmacy: {
+    catalogItems: (
+      organizationId: string,
+      input: {
+        categoryId?: string;
+        cursor?: string;
+        limit?: number;
+        q?: string;
+        status?: "ACTIVE" | "INACTIVE";
+      } = {},
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/catalog-items", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    catalogItem: (organizationId: string, catalogItemId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/catalog-items/{catalogItemId}", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { catalogItemId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    createCatalogItem: (
+      organizationId: string,
+      body: PrescriptionComponents["schemas"]["CreatePharmacyCatalogItemInput"],
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/catalog-items", {
+          body,
+          params: { header: { ...requestHeader(), "x-organization-id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
+    updateCatalogItem: (
+      organizationId: string,
+      catalogItemId: string,
+      body: PrescriptionComponents["schemas"]["UpdatePharmacyCatalogItemInput"],
+    ) =>
+      generatedPrescriptionClient
+        .PATCH("/v1/pharmacy/catalog-items/{catalogItemId}", {
+          body,
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { catalogItemId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    productClassifications: (organizationId: string, kind: "CATEGORY" | "DOSAGE_FORM") =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/product-classifications", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { kind },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    inventoryLocations: (organizationId: string, status?: "ACTIVE" | "INACTIVE") =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/inventory/locations", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { status },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    createInventoryLocation: (
+      organizationId: string,
+      body: PrescriptionComponents["schemas"]["CreateInventoryLocationInput"],
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/inventory/locations", {
+          body,
+          params: { header: { ...requestHeader(), "x-organization-id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
+    inventoryMovements: (
+      organizationId: string,
+      input: { catalogItemId?: string; cursor?: string; limit?: number; lotId?: string } = {},
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/inventory/movements", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    inventoryLots: (
+      organizationId: string,
+      input: {
+        catalogItemId?: string;
+        cursor?: string;
+        limit?: number;
+        status?: "AVAILABLE" | "QUARANTINED" | "DEPLETED" | "EXPIRED" | "RECALLED";
+      } = {},
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/inventory/lots", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    recordInventoryMovement: (
+      organizationId: string,
+      body: PrescriptionComponents["schemas"]["RecordInventoryMovementInput"],
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/inventory/movements", {
+          body,
+          params: { header: { ...requestHeader(), "x-organization-id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
     prescription: (prescriptionId: string) =>
       generatedPrescriptionClient
         .GET("/v1/prescriptions/{prescriptionId}", {

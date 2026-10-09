@@ -1,11 +1,170 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
 paths:
+  /v1/pharmacy/catalog-items:
+    get:
+      operationId: listPharmacyCatalogItems
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: q, schema: { type: string, minLength: 2, maxLength: 120 } }
+        - { in: query, name: categoryId, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyCatalogItemListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+    post:
+      operationId: createPharmacyCatalogItem
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePharmacyCatalogItemInput" }
+      responses:
+        "201": { $ref: "#/components/responses/PharmacyCatalogItemResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/catalog-items/{catalogItemId}:
+    get:
+      operationId: getPharmacyCatalogItem
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: catalogItemId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyCatalogItemResponse" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updatePharmacyCatalogItem
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: catalogItemId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePharmacyCatalogItemInput" }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyCatalogItemResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/product-classifications:
+    get:
+      operationId: listPharmacyProductClassifications
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - {
+            in: query,
+            name: kind,
+            required: true,
+            schema: { type: string, enum: [CATEGORY, DOSAGE_FORM] },
+          }
+      responses:
+        "200":
+          description: Controlled product classifications
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 200
+                items: { $ref: "#/components/schemas/PharmacyProductClassification" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/pharmacy/inventory/locations:
+    get:
+      operationId: listInventoryLocations
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: query, name: status, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
+      responses:
+        "200":
+          description: Pharmacy stock locations
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 200
+                items: { $ref: "#/components/schemas/InventoryLocation" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+    post:
+      operationId: createInventoryLocation
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInventoryLocationInput" }
+      responses:
+        "201": { $ref: "#/components/responses/InventoryLocationResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/inventory/movements:
+    get:
+      operationId: listInventoryMovements
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: catalogItemId, schema: { type: string, format: uuid } }
+        - { in: query, name: lotId, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/InventoryMovementListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+    post:
+      operationId: recordInventoryMovement
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecordInventoryMovementInput" }
+      responses:
+        "201": { $ref: "#/components/responses/InventoryMovementResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/inventory/lots:
+    get:
+      operationId: listInventoryLots
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: catalogItemId, schema: { type: string, format: uuid } }
+        - {
+            in: query,
+            name: status,
+            schema: { type: string, enum: [AVAILABLE, QUARANTINED, DEPLETED, EXPIRED, RECALLED] },
+          }
+      responses:
+        "200": { $ref: "#/components/responses/InventoryLotListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
   /v1/pharmacy/quotes:
     get:
       operationId: listPharmacyQuotes
@@ -658,6 +817,36 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PharmacyQuoteList" }
+    PharmacyCatalogItemResponse:
+      description: Pharmacy-scoped catalogue item with aggregate stock balances
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PharmacyCatalogItem" }
+    PharmacyCatalogItemListResponse:
+      description: Bounded pharmacy-scoped catalogue page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PharmacyCatalogItemList" }
+    InventoryLocationResponse:
+      description: Pharmacy stock location
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InventoryLocation" }
+    InventoryMovementResponse:
+      description: Immutable inventory movement evidence
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InventoryMovement" }
+    InventoryMovementListResponse:
+      description: Bounded immutable inventory movement page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InventoryMovementList" }
+    InventoryLotListResponse:
+      description: Bounded pharmacy stock-lot page ordered by expiry
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InventoryLotList" }
     SubstitutionProposalResponse:
       description: Substitution proposal with immutable consent and approval decisions
       content:
@@ -669,6 +858,274 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    CreatePharmacyCatalogItemInput:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          categoryId,
+          controlledMedication,
+          currency,
+          dosageFormId,
+          lowStockThreshold,
+          name,
+          nearExpiryDays,
+          prescriptionRequired,
+          sku,
+          unitPriceMinor,
+        ]
+      properties:
+        brandName: { type: string, minLength: 1, maxLength: 160 }
+        categoryId: { type: string, format: uuid }
+        controlledMedication: { type: boolean, default: false }
+        currency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        dosageFormId: { type: string, format: uuid }
+        genericName: { type: string, minLength: 1, maxLength: 240 }
+        lowStockThreshold: { type: string, pattern: "^\\d{1,11}(?:\\.\\d{1,3})?$" }
+        manufacturer: { type: string, minLength: 1, maxLength: 200 }
+        medicationCode: { type: string, minLength: 1, maxLength: 120 }
+        medicationCodeSystem: { type: string, format: uri, maxLength: 255 }
+        name: { type: string, minLength: 2, maxLength: 240 }
+        nearExpiryDays: { type: integer, minimum: 1, maximum: 3650 }
+        prescriptionRequired: { type: boolean, default: false }
+        sku: { type: string, minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+        storageRequirements: { type: string, minLength: 1, maxLength: 500 }
+        strength: { type: string, minLength: 1, maxLength: 120 }
+        unitPriceMinor: { type: string, pattern: "^\\d{1,16}$" }
+    UpdatePharmacyCatalogItemInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        unitPriceMinor: { type: string, pattern: "^\\d{1,16}$" }
+    CreateInventoryLocationInput:
+      type: object
+      additionalProperties: false
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+        name: { type: string, minLength: 2, maxLength: 120 }
+    RecordInventoryMovementInput:
+      oneOf:
+        - { $ref: "#/components/schemas/ReceiveInventoryInput" }
+        - { $ref: "#/components/schemas/AdjustInventoryInput" }
+      discriminator: { propertyName: type }
+    ReceiveInventoryInput:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          batchNumber,
+          catalogItemId,
+          expiryDate,
+          idempotencyKey,
+          locationId,
+          quantity,
+          reasonCode,
+          receivedAt,
+          type,
+        ]
+      properties:
+        batchNumber: { type: string, minLength: 1, maxLength: 120 }
+        catalogItemId: { type: string, format: uuid }
+        expiryDate: { type: string, format: date }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128 }
+        locationId: { type: string, format: uuid }
+        quantity: { type: string, pattern: "^(?:0*[1-9]\\d{0,10})(?:\\.\\d{1,3})?$" }
+        reasonCode:
+          { type: string, minLength: 2, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+        receivedAt: { type: string, format: date-time }
+        type: { type: string, const: RECEIVE }
+    AdjustInventoryInput:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          catalogItemId,
+          expectedLotVersion,
+          idempotencyKey,
+          locationId,
+          lotId,
+          quantity,
+          reasonCode,
+          type,
+        ]
+      properties:
+        catalogItemId: { type: string, format: uuid }
+        expectedLotVersion: { type: integer, minimum: 1 }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128 }
+        locationId: { type: string, format: uuid }
+        lotId: { type: string, format: uuid }
+        quantity: { type: string, pattern: "^(?:0*[1-9]\\d{0,10})(?:\\.\\d{1,3})?$" }
+        reasonCode:
+          { type: string, minLength: 2, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+        type: { type: string, enum: [ADJUST_IN, ADJUST_OUT, RETURN, WRITE_OFF] }
+    PharmacyProductClassification:
+      type: object
+      additionalProperties: false
+      required: [code, id, kind, name, status, version]
+      properties:
+        code: { type: string }
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [CATEGORY, DOSAGE_FORM] }
+        name: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        version: { type: integer, minimum: 1 }
+    PharmacyCatalogItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          availableQuantity,
+          brandName,
+          category,
+          controlledMedication,
+          createdAt,
+          currency,
+          dosageForm,
+          genericName,
+          id,
+          lowStock,
+          lowStockThreshold,
+          manufacturer,
+          medicationCode,
+          medicationCodeSystem,
+          name,
+          nearExpiryDays,
+          onHandQuantity,
+          pharmacyOrganizationId,
+          prescriptionRequired,
+          reservedQuantity,
+          sku,
+          status,
+          storageRequirements,
+          strength,
+          unitPriceMinor,
+          updatedAt,
+          version,
+        ]
+      properties:
+        availableQuantity: { type: string }
+        brandName: { type: [string, "null"] }
+        category: { $ref: "#/components/schemas/PharmacyProductClassification" }
+        controlledMedication: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        currency: { type: string }
+        dosageForm: { $ref: "#/components/schemas/PharmacyProductClassification" }
+        genericName: { type: [string, "null"] }
+        id: { type: string, format: uuid }
+        lowStock: { type: boolean }
+        lowStockThreshold: { type: string }
+        manufacturer: { type: [string, "null"] }
+        medicationCode: { type: [string, "null"] }
+        medicationCodeSystem: { type: [string, "null"] }
+        name: { type: string }
+        nearExpiryDays: { type: integer }
+        onHandQuantity: { type: string }
+        pharmacyOrganizationId: { type: string, format: uuid }
+        prescriptionRequired: { type: boolean }
+        reservedQuantity: { type: string }
+        sku: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        storageRequirements: { type: [string, "null"] }
+        strength: { type: [string, "null"] }
+        unitPriceMinor: { type: string, pattern: "^\\d+$" }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    PharmacyCatalogItemList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PharmacyCatalogItem" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    InventoryLocation:
+      type: object
+      additionalProperties: false
+      required: [code, id, name, pharmacyOrganizationId, status, version]
+      properties:
+        code: { type: string }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        pharmacyOrganizationId: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        version: { type: integer, minimum: 1 }
+    InventoryLot:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          availableQuantity,
+          batchNumber,
+          catalogItemId,
+          expiryDate,
+          id,
+          location,
+          onHandQuantity,
+          receivedAt,
+          reservedQuantity,
+          status,
+          version,
+        ]
+      properties:
+        availableQuantity: { type: string }
+        batchNumber: { type: string }
+        catalogItemId: { type: string, format: uuid }
+        expiryDate: { type: string, format: date }
+        id: { type: string, format: uuid }
+        location: { $ref: "#/components/schemas/InventoryLocation" }
+        onHandQuantity: { type: string }
+        receivedAt: { type: string, format: date-time }
+        reservedQuantity: { type: string }
+        status: { type: string, enum: [AVAILABLE, QUARANTINED, DEPLETED, EXPIRED, RECALLED] }
+        version: { type: integer, minimum: 1 }
+    InventoryLotList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/InventoryLot" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    InventoryMovement:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          lotId,
+          occurredAt,
+          onHandAfter,
+          quantity,
+          reasonCode,
+          referenceId,
+          referenceType,
+          reservedAfter,
+          type,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        lotId: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        onHandAfter: { type: string }
+        quantity: { type: string }
+        reasonCode: { type: string }
+        referenceId: { type: [string, "null"], format: uuid }
+        referenceType: { type: string, enum: [MANUAL, RESERVATION, DISPENSE_EVENT, PHARMACY_ORDER] }
+        reservedAfter: { type: string }
+        type:
+          {
+            type: string,
+            enum: [RECEIVE, ADJUST_IN, ADJUST_OUT, RESERVE, RELEASE, DISPENSE, RETURN, WRITE_OFF],
+          }
+    InventoryMovementList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/InventoryMovement" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     AcceptPharmacyQuoteInput:
       type: object
       additionalProperties: false

@@ -7,7 +7,10 @@ import { PharmacyPrescriptions } from "./pages/prescriptions";
 import { PharmacyPrescriptionDetail } from "./pages/prescription";
 import { PharmacyOrders } from "./pages/orders";
 import { PharmacyOrderDetail } from "./pages/order";
-import { LayoutDashboard, FileText, Package } from "lucide-react";
+import { PharmacyProducts } from "./pages/products";
+import { PharmacyProductDetail } from "./pages/product";
+import { PharmacyInventory } from "./pages/inventory";
+import { LayoutDashboard, FileText, Package, Pill, Warehouse } from "lucide-react";
 
 export function PharmacyPortal() {
   const { view } = useNav();
@@ -17,6 +20,8 @@ export function PharmacyPortal() {
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
     { label: "Prescriptions", page: "prescriptions", icon: FileText },
     { label: "Orders", page: "orders", icon: Package },
+    { label: "Products", page: "products", icon: Pill },
+    { label: "Inventory", page: "inventory", icon: Warehouse },
   ];
 
   return (
@@ -29,6 +34,12 @@ export function PharmacyPortal() {
         <PharmacyOrders />
       ) : page === "order" ? (
         <PharmacyOrderDetail />
+      ) : page === "products" ? (
+        <PharmacyProducts />
+      ) : page === "product" ? (
+        <PharmacyProductDetail />
+      ) : page === "inventory" ? (
+        <PharmacyInventory />
       ) : (
         <PharmacyDashboard />
       )}

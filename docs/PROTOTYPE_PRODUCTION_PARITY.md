@@ -233,9 +233,27 @@ runs before the existing workspace gates through `pnpm verify`.
   corrective features are not yet implemented or stakeholder-accepted. Navigation will
   return with each functional secure replacement rather than expose dead routes.
 
-### Next checkpoint
+## Checkpoint 11C4P-2A completion report
 
-11C4P-2 implements the internal pharmacy catalogue and inventory ledger, including
-products/SKUs, stock locations, batches/lots, expiry, immutable stock movements,
-adjustments, reservations, dispensing linkage, bounded operational lists, indexes,
-authorization, audit, generated contracts, and the approved pharmacy screens.
+11C4P-2A restores the client-approved Products, Inventory, and product-detail surfaces
+through the production API. The backend uses governed product classifications,
+pharmacy-scoped SKUs and stock locations, expiry-ordered lots, materialized aggregate
+balances with deferred database consistency checks, and immutable idempotent movement
+evidence for receipts, returns, adjustments, and write-offs. All reads are bounded and
+indexed; currency, thresholds, and near-expiry windows are record data rather than
+country-specific application constants.
+
+The legacy mutable `stockQuantity` record was not copied. That implementation could not
+prove how a balance changed, represented only one batch, and used fixed currency and alert
+thresholds. Capability parity is preserved while the unsafe storage model is retired.
+
+### Remaining 11C4P-2B checkpoint
+
+11C4P-2 is not yet complete. 11C4P-2B must connect FEFO reservation allocations and
+dispensing consumption/release to the existing quote, order, and prescription lifecycle.
+Synthetic inventory remains the quote adapter until that transaction boundary is complete.
+
+### Following checkpoint
+
+After 11C4P-2B closes the inventory transaction boundary, 11C4P-3 implements OTC/direct
+ordering on the shared quote, order, and payment foundation.

@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/v1/pharmacy/catalog-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyCatalogItems"];
+        put?: never;
+        post: operations["createPharmacyCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/catalog-items/{catalogItemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyCatalogItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePharmacyCatalogItem"];
+        trace?: never;
+    };
+    "/v1/pharmacy/product-classifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyProductClassifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/inventory/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listInventoryLocations"];
+        put?: never;
+        post: operations["createInventoryLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listInventoryMovements"];
+        put?: never;
+        post: operations["recordInventoryMovement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/inventory/lots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listInventoryLots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pharmacy/quotes": {
         parameters: {
             query?: never;
@@ -488,6 +584,181 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CreatePharmacyCatalogItemInput: {
+            brandName?: string;
+            /** Format: uuid */
+            categoryId: string;
+            /** @default false */
+            controlledMedication: boolean;
+            currency: string;
+            /** Format: uuid */
+            dosageFormId: string;
+            genericName?: string;
+            lowStockThreshold: string;
+            manufacturer?: string;
+            medicationCode?: string;
+            /** Format: uri */
+            medicationCodeSystem?: string;
+            name: string;
+            nearExpiryDays: number;
+            /** @default false */
+            prescriptionRequired: boolean;
+            sku: string;
+            storageRequirements?: string;
+            strength?: string;
+            unitPriceMinor: string;
+        };
+        UpdatePharmacyCatalogItemInput: {
+            expectedVersion: number;
+            /** @enum {string} */
+            status?: "ACTIVE" | "INACTIVE";
+            unitPriceMinor?: string;
+        };
+        CreateInventoryLocationInput: {
+            code: string;
+            name: string;
+        };
+        RecordInventoryMovementInput: components["schemas"]["ReceiveInventoryInput"] | components["schemas"]["AdjustInventoryInput"];
+        ReceiveInventoryInput: {
+            batchNumber: string;
+            /** Format: uuid */
+            catalogItemId: string;
+            /** Format: date */
+            expiryDate: string;
+            idempotencyKey: string;
+            /** Format: uuid */
+            locationId: string;
+            quantity: string;
+            reasonCode: string;
+            /** Format: date-time */
+            receivedAt: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "ReceiveInventoryInput";
+        };
+        AdjustInventoryInput: {
+            /** Format: uuid */
+            catalogItemId: string;
+            expectedLotVersion: number;
+            idempotencyKey: string;
+            /** Format: uuid */
+            locationId: string;
+            /** Format: uuid */
+            lotId: string;
+            quantity: string;
+            reasonCode: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "AdjustInventoryInput";
+        };
+        PharmacyProductClassification: {
+            code: string;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "CATEGORY" | "DOSAGE_FORM";
+            name: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE";
+            version: number;
+        };
+        PharmacyCatalogItem: {
+            availableQuantity: string;
+            brandName: string | null;
+            category: components["schemas"]["PharmacyProductClassification"];
+            controlledMedication: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            dosageForm: components["schemas"]["PharmacyProductClassification"];
+            genericName: string | null;
+            /** Format: uuid */
+            id: string;
+            lowStock: boolean;
+            lowStockThreshold: string;
+            manufacturer: string | null;
+            medicationCode: string | null;
+            medicationCodeSystem: string | null;
+            name: string;
+            nearExpiryDays: number;
+            onHandQuantity: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            prescriptionRequired: boolean;
+            reservedQuantity: string;
+            sku: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE";
+            storageRequirements: string | null;
+            strength: string | null;
+            unitPriceMinor: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        PharmacyCatalogItemList: {
+            data: components["schemas"]["PharmacyCatalogItem"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        InventoryLocation: {
+            code: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE";
+            version: number;
+        };
+        InventoryLot: {
+            availableQuantity: string;
+            batchNumber: string;
+            /** Format: uuid */
+            catalogItemId: string;
+            /** Format: date */
+            expiryDate: string;
+            /** Format: uuid */
+            id: string;
+            location: components["schemas"]["InventoryLocation"];
+            onHandQuantity: string;
+            /** Format: date-time */
+            receivedAt: string;
+            reservedQuantity: string;
+            /** @enum {string} */
+            status: "AVAILABLE" | "QUARANTINED" | "DEPLETED" | "EXPIRED" | "RECALLED";
+            version: number;
+        };
+        InventoryLotList: {
+            data: components["schemas"]["InventoryLot"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        InventoryMovement: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            lotId: string;
+            /** Format: date-time */
+            occurredAt: string;
+            onHandAfter: string;
+            quantity: string;
+            reasonCode: string;
+            /** Format: uuid */
+            referenceId: string | null;
+            /** @enum {string} */
+            referenceType: "MANUAL" | "RESERVATION" | "DISPENSE_EVENT" | "PHARMACY_ORDER";
+            reservedAfter: string;
+            /** @enum {string} */
+            type: "RECEIVE" | "ADJUST_IN" | "ADJUST_OUT" | "RESERVE" | "RELEASE" | "DISPENSE" | "RETURN" | "WRITE_OFF";
+        };
+        InventoryMovementList: {
+            data: components["schemas"]["InventoryMovement"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
         AcceptPharmacyQuoteInput: {
             expectedVersion: number;
         };
@@ -988,6 +1259,60 @@ export interface components {
                 "application/json": components["schemas"]["PharmacyQuoteList"];
             };
         };
+        /** @description Pharmacy-scoped catalogue item with aggregate stock balances */
+        PharmacyCatalogItemResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyCatalogItem"];
+            };
+        };
+        /** @description Bounded pharmacy-scoped catalogue page */
+        PharmacyCatalogItemListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyCatalogItemList"];
+            };
+        };
+        /** @description Pharmacy stock location */
+        InventoryLocationResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InventoryLocation"];
+            };
+        };
+        /** @description Immutable inventory movement evidence */
+        InventoryMovementResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InventoryMovement"];
+            };
+        };
+        /** @description Bounded immutable inventory movement page */
+        InventoryMovementListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InventoryMovementList"];
+            };
+        };
+        /** @description Bounded pharmacy stock-lot page ordered by expiry */
+        InventoryLotListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["InventoryLotList"];
+            };
+        };
         /** @description Substitution proposal with immutable consent and approval decisions */
         SubstitutionProposalResponse: {
             headers: {
@@ -1024,6 +1349,235 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listPharmacyCatalogItems: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                q?: string;
+                categoryId?: string;
+                status?: "ACTIVE" | "INACTIVE";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyCatalogItemListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    createPharmacyCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePharmacyCatalogItemInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyCatalogItemResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getPharmacyCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyCatalogItemResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePharmacyCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePharmacyCatalogItemInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["PharmacyCatalogItemResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPharmacyProductClassifications: {
+        parameters: {
+            query: {
+                kind: "CATEGORY" | "DOSAGE_FORM";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Controlled product classifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyProductClassification"][];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    listInventoryLocations: {
+        parameters: {
+            query?: {
+                status?: "ACTIVE" | "INACTIVE";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pharmacy stock locations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryLocation"][];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    createInventoryLocation: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInventoryLocationInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["InventoryLocationResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryMovements: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                catalogItemId?: string;
+                lotId?: string;
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["InventoryMovementListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    recordInventoryMovement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordInventoryMovementInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["InventoryMovementResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInventoryLots: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                catalogItemId?: string;
+                status?: "AVAILABLE" | "QUARANTINED" | "DEPLETED" | "EXPIRED" | "RECALLED";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["InventoryLotListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+        };
+    };
     listPharmacyQuotes: {
         parameters: {
             query?: {

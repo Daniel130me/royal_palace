@@ -801,6 +801,110 @@ export interface PharmacyOrderListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export type PharmacyProductClassificationKind = "CATEGORY" | "DOSAGE_FORM";
+export type PharmacyCatalogItemStatus = "ACTIVE" | "INACTIVE";
+export type InventoryLocationStatus = "ACTIVE" | "INACTIVE";
+export type InventoryLotStatus = "AVAILABLE" | "QUARANTINED" | "DEPLETED" | "EXPIRED" | "RECALLED";
+export type InventoryMovementType =
+  | "RECEIVE"
+  | "ADJUST_IN"
+  | "ADJUST_OUT"
+  | "RESERVE"
+  | "RELEASE"
+  | "DISPENSE"
+  | "RETURN"
+  | "WRITE_OFF";
+
+export interface PharmacyProductClassificationResponse {
+  code: string;
+  id: string;
+  kind: PharmacyProductClassificationKind;
+  name: string;
+  status: CatalogueEntryStatus;
+  version: number;
+}
+
+export interface PharmacyCatalogItemResponse {
+  availableQuantity: string;
+  brandName: string | null;
+  category: PharmacyProductClassificationResponse;
+  controlledMedication: boolean;
+  createdAt: string;
+  currency: string;
+  dosageForm: PharmacyProductClassificationResponse;
+  genericName: string | null;
+  id: string;
+  lowStock: boolean;
+  lowStockThreshold: string;
+  manufacturer: string | null;
+  medicationCode: string | null;
+  medicationCodeSystem: string | null;
+  name: string;
+  nearExpiryDays: number;
+  onHandQuantity: string;
+  pharmacyOrganizationId: string;
+  prescriptionRequired: boolean;
+  reservedQuantity: string;
+  sku: string;
+  status: PharmacyCatalogItemStatus;
+  storageRequirements: string | null;
+  strength: string | null;
+  unitPriceMinor: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface PharmacyCatalogItemListResponse {
+  data: readonly PharmacyCatalogItemResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface InventoryLocationResponse {
+  code: string;
+  id: string;
+  name: string;
+  pharmacyOrganizationId: string;
+  status: InventoryLocationStatus;
+  version: number;
+}
+
+export interface InventoryLotResponse {
+  availableQuantity: string;
+  batchNumber: string;
+  catalogItemId: string;
+  expiryDate: string;
+  id: string;
+  location: InventoryLocationResponse;
+  onHandQuantity: string;
+  receivedAt: string;
+  reservedQuantity: string;
+  status: InventoryLotStatus;
+  version: number;
+}
+
+export interface InventoryLotListResponse {
+  data: readonly InventoryLotResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface InventoryMovementResponse {
+  id: string;
+  lotId: string;
+  occurredAt: string;
+  onHandAfter: string;
+  quantity: string;
+  reasonCode: string;
+  referenceId: string | null;
+  referenceType: "MANUAL" | "RESERVATION" | "DISPENSE_EVENT" | "PHARMACY_ORDER";
+  reservedAfter: string;
+  type: InventoryMovementType;
+}
+
+export interface InventoryMovementListResponse {
+  data: readonly InventoryMovementResponse[];
+  pageInfo: CursorPageInfo;
+}
+
 export type ClinicalCatalogueKind = "PROFESSION" | "SPECIALTY";
 export type CatalogueEntryStatus = "ACTIVE" | "INACTIVE";
 

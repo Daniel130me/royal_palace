@@ -255,6 +255,14 @@ that completes an increment.
         workspace verification/CI run. Functional navigation returns with each secure
         production replacement rather than exposing broken prototype routes.
       - `[ ]` 11C4P-2 internal pharmacy catalogue and inventory ledger.
+        - `[x]` 11C4P-2A delivers controlled classifications, pharmacy-scoped SKUs and
+          locations, expiry-ordered lots, materialized aggregate balances protected by
+          deferred database invariants, immutable idempotent receipt/adjustment
+          evidence, bounded indexed reads, named authorization/audit policy, generated
+          OpenAPI/BFF contracts, and the approved Products, Inventory, and product-detail
+          screens.
+        - `[ ]` 11C4P-2B connects FEFO reservation allocations and dispensing consumption
+          to the existing quote/order/prescription workflow before 11C4P-2 is complete.
       - `[ ]` 11C4P-3 OTC/direct ordering.
       - `[ ]` 11C4P-4 scanned-prescription upload and verification history.
       - `[ ]` 11C4P-5 notifications, settings, delivery integration, and admin order

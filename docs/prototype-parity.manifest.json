@@ -640,9 +640,9 @@
         {
           "id": "inventory",
           "file": "pages/inventory.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-2",
-          "productionFiles": []
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/inventory.tsx"]
         },
         {
           "id": "notifications",
@@ -680,16 +680,16 @@
         {
           "id": "product-detail",
           "file": "pages/product.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-2",
-          "productionFiles": []
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/product.tsx"]
         },
         {
           "id": "products",
           "file": "pages/products.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-2",
-          "productionFiles": []
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/products.tsx"]
         },
         {
           "id": "settings",

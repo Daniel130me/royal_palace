@@ -355,6 +355,47 @@ enum InventoryReservationStatus {
   EXPIRED
 }
 
+enum PharmacyProductClassificationKind {
+  CATEGORY
+  DOSAGE_FORM
+}
+
+enum PharmacyCatalogItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InventoryLocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InventoryLotStatus {
+  AVAILABLE
+  QUARANTINED
+  DEPLETED
+  EXPIRED
+  RECALLED
+}
+
+enum InventoryMovementType {
+  RECEIVE
+  ADJUST_IN
+  ADJUST_OUT
+  RESERVE
+  RELEASE
+  DISPENSE
+  RETURN
+  WRITE_OFF
+}
+
+enum InventoryMovementReferenceType {
+  MANUAL
+  RESERVATION
+  DISPENSE_EVENT
+  PHARMACY_ORDER
+}
+
 enum PharmacyOrderStatus {
   PENDING_PAYMENT
   CONFIRMED
@@ -459,6 +500,8 @@ model IdentityPrincipal {
   preparedPharmacyHandoffs     PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
   completedPharmacyHandoffs    PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
   pharmacyOrderResolutions     PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
+  createdPharmacyCatalogItems  PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
+  pharmacyInventoryMovements   InventoryMovement[]                @relation("InventoryMovementActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -584,6 +627,10 @@ model Organization {
   prescriptionRoutes                PrescriptionRoute[]
   pharmacyQuotes                    PharmacyQuote[]
   pharmacyOrders                    PharmacyOrder[]
+  pharmacyCatalogItems              PharmacyCatalogItem[]
+  inventoryLocations                InventoryLocation[]
+  inventoryLots                     InventoryLot[]
+  inventoryMovements                InventoryMovement[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -1763,6 +1810,7 @@ model PharmacyQuoteLine {
   quoteId                String                            @map("quote_id") @db.Uuid
   prescriptionItemId     String                            @map("prescription_item_id") @db.Uuid
   substitutionProposalId String?                           @map("substitution_proposal_id") @db.Uuid
+  catalogItemId          String?                           @map("catalog_item_id") @db.Uuid
   lineNumber             Int                               @map("line_number")
   medicationCode         String?                           @map("medication_code") @db.VarChar(120)
   medicationCodeSystem   String?                           @map("medication_code_system") @db.VarChar(255)
@@ -1776,12 +1824,151 @@ model PharmacyQuoteLine {
   quote                  PharmacyQuote                     @relation(fields: [quoteId], references: [id], onDelete: Restrict)
   prescriptionItem       PrescriptionItem                  @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
   substitutionProposal   PrescriptionSubstitutionProposal? @relation(fields: [substitutionProposalId], references: [id], onDelete: Restrict)
+  catalogItem            PharmacyCatalogItem?              @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  inventoryAllocations   InventoryReservationAllocation[]
 
   @@unique([quoteId, lineNumber], map: "pharmacy_quote_lines_quote_line_key")
   @@unique([quoteId, prescriptionItemId], map: "pharmacy_quote_lines_quote_item_key")
   @@index([prescriptionItemId, createdAt, id], map: "pharmacy_quote_lines_item_created_idx")
   @@index([substitutionProposalId, createdAt, id], map: "pharmacy_quote_lines_substitution_idx")
+  @@index([catalogItemId, createdAt, id], map: "pharmacy_quote_lines_catalog_item_idx")
   @@map("pharmacy_quote_lines")
+}
+
+model PharmacyProductClassification {
+  id          String                            @id @db.Uuid
+  kind        PharmacyProductClassificationKind
+  code        String                            @db.VarChar(80)
+  name        String                            @db.VarChar(120)
+  status      CatalogueStatus                   @default(ACTIVE)
+  createdAt   DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version     Int                               @default(1)
+  categories  PharmacyCatalogItem[]             @relation("PharmacyCatalogItemCategory")
+  dosageForms PharmacyCatalogItem[]             @relation("PharmacyCatalogItemDosageForm")
+
+  @@unique([kind, code], map: "pharmacy_product_classifications_kind_code_key")
+  @@index([kind, status, name, id], map: "pharmacy_product_classifications_kind_status_name_idx")
+  @@map("pharmacy_product_classifications")
+}
+
+model PharmacyCatalogItem {
+  id                     String                           @id @db.Uuid
+  pharmacyOrganizationId String                           @map("pharmacy_organization_id") @db.Uuid
+  sku                    String                           @db.VarChar(80)
+  medicationCode         String?                          @map("medication_code") @db.VarChar(120)
+  medicationCodeSystem   String?                          @map("medication_code_system") @db.VarChar(255)
+  name                   String                           @db.VarChar(240)
+  genericName            String?                          @map("generic_name") @db.VarChar(240)
+  brandName              String?                          @map("brand_name") @db.VarChar(160)
+  categoryId             String                           @map("category_id") @db.Uuid
+  dosageFormId           String                           @map("dosage_form_id") @db.Uuid
+  strength               String?                          @db.VarChar(120)
+  manufacturer           String?                          @db.VarChar(200)
+  prescriptionRequired   Boolean                          @default(false) @map("prescription_required")
+  controlledMedication   Boolean                          @default(false) @map("controlled_medication")
+  storageRequirements    String?                          @map("storage_requirements") @db.VarChar(500)
+  unitPriceMinor         BigInt                           @map("unit_price_minor")
+  currency               String                           @db.Char(3)
+  lowStockThreshold      Decimal                          @map("low_stock_threshold") @db.Decimal(14, 3)
+  nearExpiryDays         Int                              @map("near_expiry_days")
+  onHandQuantity         Decimal                          @default(0) @map("on_hand_quantity") @db.Decimal(14, 3)
+  reservedQuantity       Decimal                          @default(0) @map("reserved_quantity") @db.Decimal(14, 3)
+  status                 PharmacyCatalogItemStatus        @default(ACTIVE)
+  createdByPrincipalId   String                           @map("created_by_principal_id") @db.Uuid
+  createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                              @default(1)
+  pharmacyOrganization   Organization                     @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  category               PharmacyProductClassification    @relation("PharmacyCatalogItemCategory", fields: [categoryId], references: [id], onDelete: Restrict)
+  dosageForm             PharmacyProductClassification    @relation("PharmacyCatalogItemDosageForm", fields: [dosageFormId], references: [id], onDelete: Restrict)
+  createdByPrincipal     IdentityPrincipal                @relation("PharmacyCatalogItemCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  lots                   InventoryLot[]
+  movements              InventoryMovement[]
+  quoteLines             PharmacyQuoteLine[]
+  reservationAllocations InventoryReservationAllocation[]
+
+  @@unique([pharmacyOrganizationId, sku], map: "pharmacy_catalog_items_org_sku_key")
+  @@index([pharmacyOrganizationId, status, name, id], map: "pharmacy_catalog_items_org_status_name_idx")
+  @@index([pharmacyOrganizationId, categoryId, status, name, id], map: "pharmacy_catalog_items_org_category_status_idx")
+  @@index([pharmacyOrganizationId, medicationCodeSystem, medicationCode, status], map: "pharmacy_catalog_items_medication_code_idx")
+  @@index([name(ops: raw("gin_trgm_ops")), genericName(ops: raw("gin_trgm_ops")), brandName(ops: raw("gin_trgm_ops"))], type: Gin, map: "pharmacy_catalog_items_search_trgm_idx")
+  @@map("pharmacy_catalog_items")
+}
+
+model InventoryLocation {
+  id                     String                  @id @db.Uuid
+  pharmacyOrganizationId String                  @map("pharmacy_organization_id") @db.Uuid
+  code                   String                  @db.VarChar(80)
+  name                   String                  @db.VarChar(120)
+  status                 InventoryLocationStatus @default(ACTIVE)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                     @default(1)
+  pharmacyOrganization   Organization            @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  lots                   InventoryLot[]
+  movements              InventoryMovement[]
+
+  @@unique([pharmacyOrganizationId, code], map: "inventory_locations_org_code_key")
+  @@index([pharmacyOrganizationId, status, name, id], map: "inventory_locations_org_status_name_idx")
+  @@map("inventory_locations")
+}
+
+model InventoryLot {
+  id                     String                           @id @db.Uuid
+  pharmacyOrganizationId String                           @map("pharmacy_organization_id") @db.Uuid
+  catalogItemId          String                           @map("catalog_item_id") @db.Uuid
+  locationId             String                           @map("location_id") @db.Uuid
+  batchNumber            String                           @map("batch_number") @db.VarChar(120)
+  expiryDate             DateTime                         @map("expiry_date") @db.Date
+  receivedAt             DateTime                         @map("received_at") @db.Timestamptz(6)
+  status                 InventoryLotStatus               @default(AVAILABLE)
+  onHandQuantity         Decimal                          @default(0) @map("on_hand_quantity") @db.Decimal(14, 3)
+  reservedQuantity       Decimal                          @default(0) @map("reserved_quantity") @db.Decimal(14, 3)
+  createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                              @default(1)
+  pharmacyOrganization   Organization                     @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  catalogItem            PharmacyCatalogItem              @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  location               InventoryLocation                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements              InventoryMovement[]
+  reservationAllocations InventoryReservationAllocation[]
+
+  @@unique([catalogItemId, locationId, batchNumber], map: "inventory_lots_item_location_batch_key")
+  @@index([pharmacyOrganizationId, status, expiryDate, id], map: "inventory_lots_org_status_expiry_idx")
+  @@index([catalogItemId, status, expiryDate, id], map: "inventory_lots_item_status_expiry_idx")
+  @@index([locationId, status, expiryDate, id], map: "inventory_lots_location_status_expiry_idx")
+  @@map("inventory_lots")
+}
+
+model InventoryMovement {
+  id                     String                         @id @db.Uuid
+  pharmacyOrganizationId String                         @map("pharmacy_organization_id") @db.Uuid
+  catalogItemId          String                         @map("catalog_item_id") @db.Uuid
+  locationId             String                         @map("location_id") @db.Uuid
+  lotId                  String                         @map("lot_id") @db.Uuid
+  type                   InventoryMovementType
+  quantity               Decimal                        @db.Decimal(14, 3)
+  onHandAfter            Decimal                        @map("on_hand_after") @db.Decimal(14, 3)
+  reservedAfter          Decimal                        @map("reserved_after") @db.Decimal(14, 3)
+  reasonCode             String                         @map("reason_code") @db.VarChar(100)
+  referenceType          InventoryMovementReferenceType @map("reference_type")
+  referenceId            String?                        @map("reference_id") @db.Uuid
+  actorPrincipalId       String                         @map("actor_principal_id") @db.Uuid
+  idempotencyKey         String                         @map("idempotency_key") @db.VarChar(128)
+  requestHash            String                         @map("request_hash") @db.Char(64)
+  occurredAt             DateTime                       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  pharmacyOrganization   Organization                   @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  catalogItem            PharmacyCatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  location               InventoryLocation              @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  lot                    InventoryLot                   @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  actorPrincipal         IdentityPrincipal              @relation("InventoryMovementActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@unique([actorPrincipalId, idempotencyKey], map: "inventory_movements_actor_idempotency_key")
+  @@index([lotId, occurredAt(sort: Desc), id(sort: Desc)], map: "inventory_movements_lot_occurred_idx")
+  @@index([pharmacyOrganizationId, occurredAt(sort: Desc), id(sort: Desc)], map: "inventory_movements_org_occurred_idx")
+  @@index([referenceType, referenceId, occurredAt, id], map: "inventory_movements_reference_idx")
+  @@map("inventory_movements")
 }
 
 model PharmacyQuoteCharge {
@@ -1800,20 +1987,44 @@ model PharmacyQuoteCharge {
 }
 
 model InventoryReservation {
-  id                           String                     @id @db.Uuid
-  quoteId                      String                     @unique @map("quote_id") @db.Uuid
-  providerCode                 String                     @map("provider_code") @db.VarChar(64)
-  providerReservationReference String?                    @unique @map("provider_reservation_reference") @db.VarChar(255)
-  evidenceHash                 String                     @map("evidence_hash") @db.Char(64)
-  status                       InventoryReservationStatus @default(HELD)
-  expiresAt                    DateTime                   @map("expires_at") @db.Timestamptz(6)
-  createdAt                    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                      Int                        @default(1)
-  quote                        PharmacyQuote              @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  id                           String                           @id @db.Uuid
+  quoteId                      String                           @unique @map("quote_id") @db.Uuid
+  providerCode                 String                           @map("provider_code") @db.VarChar(64)
+  providerReservationReference String?                          @unique @map("provider_reservation_reference") @db.VarChar(255)
+  evidenceHash                 String                           @map("evidence_hash") @db.Char(64)
+  status                       InventoryReservationStatus       @default(HELD)
+  expiresAt                    DateTime                         @map("expires_at") @db.Timestamptz(6)
+  createdAt                    DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                      Int                              @default(1)
+  quote                        PharmacyQuote                    @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  allocations                  InventoryReservationAllocation[]
 
   @@index([status, expiresAt, id], map: "inventory_reservations_status_expiry_idx")
   @@map("inventory_reservations")
+}
+
+model InventoryReservationAllocation {
+  id               String               @id @db.Uuid
+  reservationId    String               @map("reservation_id") @db.Uuid
+  quoteLineId      String               @map("quote_line_id") @db.Uuid
+  catalogItemId    String               @map("catalog_item_id") @db.Uuid
+  lotId            String               @map("lot_id") @db.Uuid
+  quantity         Decimal              @db.Decimal(14, 3)
+  releasedQuantity Decimal              @default(0) @map("released_quantity") @db.Decimal(14, 3)
+  consumedQuantity Decimal              @default(0) @map("consumed_quantity") @db.Decimal(14, 3)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version          Int                  @default(1)
+  reservation      InventoryReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  quoteLine        PharmacyQuoteLine    @relation(fields: [quoteLineId], references: [id], onDelete: Restrict)
+  catalogItem      PharmacyCatalogItem  @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  lot              InventoryLot         @relation(fields: [lotId], references: [id], onDelete: Restrict)
+
+  @@unique([reservationId, quoteLineId, lotId], map: "inventory_reservation_allocations_line_lot_key")
+  @@index([lotId, reservationId, id], map: "inventory_reservation_allocations_lot_idx")
+  @@index([catalogItemId, reservationId, id], map: "inventory_reservation_allocations_item_idx")
+  @@map("inventory_reservation_allocations")
 }
 
 model PharmacyOrder {

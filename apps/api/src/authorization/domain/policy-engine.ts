@@ -57,6 +57,7 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
+      case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
         return this.canManagePharmacyPrescription(
           request.actor,
           request.context.organizationId,
