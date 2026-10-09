@@ -911,7 +911,6 @@ components:
       oneOf:
         - { $ref: "#/components/schemas/ReceiveInventoryInput" }
         - { $ref: "#/components/schemas/AdjustInventoryInput" }
-      discriminator: { propertyName: type }
     ReceiveInventoryInput:
       type: object
       additionalProperties: false
@@ -937,7 +936,7 @@ components:
         reasonCode:
           { type: string, minLength: 2, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
         receivedAt: { type: string, format: date-time }
-        type: { type: string, const: RECEIVE }
+        type: { type: string, enum: [RECEIVE] }
     AdjustInventoryInput:
       type: object
       additionalProperties: false

@@ -632,11 +632,8 @@ export interface components {
             reasonCode: string;
             /** Format: date-time */
             receivedAt: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "ReceiveInventoryInput";
+            /** @enum {string} */
+            type: "RECEIVE";
         };
         AdjustInventoryInput: {
             /** Format: uuid */
@@ -649,11 +646,8 @@ export interface components {
             lotId: string;
             quantity: string;
             reasonCode: string;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "AdjustInventoryInput";
+            /** @enum {string} */
+            type: "ADJUST_IN" | "ADJUST_OUT" | "RETURN" | "WRITE_OFF";
         };
         PharmacyProductClassification: {
             code: string;
