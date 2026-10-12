@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AUTHORIZATION_POLICY } from "../src/authorization/domain/authorization.types.js";
 import { AUTHORIZATION_POLICY_METADATA } from "../src/authorization/presentation/policy-protected.decorator.js";
 import { InternalIdentityController } from "../src/identity/presentation/internal-identity.controller.js";
+import { PatientScannedPrescriptionController } from "../src/pharmacy/presentation/scanned-prescription.controller.js";
 
 describe("protected route policy inventory", () => {
   it("maps administrative principal revocation to its named policy", () => {
@@ -13,4 +14,14 @@ describe("protected route policy inventory", () => {
       AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS,
     );
   });
+
+  it.each(["create", "complete", "list", "find", "download"] as const)(
+    "maps scanned-prescription %s to the patient-owner policy",
+    (handlerName) => {
+      const handler = PatientScannedPrescriptionController.prototype[handlerName];
+      expect(Reflect.getMetadata(AUTHORIZATION_POLICY_METADATA, handler)).toBe(
+        AUTHORIZATION_POLICY.MANAGE_OWN_SCANNED_PRESCRIPTION,
+      );
+    },
+  );
 });

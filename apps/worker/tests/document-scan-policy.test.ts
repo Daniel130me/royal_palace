@@ -30,4 +30,24 @@ describe("document scan policy", () => {
     expect(retryDelayMs(2)).toBe(30_000);
     expect(retryDelayMs(10)).toBeNull();
   });
+
+  it.each([
+    ["image/heic", "heic"],
+    ["image/heif", "mif1"],
+  ])("recognizes an ISO base media declaration for %s", (contentType, brand) => {
+    const bytes = Buffer.concat([
+      Buffer.from([0, 0, 0, 24]),
+      Buffer.from("ftyp", "ascii"),
+      Buffer.from(brand, "ascii"),
+      Buffer.alloc(12),
+    ]);
+
+    expect(
+      verifyDocumentBytes(bytes, {
+        contentType,
+        sha256Hex: createHash("sha256").update(bytes).digest("hex"),
+        sizeBytes: bytes.length,
+      }),
+    ).toBe(true);
+  });
 });

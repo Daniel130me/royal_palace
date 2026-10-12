@@ -232,6 +232,68 @@ export type ApplicationNoteVisibility = "APPLICANT" | "INTERNAL";
 export type ApplicationDocumentStatus =
   "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED" | "SCAN_FAILED";
 
+export type ScannedPrescriptionStatus =
+  | "AWAITING_UPLOAD"
+  | "QUARANTINED"
+  | "SCANNING"
+  | "CLEAN"
+  | "UNDER_REVIEW"
+  | "MORE_INFORMATION_REQUIRED"
+  | "APPROVED"
+  | "REJECTED"
+  | "SCAN_FAILED"
+  | "WITHDRAWN";
+
+export interface ScannedPrescriptionHistoryEntry {
+  fromStatus: ScannedPrescriptionStatus | null;
+  id: string;
+  occurredAt: string;
+  patientVisibleNote: string | null;
+  reasonCode: string;
+  toStatus: ScannedPrescriptionStatus;
+}
+
+export interface ScannedPrescriptionSummary {
+  createdAt: string;
+  declaredContentType: string;
+  declaredSizeBytes: number;
+  id: string;
+  originalFilename: string;
+  patientNote: string | null;
+  pharmacyOrganizationId: string | null;
+  prescriberFacility: string | null;
+  prescriberName: string | null;
+  status: ScannedPrescriptionStatus;
+  statusReasonCode: string | null;
+  updatedAt: string;
+  uploadNumber: string;
+  version: number;
+}
+
+export interface ScannedPrescriptionDetail extends ScannedPrescriptionSummary {
+  history: readonly ScannedPrescriptionHistoryEntry[];
+}
+
+export interface ScannedPrescriptionListResponse {
+  data: readonly ScannedPrescriptionSummary[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface ScannedPrescriptionUploadIntentResponse {
+  prescription: ScannedPrescriptionDetail;
+  upload: {
+    expiresAt: string;
+    headers: Readonly<Record<string, string>>;
+    method: "PUT";
+    url: string;
+  };
+}
+
+export interface PrivateDocumentDownloadResponse {
+  expiresAt: string;
+  url: string;
+}
+
 export interface PatientApplicationData {
   countryCode: string | null;
   dateOfBirth: string | null;

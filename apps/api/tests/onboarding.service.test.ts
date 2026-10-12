@@ -21,7 +21,7 @@ import type {
 } from "../src/onboarding/domain/onboarding-repository.types.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
 import type { ReferralClaimService } from "../src/manager/application/referral-claim.service.js";
-import type { DocumentStorage } from "../src/onboarding/domain/document-storage.port.js";
+import type { DocumentStorage } from "../src/platform/documents/document-storage.port.js";
 import { testConfig } from "./test-config.js";
 
 const patientData: OnboardingApplicationData = {

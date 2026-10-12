@@ -20,6 +20,7 @@ export const AUTHORIZATION_POLICY = {
   MANAGE_PHARMACY_QUOTE: "MANAGE_PHARMACY_QUOTE",
   ACCEPT_PHARMACY_QUOTE: "ACCEPT_PHARMACY_QUOTE",
   CREATE_DIRECT_PHARMACY_QUOTE: "CREATE_DIRECT_PHARMACY_QUOTE",
+  MANAGE_OWN_SCANNED_PRESCRIPTION: "MANAGE_OWN_SCANNED_PRESCRIPTION",
   CANCEL_OWN_PHARMACY_ORDER: "CANCEL_OWN_PHARMACY_ORDER",
   MANAGE_PHARMACY_HANDOFF: "MANAGE_PHARMACY_HANDOFF",
   MANAGE_PHARMACY_INVENTORY: "MANAGE_PHARMACY_INVENTORY",
@@ -44,7 +45,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 13;
+export const AUTHORIZATION_POLICY_VERSION = 14;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -89,6 +90,7 @@ export interface AuthorizationPolicyContexts {
   MANAGE_PHARMACY_QUOTE: ResourceReference & { organizationId: string };
   ACCEPT_PHARMACY_QUOTE: ResourceReference & { patientPrincipalId: string };
   CREATE_DIRECT_PHARMACY_QUOTE: ResourceReference & { patientPrincipalId: string };
+  MANAGE_OWN_SCANNED_PRESCRIPTION: ResourceReference & { patientPrincipalId: string };
   CANCEL_OWN_PHARMACY_ORDER: ResourceReference & { patientPrincipalId: string };
   MANAGE_PHARMACY_HANDOFF: ResourceReference & { organizationId: string };
   MANAGE_PHARMACY_INVENTORY: ResourceReference & { organizationId: string };

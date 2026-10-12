@@ -42,9 +42,37 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
     await fixture.query(`
       CREATE TYPE "ApplicationDocumentStatus" AS ENUM
         ('AWAITING_UPLOAD', 'QUARANTINED', 'SCANNING', 'CLEAN', 'REJECTED', 'SCAN_FAILED');
+      CREATE TYPE "ScannedPrescriptionStatus" AS ENUM
+        ('AWAITING_UPLOAD', 'QUARANTINED', 'SCANNING', 'CLEAN', 'UNDER_REVIEW',
+         'MORE_INFORMATION_REQUIRED', 'APPROVED', 'REJECTED', 'SCAN_FAILED', 'WITHDRAWN');
       CREATE TABLE application_documents (
         id uuid PRIMARY KEY,
         status "ApplicationDocumentStatus" NOT NULL,
+        storage_object_key text NOT NULL,
+        quarantine_version_id text,
+        clean_object_key text,
+        clean_version_id text,
+        declared_content_type text NOT NULL,
+        declared_sha256 char(64) NOT NULL,
+        declared_size_bytes integer NOT NULL,
+        detected_content_type text,
+        verified_size_bytes integer,
+        verified_sha256 char(64),
+        upload_expires_at timestamptz,
+        scan_available_at timestamptz,
+        scan_lease_token uuid,
+        scan_lease_expires_at timestamptz,
+        scan_attempt_count integer NOT NULL DEFAULT 0,
+        status_reason_code text,
+        scanned_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        version integer NOT NULL DEFAULT 1
+      )
+      ;
+      CREATE TABLE scanned_prescriptions (
+        id uuid PRIMARY KEY,
+        status "ScannedPrescriptionStatus" NOT NULL,
         storage_object_key text NOT NULL,
         quarantine_version_id text,
         clean_object_key text,
@@ -183,6 +211,53 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
     expect(await jobs.claim()).toBeNull();
   });
 
+  it("leases, expires, and records clean evidence for scanned prescriptions", async () => {
+    const id = "0199f323-6e1b-70af-8d8e-e4d2a65cf810";
+    const expiredId = "0199f323-6e1b-70af-8d8e-e4d2a65cf811";
+    await fixture.query(
+      `INSERT INTO scanned_prescriptions
+         (id, status, storage_object_key, declared_content_type, declared_sha256,
+          declared_size_bytes, scan_available_at)
+       VALUES ($1, 'QUARANTINED', $2, 'application/pdf', $3, 100,
+               clock_timestamp() - interval '1 second')`,
+      [id, `scanned-prescriptions/${id}`, "a".repeat(64)],
+    );
+    await fixture.query(
+      `INSERT INTO scanned_prescriptions
+         (id, status, storage_object_key, declared_content_type, declared_sha256,
+          declared_size_bytes, upload_expires_at)
+       VALUES ($1, 'AWAITING_UPLOAD', $2, 'application/pdf', $3, 100,
+               clock_timestamp() - interval '1 second')`,
+      [expiredId, `scanned-prescriptions/${expiredId}`, "a".repeat(64)],
+    );
+
+    await jobs.expirePendingUploads();
+    const expired = await fixture.query<{ status: string }>(
+      "SELECT status FROM scanned_prescriptions WHERE id = $1",
+      [expiredId],
+    );
+    expect(expired.rows[0]?.status).toBe("REJECTED");
+
+    const claim = await jobs.claim();
+    expect(claim).toMatchObject({ id, resourceKind: "SCANNED_PRESCRIPTION" });
+    if (claim === null) throw new Error("Scanned prescription was not claimed");
+    expect(
+      await jobs.markClean({
+        job: claim,
+        cleanObjectKey: `scanned-prescriptions/${id}`,
+        cleanVersionId: "verified",
+        contentType: "application/pdf",
+        sizeBytes: 100,
+        sha256Hex: "a".repeat(64),
+      }),
+    ).toBe(true);
+    const clean = await fixture.query<{ status: string; status_reason_code: string }>(
+      "SELECT status, status_reason_code FROM scanned_prescriptions WHERE id = $1",
+      [id],
+    );
+    expect(clean.rows[0]).toMatchObject({ status: "CLEAN", status_reason_code: "SCAN_CLEAN" });
+  });
+
   it.skipIf(process.env.RUN_DOCUMENT_PIPELINE_INTEGRATION !== "true")(
     "releases a real clean, versioned object only after the malware scan",
     async () => {
@@ -271,7 +346,7 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
           "SELECT status, clean_version_id, status_reason_code FROM application_documents WHERE id = $1",
           [id],
         );
-        expect(row.rows[0]).toMatchObject({ status: "CLEAN", status_reason_code: null });
+        expect(row.rows[0]).toMatchObject({ status: "CLEAN", status_reason_code: "SCAN_CLEAN" });
         cleanVersion = row.rows[0]?.clean_version_id ?? undefined;
         expect(cleanVersion).toBeTruthy();
         const released = await storage.send(

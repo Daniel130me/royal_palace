@@ -65,6 +65,7 @@ export class PolicyEngine {
         );
       case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE:
+      case AUTHORIZATION_POLICY.MANAGE_OWN_SCANNED_PRESCRIPTION:
       case AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER:
         return request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId

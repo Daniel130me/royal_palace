@@ -69,6 +69,10 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
     `^/api/patient/prescriptions(?:/${UUID_PATH_SEGMENT}/(?:send|substitutions/${UUID_PATH_SEGMENT}/consent))?$`,
     "i",
   ),
+  new RegExp(
+    `^/api/patient/scanned-prescriptions(?:/upload-intents|/${UUID_PATH_SEGMENT}(?:/(?:complete|download))?)?$`,
+    "i",
+  ),
   new RegExp(`^/api/prescriptions/${UUID_PATH_SEGMENT}(?:/dispense-events)?$`, "i"),
   /^\/api\/pharmacy\/(?:prescriptions|quotes|orders)$/i,
   new RegExp(`^/api/pharmacy/(?:quotes|orders)/${UUID_PATH_SEGMENT}$`, "i"),

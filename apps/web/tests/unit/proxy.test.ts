@@ -76,6 +76,19 @@ describe("web request correlation", () => {
     expect(isApiRouteEnabled("production", "/api/provider/availability")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/provider/prescriptions")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/patient/prescriptions")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/patient/scanned-prescriptions")).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/patient/scanned-prescriptions/upload-intents"),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/patient/scanned-prescriptions/0199a18e-a400-7000-8000-000000000703/complete",
+      ),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/patient/scanned-prescriptions/not-a-uuid/download"),
+    ).toBe(false);
     expect(isApiRouteEnabled("production", "/api/pharmacy/orders")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/patient/pharmacy/quotes")).toBe(true);
     expect(

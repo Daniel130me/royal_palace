@@ -20,7 +20,10 @@ import {
   isApplicantEditable,
 } from "../domain/application-state-machine.js";
 import { validateDocumentDeclaration } from "../domain/document-policy.js";
-import { DOCUMENT_STORAGE, type DocumentStorage } from "../domain/document-storage.port.js";
+import {
+  DOCUMENT_STORAGE,
+  type DocumentStorage,
+} from "../../platform/documents/document-storage.port.js";
 import {
   ONBOARDING_REPOSITORY,
   type OnboardingRepository,

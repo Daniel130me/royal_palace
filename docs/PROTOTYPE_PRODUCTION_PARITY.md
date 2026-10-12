@@ -100,20 +100,20 @@ but it also deleted client-approved capabilities. Commit
 foundation is valid. The missing capabilities must be rebuilt on that foundation rather
 than restoring insecure prototype endpoints.
 
-| Approved capability                            | Prototype reference                                    | Current status | Required production replacement                                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Patient pharmacy detail                        | `patient/pages/pharmacy-detail.tsx`                    | `CONNECTED`    | Verified discovery now opens a patient-safe catalogue/cart backed by authenticated commerce contracts                                  |
-| Patient prescription upload and upload history | `patient/pages/upload-prescription.tsx`, `uploads.tsx` | `CORRECTIVE`   | Purpose-bound object upload, malware scan, document verification queue, status/history, and authorized conversion to a pharmacy workflow |
-| Direct/OTC pharmacy ordering                   | `actions/direct-pharmacy-order`, pharmacy-detail flow  | `CONNECTED`    | Server-priced OTC cart creates an inventory-held quote and uses the existing acceptance, payment, handoff, and audit state machines      |
-| Administrator order oversight                  | `admin/pages/orders.tsx`                               | `CORRECTIVE`   | Privacy-minimized search/detail, exception/dispute operations, audit, and bounded reporting                                              |
-| Pharmacy inventory                             | `pharmacy/pages/inventory.tsx`                         | `CORRECTIVE`   | Internal stock ledger with products/SKUs, locations, lots/batches, expiry, adjustments, reservations, dispense linkage, and audit        |
-| Pharmacy products and product detail           | `pharmacy/pages/products.tsx`, `product.tsx`           | `CORRECTIVE`   | Governed pharmacy catalogue and price/availability management backed by inventory ownership                                              |
-| Pharmacy deliveries                            | `pharmacy/pages/deliveries.tsx`                        | `CORRECTIVE`   | Pharmacy handoff and logistics integration without merging clinical, commercial, and courier sources of truth                            |
-| Pharmacy notifications                         | `pharmacy/pages/notifications.tsx`                     | `CORRECTIVE`   | Verified-recipient production notification inbox and preference-safe transactional events                                                |
-| Pharmacy commissions                           | `pharmacy/pages/commissions.tsx`                       | `CORRECTIVE`   | Authorized pharmacy commercial reporting from immutable ledger/settlement facts                                                          |
-| Pharmacy settlements                           | `pharmacy/pages/settlements.tsx`                       | `CORRECTIVE`   | Reconciled settlement lifecycle, statements, exceptions, and audit                                                                       |
-| Pharmacy payouts                               | `pharmacy/pages/payouts.tsx`                           | `CORRECTIVE`   | Qualified payout workflow with separation of duties and provider reconciliation                                                          |
-| Pharmacy settings                              | `pharmacy/pages/settings.tsx`                          | `CORRECTIVE`   | Organization-scoped operational, notification, fulfilment, and authorized account settings                                               |
+| Approved capability                            | Prototype reference                                    | Current status | Required production replacement                                                                                                                       |
+| ---------------------------------------------- | ------------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Patient pharmacy detail                        | `patient/pages/pharmacy-detail.tsx`                    | `CONNECTED`    | Verified discovery now opens a patient-safe catalogue/cart backed by authenticated commerce contracts                                                 |
+| Patient prescription upload and upload history | `patient/pages/upload-prescription.tsx`, `uploads.tsx` | `CONNECTED`    | 11C4P-4A supplies purpose-bound private upload, malware scanning, clean release, and owner history; 11C4P-4B retains pharmacy verification/conversion |
+| Direct/OTC pharmacy ordering                   | `actions/direct-pharmacy-order`, pharmacy-detail flow  | `CONNECTED`    | Server-priced OTC cart creates an inventory-held quote and uses the existing acceptance, payment, handoff, and audit state machines                   |
+| Administrator order oversight                  | `admin/pages/orders.tsx`                               | `CORRECTIVE`   | Privacy-minimized search/detail, exception/dispute operations, audit, and bounded reporting                                                           |
+| Pharmacy inventory                             | `pharmacy/pages/inventory.tsx`                         | `CORRECTIVE`   | Internal stock ledger with products/SKUs, locations, lots/batches, expiry, adjustments, reservations, dispense linkage, and audit                     |
+| Pharmacy products and product detail           | `pharmacy/pages/products.tsx`, `product.tsx`           | `CORRECTIVE`   | Governed pharmacy catalogue and price/availability management backed by inventory ownership                                                           |
+| Pharmacy deliveries                            | `pharmacy/pages/deliveries.tsx`                        | `CORRECTIVE`   | Pharmacy handoff and logistics integration without merging clinical, commercial, and courier sources of truth                                         |
+| Pharmacy notifications                         | `pharmacy/pages/notifications.tsx`                     | `CORRECTIVE`   | Verified-recipient production notification inbox and preference-safe transactional events                                                             |
+| Pharmacy commissions                           | `pharmacy/pages/commissions.tsx`                       | `CORRECTIVE`   | Authorized pharmacy commercial reporting from immutable ledger/settlement facts                                                                       |
+| Pharmacy settlements                           | `pharmacy/pages/settlements.tsx`                       | `CORRECTIVE`   | Reconciled settlement lifecycle, statements, exceptions, and audit                                                                                    |
+| Pharmacy payouts                               | `pharmacy/pages/payouts.tsx`                           | `CORRECTIVE`   | Qualified payout workflow with separation of duties and provider reconciliation                                                                       |
+| Pharmacy settings                              | `pharmacy/pages/settings.tsx`                          | `CORRECTIVE`   | Organization-scoped operational, notification, fulfilment, and authorized account settings                                                            |
 
 The prescription issuance, patient routing, quote acceptance, pharmacy order,
 payment-state, cancellation, dispensing, and handoff capabilities were replaced by
@@ -141,7 +141,9 @@ restoration of prototype code:
    expiry, stock movements, reservations, bounded lists, indexes, and audit.
 3. `11C4P-3` — OTC/direct ordering on the shared quote/order/payment foundation.
 4. `11C4P-4` — scanned prescription upload, verification, and upload history on the
-   secure file pipeline.
+   secure file pipeline. 11C4P-4A connects private patient upload/history; 11C4P-4B
+   adds pharmacy review and controlled commercial conversion without treating an image
+   as practitioner-authored clinical data.
 5. `11C4P-5` — pharmacy notifications, settings, delivery integration, and admin order
    oversight.
 6. Settlement, commission, and payout parity remains part of the already planned

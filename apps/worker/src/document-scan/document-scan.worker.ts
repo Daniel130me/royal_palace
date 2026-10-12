@@ -114,7 +114,7 @@ export class DocumentScanWorker implements OnModuleInit, OnModuleDestroy {
   private async inspectAndScan(
     job: DocumentJob,
   ): Promise<{ bytes: Buffer; contentType: string; sha256Hex: string }> {
-    if (job.storageObjectKey !== `application-documents/${job.id}`) {
+    if (job.storageObjectKey !== `${objectPrefix(job.resourceKind)}/${job.id}`) {
       throw new RejectedDocumentError("INVALID_OBJECT_KEY");
     }
     if (
@@ -200,7 +200,7 @@ export class DocumentScanWorker implements OnModuleInit, OnModuleDestroy {
     contentType: string,
     sha256Hex: string,
   ): Promise<void> {
-    const key = `application-documents/${job.id}`;
+    const key = `${objectPrefix(job.resourceKind)}/${job.id}`;
     try {
       await this.storage.send(
         new PutObjectCommand({
@@ -253,6 +253,10 @@ export class DocumentScanWorker implements OnModuleInit, OnModuleDestroy {
     }
     await this.jobs.retry(job, backoff);
   }
+}
+
+function objectPrefix(resourceKind: DocumentJob["resourceKind"]): string {
+  return resourceKind === "APPLICATION" ? "application-documents" : "scanned-prescriptions";
 }
 
 function isPreconditionFailure(error: unknown): boolean {

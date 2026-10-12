@@ -168,6 +168,39 @@ export const productionPrescriptionService = {
         .then(unwrapGeneratedResponse),
   },
   patient: {
+    scannedPrescriptions: (cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/scanned-prescriptions", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    scannedPrescription: (prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/scanned-prescriptions/{prescriptionId}", {
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+    createScannedPrescriptionUpload: (
+      body: PrescriptionComponents["schemas"]["CreateScannedPrescriptionUploadInput"],
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/scanned-prescriptions/upload-intents", {
+          body,
+          params: { header: requestHeader() },
+        })
+        .then(unwrapGeneratedResponse),
+    completeScannedPrescriptionUpload: (prescriptionId: string) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/scanned-prescriptions/{prescriptionId}/complete", {
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
+    scannedPrescriptionDownload: (prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/scanned-prescriptions/{prescriptionId}/download", {
+          params: { header: requestHeader(), path: { prescriptionId } },
+        })
+        .then(unwrapGeneratedResponse),
     pharmacyCatalogItems: (
       pharmacyOrganizationId: string,
       q?: string,

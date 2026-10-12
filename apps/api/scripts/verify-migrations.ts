@@ -266,6 +266,8 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const notificationDeliveryId = v7();
   const notificationAttemptId = v7();
   const notificationEndpointId = v7();
+  const pharmacyOrganizationId = v7();
+  const scannedPrescriptionId = v7();
 
   await client.connect();
   try {
@@ -639,6 +641,97 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
     await client.query(
       'INSERT INTO "patients" ("id", "principal_id", "given_name", "family_name", "updated_at") VALUES ($1, $2, $3, $4, now())',
       [patientId, principalId, "Synthetic", "Applicant"],
+    );
+    await client.query(
+      'INSERT INTO "organizations" ("id", "type", "status", "verification_status", "verified_at", "legal_name", "display_name", "updated_at") VALUES ($1, $2, $3, $4, now(), $5, $6, now())',
+      [
+        pharmacyOrganizationId,
+        "PHARMACY",
+        "ACTIVE",
+        "VERIFIED",
+        "Synthetic Pharmacy Limited",
+        "Synthetic Pharmacy",
+      ],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "scanned_prescriptions" ("id", "upload_number", "patient_id", "original_filename", "declared_content_type", "declared_size_bytes", "declared_sha256", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
+      [
+        v7(),
+        `RX-UPLOAD-${v7()}`,
+        patientId,
+        "invalid.pdf",
+        "application/pdf",
+        8 * 1024 * 1024 + 1,
+        "a".repeat(64),
+      ],
+      "23514",
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "scanned_prescriptions" ("id", "upload_number", "patient_id", "pharmacy_organization_id", "original_filename", "declared_content_type", "declared_size_bytes", "declared_sha256", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())',
+      [
+        v7(),
+        `RX-UPLOAD-${v7()}`,
+        patientId,
+        verifiedOrganizationId,
+        "invalid-pharmacy.pdf",
+        "application/pdf",
+        100,
+        "a".repeat(64),
+      ],
+      "P0001",
+    );
+    await client.query(
+      'INSERT INTO "scanned_prescriptions" ("id", "upload_number", "patient_id", "pharmacy_organization_id", "original_filename", "declared_content_type", "declared_size_bytes", "declared_sha256", "storage_object_key", "upload_expires_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now() + interval \'5 minutes\', now())',
+      [
+        scannedPrescriptionId,
+        `RX-UPLOAD-${scannedPrescriptionId}`,
+        patientId,
+        pharmacyOrganizationId,
+        "prescription.pdf",
+        "application/pdf",
+        100,
+        "a".repeat(64),
+        `scanned-prescriptions/${scannedPrescriptionId}`,
+      ],
+    );
+    await client.query(
+      'INSERT INTO "scanned_prescription_status_history" ("id", "scanned_prescription_id", "to_status", "reason_code") VALUES ($1, $2, $3, $4)',
+      [v7(), scannedPrescriptionId, "AWAITING_UPLOAD", "UPLOAD_INTENT_CREATED"],
+    );
+    await client.query(
+      'UPDATE "scanned_prescriptions" SET "status" = \'QUARANTINED\', "status_reason_code" = \'UPLOAD_COMPLETED\', "updated_at" = now() WHERE "id" = $1',
+      [scannedPrescriptionId],
+    );
+    const scannedHistory = await client.query<{ reason_code: string; to_status: string }>(
+      'SELECT "reason_code", "to_status"::text FROM "scanned_prescription_status_history" WHERE "scanned_prescription_id" = $1 ORDER BY "occurred_at", "id"',
+      [scannedPrescriptionId],
+    );
+    if (
+      scannedHistory.rows.length !== 2 ||
+      scannedHistory.rows[1]?.to_status !== "QUARANTINED" ||
+      scannedHistory.rows[1]?.reason_code !== "UPLOAD_COMPLETED"
+    ) {
+      throw new Error("Scanned-prescription status history was not recorded atomically");
+    }
+    await expectSqlState(
+      client,
+      'UPDATE "scanned_prescription_status_history" SET "reason_code" = $1 WHERE "scanned_prescription_id" = $2',
+      ["MUTATED", scannedPrescriptionId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "scanned_prescriptions" SET "status" = \'APPROVED\', "updated_at" = now() WHERE "id" = $1',
+      [scannedPrescriptionId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "scanned_prescriptions" SET "declared_sha256" = $1, "updated_at" = now() WHERE "id" = $2',
+      ["b".repeat(64), scannedPrescriptionId],
+      "P0001",
     );
     await client.query(
       'UPDATE "onboarding_applications" SET "status" = \'APPROVED\', "submitted_at" = now(), "decided_at" = now(), "decided_by_principal_id" = $1, "approved_patient_id" = $2, "updated_at" = now() WHERE "id" = $3',

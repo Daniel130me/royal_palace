@@ -10,6 +10,8 @@ import { PatientBook } from "./pages/book";
 import { PatientRecords } from "./pages/records";
 import { PatientPrescriptions } from "./pages/prescriptions";
 import { PatientPrescriptionDetail } from "./pages/prescription-detail";
+import { PatientUploadPrescription } from "./pages/upload-prescription";
+import { PatientUploads } from "./pages/uploads";
 import { PatientLaboratory } from "./pages/laboratory";
 import { PatientOrders } from "./pages/orders";
 import { PatientOrderDetail } from "./pages/order-detail";
@@ -94,6 +96,10 @@ export function PatientPortal() {
         <PatientPrescriptions />
       ) : page === "prescription" ? (
         <PatientPrescriptionDetail />
+      ) : page === "upload-prescription" ? (
+        <PatientUploadPrescription />
+      ) : page === "uploads" ? (
+        <PatientUploads />
       ) : page === "laboratory" ? (
         <PatientLaboratory />
       ) : page === "orders" ? (

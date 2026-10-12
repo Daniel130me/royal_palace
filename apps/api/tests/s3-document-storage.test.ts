@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { S3DocumentStorage } from "../src/onboarding/infrastructure/s3-document-storage.js";
+import { S3DocumentStorage } from "../src/platform/documents/s3-document-storage.js";
 import { testConfig } from "./test-config.js";
 
 describe("S3 document upload signing", () => {

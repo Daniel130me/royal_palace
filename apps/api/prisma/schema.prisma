@@ -98,6 +98,19 @@ enum ApplicationDocumentStatus {
   SCAN_FAILED
 }
 
+enum ScannedPrescriptionStatus {
+  AWAITING_UPLOAD
+  QUARANTINED
+  SCANNING
+  CLEAN
+  UNDER_REVIEW
+  MORE_INFORMATION_REQUIRED
+  APPROVED
+  REJECTED
+  SCAN_FAILED
+  WITHDRAWN
+}
+
 enum ManagerProfileStatus {
   ACTIVE
   SUSPENDED
@@ -508,32 +521,34 @@ model IdentityPrincipal {
   pharmacyOrderResolutions     PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
   createdPharmacyCatalogItems  PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
   pharmacyInventoryMovements   InventoryMovement[]                @relation("InventoryMovementActor")
+  scannedPrescriptionHistory   ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
 }
 
 model Patient {
-  id                  String                      @id @db.Uuid
-  principalId         String                      @unique @map("principal_id") @db.Uuid
-  givenName           String                      @map("given_name") @db.VarChar(100)
-  familyName          String                      @map("family_name") @db.VarChar(100)
-  dateOfBirth         DateTime?                   @map("date_of_birth") @db.Date
-  phoneE164           String?                     @map("phone_e164") @db.VarChar(16)
-  countryCode         String?                     @map("country_code") @db.Char(2)
-  preferredLanguage   String?                     @map("preferred_language") @db.VarChar(35)
-  onboardedAt         DateTime                    @default(now()) @map("onboarded_at") @db.Timestamptz(6)
-  createdAt           DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version             Int                         @default(1)
-  principal           IdentityPrincipal           @relation(fields: [principalId], references: [id], onDelete: Restrict)
-  approvedApplication OnboardingApplication?      @relation("ApprovedPatientApplication")
-  activitySettlements PatientActivitySettlement[]
-  appointments        Appointment[]
-  payments            Payment[]
-  prescriptions       Prescription[]
-  pharmacyQuotes      PharmacyQuote[]
-  pharmacyOrders      PharmacyOrder[]
+  id                   String                      @id @db.Uuid
+  principalId          String                      @unique @map("principal_id") @db.Uuid
+  givenName            String                      @map("given_name") @db.VarChar(100)
+  familyName           String                      @map("family_name") @db.VarChar(100)
+  dateOfBirth          DateTime?                   @map("date_of_birth") @db.Date
+  phoneE164            String?                     @map("phone_e164") @db.VarChar(16)
+  countryCode          String?                     @map("country_code") @db.Char(2)
+  preferredLanguage    String?                     @map("preferred_language") @db.VarChar(35)
+  onboardedAt          DateTime                    @default(now()) @map("onboarded_at") @db.Timestamptz(6)
+  createdAt            DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                         @default(1)
+  principal            IdentityPrincipal           @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  approvedApplication  OnboardingApplication?      @relation("ApprovedPatientApplication")
+  activitySettlements  PatientActivitySettlement[]
+  appointments         Appointment[]
+  payments             Payment[]
+  prescriptions        Prescription[]
+  pharmacyQuotes       PharmacyQuote[]
+  pharmacyOrders       PharmacyOrder[]
+  scannedPrescriptions ScannedPrescription[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -637,6 +652,7 @@ model Organization {
   inventoryLocations                InventoryLocation[]
   inventoryLots                     InventoryLot[]
   inventoryMovements                InventoryMovement[]
+  scannedPrescriptions              ScannedPrescription[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -1161,6 +1177,62 @@ model ApplicationDocument {
 
   @@index([applicationId, status, createdAt, id], map: "application_documents_application_status_idx")
   @@map("application_documents")
+}
+
+model ScannedPrescription {
+  id                     String                             @id @db.Uuid
+  uploadNumber           String                             @unique @map("upload_number") @db.VarChar(48)
+  patientId              String                             @map("patient_id") @db.Uuid
+  pharmacyOrganizationId String?                            @map("pharmacy_organization_id") @db.Uuid
+  prescriberName         String?                            @map("prescriber_name") @db.VarChar(200)
+  prescriberFacility     String?                            @map("prescriber_facility") @db.VarChar(200)
+  patientNote            String?                            @map("patient_note") @db.VarChar(1000)
+  originalFilename       String                             @map("original_filename") @db.VarChar(255)
+  declaredContentType    String                             @map("declared_content_type") @db.VarChar(127)
+  declaredSizeBytes      Int                                @map("declared_size_bytes")
+  declaredSha256         String                             @map("declared_sha256") @db.Char(64)
+  storageObjectKey       String?                            @unique @map("storage_object_key") @db.VarChar(1024)
+  uploadExpiresAt        DateTime?                          @map("upload_expires_at") @db.Timestamptz(6)
+  quarantineVersionId    String?                            @map("quarantine_version_id") @db.VarChar(255)
+  cleanObjectKey         String?                            @unique @map("clean_object_key") @db.VarChar(1024)
+  cleanVersionId         String?                            @map("clean_version_id") @db.VarChar(255)
+  detectedContentType    String?                            @map("detected_content_type") @db.VarChar(127)
+  verifiedSizeBytes      Int?                               @map("verified_size_bytes")
+  verifiedSha256         String?                            @map("verified_sha256") @db.Char(64)
+  scanLeaseToken         String?                            @map("scan_lease_token") @db.Uuid
+  scanLeaseExpiresAt     DateTime?                          @map("scan_lease_expires_at") @db.Timestamptz(6)
+  scanAvailableAt        DateTime?                          @map("scan_available_at") @db.Timestamptz(6)
+  scanAttemptCount       Int                                @default(0) @map("scan_attempt_count")
+  scannedAt              DateTime?                          @map("scanned_at") @db.Timestamptz(6)
+  status                 ScannedPrescriptionStatus          @default(AWAITING_UPLOAD)
+  statusReasonCode       String?                            @map("status_reason_code") @db.VarChar(100)
+  createdAt              DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                                @default(1)
+  patient                Patient                            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  pharmacyOrganization   Organization?                      @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
+  history                ScannedPrescriptionStatusHistory[]
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "scanned_prescriptions_patient_created_idx")
+  @@index([pharmacyOrganizationId, status, createdAt, id], map: "scanned_prescriptions_pharmacy_status_idx")
+  @@index([status, scanAvailableAt, createdAt, id], map: "scanned_prescriptions_scan_queue_idx")
+  @@map("scanned_prescriptions")
+}
+
+model ScannedPrescriptionStatusHistory {
+  id                    String                     @id @db.Uuid
+  scannedPrescriptionId String                     @map("scanned_prescription_id") @db.Uuid
+  fromStatus            ScannedPrescriptionStatus? @map("from_status")
+  toStatus              ScannedPrescriptionStatus  @map("to_status")
+  actorPrincipalId      String?                    @map("actor_principal_id") @db.Uuid
+  reasonCode            String                     @map("reason_code") @db.VarChar(100)
+  patientVisibleNote    String?                    @map("patient_visible_note") @db.VarChar(1000)
+  occurredAt            DateTime                   @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  scannedPrescription   ScannedPrescription        @relation(fields: [scannedPrescriptionId], references: [id], onDelete: Restrict)
+  actor                 IdentityPrincipal?         @relation("ScannedPrescriptionHistoryActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([scannedPrescriptionId, occurredAt, id], map: "scanned_prescription_history_upload_idx")
+  @@map("scanned_prescription_status_history")
 }
 
 model ApplicationStatusHistory {

@@ -13,6 +13,7 @@ export interface DocumentJob {
   declaredSizeBytes: number;
   scanAttemptCount: number;
   scanLeaseToken: string;
+  resourceKind: "APPLICATION" | "SCANNED_PRESCRIPTION";
 }
 
 const EXPIRY_SWEEP_BATCH_SIZE = 100;
@@ -20,6 +21,7 @@ const SCAN_LEASE_MS = 10 * 60_000;
 
 export class PostgresDocumentJobs {
   private readonly pool: Pool;
+  private nextSource: DocumentJob["resourceKind"] = "APPLICATION";
 
   constructor(config: WorkerServiceConfig) {
     this.pool = new Pool({
@@ -35,15 +37,24 @@ export class PostgresDocumentJobs {
   }
 
   async claim(): Promise<DocumentJob | null> {
+    const preferred = this.nextSource;
+    const alternate = preferred === "APPLICATION" ? "SCANNED_PRESCRIPTION" : "APPLICATION";
+    this.nextSource = alternate;
+    return (await this.claimFrom(preferred)) ?? (await this.claimFrom(alternate));
+  }
+
+  private async claimFrom(resourceKind: DocumentJob["resourceKind"]): Promise<DocumentJob | null> {
     const leaseToken = uuidv7();
+    const source = documentSource(resourceKind);
     const result = await this.pool.query<DocumentJob>(
-      `UPDATE application_documents AS document
+      `UPDATE ${source.table} AS document
        SET status = 'SCANNING', scan_lease_token = $1::uuid,
            scan_lease_expires_at = clock_timestamp() + ($2::integer * interval '1 millisecond'),
            scan_attempt_count = scan_attempt_count + 1,
+           status_reason_code = 'SCAN_STARTED',
            updated_at = clock_timestamp(), version = version + 1
        FROM (
-         SELECT id FROM application_documents
+         SELECT id FROM ${source.table}
          WHERE scan_attempt_count < $3
            AND ((status = 'QUARANTINED' AND scan_available_at <= clock_timestamp())
              OR (status = 'SCANNING' AND scan_lease_expires_at <= clock_timestamp()))
@@ -58,44 +69,53 @@ export class PostgresDocumentJobs {
          document.declared_sha256 AS "declaredSha256",
          document.declared_size_bytes AS "declaredSizeBytes",
          document.scan_attempt_count AS "scanAttemptCount",
-         document.scan_lease_token AS "scanLeaseToken"`,
-      [leaseToken, SCAN_LEASE_MS, MAX_SCAN_ATTEMPTS],
+         document.scan_lease_token AS "scanLeaseToken",
+         $4::text AS "resourceKind"`,
+      [leaseToken, SCAN_LEASE_MS, MAX_SCAN_ATTEMPTS, resourceKind],
     );
     return result.rows[0] ?? null;
   }
 
   async expirePendingUploads(): Promise<void> {
-    await this.pool.query(
-      `UPDATE application_documents AS document
+    await Promise.all(
+      documentSources().map((source) =>
+        this.pool.query(
+          `UPDATE ${source.table} AS document
        SET status = 'REJECTED', status_reason_code = 'UPLOAD_EXPIRED',
            updated_at = clock_timestamp(), version = version + 1
        FROM (
-         SELECT id FROM application_documents
+         SELECT id FROM ${source.table}
          WHERE status = 'AWAITING_UPLOAD' AND upload_expires_at <= clock_timestamp()
          ORDER BY upload_expires_at, id
          LIMIT $1 FOR UPDATE SKIP LOCKED
        ) AS expired
        WHERE document.id = expired.id`,
-      [EXPIRY_SWEEP_BATCH_SIZE],
+          [EXPIRY_SWEEP_BATCH_SIZE],
+        ),
+      ),
     );
   }
 
   async deadLetterExhaustedLeases(): Promise<void> {
-    await this.pool.query(
-      `UPDATE application_documents AS document
+    await Promise.all(
+      documentSources().map((source) =>
+        this.pool.query(
+          `UPDATE ${source.table} AS document
        SET status = 'SCAN_FAILED', status_reason_code = 'SCAN_RETRY_EXHAUSTED',
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            scanned_at = clock_timestamp(), updated_at = clock_timestamp(),
            version = version + 1
        FROM (
-         SELECT id FROM application_documents
+         SELECT id FROM ${source.table}
          WHERE status = 'SCANNING' AND scan_lease_expires_at <= clock_timestamp()
            AND scan_attempt_count >= $1
          ORDER BY scan_lease_expires_at, id
          LIMIT $2 FOR UPDATE SKIP LOCKED
        ) AS exhausted
        WHERE document.id = exhausted.id`,
-      [MAX_SCAN_ATTEMPTS, EXPIRY_SWEEP_BATCH_SIZE],
+          [MAX_SCAN_ATTEMPTS, EXPIRY_SWEEP_BATCH_SIZE],
+        ),
+      ),
     );
   }
 
@@ -107,12 +127,13 @@ export class PostgresDocumentJobs {
     sizeBytes: number;
     sha256Hex: string;
   }): Promise<boolean> {
+    const source = documentSource(input.job.resourceKind);
     const result = await this.pool.query(
-      `UPDATE application_documents
+      `UPDATE ${source.table}
        SET status = 'CLEAN', clean_object_key = $3,
            clean_version_id = $4, detected_content_type = $5,
            verified_size_bytes = $6, verified_sha256 = $7,
-           scanned_at = clock_timestamp(), status_reason_code = NULL,
+           scanned_at = clock_timestamp(), status_reason_code = 'SCAN_CLEAN',
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            updated_at = clock_timestamp(), version = version + 1
        WHERE id = $1::uuid AND scan_lease_token = $2::uuid AND status = 'SCANNING'`,
@@ -130,9 +151,10 @@ export class PostgresDocumentJobs {
   }
 
   async finish(job: DocumentJob, status: "REJECTED" | "SCAN_FAILED", reasonCode: string) {
+    const source = documentSource(job.resourceKind);
     await this.pool.query(
-      `UPDATE application_documents
-       SET status = $3::"ApplicationDocumentStatus", status_reason_code = $4,
+      `UPDATE ${source.table}
+       SET status = $3::${source.statusType}, status_reason_code = $4,
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            scanned_at = clock_timestamp(), updated_at = clock_timestamp(), version = version + 1
        WHERE id = $1::uuid AND scan_lease_token = $2::uuid AND status = 'SCANNING'`,
@@ -141,8 +163,9 @@ export class PostgresDocumentJobs {
   }
 
   async retry(job: DocumentJob, backoffMs: number): Promise<void> {
+    const source = documentSource(job.resourceKind);
     await this.pool.query(
-      `UPDATE application_documents
+      `UPDATE ${source.table}
        SET status = 'QUARANTINED', scan_available_at = clock_timestamp() + ($3::integer * interval '1 millisecond'),
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            status_reason_code = 'SCAN_RETRY_PENDING', updated_at = clock_timestamp(), version = version + 1
@@ -150,4 +173,19 @@ export class PostgresDocumentJobs {
       [job.id, job.scanLeaseToken, backoffMs],
     );
   }
+}
+
+interface DocumentSource {
+  statusType: string;
+  table: string;
+}
+
+function documentSources(): readonly DocumentSource[] {
+  return [documentSource("APPLICATION"), documentSource("SCANNED_PRESCRIPTION")];
+}
+
+function documentSource(resourceKind: DocumentJob["resourceKind"]): DocumentSource {
+  return resourceKind === "APPLICATION"
+    ? { statusType: '"ApplicationDocumentStatus"', table: "application_documents" }
+    : { statusType: '"ScannedPrescriptionStatus"', table: "scanned_prescriptions" };
 }

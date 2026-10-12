@@ -10,7 +10,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { describe, expect, it } from "vitest";
 
-import { S3DocumentStorage } from "../src/onboarding/infrastructure/s3-document-storage.js";
+import { S3DocumentStorage } from "../src/platform/documents/s3-document-storage.js";
 import { testConfig } from "./test-config.js";
 
 const runIntegration = process.env.RUN_OBJECT_STORAGE_INTEGRATION === "true";

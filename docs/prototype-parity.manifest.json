@@ -596,16 +596,23 @@
         {
           "id": "upload-prescription",
           "file": "pages/upload-prescription.tsx",
-          "status": "CORRECTIVE",
-          "checkpoint": "11C4P-4",
-          "productionFiles": []
+          "status": "CONNECTED",
+          "checkpoint": "11C4P-4A",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/upload-prescription.tsx",
+            "apps/api/src/pharmacy/application/scanned-prescription.service.ts",
+            "apps/worker/src/document-scan/document-scan.worker.ts"
+          ]
         },
         {
           "id": "prescription-uploads",
           "file": "pages/uploads.tsx",
-          "status": "CORRECTIVE",
-          "checkpoint": "11C4P-4",
-          "productionFiles": []
+          "status": "CONNECTED",
+          "checkpoint": "11C4P-4A",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/uploads.tsx",
+            "apps/api/src/pharmacy/infrastructure/prisma-scanned-prescription.repository.ts"
+          ]
         }
       ]
     },

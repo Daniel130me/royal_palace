@@ -36,5 +36,10 @@ function detectContentType(bytes: Uint8Array): string | null {
   ) {
     return "image/png";
   }
+  if (bytes.length >= 12 && Buffer.from(bytes.subarray(4, 8)).toString("ascii") === "ftyp") {
+    const brand = Buffer.from(bytes.subarray(8, 12)).toString("ascii");
+    if (["heic", "heix", "hevc", "hevx"].includes(brand)) return "image/heic";
+    if (["heif", "heim", "heis", "mif1", "msf1"].includes(brand)) return "image/heif";
+  }
   return null;
 }

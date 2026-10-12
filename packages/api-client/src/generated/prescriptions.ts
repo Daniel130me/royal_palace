@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/v1/patient/scanned-prescriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listOwnScannedPrescriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/scanned-prescriptions/upload-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createScannedPrescriptionUploadIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/scanned-prescriptions/{prescriptionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOwnScannedPrescription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/scanned-prescriptions/{prescriptionId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completeScannedPrescriptionUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/scanned-prescriptions/{prescriptionId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadOwnScannedPrescription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pharmacy/catalog-items": {
         parameters: {
             query?: never;
@@ -632,6 +712,77 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        ScannedPrescriptionStatus: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "APPROVED" | "REJECTED" | "SCAN_FAILED" | "WITHDRAWN";
+        ScannedPrescriptionSummary: {
+            /** Format: date-time */
+            createdAt: string;
+            declaredContentType: string;
+            declaredSizeBytes: number;
+            /** Format: uuid */
+            id: string;
+            originalFilename: string;
+            patientNote: string | null;
+            /** Format: uuid */
+            pharmacyOrganizationId: string | null;
+            prescriberFacility: string | null;
+            prescriberName: string | null;
+            status: components["schemas"]["ScannedPrescriptionStatus"];
+            statusReasonCode: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            uploadNumber: string;
+            version: number;
+        };
+        ScannedPrescriptionHistoryEntry: {
+            fromStatus: components["schemas"]["ScannedPrescriptionStatus"] | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurredAt: string;
+            patientVisibleNote: string | null;
+            reasonCode: string;
+            toStatus: components["schemas"]["ScannedPrescriptionStatus"];
+        };
+        ScannedPrescriptionDetail: components["schemas"]["ScannedPrescriptionSummary"] & {
+            history: components["schemas"]["ScannedPrescriptionHistoryEntry"][];
+        };
+        ScannedPrescriptionList: {
+            data: components["schemas"]["ScannedPrescriptionSummary"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        CreateScannedPrescriptionUploadInput: {
+            /** @enum {string} */
+            declaredContentType: "application/pdf" | "image/heic" | "image/heif" | "image/jpeg" | "image/png";
+            declaredSha256: string;
+            declaredSizeBytes: number;
+            originalFilename: string;
+            patientNote?: string | null;
+            /** Format: uuid */
+            pharmacyOrganizationId?: string | null;
+            prescriberFacility?: string | null;
+            prescriberName?: string | null;
+        };
+        ScannedPrescriptionUploadIntent: {
+            prescription: components["schemas"]["ScannedPrescriptionDetail"];
+            upload: {
+                /** Format: date-time */
+                expiresAt: string;
+                headers: {
+                    [key: string]: string;
+                };
+                /** @enum {string} */
+                method: "PUT";
+                /** Format: uri */
+                url: string;
+            };
+        };
+        PrivateDocumentDownload: {
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uri */
+            url: string;
+        };
         CreatePharmacyCatalogItemInput: {
             brandName?: string;
             /** Format: uuid */
@@ -1438,6 +1589,142 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listOwnScannedPrescriptions: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped scanned prescription history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannedPrescriptionList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    createScannedPrescriptionUploadIntent: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateScannedPrescriptionUploadInput"];
+            };
+        };
+        responses: {
+            /** @description Private quarantine upload reservation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannedPrescriptionUploadIntent"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getOwnScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped scanned prescription detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannedPrescriptionDetail"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeScannedPrescriptionUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload accepted into quarantine */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "QUARANTINED";
+                    };
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    downloadOwnScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Short-lived private clean-object download */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateDocumentDownload"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listPharmacyCatalogItems: {
         parameters: {
             query?: {

@@ -1,12 +1,13 @@
 "use client";
 
 import type { PrescriptionComponents } from "@royal-palace/api-client";
-import { FileText } from "lucide-react";
+import { FileText, History, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { CompactListItem } from "@/components/healthcare/compact-list";
 import { EmptyState, PageHeader, SkeletonGrid } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { navigate } from "@/lib/nav";
 import { productionPrescriptionService } from "@/lib/services";
@@ -39,6 +40,16 @@ export function PatientPrescriptions() {
       <PageHeader
         title="Prescriptions"
         description="Choose which verified pharmacy receives each signed prescription."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("patient", "uploads")}>
+              <History className="h-4 w-4" /> Upload history
+            </Button>
+            <Button size="sm" onClick={() => navigate("patient", "upload-prescription")}>
+              <Upload className="h-4 w-4" /> Upload prescription
+            </Button>
+          </div>
+        }
       />
       {loading ? (
         <SkeletonGrid count={4} />
@@ -49,6 +60,11 @@ export function PatientPrescriptions() {
           icon={FileText}
           title="No prescriptions"
           description="Signed prescriptions from your practitioners will appear here."
+          action={
+            <Button onClick={() => navigate("patient", "upload-prescription")}>
+              <Upload className="h-4 w-4" /> Upload a prescription
+            </Button>
+          }
         />
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card divide-y">

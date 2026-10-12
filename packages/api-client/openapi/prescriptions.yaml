@@ -1,11 +1,91 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, direct OTC, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
 paths:
+  /v1/patient/scanned-prescriptions:
+    get:
+      operationId: listOwnScannedPrescriptions
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Owner-scoped scanned prescription history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScannedPrescriptionList" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/patient/scanned-prescriptions/upload-intents:
+    post:
+      operationId: createScannedPrescriptionUploadIntent
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateScannedPrescriptionUploadInput" }
+      responses:
+        "201":
+          description: Private quarantine upload reservation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScannedPrescriptionUploadIntent" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/patient/scanned-prescriptions/{prescriptionId}:
+    get:
+      operationId: getOwnScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Owner-scoped scanned prescription detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScannedPrescriptionDetail" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/patient/scanned-prescriptions/{prescriptionId}/complete:
+    post:
+      operationId: completeScannedPrescriptionUpload
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "201":
+          description: Upload accepted into quarantine
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: { type: string, enum: [QUARANTINED] }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/patient/scanned-prescriptions/{prescriptionId}/download:
+    get:
+      operationId: downloadOwnScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Short-lived private clean-object download
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivateDocumentDownload" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /v1/pharmacy/catalog-items:
     get:
       operationId: listPharmacyCatalogItems
@@ -933,6 +1013,125 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    ScannedPrescriptionStatus:
+      type: string
+      enum:
+        [
+          AWAITING_UPLOAD,
+          QUARANTINED,
+          SCANNING,
+          CLEAN,
+          UNDER_REVIEW,
+          MORE_INFORMATION_REQUIRED,
+          APPROVED,
+          REJECTED,
+          SCAN_FAILED,
+          WITHDRAWN,
+        ]
+    ScannedPrescriptionSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          createdAt,
+          declaredContentType,
+          declaredSizeBytes,
+          id,
+          originalFilename,
+          patientNote,
+          pharmacyOrganizationId,
+          prescriberFacility,
+          prescriberName,
+          status,
+          statusReasonCode,
+          updatedAt,
+          uploadNumber,
+          version,
+        ]
+      properties:
+        createdAt: { type: string, format: date-time }
+        declaredContentType: { type: string }
+        declaredSizeBytes: { type: integer, minimum: 1, maximum: 8388608 }
+        id: { type: string, format: uuid }
+        originalFilename: { type: string }
+        patientNote: { type: [string, "null"] }
+        pharmacyOrganizationId: { type: [string, "null"], format: uuid }
+        prescriberFacility: { type: [string, "null"] }
+        prescriberName: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/ScannedPrescriptionStatus" }
+        statusReasonCode: { type: [string, "null"] }
+        updatedAt: { type: string, format: date-time }
+        uploadNumber: { type: string }
+        version: { type: integer, minimum: 1 }
+    ScannedPrescriptionHistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [fromStatus, id, occurredAt, patientVisibleNote, reasonCode, toStatus]
+      properties:
+        fromStatus:
+          oneOf:
+            - { $ref: "#/components/schemas/ScannedPrescriptionStatus" }
+            - { type: "null" }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        patientVisibleNote: { type: [string, "null"] }
+        reasonCode: { type: string }
+        toStatus: { $ref: "#/components/schemas/ScannedPrescriptionStatus" }
+    ScannedPrescriptionDetail:
+      allOf:
+        - { $ref: "#/components/schemas/ScannedPrescriptionSummary" }
+        - type: object
+          required: [history]
+          properties:
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/ScannedPrescriptionHistoryEntry" }
+    ScannedPrescriptionList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ScannedPrescriptionSummary" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    CreateScannedPrescriptionUploadInput:
+      type: object
+      additionalProperties: false
+      required: [declaredContentType, declaredSha256, declaredSizeBytes, originalFilename]
+      properties:
+        declaredContentType:
+          type: string
+          enum: [application/pdf, image/heic, image/heif, image/jpeg, image/png]
+        declaredSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        declaredSizeBytes: { type: integer, minimum: 1, maximum: 8388608 }
+        originalFilename: { type: string, minLength: 1, maxLength: 255 }
+        patientNote: { type: [string, "null"], maxLength: 1000 }
+        pharmacyOrganizationId: { type: [string, "null"], format: uuid }
+        prescriberFacility: { type: [string, "null"], maxLength: 200 }
+        prescriberName: { type: [string, "null"], maxLength: 200 }
+    ScannedPrescriptionUploadIntent:
+      type: object
+      additionalProperties: false
+      required: [prescription, upload]
+      properties:
+        prescription: { $ref: "#/components/schemas/ScannedPrescriptionDetail" }
+        upload:
+          type: object
+          additionalProperties: false
+          required: [expiresAt, headers, method, url]
+          properties:
+            expiresAt: { type: string, format: date-time }
+            headers: { type: object, additionalProperties: { type: string } }
+            method: { type: string, enum: [PUT] }
+            url: { type: string, format: uri }
+    PrivateDocumentDownload:
+      type: object
+      additionalProperties: false
+      required: [expiresAt, url]
+      properties:
+        expiresAt: { type: string, format: date-time }
+        url: { type: string, format: uri }
     CreatePharmacyCatalogItemInput:
       type: object
       additionalProperties: false

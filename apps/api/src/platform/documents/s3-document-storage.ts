@@ -9,7 +9,7 @@ import { Inject, Injectable, type OnApplicationShutdown } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 
 import { SERVICE_CONFIG } from "../../tokens.js";
-import type { DocumentStorage, StoredObjectEvidence } from "../domain/document-storage.port.js";
+import type { DocumentStorage, StoredObjectEvidence } from "./document-storage.port.js";
 
 @Injectable()
 export class S3DocumentStorage implements DocumentStorage, OnApplicationShutdown {
@@ -43,17 +43,20 @@ export class S3DocumentStorage implements DocumentStorage, OnApplicationShutdown
     sha256Hex: string;
   }): Promise<{ headers: Readonly<Record<string, string>>; url: string }> {
     const checksum = Buffer.from(input.sha256Hex, "hex").toString("base64");
-    const command = new PutObjectCommand({
-      Bucket: this.config.objectStorage.quarantineBucket,
-      ChecksumSHA256: checksum,
-      ContentType: input.contentType,
-      IfNoneMatch: "*",
-      Key: input.key,
-    });
-    const url = await getSignedUrl(this.client, command, {
-      expiresIn: input.expiresInSeconds,
-      unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
-    });
+    const url = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.config.objectStorage.quarantineBucket,
+        ChecksumSHA256: checksum,
+        ContentType: input.contentType,
+        IfNoneMatch: "*",
+        Key: input.key,
+      }),
+      {
+        expiresIn: input.expiresInSeconds,
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
+      },
+    );
     return {
       headers: {
         "content-type": input.contentType,
@@ -78,7 +81,7 @@ export class S3DocumentStorage implements DocumentStorage, OnApplicationShutdown
         contentType: result.ContentType ?? null,
         sizeBytes: result.ContentLength ?? null,
         versionId: result.VersionId ?? null,
-      } satisfies StoredObjectEvidence;
+      };
     } catch (error) {
       if (isMissingObject(error)) return null;
       throw error;
