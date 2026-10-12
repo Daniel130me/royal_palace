@@ -143,6 +143,7 @@ function baselineRequest(
       };
     case AUTHORIZATION_POLICY.MANAGE_PRACTITIONER_AVAILABILITY:
     case AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION:
+    case AUTHORIZATION_POLICY.MANAGE_OWN_LABORATORY_REQUEST:
       return {
         ...base,
         policy,
@@ -158,12 +159,14 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
+    case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
       return {
         ...base,
         policy,
         context: { organizationId, resourceId, resourceType: "prescription" },
       };
     case AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION:
+    case AUTHORIZATION_POLICY.ROUTE_LABORATORY_REQUEST:
     case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
     case AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE:
     case AUTHORIZATION_POLICY.MANAGE_OWN_SCANNED_PRESCRIPTION:
@@ -187,6 +190,18 @@ function baselineRequest(
           practitionerPrincipalId: targetPrincipalId,
           resourceId,
           resourceType: "prescription",
+        },
+      };
+    case AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST:
+      return {
+        ...base,
+        policy,
+        context: {
+          laboratoryOrganizationId: organizationId,
+          patientPrincipalId: targetPrincipalId,
+          practitionerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "laboratory_request",
         },
       };
     case AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER:
@@ -252,6 +267,7 @@ describe("PolicyEngine", () => {
     EXPIRE_PHARMACY_QUOTES: ["SYSTEM_WORKER"],
     MANAGE_PRACTITIONER_AVAILABILITY: [],
     MANAGE_OWN_PRESCRIPTION: [],
+    MANAGE_OWN_LABORATORY_REQUEST: [],
     MANAGE_PHARMACY_PRESCRIPTION: [],
     MANAGE_PHARMACY_SCANNED_PRESCRIPTION: [],
     MANAGE_PHARMACY_QUOTE: [],
@@ -262,6 +278,7 @@ describe("PolicyEngine", () => {
     MANAGE_PHARMACY_HANDOFF: [],
     MANAGE_PHARMACY_INVENTORY: [],
     MANAGE_PHARMACY_SETTINGS: [],
+    MANAGE_LABORATORY_BOOKING: [],
     MANAGE_NOTIFICATION_PREFERENCES: [],
     ADMINISTER_PHARMACY_DISPUTE: ["ADMINISTRATOR"],
     MANAGE_OWN_APPLICATION: [],
@@ -278,7 +295,9 @@ describe("PolicyEngine", () => {
     VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],
     VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
     ROUTE_PRESCRIPTION: [],
+    ROUTE_LABORATORY_REQUEST: [],
     VIEW_PRESCRIPTION: [],
+    VIEW_LABORATORY_REQUEST: [],
     VIEW_PHARMACY_ORDER: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PHARMACY_QUOTE: ["SUPPORT", "ADMINISTRATOR"],
     EXPIRE_PRESCRIPTIONS: ["SYSTEM_WORKER"],
@@ -432,6 +451,61 @@ describe("PolicyEngine", () => {
     expect(
       engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE, pharmacyMember))
         .allowed,
+    ).toBe(false);
+  });
+
+  it("restricts laboratory requests to their patient, practitioner, or assigned laboratory", () => {
+    const patient = actor(["PATIENT"], { principalId: targetPrincipalId });
+    const practitioner = actor(["PROVIDER"], { principalId: targetPrincipalId });
+    const laboratoryMember = actor([], { organizationRoles: ["ORGANIZATION_STAFF"] });
+    const unrelatedProvider = actor(["PROVIDER"]);
+
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, patient))
+        .allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, practitioner))
+        .allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, laboratoryMember),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, unrelatedProvider),
+      ).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, actor(["SUPPORT"])),
+      ).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST, actor(["MANAGER"])),
+      ).allowed,
+    ).toBe(false);
+  });
+
+  it("requires exact organization membership to manage a laboratory booking", () => {
+    expect(
+      engine.evaluate(
+        baselineRequest(
+          AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING,
+          actor([], { organizationRoles: ["ORGANIZATION_STAFF"] }),
+        ),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(
+          AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING,
+          actor(["ORGANIZATION_STAFF"]),
+        ),
+      ).allowed,
     ).toBe(false);
   });
 });

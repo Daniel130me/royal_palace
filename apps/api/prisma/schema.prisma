@@ -206,6 +206,27 @@ enum AppointmentStatus {
   COMPLETED
 }
 
+enum LaboratoryRequestPriority {
+  ROUTINE
+  URGENT
+}
+
+enum LaboratoryRequestStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+
+enum LaboratoryBookingStatus {
+  CONFIRMED
+  SAMPLE_COLLECTION_PENDING
+  SAMPLE_COLLECTED
+  PROCESSING
+  RESULT_READY
+  COMPLETED
+  CANCELLED
+}
+
 enum PaymentStatus {
   CREATED
   PENDING
@@ -476,56 +497,58 @@ enum SubstitutionDecisionOutcome {
 }
 
 model IdentityPrincipal {
-  id                           String                             @id @db.Uuid
-  status                       PrincipalStatus                    @default(ACTIVE)
-  createdAt                    DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                      Int                                @default(1)
-  externalIdentities           ExternalIdentity[]                 @relation("ExternalIdentityOwner")
-  linkedIdentities             ExternalIdentity[]                 @relation("ExternalIdentityLinker")
-  sessions                     AuthSession[]
-  memberships                  Membership[]
-  roleAssignments              RoleAssignment[]                   @relation("RoleAssignee")
-  grantedRoles                 RoleAssignment[]                   @relation("RoleGrantor")
-  auditEvents                  AuditEvent[]                       @relation("AuditActor")
-  idempotencyKeys              IdempotencyKey[]
-  practitioner                 Practitioner?
-  patient                      Patient?
-  onboardingApplications       OnboardingApplication[]            @relation("OnboardingApplicant")
-  startedApplicationReviews    OnboardingApplication[]            @relation("OnboardingReviewStarter")
-  decidedApplications          OnboardingApplication[]            @relation("OnboardingDecider")
-  applicationStatusHistory     ApplicationStatusHistory[]         @relation("ApplicationHistoryActor")
-  managerProfile               ManagerProfile?
-  createdReferralLinks         ReferralLink[]                     @relation("ReferralLinkCreator")
-  referralAttributionEvents    ReferralAttributionEvent[]         @relation("ReferralAttributionActor")
-  commissionPoliciesCreated    CommissionPolicy[]                 @relation("CommissionPolicyCreator")
-  commissionPoliciesApproved   CommissionPolicy[]                 @relation("CommissionPolicyApprover")
-  recordedActivitySettlements  PatientActivitySettlement[]        @relation("ActivitySettlementRecorder")
-  createdManagerTickets        ManagerSupportTicket[]             @relation("ManagerTicketCreator")
-  managerTicketFollowUps       ManagerTicketFollowUp[]            @relation("ManagerTicketFollowUpAuthor")
-  createdAvailabilitySlots     AvailabilitySlot[]                 @relation("AvailabilitySlotCreator")
-  createdConsultationFees      ConsultationFee[]                  @relation("ConsultationFeeCreator")
-  approvedConsultationFees     ConsultationFee[]                  @relation("ConsultationFeeApprover")
-  requestedReconciliations     PaymentReconciliation[]            @relation("PaymentReconciliationRequester")
-  notificationDeliveries       NotificationDelivery[]             @relation("NotificationRecipient")
-  notificationReplays          NotificationDelivery[]             @relation("NotificationReplayActor")
-  notificationEndpoints        NotificationRecipientEndpoint[]
-  notificationPreferences      NotificationPreference[]
-  notificationInboxItems       NotificationInboxItem[]             @relation("NotificationInboxPrincipalRecipient")
-  notificationInboxReads       NotificationInboxRead[]             @relation("NotificationInboxReader")
-  updatedPharmacySettings      PharmacyOperationalSettings[]       @relation("PharmacyOperationalSettingsUpdater")
-  prescriptionStatusChanges    PrescriptionStatusHistory[]        @relation("PrescriptionStatusActor")
-  createdSubstitutionProposals PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
-  substitutionDecisions        PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
-  prescriptionDispenseEvents   PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
-  createdPharmacyQuotes        PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
-  acceptedPharmacyOrders       PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
-  preparedPharmacyHandoffs     PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
-  completedPharmacyHandoffs    PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
-  pharmacyOrderResolutions     PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
-  createdPharmacyCatalogItems  PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
-  pharmacyInventoryMovements   InventoryMovement[]                @relation("InventoryMovementActor")
-  scannedPrescriptionHistory   ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
+  id                             String                             @id @db.Uuid
+  status                         PrincipalStatus                    @default(ACTIVE)
+  createdAt                      DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                        Int                                @default(1)
+  externalIdentities             ExternalIdentity[]                 @relation("ExternalIdentityOwner")
+  linkedIdentities               ExternalIdentity[]                 @relation("ExternalIdentityLinker")
+  sessions                       AuthSession[]
+  memberships                    Membership[]
+  roleAssignments                RoleAssignment[]                   @relation("RoleAssignee")
+  grantedRoles                   RoleAssignment[]                   @relation("RoleGrantor")
+  auditEvents                    AuditEvent[]                       @relation("AuditActor")
+  idempotencyKeys                IdempotencyKey[]
+  practitioner                   Practitioner?
+  patient                        Patient?
+  onboardingApplications         OnboardingApplication[]            @relation("OnboardingApplicant")
+  startedApplicationReviews      OnboardingApplication[]            @relation("OnboardingReviewStarter")
+  decidedApplications            OnboardingApplication[]            @relation("OnboardingDecider")
+  applicationStatusHistory       ApplicationStatusHistory[]         @relation("ApplicationHistoryActor")
+  managerProfile                 ManagerProfile?
+  createdReferralLinks           ReferralLink[]                     @relation("ReferralLinkCreator")
+  referralAttributionEvents      ReferralAttributionEvent[]         @relation("ReferralAttributionActor")
+  commissionPoliciesCreated      CommissionPolicy[]                 @relation("CommissionPolicyCreator")
+  commissionPoliciesApproved     CommissionPolicy[]                 @relation("CommissionPolicyApprover")
+  recordedActivitySettlements    PatientActivitySettlement[]        @relation("ActivitySettlementRecorder")
+  createdManagerTickets          ManagerSupportTicket[]             @relation("ManagerTicketCreator")
+  managerTicketFollowUps         ManagerTicketFollowUp[]            @relation("ManagerTicketFollowUpAuthor")
+  createdAvailabilitySlots       AvailabilitySlot[]                 @relation("AvailabilitySlotCreator")
+  createdConsultationFees        ConsultationFee[]                  @relation("ConsultationFeeCreator")
+  approvedConsultationFees       ConsultationFee[]                  @relation("ConsultationFeeApprover")
+  requestedReconciliations       PaymentReconciliation[]            @relation("PaymentReconciliationRequester")
+  notificationDeliveries         NotificationDelivery[]             @relation("NotificationRecipient")
+  notificationReplays            NotificationDelivery[]             @relation("NotificationReplayActor")
+  notificationEndpoints          NotificationRecipientEndpoint[]
+  notificationPreferences        NotificationPreference[]
+  notificationInboxItems         NotificationInboxItem[]            @relation("NotificationInboxPrincipalRecipient")
+  notificationInboxReads         NotificationInboxRead[]            @relation("NotificationInboxReader")
+  updatedPharmacySettings        PharmacyOperationalSettings[]      @relation("PharmacyOperationalSettingsUpdater")
+  prescriptionStatusChanges      PrescriptionStatusHistory[]        @relation("PrescriptionStatusActor")
+  createdSubstitutionProposals   PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
+  substitutionDecisions          PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
+  prescriptionDispenseEvents     PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
+  createdPharmacyQuotes          PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
+  acceptedPharmacyOrders         PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
+  preparedPharmacyHandoffs       PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
+  completedPharmacyHandoffs      PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
+  pharmacyOrderResolutions       PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
+  createdPharmacyCatalogItems    PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
+  pharmacyInventoryMovements     InventoryMovement[]                @relation("InventoryMovementActor")
+  scannedPrescriptionHistory     ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
+  laboratoryRequestStatusHistory LaboratoryRequestStatusHistory[]   @relation("LaboratoryRequestStatusActor")
+  laboratoryBookingStatusHistory LaboratoryBookingStatusHistory[]   @relation("LaboratoryBookingStatusActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -553,6 +576,7 @@ model Patient {
   pharmacyQuotes       PharmacyQuote[]
   pharmacyOrders       PharmacyOrder[]
   scannedPrescriptions ScannedPrescription[]
+  laboratoryRequests   LaboratoryRequest[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -659,6 +683,7 @@ model Organization {
   scannedPrescriptions              ScannedPrescription[]
   notificationInboxItems            NotificationInboxItem[]
   pharmacyOperationalSettings       PharmacyOperationalSettings?
+  laboratoryBookings                LaboratoryBooking[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -746,6 +771,7 @@ model ServiceTaxonomy {
   version              Int                              @default(1)
   organizationServices OrganizationService[]
   applicationRequests  OrganizationApplicationService[]
+  laboratoryRequests   LaboratoryRequest[]
 
   @@index([status, category, name, id], map: "service_taxonomies_status_category_name_idx")
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "service_taxonomies_name_trgm_idx")
@@ -862,6 +888,7 @@ model Practitioner {
   availabilitySlots   AvailabilitySlot[]
   appointments        Appointment[]
   prescriptions       Prescription[]
+  laboratoryRequests  LaboratoryRequest[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -1458,20 +1485,20 @@ model NotificationPreference {
 }
 
 model NotificationInboxItem {
-  id                      String                @id @db.Uuid
-  deduplicationKey        String                @unique @map("deduplication_key") @db.VarChar(200)
-  recipientPrincipalId    String?               @map("recipient_principal_id") @db.Uuid
-  recipientOrganizationId String?               @map("recipient_organization_id") @db.Uuid
+  id                      String                  @id @db.Uuid
+  deduplicationKey        String                  @unique @map("deduplication_key") @db.VarChar(200)
+  recipientPrincipalId    String?                 @map("recipient_principal_id") @db.Uuid
+  recipientOrganizationId String?                 @map("recipient_organization_id") @db.Uuid
   category                NotificationCategory
-  templateKey             String                @map("template_key") @db.VarChar(100)
-  locale                  String                @db.VarChar(35)
-  reference               String                @db.VarChar(64)
-  resourceType            String?               @map("resource_type") @db.VarChar(100)
-  resourceId              String?               @map("resource_id") @db.Uuid
-  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  recipientPrincipal      IdentityPrincipal?    @relation("NotificationInboxPrincipalRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
-  recipientOrganization   Organization?         @relation(fields: [recipientOrganizationId], references: [id], onDelete: Restrict)
-  reads                    NotificationInboxRead[]
+  templateKey             String                  @map("template_key") @db.VarChar(100)
+  locale                  String                  @db.VarChar(35)
+  reference               String                  @db.VarChar(64)
+  resourceType            String?                 @map("resource_type") @db.VarChar(100)
+  resourceId              String?                 @map("resource_id") @db.Uuid
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  recipientPrincipal      IdentityPrincipal?      @relation("NotificationInboxPrincipalRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  recipientOrganization   Organization?           @relation(fields: [recipientOrganizationId], references: [id], onDelete: Restrict)
+  reads                   NotificationInboxRead[]
 
   @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_inbox_principal_created_idx")
   @@index([recipientOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_inbox_org_created_idx")
@@ -1479,12 +1506,12 @@ model NotificationInboxItem {
 }
 
 model NotificationInboxRead {
-  id          String            @id @db.Uuid
-  itemId      String            @map("item_id") @db.Uuid
-  principalId String            @map("principal_id") @db.Uuid
-  readAt      DateTime          @default(now()) @map("read_at") @db.Timestamptz(6)
+  id          String                @id @db.Uuid
+  itemId      String                @map("item_id") @db.Uuid
+  principalId String                @map("principal_id") @db.Uuid
+  readAt      DateTime              @default(now()) @map("read_at") @db.Timestamptz(6)
   item        NotificationInboxItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  principal   IdentityPrincipal @relation("NotificationInboxReader", fields: [principalId], references: [id], onDelete: Restrict)
+  principal   IdentityPrincipal     @relation("NotificationInboxReader", fields: [principalId], references: [id], onDelete: Restrict)
 
   @@unique([itemId, principalId], map: "notification_inbox_reads_item_principal_key")
   @@index([principalId, readAt(sort: Desc), itemId], map: "notification_inbox_reads_principal_read_idx")
@@ -1750,33 +1777,121 @@ model AvailabilitySlot {
 }
 
 model Appointment {
-  id                 String            @id @db.Uuid
-  patientId          String            @map("patient_id") @db.Uuid
-  practitionerId     String            @map("practitioner_id") @db.Uuid
-  availabilitySlotId String            @unique @map("availability_slot_id") @db.Uuid
+  id                 String              @id @db.Uuid
+  patientId          String              @map("patient_id") @db.Uuid
+  practitionerId     String              @map("practitioner_id") @db.Uuid
+  availabilitySlotId String              @unique @map("availability_slot_id") @db.Uuid
   mode               ConsultationMode
-  startsAt           DateTime          @map("starts_at") @db.Timestamptz(6)
-  endsAt             DateTime          @map("ends_at") @db.Timestamptz(6)
-  amountMinor        BigInt            @map("amount_minor")
-  currency           String            @db.Char(3)
-  status             AppointmentStatus @default(PENDING_PAYMENT)
-  paymentDueAt       DateTime          @map("payment_due_at") @db.Timestamptz(6)
-  confirmedAt        DateTime?         @map("confirmed_at") @db.Timestamptz(6)
-  cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(6)
-  completedAt        DateTime?         @map("completed_at") @db.Timestamptz(6)
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version            Int               @default(1)
-  patient            Patient           @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner       Practitioner      @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  availabilitySlot   AvailabilitySlot  @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
+  startsAt           DateTime            @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime            @map("ends_at") @db.Timestamptz(6)
+  amountMinor        BigInt              @map("amount_minor")
+  currency           String              @db.Char(3)
+  status             AppointmentStatus   @default(PENDING_PAYMENT)
+  paymentDueAt       DateTime            @map("payment_due_at") @db.Timestamptz(6)
+  confirmedAt        DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  completedAt        DateTime?           @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                 @default(1)
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner       Practitioner        @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  availabilitySlot   AvailabilitySlot    @relation(fields: [availabilitySlotId], references: [id], onDelete: Restrict)
   payment            Payment?
   prescriptions      Prescription[]
+  laboratoryRequests LaboratoryRequest[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
   @@index([status, paymentDueAt, id], map: "appointments_payment_timeout_idx")
   @@map("appointments")
+}
+
+model LaboratoryRequest {
+  id                   String                           @id @db.Uuid
+  requestNumber        String                           @unique @map("request_number") @db.VarChar(64)
+  patientId            String                           @map("patient_id") @db.Uuid
+  practitionerId       String                           @map("practitioner_id") @db.Uuid
+  appointmentId        String                           @map("appointment_id") @db.Uuid
+  serviceId            String                           @map("service_id") @db.Uuid
+  priority             LaboratoryRequestPriority        @default(ROUTINE)
+  status               LaboratoryRequestStatus          @default(ACTIVE)
+  clinicalIndication   String                           @map("clinical_indication") @db.VarChar(2000)
+  specimenInstructions String?                          @map("specimen_instructions") @db.VarChar(1000)
+  orderedAt            DateTime                         @map("ordered_at") @db.Timestamptz(6)
+  cancelledAt          DateTime?                        @map("cancelled_at") @db.Timestamptz(6)
+  completedAt          DateTime?                        @map("completed_at") @db.Timestamptz(6)
+  createdAt            DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                              @default(1)
+  patient              Patient                          @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner         Practitioner                     @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  appointment          Appointment                      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  service              ServiceTaxonomy                  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  bookings             LaboratoryBooking[]
+  statusHistory        LaboratoryRequestStatusHistory[]
+
+  @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "laboratory_requests_patient_created_idx")
+  @@index([practitionerId, createdAt(sort: Desc), id(sort: Desc)], map: "laboratory_requests_practitioner_created_idx")
+  @@index([status, priority, orderedAt, id], map: "laboratory_requests_status_priority_ordered_idx")
+  @@map("laboratory_requests")
+}
+
+model LaboratoryRequestStatusHistory {
+  id               String                   @id @db.Uuid
+  requestId        String                   @map("request_id") @db.Uuid
+  actorPrincipalId String                   @map("actor_principal_id") @db.Uuid
+  fromStatus       LaboratoryRequestStatus? @map("from_status")
+  toStatus         LaboratoryRequestStatus  @map("to_status")
+  reasonCode       String                   @map("reason_code") @db.VarChar(100)
+  occurredAt       DateTime                 @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  request          LaboratoryRequest        @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal        @relation("LaboratoryRequestStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, occurredAt, id], map: "laboratory_request_history_request_idx")
+  @@map("laboratory_request_status_history")
+}
+
+model LaboratoryBooking {
+  id                       String                           @id @db.Uuid
+  bookingNumber            String                           @unique @map("booking_number") @db.VarChar(64)
+  requestId                String                           @map("request_id") @db.Uuid
+  laboratoryOrganizationId String                           @map("laboratory_organization_id") @db.Uuid
+  status                   LaboratoryBookingStatus          @default(CONFIRMED)
+  scheduledAt              DateTime?                        @map("scheduled_at") @db.Timestamptz(6)
+  acceptedAt               DateTime                         @map("accepted_at") @db.Timestamptz(6)
+  sampleCollectedAt        DateTime?                        @map("sample_collected_at") @db.Timestamptz(6)
+  processingStartedAt      DateTime?                        @map("processing_started_at") @db.Timestamptz(6)
+  resultReadyAt            DateTime?                        @map("result_ready_at") @db.Timestamptz(6)
+  completedAt              DateTime?                        @map("completed_at") @db.Timestamptz(6)
+  cancelledAt              DateTime?                        @map("cancelled_at") @db.Timestamptz(6)
+  createdAt                DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                              @default(1)
+  request                  LaboratoryRequest                @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  laboratoryOrganization   Organization                     @relation(fields: [laboratoryOrganizationId], references: [id], onDelete: Restrict)
+  statusHistory            LaboratoryBookingStatusHistory[]
+
+  @@index([laboratoryOrganizationId, status, acceptedAt(sort: Desc), id(sort: Desc)], map: "laboratory_bookings_org_status_accepted_idx")
+  @@index([requestId, createdAt, id], map: "laboratory_bookings_request_created_idx")
+  @@map("laboratory_bookings")
+}
+
+model LaboratoryBookingStatusHistory {
+  id               String                   @id @db.Uuid
+  bookingId        String                   @map("booking_id") @db.Uuid
+  actorPrincipalId String                   @map("actor_principal_id") @db.Uuid
+  fromStatus       LaboratoryBookingStatus? @map("from_status")
+  toStatus         LaboratoryBookingStatus  @map("to_status")
+  reasonCode       String                   @map("reason_code") @db.VarChar(100)
+  occurredAt       DateTime                 @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  booking          LaboratoryBooking        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal        @relation("LaboratoryBookingStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, occurredAt, id], map: "laboratory_booking_history_booking_idx")
+  @@map("laboratory_booking_status_history")
 }
 
 model Prescription {
@@ -2231,16 +2346,16 @@ model PharmacyOrderResolution {
 }
 
 model PharmacyOperationalSettings {
-  organizationId          String            @id @map("organization_id") @db.Uuid
-  pickupEnabled           Boolean           @default(true) @map("pickup_enabled")
-  deliveryEnabled         Boolean           @default(false) @map("delivery_enabled")
-  preparationTargetMinutes Int              @default(60) @map("preparation_target_minutes")
-  updatedByPrincipalId    String            @map("updated_by_principal_id") @db.Uuid
-  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                 Int               @default(1)
-  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  updatedBy               IdentityPrincipal @relation("PharmacyOperationalSettingsUpdater", fields: [updatedByPrincipalId], references: [id], onDelete: Restrict)
+  organizationId           String            @id @map("organization_id") @db.Uuid
+  pickupEnabled            Boolean           @default(true) @map("pickup_enabled")
+  deliveryEnabled          Boolean           @default(false) @map("delivery_enabled")
+  preparationTargetMinutes Int               @default(60) @map("preparation_target_minutes")
+  updatedByPrincipalId     String            @map("updated_by_principal_id") @db.Uuid
+  createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int               @default(1)
+  organization             Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  updatedBy                IdentityPrincipal @relation("PharmacyOperationalSettingsUpdater", fields: [updatedByPrincipalId], references: [id], onDelete: Restrict)
 
   @@map("pharmacy_operational_settings")
 }

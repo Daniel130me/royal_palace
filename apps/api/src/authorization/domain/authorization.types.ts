@@ -29,6 +29,10 @@ export const AUTHORIZATION_POLICY = {
   MANAGE_PHARMACY_HANDOFF: "MANAGE_PHARMACY_HANDOFF",
   MANAGE_PHARMACY_INVENTORY: "MANAGE_PHARMACY_INVENTORY",
   MANAGE_PHARMACY_SETTINGS: "MANAGE_PHARMACY_SETTINGS",
+  MANAGE_OWN_LABORATORY_REQUEST: "MANAGE_OWN_LABORATORY_REQUEST",
+  ROUTE_LABORATORY_REQUEST: "ROUTE_LABORATORY_REQUEST",
+  VIEW_LABORATORY_REQUEST: "VIEW_LABORATORY_REQUEST",
+  MANAGE_LABORATORY_BOOKING: "MANAGE_LABORATORY_BOOKING",
   ADMINISTER_PHARMACY_DISPUTE: "ADMINISTER_PHARMACY_DISPUTE",
   MANAGE_OWN_APPLICATION: "MANAGE_OWN_APPLICATION",
   REVIEW_APPLICATION: "REVIEW_APPLICATION",
@@ -50,7 +54,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 16;
+export const AUTHORIZATION_POLICY_VERSION = 17;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -104,6 +108,14 @@ export interface AuthorizationPolicyContexts {
   MANAGE_PHARMACY_HANDOFF: ResourceReference & { organizationId: string };
   MANAGE_PHARMACY_INVENTORY: ResourceReference & { organizationId: string };
   MANAGE_PHARMACY_SETTINGS: ResourceReference & { organizationId: string };
+  MANAGE_OWN_LABORATORY_REQUEST: ResourceReference & { practitionerPrincipalId: string };
+  ROUTE_LABORATORY_REQUEST: ResourceReference & { patientPrincipalId: string };
+  VIEW_LABORATORY_REQUEST: ResourceReference & {
+    laboratoryOrganizationId?: string;
+    patientPrincipalId: string;
+    practitionerPrincipalId: string;
+  };
+  MANAGE_LABORATORY_BOOKING: ResourceReference & { organizationId: string };
   ADMINISTER_PHARMACY_DISPUTE: ResourceReference;
   REVIEW_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   REVOKE_PRINCIPAL_SESSIONS: ResourceReference;

@@ -308,8 +308,17 @@ that completes an increment.
       [`qualification/11c5-prescription-pharmacy-qualification.md`](./qualification/11c5-prescription-pharmacy-qualification.md).
       Real activation remains blocked on the recorded clinical, pharmacy, legal/privacy,
       financial, security, operations, provider, jurisdiction, and UAT decisions.
-  - `[ ]` Laboratory, logistics, clinical encounter/record, settlement/payout, and
-    advanced-reporting slices remain after the pharmacy/prescription slice.
+  - `[~]` Checkpoint 11D laboratory is in progress. Evidence:
+    [`increments/11d-laboratory.md`](./increments/11d-laboratory.md).
+    - `[x]` 11D1 establishes the additive request/booking aggregate, append-only
+      histories, PostgreSQL state and ownership constraints, queue/owner indexes,
+      application state machines, and default-deny practitioner/patient/exact-lab
+      authorization. It is synthetic-only and has no browser or real clinical
+      activation.
+    - `[ ]` 11D2–11D4 API/routing, operations UI, result/critical-result, commercial
+      parity, migration/load evidence, and qualification remain open.
+  - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
+    advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open

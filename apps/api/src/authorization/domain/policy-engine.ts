@@ -47,20 +47,33 @@ export class PolicyEngine {
           request.actor.principalId === request.context.practitionerPrincipalId
           ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
           : this.deny(request.policy, "prescription_issuer_required");
+      case AUTHORIZATION_POLICY.MANAGE_OWN_LABORATORY_REQUEST:
+        return request.actor.roles.includes("PROVIDER") &&
+          request.actor.principalId === request.context.practitionerPrincipalId
+          ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
+          : this.deny(request.policy, "laboratory_request_issuer_required");
       case AUTHORIZATION_POLICY.ROUTE_PRESCRIPTION:
         return request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId
           ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
           : this.deny(request.policy, "prescription_patient_required");
+      case AUTHORIZATION_POLICY.ROUTE_LABORATORY_REQUEST:
+        return request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.patientPrincipalId
+          ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
+          : this.deny(request.policy, "laboratory_request_patient_required");
       case AUTHORIZATION_POLICY.VIEW_PRESCRIPTION:
         return this.canViewPrescription(request.actor, request.context);
+      case AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST:
+        return this.canViewLaboratoryRequest(request.actor, request.context);
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_PRESCRIPTION:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SCANNED_PRESCRIPTION:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
-        return this.canManagePharmacyPrescription(
+      case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
+        return this.canManageOrganizationResource(
           request.actor,
           request.context.organizationId,
           request.policy,
@@ -91,7 +104,7 @@ export class PolicyEngine {
         ) {
           return this.allow(request.policy, "PATIENT", ALLOW.OWNER);
         }
-        return this.canManagePharmacyPrescription(
+        return this.canManageOrganizationResource(
           request.actor,
           request.context.organizationId,
           request.policy,
@@ -300,12 +313,29 @@ export class PolicyEngine {
       return this.allow(policy, "PROVIDER", ALLOW.OWNER);
     }
     if (context.pharmacyOrganizationId !== undefined) {
-      return this.canManagePharmacyPrescription(actor, context.pharmacyOrganizationId, policy);
+      return this.canManageOrganizationResource(actor, context.pharmacyOrganizationId, policy);
     }
     return this.deny(policy, "prescription_relationship_required");
   }
 
-  private canManagePharmacyPrescription(
+  private canViewLaboratoryRequest(
+    actor: CurrentSession,
+    context: Extract<AuthorizationRequest, { policy: "VIEW_LABORATORY_REQUEST" }>["context"],
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST;
+    if (actor.roles.includes("PATIENT") && actor.principalId === context.patientPrincipalId) {
+      return this.allow(policy, "PATIENT", ALLOW.OWNER);
+    }
+    if (actor.roles.includes("PROVIDER") && actor.principalId === context.practitionerPrincipalId) {
+      return this.allow(policy, "PROVIDER", ALLOW.OWNER);
+    }
+    if (context.laboratoryOrganizationId !== undefined) {
+      return this.canManageOrganizationResource(actor, context.laboratoryOrganizationId, policy);
+    }
+    return this.deny(policy, "laboratory_request_relationship_required");
+  }
+
+  private canManageOrganizationResource(
     actor: CurrentSession,
     organizationId: string,
     policy: AuthorizationDecision["policy"],
@@ -314,8 +344,13 @@ export class PolicyEngine {
       "ORGANIZATION_STAFF",
       "PROVIDER",
     ]);
+    const denialReason =
+      policy === AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING ||
+      policy === AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST
+        ? "assigned_laboratory_membership_required"
+        : "assigned_pharmacy_membership_required";
     return role === null
-      ? this.deny(policy, "assigned_pharmacy_membership_required")
+      ? this.deny(policy, denialReason)
       : this.allow(policy, role, ALLOW.ORGANIZATION_MEMBER);
   }
 
