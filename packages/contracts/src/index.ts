@@ -688,6 +688,7 @@ export interface PharmacyPrescriptionListResponse {
 export type PharmacyQuoteStatus = "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
 
 export interface PharmacyQuoteLineResponse {
+  catalogItemId: string | null;
   id: string;
   lineNumber: number;
   lineSubtotalMinor: string;
@@ -718,7 +719,10 @@ export interface PharmacyQuoteResponse {
   feeMinor: string;
   fillNumber: number;
   id: string;
-  inventoryReservation: { expiresAt: string; status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED" };
+  inventoryReservation: {
+    expiresAt: string;
+    status: "HELD" | "COMMITTED" | "RELEASED" | "CONSUMED" | "EXPIRED";
+  };
   lines: readonly PharmacyQuoteLineResponse[];
   orderId: string | null;
   patientId: string;

@@ -14,6 +14,7 @@ import { PRESCRIPTION_REPOSITORY } from "./domain/prescription.types.js";
 import { PHARMACY_INVENTORY_REPOSITORY } from "./domain/pharmacy-inventory.types.js";
 import {
   DisabledInventoryGateway,
+  PlatformInventoryGateway,
   SyntheticInventoryGateway,
 } from "./infrastructure/inventory-gateway.adapters.js";
 import { PrismaPharmacyCommercialRepository } from "./infrastructure/prisma-pharmacy-commercial.repository.js";
@@ -22,6 +23,7 @@ import { PrismaPrescriptionRepository } from "./infrastructure/prisma-prescripti
 import { SERVICE_CONFIG } from "../tokens.js";
 import {
   AdminPharmacyCommercialController,
+  InternalPharmacyCommercialController,
   PatientPharmacyCommercialController,
   PharmacyCommercialController,
 } from "./presentation/pharmacy-commercial.controller.js";
@@ -38,6 +40,7 @@ import {
   imports: [AuthorizationModule, IdentityModule],
   controllers: [
     AdminPharmacyCommercialController,
+    InternalPharmacyCommercialController,
     InternalPrescriptionController,
     PatientPharmacyCommercialController,
     PatientPrescriptionController,
@@ -57,10 +60,11 @@ import {
     {
       provide: INVENTORY_GATEWAY,
       inject: [SERVICE_CONFIG],
-      useFactory: (config: ApiServiceConfig) =>
-        config.inventoryGateway.mode === "synthetic"
-          ? new SyntheticInventoryGateway()
-          : new DisabledInventoryGateway(),
+      useFactory: (config: ApiServiceConfig) => {
+        if (config.inventoryGateway.mode === "internal") return new PlatformInventoryGateway();
+        if (config.inventoryGateway.mode === "synthetic") return new SyntheticInventoryGateway();
+        return new DisabledInventoryGateway();
+      },
     },
   ],
 })

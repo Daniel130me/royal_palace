@@ -33,6 +33,7 @@ const amountMinorSchema = z
   .transform((value) => BigInt(value));
 const quoteLineSchema = z
   .object({
+    catalogItemId: idSchema.optional(),
     prescriptionItemId: idSchema,
     quantity: z.string().regex(/^(?:0|[1-9]\d{0,8})(?:\.\d{1,3})?$/),
     substitutionProposalId: idSchema.optional(),
@@ -97,6 +98,9 @@ const listSchema = z
     cursor: z.string().trim().min(1).max(1024).optional(),
     limit: z.coerce.number().int().min(1).max(50).default(25),
   })
+  .strict();
+const expirationSchema = z
+  .object({ limit: z.coerce.number().int().min(1).max(100).default(100) })
   .strict();
 
 @Controller("v1/pharmacy")
@@ -208,6 +212,22 @@ export class PharmacyCommercialController {
         parse(idempotencyKeySchema, idempotencyKey),
       ),
     );
+  }
+}
+
+@Controller("v1/internal/pharmacy")
+@UseGuards(AuthenticatedInternalRequestGuard)
+export class InternalPharmacyCommercialController {
+  constructor(
+    @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
+  ) {}
+
+  @Post("quotes/expire-due")
+  @HttpCode(200)
+  @PolicyProtected(AUTHORIZATION_POLICY.EXPIRE_PHARMACY_QUOTES)
+  expireDueQuotes(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const { limit } = parse(expirationSchema, query);
+    return execute(() => this.commercial.expireDueQuotes(context(request), limit));
   }
 }
 

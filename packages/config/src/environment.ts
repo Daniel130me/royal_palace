@@ -11,7 +11,7 @@ const oidcClientAuthMethodSchema = z.enum(["client_secret_basic", "client_secret
 const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 const notificationDeliveryModeSchema = z.enum(["disabled", "synthetic"]);
 const clinicalWorkflowModeSchema = z.enum(["disabled", "synthetic"]);
-const inventoryGatewayModeSchema = z.enum(["disabled", "synthetic"]);
+const inventoryGatewayModeSchema = z.enum(["disabled", "synthetic", "internal"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
@@ -316,10 +316,10 @@ const serviceEnvironmentSchema = z
       });
     }
 
-    if (value.INVENTORY_GATEWAY_MODE !== "disabled") {
+    if (value.INVENTORY_GATEWAY_MODE === "synthetic") {
       context.addIssue({
         code: "custom",
-        message: "must remain disabled until a production inventory provider is approved",
+        message: "synthetic inventory cannot be used in protected environments",
         path: ["INVENTORY_GATEWAY_MODE"],
       });
     }

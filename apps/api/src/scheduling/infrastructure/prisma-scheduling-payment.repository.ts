@@ -15,6 +15,7 @@ import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
 import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
+import { releasePlatformInventory } from "../../pharmacy/infrastructure/platform-inventory-transactions.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
 import { resolvePaymentTransition } from "../domain/payment-state-machine.js";
 import {
@@ -1155,7 +1156,7 @@ async function applyPaymentSubjectTransition(
         inventoryReservation: {
           expiresAt: Date;
           id: string;
-          status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+          status: "HELD" | "COMMITTED" | "RELEASED" | "CONSUMED" | "EXPIRED";
         } | null;
       };
       status:
@@ -1197,7 +1198,7 @@ function validatePaymentSubjectEvent(
       quote: {
         inventoryReservation: {
           expiresAt: Date;
-          status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+          status: "HELD" | "COMMITTED" | "RELEASED" | "CONSUMED" | "EXPIRED";
         } | null;
       };
       status:
@@ -1272,7 +1273,7 @@ async function updatePharmacyOrderFromPayment(
         where: { id: order.id, status: "PENDING_PAYMENT" },
       }),
       transaction.inventoryReservation.updateMany({
-        data: { status: "CONSUMED", updatedAt: now, version: { increment: 1 } },
+        data: { status: "COMMITTED", updatedAt: now, version: { increment: 1 } },
         where: { id: reservation.id, status: "HELD" },
       }),
     ]);
@@ -1283,6 +1284,10 @@ async function updatePharmacyOrderFromPayment(
   }
   if (paymentStatus === "FAILED") return;
   if (["EXPIRED", "CANCELLED"].includes(paymentStatus)) {
+    await releasePlatformInventory(transaction, {
+      reasonCode: paymentStatus === "EXPIRED" ? "PAYMENT_EXPIRED" : "PAYMENT_CANCELLED",
+      reservationId: reservation.id,
+    });
     const updatedOrder = await transaction.pharmacyOrder.updateMany({
       data: {
         cancelledAt: occurredAt,
@@ -1317,6 +1322,14 @@ async function updatePharmacyOrderFromPayment(
     return;
   }
   if (["REFUNDED", "REVERSED"].includes(paymentStatus)) {
+    await releasePlatformInventory(transaction, {
+      reasonCode: paymentStatus === "REFUNDED" ? "PAYMENT_REFUNDED" : "PAYMENT_REVERSED",
+      reservationId: reservation.id,
+    });
+    await transaction.inventoryReservation.updateMany({
+      data: { status: "RELEASED", updatedAt: now, version: { increment: 1 } },
+      where: { id: reservation.id, status: "COMMITTED" },
+    });
     await requireOneOrderUpdate(
       transaction,
       order.id,

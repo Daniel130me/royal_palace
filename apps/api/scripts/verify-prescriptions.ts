@@ -1,7 +1,9 @@
 import type { ServiceConfig } from "@royal-palace/config/environment";
 import { v7 } from "uuid";
 
+import { PrismaPharmacyCommercialRepository } from "../src/pharmacy/infrastructure/prisma-pharmacy-commercial.repository.js";
 import { PrismaPrescriptionRepository } from "../src/pharmacy/infrastructure/prisma-prescription.repository.js";
+import { PlatformInventoryGateway } from "../src/pharmacy/infrastructure/inventory-gateway.adapters.js";
 import { PrismaService } from "../src/platform/database/prisma.service.js";
 import { requireDisposableDatabase } from "./database-safety.js";
 
@@ -488,13 +490,289 @@ async function main(): Promise<void> {
       throw new Error("Bounded prescription expiry did not persist its terminal history");
     }
 
+    await verifyPlatformInventoryLifecycle(database, repository, fixture);
     const queuePlan = await verifyPharmacyQueuePlan(database, fixture);
 
     process.stdout.write(
-      `Prescription verification passed: owner-scoped lists, signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
+      `Prescription verification passed: owner-scoped lists, signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, FEFO inventory reservation and dispense consumption, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
     );
   } finally {
     await database.$disconnect();
+  }
+}
+
+async function verifyPlatformInventoryLifecycle(
+  database: PrismaService,
+  prescriptions: PrismaPrescriptionRepository,
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+): Promise<void> {
+  const commercial = new PrismaPharmacyCommercialRepository(database);
+  const prescription = await createAcceptedPrescription(
+    prescriptions,
+    fixture,
+    "inventory lifecycle",
+    86_400_000,
+    "2",
+  );
+  const item = prescription.items[0];
+  const route = prescription.routes.find((candidate) => candidate.status === "ACCEPTED");
+  if (item === undefined || route === undefined) throw new Error("Inventory fixture is incomplete");
+
+  const [category, dosageForm] = await Promise.all([
+    database.pharmacyProductClassification.findFirstOrThrow({ where: { kind: "CATEGORY" } }),
+    database.pharmacyProductClassification.findFirstOrThrow({ where: { kind: "DOSAGE_FORM" } }),
+  ]);
+  const catalogItemId = v7();
+  const locationId = v7();
+  const earlyLotId = v7();
+  const laterLotId = v7();
+  const now = new Date();
+  await database.$transaction(async (transaction) => {
+    await transaction.pharmacyCatalogItem.create({
+      data: {
+        categoryId: category.id,
+        createdByPrincipalId: fixture.pharmacistPrincipalId,
+        currency: "EUR",
+        dosageFormId: dosageForm.id,
+        id: catalogItemId,
+        lowStockThreshold: "1",
+        name: item.medicationName,
+        nearExpiryDays: 30,
+        onHandQuantity: "5",
+        pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+        prescriptionRequired: true,
+        sku: `VERIFY-${catalogItemId}`,
+        strength: item.strength,
+        unitPriceMinor: 250n,
+      },
+    });
+    await transaction.inventoryLocation.create({
+      data: {
+        code: `VERIFY-${locationId}`,
+        id: locationId,
+        name: "Verification shelf",
+        pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+      },
+    });
+    await transaction.inventoryLot.createMany({
+      data: [
+        {
+          batchNumber: `EARLY-${earlyLotId}`,
+          catalogItemId,
+          expiryDate: new Date("2030-01-01T00:00:00.000Z"),
+          id: earlyLotId,
+          locationId,
+          onHandQuantity: "1",
+          pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+          receivedAt: now,
+        },
+        {
+          batchNumber: `LATER-${laterLotId}`,
+          catalogItemId,
+          expiryDate: new Date("2030-02-01T00:00:00.000Z"),
+          id: laterLotId,
+          locationId,
+          onHandQuantity: "4",
+          pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+          receivedAt: now,
+        },
+      ],
+    });
+  });
+
+  const preparation = await commercial.findPreparation({
+    fillNumber: 0,
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+    prescriptionId: prescription.id,
+  });
+  if (preparation === null) throw new Error("Inventory prescription was not quotable");
+  const expiresAt = new Date(Date.now() + 15 * 60_000);
+  const gateway = new PlatformInventoryGateway();
+  const evidence = await gateway.reserve({
+    expiresAt,
+    idempotencyKey: `verify-${v7()}`,
+    lines: [
+      {
+        catalogItemId,
+        medicationCode: item.medicationCode,
+        prescriptionItemId: item.id,
+        quantity: "2",
+        substitutionProposalId: null,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+  });
+  const quote = await commercial.createQuote({
+    charges: [],
+    currency: "EUR",
+    expiresAt,
+    fillNumber: 0,
+    idempotencyKey: `verify-quote-${v7()}`,
+    inventoryReservation: evidence,
+    lines: [
+      {
+        catalogItemId,
+        lineNumber: item.lineNumber,
+        lineSubtotalMinor: 500n,
+        medicationCode: item.medicationCode,
+        medicationCodeSystem: item.medicationCodeSystem,
+        medicationName: item.medicationName,
+        prescriptionItemId: item.id,
+        quantity: "2",
+        quantityUnit: item.quantityUnit,
+        strength: item.strength,
+        unitPriceMinor: 250n,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+    preparation,
+    principalId: fixture.pharmacistPrincipalId,
+    requestHash: "7".repeat(64),
+  });
+  if (quote === null) throw new Error("Platform inventory quote was not created");
+  const allocations = await database.inventoryReservationAllocation.findMany({
+    where: { reservation: { quoteId: quote.id } },
+  });
+  const allocationByLot = new Map(allocations.map((allocation) => [allocation.lotId, allocation]));
+  if (
+    allocations.length !== 2 ||
+    allocationByLot.get(earlyLotId)?.quantity.toString() !== "1" ||
+    allocationByLot.get(laterLotId)?.quantity.toString() !== "1"
+  ) {
+    throw new Error("Platform inventory did not persist the expected FEFO allocation");
+  }
+  await expectDatabaseRejection(
+    () =>
+      database.inventoryReservation.update({
+        data: { status: "CONSUMED" },
+        where: { quoteId: quote.id },
+      }),
+    "Database allowed a held reservation to skip payment commitment",
+  );
+  const order = await commercial.acceptQuote({
+    expectedVersion: quote.version,
+    idempotencyKey: `verify-accept-${v7()}`,
+    patientPrincipalId: fixture.patientPrincipalId,
+    quoteId: quote.id,
+    requestHash: "8".repeat(64),
+  });
+  if (order === null) throw new Error("Inventory quote was not accepted");
+  await database.$transaction([
+    database.pharmacyOrder.update({
+      data: { status: "CONFIRMED", version: { increment: 1 } },
+      where: { id: order.id },
+    }),
+    database.inventoryReservation.update({
+      data: { status: "COMMITTED", version: { increment: 1 } },
+      where: { quoteId: quote.id },
+    }),
+  ]);
+  const dispenseEventId = v7();
+  const dispensed = await prescriptions.dispense({
+    actorPrincipalId: fixture.pharmacistPrincipalId,
+    dispenseEventId,
+    expectedVersion: prescription.version,
+    lines: [{ fillNumber: 0, prescriptionItemId: item.id, quantity: "2" }],
+    occurredAt: new Date(),
+    organizationId: fixture.pharmacyOrganizationId,
+    prescriptionId: prescription.id,
+    requestDigest: "9".repeat(64),
+  });
+  if (dispensed === null) throw new Error("Reserved inventory could not be dispensed");
+  const [earlyLot, laterLot, reservation, movementCount] = await Promise.all([
+    database.inventoryLot.findUniqueOrThrow({ where: { id: earlyLotId } }),
+    database.inventoryLot.findUniqueOrThrow({ where: { id: laterLotId } }),
+    database.inventoryReservation.findUniqueOrThrow({ where: { quoteId: quote.id } }),
+    database.inventoryMovement.count({
+      where: { referenceId: dispenseEventId, type: "DISPENSE" },
+    }),
+  ]);
+  if (
+    earlyLot.onHandQuantity.toString() !== "0" ||
+    laterLot.onHandQuantity.toString() !== "3" ||
+    !earlyLot.reservedQuantity.equals(0) ||
+    !laterLot.reservedQuantity.equals(0) ||
+    reservation.status !== "CONSUMED" ||
+    movementCount !== 2
+  ) {
+    throw new Error("Dispensing did not atomically consume the exact FEFO reservation");
+  }
+
+  const expiringPrescription = await createAcceptedPrescription(
+    prescriptions,
+    fixture,
+    "inventory lifecycle",
+    86_400_000,
+    "1",
+  );
+  const expiringItem = expiringPrescription.items[0];
+  if (expiringItem === undefined) throw new Error("Expiring inventory fixture is incomplete");
+  const expiringPreparation = await commercial.findPreparation({
+    fillNumber: 0,
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+    prescriptionId: expiringPrescription.id,
+  });
+  if (expiringPreparation === null) throw new Error("Expiring prescription was not quotable");
+  const expiringAt = new Date(Date.now() + 60_000);
+  const expiringEvidence = await gateway.reserve({
+    expiresAt: expiringAt,
+    idempotencyKey: `verify-expiring-${v7()}`,
+    lines: [
+      {
+        catalogItemId,
+        medicationCode: expiringItem.medicationCode,
+        prescriptionItemId: expiringItem.id,
+        quantity: "1",
+        substitutionProposalId: null,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+  });
+  const expiringQuote = await commercial.createQuote({
+    charges: [],
+    currency: "EUR",
+    expiresAt: expiringAt,
+    fillNumber: 0,
+    idempotencyKey: `verify-expiring-quote-${v7()}`,
+    inventoryReservation: expiringEvidence,
+    lines: [
+      {
+        catalogItemId,
+        lineNumber: expiringItem.lineNumber,
+        lineSubtotalMinor: 250n,
+        medicationCode: expiringItem.medicationCode,
+        medicationCodeSystem: expiringItem.medicationCodeSystem,
+        medicationName: expiringItem.medicationName,
+        prescriptionItemId: expiringItem.id,
+        quantity: "1",
+        quantityUnit: expiringItem.quantityUnit,
+        strength: expiringItem.strength,
+        unitPriceMinor: 250n,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+    preparation: expiringPreparation,
+    principalId: fixture.pharmacistPrincipalId,
+    requestHash: "a".repeat(64),
+  });
+  if (expiringQuote === null) throw new Error("Expiring inventory quote was not created");
+  const expiryResult = await commercial.expireDueQuotes({
+    actorPrincipalId: fixture.pharmacistPrincipalId,
+    limit: 100,
+    now: new Date(expiringAt.getTime() + 1_000),
+  });
+  const [expiredQuote, expiredReservation, releasedLot] = await Promise.all([
+    database.pharmacyQuote.findUniqueOrThrow({ where: { id: expiringQuote.id } }),
+    database.inventoryReservation.findUniqueOrThrow({ where: { quoteId: expiringQuote.id } }),
+    database.inventoryLot.findUniqueOrThrow({ where: { id: laterLotId } }),
+  ]);
+  if (
+    expiryResult.expired < 1 ||
+    expiredQuote.status !== "EXPIRED" ||
+    expiredReservation.status !== "EXPIRED" ||
+    !releasedLot.reservedQuantity.equals(0)
+  ) {
+    throw new Error("Bounded quote expiry did not release its exact inventory hold");
   }
 }
 
@@ -696,6 +974,7 @@ async function createAcceptedPrescription(
   fixture: Awaited<ReturnType<typeof createFixture>>,
   label: string,
   validityMilliseconds = 86_400_000,
+  quantity = "1",
 ) {
   const draft = await repository.createDraft({
     actorPrincipalId: fixture.practitionerPrincipalId,
@@ -707,7 +986,7 @@ async function createAcceptedPrescription(
           dose: "one unit",
           frequency: "once",
           medicationName: `Synthetic ${label.toLowerCase()} medicine`,
-          quantity: "1",
+          quantity,
           quantityUnit: "unit",
           refillsAuthorized: 0,
           substitutionAllowed: false,

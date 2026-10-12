@@ -13,7 +13,10 @@ import type {
   PharmacyCommercialRepository,
   PharmacyQuotePreparation,
 } from "../src/pharmacy/domain/pharmacy-commercial.types.js";
-import { SyntheticInventoryGateway } from "../src/pharmacy/infrastructure/inventory-gateway.adapters.js";
+import {
+  PlatformInventoryGateway,
+  SyntheticInventoryGateway,
+} from "../src/pharmacy/infrastructure/inventory-gateway.adapters.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
 import { testConfig } from "./test-config.js";
 
@@ -149,6 +152,30 @@ describe("PharmacyCommercialService", () => {
         createOpaqueId(),
       ),
     ).rejects.toMatchObject({ code: "pharmacy_commercial_workflow_disabled", status: 503 });
+  });
+
+  it("allows only the system worker to expire a bounded quote batch", async () => {
+    const expireDueQuotes = vi.fn<PharmacyCommercialRepository["expireDueQuotes"]>(async () => ({
+      expired: 2,
+    }));
+    const service = createService({ expireDueQuotes });
+
+    await expect(
+      service.expireDueQuotes(
+        { actor: session("SYSTEM_WORKER"), requestId: "request-expire-quotes" },
+        25,
+      ),
+    ).resolves.toEqual({ expired: 2 });
+    expect(expireDueQuotes).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 25, now: expect.any(Date) }),
+    );
+
+    await expect(
+      service.expireDueQuotes(
+        { actor: session("ADMINISTRATOR"), requestId: "request-expire-quotes-admin" },
+        25,
+      ),
+    ).rejects.toThrow();
   });
 
   it("derives immutable clinical snapshots and exact minor-unit totals server-side", async () => {
@@ -448,6 +475,7 @@ describe("SyntheticInventoryGateway", () => {
       idempotencyKey: "principal:quote-key",
       lines: [
         {
+          catalogItemId: null,
           medicationCode: "med-1",
           prescriptionItemId: createOpaqueId(),
           quantity: "1.000",
@@ -457,5 +485,39 @@ describe("SyntheticInventoryGateway", () => {
       pharmacyOrganizationId: createOpaqueId(),
     };
     await expect(gateway.reserve(input)).resolves.toEqual(await gateway.reserve(input));
+  });
+});
+
+describe("PlatformInventoryGateway", () => {
+  const baseInput = {
+    expiresAt: new Date("2030-01-01T00:10:00.000Z"),
+    idempotencyKey: "principal:quote-key",
+    lines: [
+      {
+        catalogItemId: createOpaqueId(),
+        medicationCode: "med-1",
+        prescriptionItemId: createOpaqueId(),
+        quantity: "1.000",
+        substitutionProposalId: null,
+      },
+    ],
+    pharmacyOrganizationId: createOpaqueId(),
+  };
+
+  it("issues platform-owned reservation intent evidence", async () => {
+    const reservation = await new PlatformInventoryGateway().reserve(baseInput);
+
+    expect(reservation.providerCode).toBe("PLATFORM_INVENTORY");
+    expect(reservation.providerReservationReference).toMatch(/^[0-9a-f-]{36}$/);
+    expect(reservation.evidenceHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("rejects a line without an explicit catalogue selection", async () => {
+    await expect(
+      new PlatformInventoryGateway().reserve({
+        ...baseInput,
+        lines: [{ ...baseInput.lines[0]!, catalogItemId: null }],
+      }),
+    ).rejects.toThrow(/catalog item/i);
   });
 });

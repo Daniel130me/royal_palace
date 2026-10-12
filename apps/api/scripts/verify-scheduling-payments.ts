@@ -198,9 +198,9 @@ async function main(): Promise<void> {
     if (
       pharmacySuccess.status !== "SUCCEEDED" ||
       confirmedOrder.status !== "CONFIRMED" ||
-      confirmedOrder.quote.inventoryReservation?.status !== "CONSUMED"
+      confirmedOrder.quote.inventoryReservation?.status !== "COMMITTED"
     ) {
-      throw new Error("Successful pharmacy payment did not confirm the order and consume its hold");
+      throw new Error("Successful pharmacy payment did not confirm the order and commit its hold");
     }
     await repository.processVerifiedWebhook({
       event: event(pharmacy, "PARTIALLY_REFUNDED", 150n, "pharmacy-partial-refund"),

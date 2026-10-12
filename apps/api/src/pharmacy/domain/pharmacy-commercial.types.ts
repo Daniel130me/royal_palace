@@ -6,6 +6,7 @@ import type {
 } from "@royal-palace/contracts";
 
 export interface PharmacyQuoteLineInput {
+  catalogItemId?: string;
   prescriptionItemId: string;
   quantity: string;
   substitutionProposalId?: string;
@@ -72,6 +73,7 @@ export interface InventoryGateway {
     expiresAt: Date;
     idempotencyKey: string;
     lines: readonly {
+      catalogItemId: string | null;
       medicationCode: string | null;
       prescriptionItemId: string;
       quantity: string;
@@ -84,6 +86,8 @@ export interface InventoryGateway {
     reason: "QUOTE_PERSISTENCE_FAILED";
   }): Promise<void>;
 }
+
+export const PLATFORM_INVENTORY_PROVIDER_CODE = "PLATFORM_INVENTORY";
 
 export class PharmacyCommercialConflictError extends Error {
   constructor(
@@ -125,6 +129,11 @@ export interface PharmacyCommercialRepository {
     preparation: PharmacyQuotePreparation;
     requestHash: string;
   }): Promise<PharmacyQuoteResponse | null>;
+  expireDueQuotes(input: {
+    actorPrincipalId: string;
+    limit: number;
+    now: Date;
+  }): Promise<{ expired: number }>;
   cancelOrder(input: {
     expectedVersion: number;
     idempotencyKey: string;

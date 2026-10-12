@@ -8,6 +8,10 @@ import {
   PharmacyCommercialConflictError,
   type PharmacyCommercialRepository,
 } from "../domain/pharmacy-commercial.types.js";
+import {
+  releasePlatformInventory,
+  reservePlatformInventory,
+} from "./platform-inventory-transactions.js";
 
 const CREATE_QUOTE_OPERATION = "CREATE_PHARMACY_QUOTE";
 const ACCEPT_QUOTE_OPERATION = "ACCEPT_PHARMACY_QUOTE";
@@ -221,7 +225,7 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
           }
 
           const expiredQuotes = await transaction.pharmacyQuote.findMany({
-            select: { id: true },
+            select: { id: true, inventoryReservation: { select: { id: true } } },
             where: {
               expiresAt: { lte: now },
               fillNumber: input.fillNumber,
@@ -231,6 +235,15 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
           });
           if (expiredQuotes.length > 0) {
             const expiredIds = expiredQuotes.map((quote) => quote.id);
+            for (const quote of expiredQuotes) {
+              if (quote.inventoryReservation !== null) {
+                await releasePlatformInventory(transaction, {
+                  actorPrincipalId: input.principalId,
+                  reasonCode: "QUOTE_EXPIRED",
+                  reservationId: quote.inventoryReservation.id,
+                });
+              }
+            }
             await transaction.pharmacyQuote.updateMany({
               data: { status: "EXPIRED", updatedAt: now, version: { increment: 1 } },
               where: { id: { in: expiredIds }, status: "ACTIVE" },
@@ -266,6 +279,11 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
           });
 
           const quoteId = createOpaqueId();
+          const reservationId = createOpaqueId();
+          const quoteLines = input.lines.map((line) => ({
+            ...line,
+            quoteLineId: createOpaqueId(),
+          }));
           const subtotalMinor = input.lines.reduce(
             (total, line) => total + line.lineSubtotalMinor,
             0n,
@@ -287,7 +305,7 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                 create: {
                   evidenceHash: input.inventoryReservation.evidenceHash,
                   expiresAt: input.inventoryReservation.expiresAt,
-                  id: createOpaqueId(),
+                  id: reservationId,
                   providerCode: input.inventoryReservation.providerCode,
                   providerReservationReference:
                     input.inventoryReservation.providerReservationReference,
@@ -295,8 +313,9 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                 },
               },
               lines: {
-                create: input.lines.map((line) => ({
-                  id: createOpaqueId(),
+                create: quoteLines.map((line) => ({
+                  catalogItemId: line.catalogItemId,
+                  id: line.quoteLineId,
                   lineNumber: line.lineNumber,
                   lineSubtotalMinor: line.lineSubtotalMinor,
                   medicationCode: line.medicationCode,
@@ -320,6 +339,15 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
               totalMinor: subtotalMinor + taxMinor + feeMinor,
               updatedAt: now,
             },
+          });
+          await reservePlatformInventory(transaction, {
+            actorPrincipalId: input.principalId,
+            currency: input.currency,
+            lines: quoteLines,
+            pharmacyOrganizationId: input.pharmacyOrganizationId,
+            providerCode: input.inventoryReservation.providerCode,
+            reservationId,
+            reservationReference: input.inventoryReservation.providerReservationReference,
           });
           await transaction.idempotencyKey.update({
             data: {
@@ -345,6 +373,60 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
       if (isSerializationOrConstraintConflict(error)) return null;
       throw error;
     }
+  }
+
+  async expireDueQuotes(input: Parameters<PharmacyCommercialRepository["expireDueQuotes"]>[0]) {
+    const dueQuotes = await this.database.pharmacyQuote.findMany({
+      orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+      take: input.limit,
+      where: { expiresAt: { lte: input.now }, status: "ACTIVE" },
+    });
+    let expired = 0;
+    for (const dueQuote of dueQuotes) {
+      try {
+        const changed = await this.database.$transaction(
+          async (transaction) => {
+            // Claim the quote with a conditional transition. Concurrent workers
+            // can discover the same bounded batch, but only one may release it.
+            const claimed = await transaction.pharmacyQuote.updateMany({
+              data: { status: "EXPIRED", updatedAt: input.now, version: { increment: 1 } },
+              where: { id: dueQuote.id, expiresAt: { lte: input.now }, status: "ACTIVE" },
+            });
+            if (claimed.count === 0) return false;
+
+            const reservation = await transaction.inventoryReservation.findUnique({
+              select: { id: true },
+              where: { quoteId: dueQuote.id },
+            });
+            if (reservation === null) {
+              throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+            }
+            const transitioned = await transaction.inventoryReservation.updateMany({
+              data: { status: "EXPIRED", updatedAt: input.now, version: { increment: 1 } },
+              where: { id: reservation.id, status: "HELD" },
+            });
+            if (transitioned.count !== 1) {
+              throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+            }
+            await releasePlatformInventory(transaction, {
+              actorPrincipalId: input.actorPrincipalId,
+              reasonCode: "QUOTE_EXPIRED",
+              reservationId: reservation.id,
+            });
+            return true;
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+        if (changed) expired += 1;
+      } catch (error) {
+        // A concurrent worker winner is safe to skip; every other failure is a
+        // real invariant/operational fault and must remain visible to operators.
+        if (isSerializationConflict(error)) continue;
+        throw error;
+      }
+    }
+    return { expired };
   }
 
   async acceptQuote(input: Parameters<PharmacyCommercialRepository["acceptQuote"]>[0]) {
@@ -537,6 +619,17 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
           where: { id: order.id, status: "PENDING_PAYMENT", version: input.expectedVersion },
         });
         if (updated.count !== 1) return false;
+        const reservation = await transaction.inventoryReservation.findUnique({
+          select: { id: true },
+          where: { quoteId: order.quoteId },
+        });
+        if (reservation !== null) {
+          await releasePlatformInventory(transaction, {
+            actorPrincipalId: input.patientPrincipalId,
+            reasonCode: "ORDER_CANCELLED_BEFORE_PAYMENT",
+            reservationId: reservation.id,
+          });
+        }
         await transaction.inventoryReservation.updateMany({
           data: { status: "RELEASED", updatedAt: now, version: { increment: 1 } },
           where: { quoteId: order.quoteId, status: "HELD" },
@@ -915,6 +1008,7 @@ function mapQuote(row: QuoteRecord): PharmacyQuoteResponse {
       status: row.inventoryReservation.status,
     },
     lines: row.lines.map((line) => ({
+      catalogItemId: line.catalogItemId,
       id: line.id,
       lineNumber: line.lineNumber,
       lineSubtotalMinor: line.lineSubtotalMinor.toString(),
@@ -1151,4 +1245,8 @@ function isSerializationOrConstraintConflict(error: unknown): boolean {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     (error.code === "P2002" || error.code === "P2004" || error.code === "P2034")
   );
+}
+
+function isSerializationConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 }

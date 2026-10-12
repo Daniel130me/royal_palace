@@ -20,14 +20,18 @@ import { navigate, useNav } from "@/lib/nav";
 import { productionPrescriptionService } from "@/lib/services";
 
 type Prescription = PrescriptionComponents["schemas"]["PharmacyPrescription"];
+type CatalogItem = PrescriptionComponents["schemas"]["PharmacyCatalogItem"];
+const CATALOG_SEARCH_LIMIT = 25;
 
 export function PharmacyPrescriptionDetail() {
   const { session, view } = useNav();
   const organizationId = session?.profileId;
   const prescriptionId = view.params.id;
   const [prescription, setPrescription] = useState<Prescription | null>(null);
-  const [prices, setPrices] = useState<Record<string, string>>({});
-  const [currency, setCurrency] = useState("");
+  const [catalogItems, setCatalogItems] = useState<readonly CatalogItem[]>([]);
+  const [catalogQueries, setCatalogQueries] = useState<Record<string, string>>({});
+  const [selectedItems, setSelectedItems] = useState<Record<string, string>>({});
+  const [searchingItemId, setSearchingItemId] = useState<string | null>(null);
   const [validMinutes, setValidMinutes] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -40,13 +44,43 @@ export function PharmacyPrescriptionDetail() {
       const current = await productionPrescriptionService.pharmacy.prescription(prescriptionId);
       if ("appointmentId" in current) throw new Error("Pharmacy-minimized view was not applied");
       setPrescription(current);
+      setCatalogQueries(
+        Object.fromEntries(current.items.map((item) => [item.id, item.medicationName])),
+      );
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Prescription could not be loaded");
     } finally {
       setLoading(false);
     }
-  }, [prescriptionId]);
+  }, [organizationId, prescriptionId]);
+
+  async function searchCatalog(prescriptionItemId: string) {
+    if (!organizationId) return;
+    const query = catalogQueries[prescriptionItemId]?.trim();
+    if (!query) {
+      toast.error("Enter a medicine name, brand, generic name, or SKU.");
+      return;
+    }
+    setSearchingItemId(prescriptionItemId);
+    try {
+      const result = await productionPrescriptionService.pharmacy.catalogItems(organizationId, {
+        limit: CATALOG_SEARCH_LIMIT,
+        q: query,
+        status: "ACTIVE",
+      });
+      setCatalogItems((current) => {
+        const byId = new Map(current.map((item) => [item.id, item]));
+        for (const item of result.data) byId.set(item.id, item);
+        return [...byId.values()];
+      });
+      if (result.data.length === 0) toast.info("No active catalogue items matched that search.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Catalogue search failed");
+    } finally {
+      setSearchingItemId(null);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -73,26 +107,30 @@ export function PharmacyPrescriptionDetail() {
 
   async function createQuote() {
     if (!organizationId || prescription === null) return;
-    const normalizedCurrency = currency.trim().toUpperCase();
     const minutes = Number(validMinutes);
-    if (
-      !/^[A-Z]{3}$/.test(normalizedCurrency) ||
-      !Number.isInteger(minutes) ||
-      minutes < 1 ||
-      minutes > 1_440
-    ) {
-      toast.error("Enter a three-letter currency and a validity from 1 to 1,440 minutes.");
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1_440) {
+      toast.error("Enter a validity from 1 to 1,440 minutes.");
       return;
     }
-    const lines = prescription.items.map((item) => ({
+    const selected = prescription.items.map((item) =>
+      catalogItems.find((catalogItem) => catalogItem.id === selectedItems[item.id]),
+    );
+    if (selected.some((item) => item === undefined)) {
+      toast.error("Select an inventory item for every prescription line.");
+      return;
+    }
+    const resolvedItems = selected as CatalogItem[];
+    const currencies = new Set(resolvedItems.map((item) => item.currency));
+    if (currencies.size !== 1) {
+      toast.error("All items in one quote must use the same configured currency.");
+      return;
+    }
+    const lines = prescription.items.map((item, index) => ({
+      catalogItemId: resolvedItems[index]!.id,
       prescriptionItemId: item.id,
       quantity: item.balance.remainingQuantity,
-      unitPriceMinor: prices[item.id] ?? "",
+      unitPriceMinor: resolvedItems[index]!.unitPriceMinor,
     }));
-    if (lines.some((line) => !/^\d{1,16}$/.test(line.unitPriceMinor))) {
-      toast.error("Enter each unit price as a whole number of currency minor units.");
-      return;
-    }
     setBusy(true);
     try {
       const quote = await productionPrescriptionService.pharmacy.createQuote(
@@ -100,7 +138,7 @@ export function PharmacyPrescriptionDetail() {
         prescription.id,
         {
           charges: [],
-          currency: normalizedCurrency,
+          currency: resolvedItems[0]!.currency,
           expectedPrescriptionVersion: prescription.version,
           fillNumber: 0,
           lines,
@@ -155,7 +193,7 @@ export function PharmacyPrescriptionDetail() {
       <SectionCard title={`Medicines (${prescription.items.length})`} icon={Pill} dense>
         <ul className="divide-y">
           {prescription.items.map((item) => (
-            <li key={item.id} className="grid gap-3 p-4 sm:grid-cols-[1fr_13rem] sm:items-center">
+            <li key={item.id} className="grid gap-3 p-4 sm:grid-cols-[1fr_18rem] sm:items-center">
               <div>
                 <p className="font-medium">
                   {item.medicationName} {item.strength ?? ""}
@@ -167,15 +205,45 @@ export function PharmacyPrescriptionDetail() {
               </div>
               {canQuote && (
                 <div>
-                  <Label className="text-xs">Unit price, minor units</Label>
-                  <Input
-                    inputMode="numeric"
-                    value={prices[item.id] ?? ""}
+                  <Label className="text-xs">Inventory item</Label>
+                  <div className="mt-1 flex gap-2">
+                    <Input
+                      value={catalogQueries[item.id] ?? ""}
+                      onChange={(event) =>
+                        setCatalogQueries((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Search catalogue"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={searchingItemId !== null}
+                      onClick={() => void searchCatalog(item.id)}
+                    >
+                      {searchingItemId === item.id ? "Searching…" : "Search"}
+                    </Button>
+                  </div>
+                  <select
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={selectedItems[item.id] ?? ""}
                     onChange={(event) =>
-                      setPrices((current) => ({ ...current, [item.id]: event.target.value }))
+                      setSelectedItems((current) => ({
+                        ...current,
+                        [item.id]: event.target.value,
+                      }))
                     }
-                    placeholder="0"
-                  />
+                  >
+                    <option value="">Select matching stock</option>
+                    {matchingCatalogItems(catalogItems, item).map((catalogItem) => (
+                      <option key={catalogItem.id} value={catalogItem.id}>
+                        {catalogItem.name} · {catalogItem.availableQuantity} available ·{" "}
+                        {catalogItem.currency} {catalogItem.unitPriceMinor} minor units
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
             </li>
@@ -189,15 +257,6 @@ export function PharmacyPrescriptionDetail() {
       ) : canQuote ? (
         <SectionCard title="Create immutable quote" icon={Receipt}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label>ISO 4217 currency</Label>
-              <Input
-                maxLength={3}
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-                placeholder="Currency code"
-              />
-            </div>
             <div>
               <Label>Quote validity, minutes</Label>
               <Input
@@ -219,4 +278,31 @@ export function PharmacyPrescriptionDetail() {
       ) : null}
     </div>
   );
+}
+
+function matchingCatalogItems(
+  catalogItems: readonly CatalogItem[],
+  prescriptionItem: Prescription["items"][number],
+): readonly CatalogItem[] {
+  return catalogItems.filter((catalogItem) => {
+    if (prescriptionItem.medicationCode !== null) {
+      return (
+        catalogItem.medicationCode === prescriptionItem.medicationCode &&
+        catalogItem.medicationCodeSystem === prescriptionItem.medicationCodeSystem
+      );
+    }
+    const expectedName = normalizeMedicationText(prescriptionItem.medicationName);
+    const names = [catalogItem.name, catalogItem.genericName, catalogItem.brandName]
+      .filter((value): value is string => value !== null)
+      .map(normalizeMedicationText);
+    return (
+      names.includes(expectedName) &&
+      normalizeMedicationText(catalogItem.strength ?? "") ===
+        normalizeMedicationText(prescriptionItem.strength ?? "")
+    );
+  });
+}
+
+function normalizeMedicationText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }

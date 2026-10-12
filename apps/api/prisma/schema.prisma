@@ -350,6 +350,7 @@ enum PharmacyQuoteChargeType {
 
 enum InventoryReservationStatus {
   HELD
+  COMMITTED
   RELEASED
   CONSUMED
   EXPIRED

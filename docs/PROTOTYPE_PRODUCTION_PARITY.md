@@ -247,13 +247,29 @@ The legacy mutable `stockQuantity` record was not copied. That implementation co
 prove how a balance changed, represented only one batch, and used fixed currency and alert
 thresholds. Capability parity is preserved while the unsafe storage model is retired.
 
-### Remaining 11C4P-2B checkpoint
+### Checkpoint 11C4P-2B completion report
 
-11C4P-2 is not yet complete. 11C4P-2B must connect FEFO reservation allocations and
-dispensing consumption/release to the existing quote, order, and prescription lifecycle.
-Synthetic inventory remains the quote adapter until that transaction boundary is complete.
+11C4P-2 is complete. Quote lines now reference an explicit pharmacy catalogue item and
+the server validates medication identity, configured price, currency, organization scope,
+and available unexpired stock. Quote creation reserves lots in earliest-expiry-first order
+inside the same serializable transaction that persists the quote. Payment success commits
+the hold without prematurely reducing on-hand stock; payment cancellation/expiry, quote
+expiry, pre-payment order cancellation, and pre-dispense refund/reversal release the exact
+outstanding allocations. Dispensing atomically consumes those allocations, updates lot and
+aggregate balances, and appends immutable movement evidence.
+
+Expired unaccepted quotes are reclaimed by the bounded, idempotent
+`POST /v1/internal/pharmacy/quotes/expire-due` worker boundary. It is restricted to the
+`SYSTEM_WORKER` role, conditionally claims each due quote, and releases stock in the same
+serializable transaction, so concurrent worker runs cannot double-release an allocation.
+
+The production adapter is the vendor-neutral, platform-owned PostgreSQL inventory ledger.
+Synthetic inventory remains available only for local/test workflows and is rejected by
+protected-environment configuration. PostgreSQL CI verification now covers persisted FEFO
+allocation, scheduled expiry release, and exact dispense consumption in addition to schema
+drift and query-plan gates.
 
 ### Following checkpoint
 
-After 11C4P-2B closes the inventory transaction boundary, 11C4P-3 implements OTC/direct
-ordering on the shared quote, order, and payment foundation.
+11C4P-3 implements OTC/direct ordering on the shared quote, order, payment, and inventory
+foundation.

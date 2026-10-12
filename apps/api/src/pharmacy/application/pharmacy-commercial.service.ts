@@ -127,6 +127,7 @@ export class PharmacyCommercialService {
       fillNumber: input.fillNumber,
       lines: input.lines.map((line) => ({
         ...line,
+        catalogItemId: line.catalogItemId ?? null,
         substitutionProposalId: line.substitutionProposalId ?? null,
         unitPriceMinor: line.unitPriceMinor.toString(),
       })),
@@ -150,6 +151,7 @@ export class PharmacyCommercialService {
         expiresAt,
         idempotencyKey: `${context.actor.principalId}:${input.idempotencyKey}`,
         lines: lines.map((line) => ({
+          catalogItemId: line.catalogItemId ?? null,
           medicationCode: line.medicationCode,
           prescriptionItemId: line.prescriptionItemId,
           quantity: line.quantity,
@@ -501,6 +503,21 @@ export class PharmacyCommercialService {
     return updated;
   }
 
+  async expireDueQuotes(context: PharmacyCommercialRequestContext, limit: number) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { resourceId: "due-quotes", resourceType: "pharmacy_quote" },
+      policy: AUTHORIZATION_POLICY.EXPIRE_PHARMACY_QUOTES,
+      requestId: context.requestId,
+    });
+    return this.repository.expireDueQuotes({
+      actorPrincipalId: context.actor.principalId,
+      limit,
+      now: new Date(),
+    });
+  }
+
   private async requireOrder(orderId: string) {
     const order = await this.repository.findOrder(orderId);
     if (order === null) {
@@ -512,7 +529,7 @@ export class PharmacyCommercialService {
   private assertCommercialWorkflowEnabled(): void {
     if (
       this.config.clinicalWorkflow.mode !== "synthetic" ||
-      this.config.inventoryGateway.mode !== "synthetic"
+      !["synthetic", "internal"].includes(this.config.inventoryGateway.mode)
     ) {
       throw new PharmacyCommercialFlowError(
         "pharmacy_commercial_workflow_disabled",

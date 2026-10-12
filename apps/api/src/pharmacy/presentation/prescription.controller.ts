@@ -23,6 +23,7 @@ import type { AuthenticatedInternalRequest } from "../../identity/presentation/a
 import { AuthenticatedInternalRequestGuard } from "../../identity/presentation/authenticated-internal-request.guard.js";
 import { PrescriptionFlowError, PrescriptionService } from "../application/prescription.service.js";
 import { PrescriptionConflictError } from "../domain/prescription.types.js";
+import { PharmacyCommercialConflictError } from "../domain/pharmacy-commercial.types.js";
 
 const idSchema = z.uuid();
 const expectedVersionSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
@@ -498,7 +499,11 @@ async function execute<T>(operation: () => Promise<T>): Promise<T> {
     if (error instanceof AuthorizationDeniedError) {
       throw new HttpException({ error: "access_denied", message: "Access is denied" }, 403);
     }
-    if (error instanceof PrescriptionConflictError || isDatabaseConflict(error)) {
+    if (
+      error instanceof PrescriptionConflictError ||
+      error instanceof PharmacyCommercialConflictError ||
+      isDatabaseConflict(error)
+    ) {
       throw new HttpException(
         { error: "prescription_conflict", message: "The request conflicts with current data" },
         409,

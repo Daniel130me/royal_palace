@@ -12,6 +12,7 @@ export const AUTHORIZATION_POLICY = {
   CORRECT_REFERRAL_ATTRIBUTION: "CORRECT_REFERRAL_ATTRIBUTION",
   ESCALATE_TICKET: "ESCALATE_TICKET",
   EXPIRE_APPOINTMENT_RESERVATIONS: "EXPIRE_APPOINTMENT_RESERVATIONS",
+  EXPIRE_PHARMACY_QUOTES: "EXPIRE_PHARMACY_QUOTES",
   BOOK_APPOINTMENT: "BOOK_APPOINTMENT",
   MANAGE_PRACTITIONER_AVAILABILITY: "MANAGE_PRACTITIONER_AVAILABILITY",
   MANAGE_OWN_PRESCRIPTION: "MANAGE_OWN_PRESCRIPTION",
@@ -42,7 +43,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 11;
+export const AUTHORIZATION_POLICY_VERSION = 12;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -77,6 +78,7 @@ export interface AuthorizationPolicyContexts {
     ticketOwnerPrincipalId: string;
   };
   EXPIRE_APPOINTMENT_RESERVATIONS: ResourceReference;
+  EXPIRE_PHARMACY_QUOTES: ResourceReference;
   MANAGE_OWN_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   MANAGE_PRACTITIONER_AVAILABILITY: ResourceReference & {
     practitionerPrincipalId: string;

@@ -13,6 +13,7 @@ import { Prisma } from "../../generated/prisma/client.js";
 import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { consumePlatformInventory } from "./platform-inventory-transactions.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
 import { canTransitionPrescription } from "../domain/prescription-state-machine.js";
 import {
@@ -575,6 +576,13 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
       const aggregate = await transaction.prescriptionDispenseEvent.aggregate({
         _max: { eventNumber: true },
         where: { prescriptionId: input.prescriptionId },
+      });
+      await consumePlatformInventory(transaction, {
+        actorPrincipalId: input.actorPrincipalId,
+        dispenseEventId: input.dispenseEventId,
+        lines: input.lines,
+        pharmacyOrganizationId: input.organizationId,
+        prescriptionRouteId: route.id,
       });
       await transaction.prescriptionDispenseEvent.create({
         data: {

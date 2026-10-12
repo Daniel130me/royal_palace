@@ -580,6 +580,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/pharmacy/quotes/expire-due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["expireDuePharmacyQuotes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -779,6 +795,8 @@ export interface components {
         };
         PharmacyQuoteLineInput: {
             /** Format: uuid */
+            catalogItemId?: string;
+            /** Format: uuid */
             prescriptionItemId: string;
             quantity: string;
             /** Format: uuid */
@@ -793,6 +811,8 @@ export interface components {
             type: "TAX" | "FEE";
         };
         PharmacyQuoteLine: {
+            /** Format: uuid */
+            catalogItemId: string | null;
             /** Format: uuid */
             id: string;
             lineNumber: number;
@@ -833,7 +853,7 @@ export interface components {
                 /** Format: date-time */
                 expiresAt: string;
                 /** @enum {string} */
-                status: "HELD" | "RELEASED" | "CONSUMED" | "EXPIRED";
+                status: "HELD" | "COMMITTED" | "RELEASED" | "CONSUMED" | "EXPIRED";
             };
             lines: components["schemas"]["PharmacyQuoteLine"][];
             /** Format: uuid */
@@ -2335,6 +2355,34 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Number of prescriptions expired by this bounded worker batch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        expired: number;
+                    };
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    expireDuePharmacyQuotes: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of quotes and inventory holds expired by this bounded worker batch */
             200: {
                 headers: {
                     [name: string]: unknown;

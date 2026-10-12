@@ -107,6 +107,7 @@ export class PolicyEngine {
         return this.allowPlatformRole(request.actor, request.policy, ["ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.RECORD_SETTLED_PATIENT_ACTIVITY:
       case AUTHORIZATION_POLICY.EXPIRE_APPOINTMENT_RESERVATIONS:
+      case AUTHORIZATION_POLICY.EXPIRE_PHARMACY_QUOTES:
       case AUTHORIZATION_POLICY.EXPIRE_PRESCRIPTIONS:
         return this.allowPlatformRole(request.actor, request.policy, ["SYSTEM_WORKER"]);
       case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
