@@ -116,9 +116,13 @@
         {
           "id": "orders",
           "file": "pages/orders.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-5",
-          "productionFiles": []
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/pharmacy-orders.tsx",
+            "apps/web/src/features/admin/pages/pharmacy-order.tsx",
+            "apps/api/src/pharmacy/application/pharmacy-commercial.service.ts"
+          ]
         },
         {
           "id": "payments",
@@ -644,9 +648,12 @@
         {
           "id": "deliveries",
           "file": "pages/deliveries.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-5",
-          "productionFiles": []
+          "productionFiles": [
+            "apps/web/src/features/pharmacy/pages/deliveries.tsx",
+            "apps/api/src/pharmacy/application/pharmacy-commercial.service.ts"
+          ]
         },
         {
           "id": "inventory",

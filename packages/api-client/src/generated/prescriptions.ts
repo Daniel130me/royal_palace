@@ -340,6 +340,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pharmacy/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pharmacy/prescriptions/{prescriptionId}/quotes": {
         parameters: {
             query?: never;
@@ -542,6 +558,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["cancelPharmacyOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pharmacy/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminPharmacyOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pharmacy/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminPharmacyOrder"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1314,6 +1362,54 @@ export interface components {
             data: components["schemas"]["PharmacyOrder"][];
             pageInfo: components["schemas"]["CursorPageInfo"];
         };
+        /** @enum {string} */
+        PharmacyOrderStatus: "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "REFUNDED" | "DISPUTE_PENDING" | "DISPUTED";
+        PharmacyDelivery: {
+            /** Format: date-time */
+            handedOffAt: string | null;
+            /** Format: uuid */
+            handoffId: string;
+            handoffReference: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            orderStatus: components["schemas"]["PharmacyOrderStatus"];
+            /** Format: date-time */
+            preparedAt: string;
+            /** @enum {string} */
+            status: "READY" | "HANDED_OFF" | "CANCELLED";
+        };
+        PharmacyDeliveryList: {
+            data: components["schemas"]["PharmacyDelivery"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        AdminPharmacyOrder: {
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            handoff: components["schemas"]["PharmacyOrderHandoff"] | null;
+            /** Format: uuid */
+            id: string;
+            itemCount: number;
+            latestResolution: components["schemas"]["PharmacyOrderResolution"] | null;
+            orderNumber: string;
+            pharmacy: {
+                displayName: string;
+                /** Format: uuid */
+                id: string;
+            };
+            /** @enum {string} */
+            quoteKind: "PRESCRIPTION" | "SCANNED_PRESCRIPTION" | "DIRECT_OTC";
+            status: components["schemas"]["PharmacyOrderStatus"];
+            totalMinor: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        AdminPharmacyOrderList: {
+            data: components["schemas"]["AdminPharmacyOrder"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
         PharmacyOrderHandoff: {
             /** Format: date-time */
             handedOffAt: string | null;
@@ -1656,6 +1752,33 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["PharmacyOrderList"];
+            };
+        };
+        /** @description Bounded pharmacy-scoped delivery handoff page without patient or address data */
+        PharmacyDeliveryListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PharmacyDeliveryList"];
+            };
+        };
+        /** @description Privacy-minimized administrator pharmacy-order oversight view */
+        AdminPharmacyOrderResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminPharmacyOrder"];
+            };
+        };
+        /** @description Bounded privacy-minimized administrator pharmacy-order page */
+        AdminPharmacyOrderListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminPharmacyOrderList"];
             };
         };
         /** @description Time-limited, immutable pharmacy quote snapshot */
@@ -2417,6 +2540,28 @@ export interface operations {
             503: components["responses"]["WorkflowDisabled"];
         };
     };
+    listPharmacyDeliveries: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                status?: "READY" | "HANDED_OFF" | "CANCELLED";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PharmacyDeliveryListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
     createPharmacyQuote: {
         parameters: {
             query?: never;
@@ -2709,6 +2854,48 @@ export interface operations {
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listAdminPharmacyOrders: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                pharmacyOrganizationId?: string;
+                orderNumberPrefix?: string;
+                status?: components["schemas"]["PharmacyOrderStatus"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AdminPharmacyOrderListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getAdminPharmacyOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                orderId: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AdminPharmacyOrderResponse"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };

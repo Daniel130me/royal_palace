@@ -925,6 +925,43 @@ export interface PharmacyOrderListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export interface PharmacyDeliverySummaryResponse {
+  handedOffAt: string | null;
+  handoffId: string;
+  handoffReference: string;
+  orderId: string;
+  orderNumber: string;
+  orderStatus: PharmacyOrderStatus;
+  preparedAt: string;
+  status: PharmacyOrderHandoffStatus;
+}
+
+export interface PharmacyDeliveryListResponse {
+  data: readonly PharmacyDeliverySummaryResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface AdminPharmacyOrderSummaryResponse {
+  createdAt: string;
+  currency: string;
+  handoff: PharmacyOrderHandoffResponse | null;
+  id: string;
+  itemCount: number;
+  latestResolution: PharmacyOrderResolutionResponse | null;
+  orderNumber: string;
+  pharmacy: { displayName: string; id: string };
+  quoteKind: PharmacyQuoteKind;
+  status: PharmacyOrderStatus;
+  totalMinor: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminPharmacyOrderListResponse {
+  data: readonly AdminPharmacyOrderSummaryResponse[];
+  pageInfo: CursorPageInfo;
+}
+
 export interface PharmacyOperationalSettingsResponse {
   deliveryEnabled: boolean;
   organization: {

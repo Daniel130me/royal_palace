@@ -90,6 +90,7 @@ describe("web request correlation", () => {
       isApiRouteEnabled("production", "/api/patient/scanned-prescriptions/not-a-uuid/download"),
     ).toBe(false);
     expect(isApiRouteEnabled("production", "/api/pharmacy/orders")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/pharmacy/deliveries")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/pharmacy/settings")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/pharmacy/catalog-items")).toBe(true);
     expect(isApiRouteEnabled("production", "/api/pharmacy/inventory/lots")).toBe(true);
@@ -123,6 +124,14 @@ describe("web request correlation", () => {
       false,
     );
     expect(isApiRouteEnabled("production", "/api/pharmacy/arbitrary")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/admin/pharmacy/orders")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/admin/pharmacy/orders/0199a18e-a400-7000-8000-000000000703",
+      ),
+    ).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/admin/pharmacy/orders/not-a-uuid")).toBe(false);
     expect(
       isApiRouteEnabled(
         "production",

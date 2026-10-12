@@ -5,7 +5,12 @@ import {
   proxyAuthenticatedList,
   proxyAuthenticatedOrganizationApi,
 } from "@/lib/auth/bff";
-import { exactUuid, pharmacyBffNotFound, pharmacyInventoryListPath } from "@/lib/auth/pharmacy-bff";
+import {
+  exactUuid,
+  pharmacyBffNotFound,
+  pharmacyDeliveryListPath,
+  pharmacyInventoryListPath,
+} from "@/lib/auth/pharmacy-bff";
 
 type Context = { params: Promise<{ segments?: string[] }> };
 
@@ -21,6 +26,12 @@ export async function GET(request: NextRequest, context: Context) {
     return proxyAuthenticatedList(request, `/v1/pharmacy/${segments[0]}`, {
       requireOrganization: true,
     });
+  }
+  if (segments.length === 1 && segments[0] === "deliveries") {
+    const path = pharmacyDeliveryListPath(request.nextUrl, "/v1/pharmacy/deliveries");
+    return path === null
+      ? pharmacyBffNotFound()
+      : proxyAuthenticatedOrganizationApi(request, path, "GET");
   }
   if (
     (segments.length === 1 &&

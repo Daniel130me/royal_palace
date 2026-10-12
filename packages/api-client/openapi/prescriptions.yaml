@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, direct OTC, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
@@ -419,6 +419,24 @@ paths:
         "400": { $ref: "#/components/responses/InvalidRequest" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/pharmacy/deliveries:
+    get:
+      operationId: listPharmacyDeliveries
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - {
+            in: query,
+            name: status,
+            schema: { type: string, enum: [READY, HANDED_OFF, CANCELLED] },
+          }
+      responses:
+        "200": { $ref: "#/components/responses/PharmacyDeliveryListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/pharmacy/prescriptions/{prescriptionId}/quotes:
     post:
       operationId: createPharmacyQuote
@@ -628,6 +646,36 @@ paths:
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/admin/pharmacy/orders:
+    get:
+      operationId: listAdminPharmacyOrders
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: pharmacyOrganizationId, schema: { type: string, format: uuid } }
+        - {
+            in: query,
+            name: orderNumberPrefix,
+            schema: { type: string, minLength: 2, maxLength: 64, pattern: "^[A-Za-z0-9-]+$" },
+          }
+        - { in: query, name: status, schema: { $ref: "#/components/schemas/PharmacyOrderStatus" } }
+      responses:
+        "200": { $ref: "#/components/responses/AdminPharmacyOrderListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/admin/pharmacy/orders/{orderId}:
+    get:
+      operationId: getAdminPharmacyOrder
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrderId" }
+      responses:
+        "200": { $ref: "#/components/responses/AdminPharmacyOrderResponse" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/admin/pharmacy/orders/{orderId}/disputes:
     post:
@@ -1139,6 +1187,21 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PharmacyOrderList" }
+    PharmacyDeliveryListResponse:
+      description: Bounded pharmacy-scoped delivery handoff page without patient or address data
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PharmacyDeliveryList" }
+    AdminPharmacyOrderResponse:
+      description: Privacy-minimized administrator pharmacy-order oversight view
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AdminPharmacyOrder" }
+    AdminPharmacyOrderListResponse:
+      description: Bounded privacy-minimized administrator pharmacy-order page
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AdminPharmacyOrderList" }
     PharmacyQuoteResponse:
       description: Time-limited, immutable pharmacy quote snapshot
       content:
@@ -1953,6 +2016,101 @@ components:
       required: [data, pageInfo]
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/PharmacyOrder" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PharmacyOrderStatus:
+      type: string
+      enum:
+        [
+          PENDING_PAYMENT,
+          CONFIRMED,
+          CANCELLED,
+          REFUND_PENDING,
+          PARTIALLY_REFUNDED,
+          REFUNDED,
+          DISPUTE_PENDING,
+          DISPUTED,
+        ]
+    PharmacyDelivery:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          handedOffAt,
+          handoffId,
+          handoffReference,
+          orderId,
+          orderNumber,
+          orderStatus,
+          preparedAt,
+          status,
+        ]
+      properties:
+        handedOffAt: { type: [string, "null"], format: date-time }
+        handoffId: { type: string, format: uuid }
+        handoffReference: { type: string }
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        orderStatus: { $ref: "#/components/schemas/PharmacyOrderStatus" }
+        preparedAt: { type: string, format: date-time }
+        status: { type: string, enum: [READY, HANDED_OFF, CANCELLED] }
+    PharmacyDeliveryList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PharmacyDelivery" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    AdminPharmacyOrder:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          createdAt,
+          currency,
+          handoff,
+          id,
+          itemCount,
+          latestResolution,
+          orderNumber,
+          pharmacy,
+          quoteKind,
+          status,
+          totalMinor,
+          updatedAt,
+          version,
+        ]
+      properties:
+        createdAt: { type: string, format: date-time }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        handoff:
+          oneOf:
+            - { $ref: "#/components/schemas/PharmacyOrderHandoff" }
+            - { type: "null" }
+        id: { type: string, format: uuid }
+        itemCount: { type: integer, minimum: 0 }
+        latestResolution:
+          oneOf:
+            - { $ref: "#/components/schemas/PharmacyOrderResolution" }
+            - { type: "null" }
+        orderNumber: { type: string }
+        pharmacy:
+          type: object
+          additionalProperties: false
+          required: [displayName, id]
+          properties:
+            displayName: { type: string }
+            id: { type: string, format: uuid }
+        quoteKind: { type: string, enum: [PRESCRIPTION, SCANNED_PRESCRIPTION, DIRECT_OTC] }
+        status: { $ref: "#/components/schemas/PharmacyOrderStatus" }
+        totalMinor: { type: string, pattern: "^\\d+$" }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    AdminPharmacyOrderList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AdminPharmacyOrder" } }
         pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     PharmacyOrderHandoff:
       type: object

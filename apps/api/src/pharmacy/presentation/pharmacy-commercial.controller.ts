@@ -99,6 +99,32 @@ const listSchema = z
     limit: z.coerce.number().int().min(1).max(50).default(25),
   })
   .strict();
+const deliveryListSchema = listSchema.extend({
+  status: z.enum(["READY", "HANDED_OFF", "CANCELLED"]).optional(),
+});
+const adminOrderListSchema = listSchema.extend({
+  orderNumberPrefix: z
+    .string()
+    .trim()
+    .min(2)
+    .max(64)
+    .regex(/^[A-Za-z0-9-]+$/)
+    .transform((value) => value.toUpperCase())
+    .optional(),
+  pharmacyOrganizationId: idSchema.optional(),
+  status: z
+    .enum([
+      "PENDING_PAYMENT",
+      "CONFIRMED",
+      "CANCELLED",
+      "REFUND_PENDING",
+      "PARTIALLY_REFUNDED",
+      "REFUNDED",
+      "DISPUTE_PENDING",
+      "DISPUTED",
+    ])
+    .optional(),
+});
 const patientCatalogListSchema = listSchema.extend({
   q: z.string().trim().min(1).max(120).optional(),
 });
@@ -156,6 +182,22 @@ export class PharmacyCommercialController {
         context(request),
         parse(idSchema, organizationId),
         parse(listSchema, query),
+      ),
+    );
+  }
+
+  @Get("deliveries")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF)
+  listDeliveries(
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.commercial.listPharmacyDeliveries(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(deliveryListSchema, query),
       ),
     );
   }
@@ -384,6 +426,20 @@ export class AdminPharmacyCommercialController {
   constructor(
     @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
   ) {}
+
+  @Get("orders")
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT)
+  listOrders(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.commercial.listAdminOrders(context(request), parse(adminOrderListSchema, query)),
+    );
+  }
+
+  @Get("orders/:orderId")
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT)
+  getOrder(@Param("orderId") orderId: string, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() => this.commercial.getAdminOrder(context(request), parse(idSchema, orderId)));
+  }
 
   @Post("orders/:orderId/disputes")
   @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_DISPUTE)

@@ -586,6 +586,22 @@ export const productionPrescriptionService = {
           },
         })
         .then(unwrapGeneratedResponse),
+    deliveries: (
+      organizationId: string,
+      input: {
+        cursor?: string;
+        limit?: number;
+        status?: "READY" | "HANDED_OFF" | "CANCELLED";
+      } = {},
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/deliveries", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
     order: (orderId: string) =>
       generatedPrescriptionClient
         .GET("/v1/pharmacy/orders/{orderId}", {
@@ -626,6 +642,43 @@ export const productionPrescriptionService = {
               "Idempotency-Key": idempotencyKey,
               "x-organization-id": organizationId,
             },
+            path: { orderId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  admin: {
+    orders: (
+      input: {
+        cursor?: string;
+        limit?: number;
+        orderNumberPrefix?: string;
+        pharmacyOrganizationId?: string;
+        status?: PrescriptionComponents["schemas"]["PharmacyOrderStatus"];
+      } = {},
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/admin/pharmacy/orders", {
+          params: { header: requestHeader(), query: input },
+        })
+        .then(unwrapGeneratedResponse),
+    order: (orderId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/admin/pharmacy/orders/{orderId}", {
+          params: { header: requestHeader(), path: { orderId } },
+        })
+        .then(unwrapGeneratedResponse),
+    requestDispute: (
+      orderId: string,
+      expectedVersion: number,
+      reasonCode: string,
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/admin/pharmacy/orders/{orderId}/disputes", {
+          body: { expectedVersion, reasonCode },
+          params: {
+            header: { ...requestHeader(), "Idempotency-Key": idempotencyKey },
             path: { orderId },
           },
         })

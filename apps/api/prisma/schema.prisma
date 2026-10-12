@@ -2178,6 +2178,8 @@ model PharmacyOrder {
   resolutions            PharmacyOrderResolution[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_patient_created_idx")
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_created_idx")
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_status_created_idx")
   @@index([pharmacyOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_created_idx")
   @@index([pharmacyOrganizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_org_status_created_idx")
   @@index([prescriptionId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_prescription_created_idx")

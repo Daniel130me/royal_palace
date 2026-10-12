@@ -11,9 +11,19 @@ import { PharmacyOrderDetail } from "./pages/order";
 import { PharmacyProducts } from "./pages/products";
 import { PharmacyProductDetail } from "./pages/product";
 import { PharmacyInventory } from "./pages/inventory";
+import { PharmacyDeliveries } from "./pages/deliveries";
 import { PharmacyNotifications } from "./pages/notifications";
 import { PharmacySettings } from "./pages/settings";
-import { Bell, FileText, LayoutDashboard, Package, Pill, Settings, Warehouse } from "lucide-react";
+import {
+  Bell,
+  FileText,
+  LayoutDashboard,
+  Package,
+  Pill,
+  Settings,
+  Truck,
+  Warehouse,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { productionNotificationService } from "@/lib/services";
 
@@ -45,6 +55,7 @@ export function PharmacyPortal() {
     { label: "Orders", page: "orders", icon: Package },
     { label: "Products", page: "products", icon: Pill },
     { label: "Inventory", page: "inventory", icon: Warehouse },
+    { label: "Deliveries", page: "deliveries", icon: Truck },
     { label: "Notifications", page: "notifications", icon: Bell, badge: unreadNotifications },
     { label: "Settings", page: "settings", icon: Settings },
   ];
@@ -72,6 +83,8 @@ export function PharmacyPortal() {
         <PharmacyProductDetail />
       ) : page === "inventory" ? (
         <PharmacyInventory />
+      ) : page === "deliveries" ? (
+        <PharmacyDeliveries />
       ) : page === "notifications" ? (
         <PharmacyNotifications onUnreadChange={updateUnreadNotifications} />
       ) : page === "settings" ? (

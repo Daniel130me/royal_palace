@@ -48,3 +48,52 @@ export function pharmacyInventoryListPath(requestUrl: URL, apiPath: string): str
   const query = output.toString();
   return query.length === 0 ? apiPath : `${apiPath}?${query}`;
 }
+
+/** Copies only the delivery handoff filters defined by the production contract. */
+export function pharmacyDeliveryListPath(requestUrl: URL, apiPath: string): string | null {
+  return filteredListPath(requestUrl, apiPath, {
+    status: new Set(["READY", "HANDED_OFF", "CANCELLED"]),
+  });
+}
+
+/** Copies only bounded, index-friendly administrator order filters. */
+export function adminPharmacyOrderListPath(requestUrl: URL, apiPath: string): string | null {
+  return filteredListPath(requestUrl, apiPath, {
+    orderNumberPrefix: /^[A-Za-z0-9-]{2,64}$/,
+    pharmacyOrganizationId: UUID,
+    status: new Set([
+      "PENDING_PAYMENT",
+      "CONFIRMED",
+      "CANCELLED",
+      "REFUND_PENDING",
+      "PARTIALLY_REFUNDED",
+      "REFUNDED",
+      "DISPUTE_PENDING",
+      "DISPUTED",
+    ]),
+  });
+}
+
+function filteredListPath(
+  requestUrl: URL,
+  apiPath: string,
+  filters: Readonly<Record<string, RegExp | ReadonlySet<string>>>,
+): string | null {
+  const output = new URLSearchParams();
+  for (const [name, value] of requestUrl.searchParams) {
+    if (name === "cursor") {
+      if (value.length < 1 || value.length > 1024) return null;
+    } else if (name === "limit") {
+      if (!/^\d{1,2}$/.test(value) || Number(value) < 1 || Number(value) > 50) return null;
+    } else {
+      const constraint = filters[name];
+      if (constraint === undefined) return null;
+      if (constraint instanceof RegExp ? !constraint.test(value) : !constraint.has(value)) {
+        return null;
+      }
+    }
+    output.append(name, value);
+  }
+  const query = output.toString();
+  return query.length === 0 ? apiPath : `${apiPath}?${query}`;
+}

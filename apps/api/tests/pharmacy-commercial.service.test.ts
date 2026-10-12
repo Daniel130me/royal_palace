@@ -635,6 +635,84 @@ describe("PharmacyCommercialService", () => {
     expect(listOrders).toHaveBeenCalledWith({ limit: 10, pharmacyOrganizationId: organizationId });
   });
 
+  it("keeps delivery handoff lists within the authorized pharmacy membership", async () => {
+    const organizationId = createOpaqueId();
+    const listPharmacyDeliveries = vi.fn<PharmacyCommercialRepository["listPharmacyDeliveries"]>(
+      async () => ({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }),
+    );
+    const service = createService({ listPharmacyDeliveries });
+
+    await service.listPharmacyDeliveries(
+      {
+        actor: session("ORGANIZATION_STAFF", { organizationId }),
+        requestId: "request-pharmacy-delivery-list",
+      },
+      organizationId,
+      { limit: 25, status: "READY" },
+    );
+
+    expect(listPharmacyDeliveries).toHaveBeenCalledWith({
+      limit: 25,
+      pharmacyOrganizationId: organizationId,
+      status: "READY",
+    });
+    await expect(
+      service.listPharmacyDeliveries(
+        {
+          actor: session("ORGANIZATION_STAFF", { organizationId }),
+          requestId: "request-other-pharmacy-delivery-list",
+        },
+        createOpaqueId(),
+        { limit: 25 },
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("allows only administrators to read privacy-minimized order oversight", async () => {
+    const orderId = createOpaqueId();
+    const findAdminOrder = vi.fn<PharmacyCommercialRepository["findAdminOrder"]>(async () => ({
+      createdAt: new Date().toISOString(),
+      currency: "USD",
+      handoff: null,
+      id: orderId,
+      itemCount: 1,
+      latestResolution: null,
+      orderNumber: "ORDER-TEST",
+      pharmacy: { displayName: "Synthetic Pharmacy", id: createOpaqueId() },
+      quoteKind: "DIRECT_OTC",
+      status: "CONFIRMED",
+      totalMinor: "1000",
+      updatedAt: new Date().toISOString(),
+      version: 1,
+    }));
+    const listAdminOrders = vi.fn<PharmacyCommercialRepository["listAdminOrders"]>(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const service = createService({ findAdminOrder, listAdminOrders });
+
+    await expect(
+      service.listAdminOrders(
+        { actor: session("SUPPORT"), requestId: "request-support-order-oversight" },
+        { limit: 25 },
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await expect(
+      service.listAdminOrders(
+        { actor: session("ADMINISTRATOR"), requestId: "request-admin-order-oversight" },
+        { limit: 25, orderNumberPrefix: "ORDER" },
+      ),
+    ).resolves.toMatchObject({ data: [] });
+    await expect(
+      service.getAdminOrder(
+        { actor: session("ADMINISTRATOR"), requestId: "request-admin-order-detail" },
+        orderId,
+      ),
+    ).resolves.toMatchObject({ id: orderId });
+    expect(listAdminOrders).toHaveBeenCalledWith({ limit: 25, orderNumberPrefix: "ORDER" });
+    expect(findAdminOrder).toHaveBeenCalledWith(orderId);
+  });
+
   it("authorizes the owning patient before initiating cancellation", async () => {
     const prepared = preparation();
     const order = orderFrom(prepared);

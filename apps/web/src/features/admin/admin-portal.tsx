@@ -18,6 +18,7 @@ import {
   BarChart3,
   Settings,
   UserCog,
+  Package,
 } from "lucide-react";
 import { AdminDashboard } from "./pages/dashboard";
 import { AdminManagers } from "./pages/managers";
@@ -39,6 +40,8 @@ import { AdminUsers } from "./pages/users";
 import { AdminReports } from "./pages/reports";
 import { AdminSettings } from "./pages/settings";
 import { AdminClinicalCatalogue } from "./pages/clinical-catalogue";
+import { AdminPharmacyOrders } from "./pages/pharmacy-orders";
+import { AdminPharmacyOrderDetail } from "./pages/pharmacy-order";
 import { ApplicationReviewPage } from "@/features/shared/application-review-page";
 
 export function AdminPortal() {
@@ -53,6 +56,7 @@ export function AdminPortal() {
     { label: "Clinical Catalogue", page: "clinical-catalogue", icon: ScrollText },
     { label: "Pricing", page: "pricing", icon: Tag },
     { label: "Pharmacy Commission", page: "pharmacy-commissions", icon: Pill },
+    { label: "Pharmacy Orders", page: "pharmacy-orders", icon: Package },
     { label: "Payments", page: "payments", icon: CreditCard },
     { label: "Settlements", page: "settlements", icon: Wallet },
     { label: "Audit Trail", page: "audit", icon: ScrollText },
@@ -90,6 +94,10 @@ export function AdminPortal() {
         <AdminPricing />
       ) : page === "pharmacy-commissions" ? (
         <AdminPharmacyCommissions />
+      ) : page === "pharmacy-orders" ? (
+        <AdminPharmacyOrders />
+      ) : page === "pharmacy-order" ? (
+        <AdminPharmacyOrderDetail />
       ) : page === "payments" ? (
         <AdminPayments />
       ) : page === "settlements" ? (

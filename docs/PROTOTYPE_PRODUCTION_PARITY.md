@@ -105,10 +105,10 @@ than restoring insecure prototype endpoints.
 | Patient pharmacy detail                        | `patient/pages/pharmacy-detail.tsx`                    | `CONNECTED`    | Verified discovery now opens a patient-safe catalogue/cart backed by authenticated commerce contracts                                                                |
 | Patient prescription upload and upload history | `patient/pages/upload-prescription.tsx`, `uploads.tsx` | `CONNECTED`    | 11C4P-4 supplies purpose-bound private upload, malware scanning, clean release, owner-visible review history, pharmacy verification, and controlled quote conversion |
 | Direct/OTC pharmacy ordering                   | `actions/direct-pharmacy-order`, pharmacy-detail flow  | `CONNECTED`    | Server-priced OTC cart creates an inventory-held quote and uses the existing acceptance, payment, handoff, and audit state machines                                  |
-| Administrator order oversight                  | `admin/pages/orders.tsx`                               | `CORRECTIVE`   | Privacy-minimized search/detail, exception/dispute operations, audit, and bounded reporting                                                                          |
+| Administrator order oversight                  | `admin/pages/orders.tsx`                               | `CONNECTED`    | Privacy-minimized bounded search/detail and dispute initiation are connected; patient and clinical data never enter the projection                                   |
 | Pharmacy inventory                             | `pharmacy/pages/inventory.tsx`                         | `CORRECTIVE`   | Internal stock ledger with products/SKUs, locations, lots/batches, expiry, adjustments, reservations, dispense linkage, and audit                                    |
 | Pharmacy products and product detail           | `pharmacy/pages/products.tsx`, `product.tsx`           | `CORRECTIVE`   | Governed pharmacy catalogue and price/availability management backed by inventory ownership                                                                          |
-| Pharmacy deliveries                            | `pharmacy/pages/deliveries.tsx`                        | `CORRECTIVE`   | Pharmacy handoff and logistics integration without merging clinical, commercial, and courier sources of truth                                                        |
+| Pharmacy deliveries                            | `pharmacy/pages/deliveries.tsx`                        | `CONNECTED`    | Pharmacy-scoped delivery handoffs are connected without merging commercial and future courier sources of truth                                                       |
 | Pharmacy notifications                         | `pharmacy/pages/notifications.tsx`                     | `CORRECTIVE`   | Verified-recipient production notification inbox and preference-safe transactional events                                                                            |
 | Pharmacy commissions                           | `pharmacy/pages/commissions.tsx`                       | `CORRECTIVE`   | Authorized pharmacy commercial reporting from immutable ledger/settlement facts                                                                                      |
 | Pharmacy settlements                           | `pharmacy/pages/settlements.tsx`                       | `CORRECTIVE`   | Reconciled settlement lifecycle, statements, exceptions, and audit                                                                                                   |
@@ -316,6 +316,15 @@ concurrency and database invariants. Real external notification delivery remains
 until provider and region qualification, and external messages never contain clinical
 details.
 
-11C4P-5B is next: privacy-minimized delivery integration and bounded administrator order
+11C4P-5B now connects delivery handoff visibility and bounded administrator order
 oversight without weakening the completed clinical, commercial, privacy, or inventory
-boundaries.
+boundaries. Pharmacy staff receive only delivery-method handoff references and statuses.
+Administrators receive a dedicated minimal projection that omits patient identity,
+prescription content, medication lines, and delivery addresses. Courier assignment,
+tracking, and proof of delivery remain in the later logistics aggregate rather than being
+simulated here.
+
+The corrective 11C4P program is complete. The next implementation work is the planned
+settlement, commission, payout, logistics, laboratory, and remaining clinical vertical
+slices; 11C5 qualification remains a release gate and does not enable real data or
+providers.

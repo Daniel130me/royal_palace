@@ -1,6 +1,11 @@
 import type {
+  AdminPharmacyOrderListResponse,
+  AdminPharmacyOrderSummaryResponse,
+  PharmacyDeliveryListResponse,
+  PharmacyOrderHandoffStatus,
   PharmacyOrderListResponse,
   PharmacyOrderResponse,
+  PharmacyOrderStatus,
   PharmacyQuoteListResponse,
   PharmacyQuoteResponse,
   PatientPharmacyCatalogItemListResponse,
@@ -193,6 +198,7 @@ export interface PharmacyCommercialRepository {
       })
     | null
   >;
+  findAdminOrder(orderId: string): Promise<AdminPharmacyOrderSummaryResponse | null>;
   findQuoteByIdempotency(input: {
     idempotencyKey: string;
     principalId: string;
@@ -230,6 +236,19 @@ export interface PharmacyCommercialRepository {
     patientPrincipalId?: string;
     pharmacyOrganizationId?: string;
   }): Promise<PharmacyOrderListResponse>;
+  listAdminOrders(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    orderNumberPrefix?: string;
+    pharmacyOrganizationId?: string;
+    status?: PharmacyOrderStatus;
+  }): Promise<AdminPharmacyOrderListResponse>;
+  listPharmacyDeliveries(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    pharmacyOrganizationId: string;
+    status?: PharmacyOrderHandoffStatus;
+  }): Promise<PharmacyDeliveryListResponse>;
   listQuotes(input: {
     cursor?: { createdAt: Date; id: string };
     limit: number;

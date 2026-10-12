@@ -289,7 +289,7 @@ that completes an increment.
           decisions, and controlled conversion to one server-priced, inventory-held
           scanned-origin quote. Controlled medicines remain fail-closed, and the upload
           never becomes a practitioner-authored digital prescription.
-      - `[~]` 11C4P-5 notifications, settings, delivery integration, and admin order
+      - `[x]` 11C4P-5 notifications, settings, delivery integration, and admin order
         oversight.
         - `[x]` 11C4P-5A connects the pharmacy notification inbox and operational
           settings. Personal and organization inbox entries use per-reader receipts,
@@ -297,8 +297,12 @@ that completes an increment.
           marketing opt-in, immutable mandatory security/transactional preferences,
           generated contracts, exact BFF allowlists, and optimistic settings updates.
           External delivery remains provider-gated and never contains clinical details.
-        - `[ ]` 11C4P-5B connects privacy-minimized delivery integration and bounded
-          administrator order oversight.
+        - `[x]` 11C4P-5B connects pharmacy-scoped delivery handoff visibility and
+          bounded administrator order oversight. Dedicated response projections exclude
+          patient identity, prescriptions, medication lines, and delivery addresses;
+          exact BFF filters, named admin authorization, cursor indexes, and generated
+          contracts keep both queues controlled. Courier assignment, tracking, and proof
+          of delivery remain with the later logistics aggregate.
     - `[!]` 11C5 qualification evidence is open. The controlled evidence register and
       sign-off packet is in
       [`qualification/11c5-prescription-pharmacy-qualification.md`](./qualification/11c5-prescription-pharmacy-qualification.md).

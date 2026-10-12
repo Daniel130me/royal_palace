@@ -656,6 +656,79 @@ export class PharmacyCommercialService {
     });
   }
 
+  async listPharmacyDeliveries(
+    context: PharmacyCommercialRequestContext,
+    organizationId: string,
+    input: {
+      cursor?: string;
+      limit: number;
+      status?: Parameters<PharmacyCommercialRepository["listPharmacyDeliveries"]>[0]["status"];
+    },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        organizationId,
+        resourceId: organizationId,
+        resourceType: "pharmacy_delivery_list",
+      },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF,
+      requestId: context.requestId,
+    });
+    return this.repository.listPharmacyDeliveries({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      pharmacyOrganizationId: organizationId,
+      ...(input.status === undefined ? {} : { status: input.status }),
+    });
+  }
+
+  async listAdminOrders(
+    context: PharmacyCommercialRequestContext,
+    input: {
+      cursor?: string;
+      limit: number;
+      orderNumberPrefix?: string;
+      pharmacyOrganizationId?: string;
+      status?: Parameters<PharmacyCommercialRepository["listAdminOrders"]>[0]["status"];
+    },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { resourceId: "global", resourceType: "admin_pharmacy_order_list" },
+      policy: AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT,
+      requestId: context.requestId,
+    });
+    return this.repository.listAdminOrders({
+      ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
+      limit: input.limit,
+      ...(input.orderNumberPrefix === undefined
+        ? {}
+        : { orderNumberPrefix: input.orderNumberPrefix }),
+      ...(input.pharmacyOrganizationId === undefined
+        ? {}
+        : { pharmacyOrganizationId: input.pharmacyOrganizationId }),
+      ...(input.status === undefined ? {} : { status: input.status }),
+    });
+  }
+
+  async getAdminOrder(context: PharmacyCommercialRequestContext, orderId: string) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { resourceId: orderId, resourceType: "admin_pharmacy_order" },
+      policy: AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT,
+      requestId: context.requestId,
+    });
+    const order = await this.repository.findAdminOrder(orderId);
+    if (order === null) {
+      throw new PharmacyCommercialFlowError("order_not_found", 404, "Order was not found");
+    }
+    return order;
+  }
+
   async cancelOrder(
     context: PharmacyCommercialRequestContext,
     orderId: string,

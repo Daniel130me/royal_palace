@@ -83,17 +83,17 @@ DISPENSED`, with `CANCELLED` and `EXPIRED` terminal paths.
       disputed, and refunded payment facts to the order state machine; keep dispensing
       independent; add pickup/delivery handoff without implementing logistics itself.
 - [~] **11C4 — browser cutover and production replacement:** replace insecure prototype pharmacy
-      pages and action routes with generated contracts and exact authenticated BFF
-      allowlists; delete generic prescription/order CRUD exposure after parity tests.
-      The secure prescription/order cutover is complete, but client-approved prototype
-      capabilities deleted with the old implementation must be rebuilt through
-      checkpoints 11C4P-1–11C4P-5 in the
-      [prototype parity register](../PROTOTYPE_PRODUCTION_PARITY.md).
+  pages and action routes with generated contracts and exact authenticated BFF
+  allowlists; delete generic prescription/order CRUD exposure after parity tests.
+  The secure prescription/order cutover is complete, but client-approved prototype
+  capabilities deleted with the old implementation must be rebuilt through
+  checkpoints 11C4P-1–11C4P-5 in the
+  [prototype parity register](../PROTOTYPE_PRODUCTION_PARITY.md).
 - [!] **11C5 — qualification evidence:** the controlled
-      [qualification record](../qualification/11c5-prescription-pharmacy-qualification.md)
-      is prepared; complete financial/clinical-owner review and
-      keep real inventory, payment, and clinical activation disabled until every
-      provider and jurisdiction gate is approved.
+  [qualification record](../qualification/11c5-prescription-pharmacy-qualification.md)
+  is prepared; complete financial/clinical-owner review and
+  keep real inventory, payment, and clinical activation disabled until every
+  provider and jurisdiction gate is approved.
 
 The product owner approved the commercial rules on 2026-10-07: pharmacy-issued
 time-limited quotes; immutable line/tax/fee/currency snapshots; explicit patient
@@ -781,9 +781,8 @@ absence is tracked as a release-blocking corrective program rather than accepted
 
 ### Remaining boundary
 
-- 11C4P-5B remains open for pharmacy delivery integration and administrator order
-  oversight. Settlement, commission, and payout screens remain committed to their planned
-  vertical slice and were not removed.
+- Settlement, commission, and payout screens remain committed to their planned vertical
+  slice and were not removed.
 - Paper-prescription upload and direct OTC ordering currently lack production
   document-verification and OTC commercial policies. They remain mandatory approved
   capabilities and must be rebuilt through the corrective parity program, not restored
@@ -798,6 +797,51 @@ absence is tracked as a release-blocking corrective program rather than accepted
 11C5 records product, clinical, pharmacy-operations, privacy/security, and financial-owner
 qualification evidence. It must not enable any real provider or jurisdiction merely because
 the synthetic workflow and browser cutover are complete.
+
+## Checkpoint 11C4P-5B completion report
+
+### Scope and architecture
+
+- Added a pharmacy-scoped delivery handoff queue backed by the existing commercial order
+  and handoff aggregate. It intentionally does not create courier, tracking, address, or
+  proof-of-delivery facts before the logistics vertical slice owns them.
+- Added a dedicated administrator order-oversight policy, repository projection, bounded
+  list/detail endpoints, generated OpenAPI client, exact BFF routes, and signed-prototype
+  portal screens. Existing dispute initiation remains an explicit audited commercial state
+  transition rather than a browser-only action.
+
+### Security, privacy, data, and performance
+
+- Pharmacy scope is derived from authenticated organization membership. Administrator
+  order oversight is administrator-only; support and organization roles fail closed.
+- The admin projection never selects patient identity, prescription identifiers, medication
+  lines, payment-provider references, or delivery addresses. The delivery projection exposes
+  only order/handoff identifiers, references, status, and timestamps.
+- Both growing reads are capped at 50 and use stable created-time/id cursors. Global and
+  status/time indexes support the admin queue; the existing organization/time index supports
+  the pharmacy queue. Search is a controlled order-number prefix, not an unbounded substring.
+
+### Standards walkthrough
+
+- **Readable and extendable:** commercial facts, future logistics facts, authorization,
+  persistence projections, transport contracts, BFF validation, and UI remain separate.
+- **Security first:** named admin policy, session-derived pharmacy scope, exact route shapes,
+  minimal database selection, and server-controlled dispute transitions fail closed.
+- **Query conscious:** cursor pagination, selective projections, relation selection in one
+  query, and purpose-built indexes avoid unbounded reads and N+1 access.
+- **No magic or hard-coded product assumptions:** monetary values retain their quote ISO
+  currency; no country, carrier, address schema, or payment vendor is assumed.
+- **No short-term patching:** the prototype's generic delivery records were not restored.
+  Delivery presentation now reads the authoritative handoff aggregate, while courier state
+  remains reserved for its own future source of truth.
+
+### Remaining boundary
+
+- Carrier assignment, rate selection, live tracking, delivery addresses, and proof of
+  delivery remain disabled until the logistics domain and its privacy/operational decisions
+  are implemented and qualified.
+- Real clinical, payment, inventory, notification, and logistics providers remain disabled
+  pending 11C5 qualification and stakeholder UAT.
 
 ## Checkpoint 11C5 readiness report
 

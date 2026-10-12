@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   NOTIFICATION_TEMPLATE,
+  type AdminPharmacyOrderSummaryResponse,
   type PharmacyOrderResponse,
   type PharmacyQuoteResponse,
 } from "@royal-palace/contracts";
@@ -53,6 +54,23 @@ const orderInclude = {
 
 type QuoteRecord = Prisma.PharmacyQuoteGetPayload<{ include: typeof quoteInclude }>;
 type OrderRecord = Prisma.PharmacyOrderGetPayload<{ include: typeof orderInclude }>;
+
+const adminOrderSelect = {
+  createdAt: true,
+  handoff: true,
+  id: true,
+  orderNumber: true,
+  pharmacyOrganization: { select: { displayName: true, id: true } },
+  quote: {
+    select: { currency: true, kind: true, totalMinor: true, _count: { select: { lines: true } } },
+  },
+  resolutions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 },
+  status: true,
+  updatedAt: true,
+  version: true,
+} satisfies Prisma.PharmacyOrderSelect;
+
+type AdminOrderRecord = Prisma.PharmacyOrderGetPayload<{ select: typeof adminOrderSelect }>;
 
 @Injectable()
 export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRepository {
@@ -1212,6 +1230,85 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
       : { ...mapOrder(order), patientPrincipalId: order.patient.principalId };
   }
 
+  async findAdminOrder(orderId: string) {
+    const order = await this.database.pharmacyOrder.findUnique({
+      select: adminOrderSelect,
+      where: { id: orderId },
+    });
+    return order === null ? null : mapAdminOrder(order);
+  }
+
+  async listAdminOrders(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    orderNumberPrefix?: string;
+    pharmacyOrganizationId?: string;
+    status?: Parameters<PharmacyCommercialRepository["listAdminOrders"]>[0]["status"];
+  }) {
+    const rows = await this.database.pharmacyOrder.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: adminOrderSelect,
+      take: input.limit + 1,
+      where: {
+        ...createdBefore(input.cursor),
+        ...(input.orderNumberPrefix === undefined
+          ? {}
+          : { orderNumber: { startsWith: input.orderNumberPrefix } }),
+        ...(input.pharmacyOrganizationId === undefined
+          ? {}
+          : { pharmacyOrganizationId: input.pharmacyOrganizationId }),
+        ...(input.status === undefined ? {} : { status: input.status }),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const visible = rows.slice(0, input.limit);
+    return {
+      data: visible.map(mapAdminOrder),
+      pageInfo: { endCursor: createdCursor(visible.at(-1)), hasNextPage },
+    };
+  }
+
+  async listPharmacyDeliveries(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    pharmacyOrganizationId: string;
+    status?: Parameters<PharmacyCommercialRepository["listPharmacyDeliveries"]>[0]["status"];
+  }) {
+    const rows = await this.database.pharmacyOrder.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { createdAt: true, handoff: true, id: true, orderNumber: true, status: true },
+      take: input.limit + 1,
+      where: {
+        ...createdBefore(input.cursor),
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        handoff: {
+          is: {
+            method: "DELIVERY",
+            ...(input.status === undefined ? {} : { status: input.status }),
+          },
+        },
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const visible = rows.slice(0, input.limit);
+    return {
+      data: visible.map((row) => {
+        if (row.handoff === null) throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+        return {
+          handedOffAt: row.handoff.handedOffAt?.toISOString() ?? null,
+          handoffId: row.handoff.id,
+          handoffReference: row.handoff.handoffReference,
+          orderId: row.id,
+          orderNumber: row.orderNumber,
+          orderStatus: row.status,
+          preparedAt: row.handoff.preparedAt.toISOString(),
+          status: row.handoff.status,
+        };
+      }),
+      pageInfo: { endCursor: createdCursor(visible.at(-1)), hasNextPage },
+    };
+  }
+
   async listOrders(input: {
     cursor?: { createdAt: Date; id: string };
     limit: number;
@@ -1352,34 +1449,9 @@ function mapOrder(row: OrderRecord): PharmacyOrderResponse {
   return {
     acceptedAt: row.acceptedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
-    handoff:
-      row.handoff === null
-        ? null
-        : {
-            handedOffAt: row.handoff.handedOffAt?.toISOString() ?? null,
-            handoffReference: row.handoff.handoffReference,
-            id: row.handoff.id,
-            method: row.handoff.method,
-            preparedAt: row.handoff.preparedAt.toISOString(),
-            status: row.handoff.status,
-            version: row.handoff.version,
-          },
+    handoff: mapHandoff(row.handoff),
     id: row.id,
-    latestResolution:
-      row.resolutions[0] === undefined
-        ? null
-        : {
-            amountMinor: row.resolutions[0].amountMinor.toString(),
-            completedAt: row.resolutions[0].completedAt?.toISOString() ?? null,
-            createdAt: row.resolutions[0].createdAt.toISOString(),
-            currency: row.resolutions[0].currency,
-            id: row.resolutions[0].id,
-            reasonCode: row.resolutions[0].reasonCode,
-            rejectedAt: row.resolutions[0].rejectedAt?.toISOString() ?? null,
-            status: row.resolutions[0].status,
-            type: row.resolutions[0].type,
-            version: row.resolutions[0].version,
-          },
+    latestResolution: mapResolution(row.resolutions[0]),
     orderNumber: row.orderNumber,
     patientId: row.patientId,
     paymentId: row.payment.id,
@@ -1391,6 +1463,57 @@ function mapOrder(row: OrderRecord): PharmacyOrderResponse {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
   };
+}
+
+function mapAdminOrder(row: AdminOrderRecord): AdminPharmacyOrderSummaryResponse {
+  return {
+    createdAt: row.createdAt.toISOString(),
+    currency: row.quote.currency,
+    handoff: mapHandoff(row.handoff),
+    id: row.id,
+    itemCount: row.quote._count.lines,
+    latestResolution: mapResolution(row.resolutions[0]),
+    orderNumber: row.orderNumber,
+    pharmacy: row.pharmacyOrganization,
+    quoteKind: row.quote.kind,
+    status: row.status,
+    totalMinor: row.quote.totalMinor.toString(),
+    updatedAt: row.updatedAt.toISOString(),
+    version: row.version,
+  };
+}
+
+function mapHandoff(row: OrderRecord["handoff"] | AdminOrderRecord["handoff"]) {
+  return row === null
+    ? null
+    : {
+        handedOffAt: row.handedOffAt?.toISOString() ?? null,
+        handoffReference: row.handoffReference,
+        id: row.id,
+        method: row.method,
+        preparedAt: row.preparedAt.toISOString(),
+        status: row.status,
+        version: row.version,
+      };
+}
+
+function mapResolution(
+  row: OrderRecord["resolutions"][number] | AdminOrderRecord["resolutions"][number] | undefined,
+) {
+  return row === undefined
+    ? null
+    : {
+        amountMinor: row.amountMinor.toString(),
+        completedAt: row.completedAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+        currency: row.currency,
+        id: row.id,
+        reasonCode: row.reasonCode,
+        rejectedAt: row.rejectedAt?.toISOString() ?? null,
+        status: row.status,
+        type: row.type,
+        version: row.version,
+      };
 }
 
 function sumCharges(
