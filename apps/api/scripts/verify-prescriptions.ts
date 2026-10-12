@@ -490,7 +490,9 @@ async function main(): Promise<void> {
       throw new Error("Bounded prescription expiry did not persist its terminal history");
     }
 
+    process.stdout.write("Verifying platform inventory lifecycle...\n");
     await verifyPlatformInventoryLifecycle(database, repository, fixture);
+    process.stdout.write("Verifying representative pharmacy queue plan...\n");
     const queuePlan = await verifyPharmacyQueuePlan(database, fixture);
 
     process.stdout.write(
@@ -548,7 +550,7 @@ async function verifyPlatformInventoryLifecycle(
     });
     await transaction.inventoryLocation.create({
       data: {
-        code: `VERIFY-${locationId}`,
+        code: `VERIFY-${locationId.replaceAll("-", "").slice(0, 12).toUpperCase()}`,
         id: locationId,
         name: "Verification shelf",
         pharmacyOrganizationId: fixture.pharmacyOrganizationId,
@@ -657,9 +659,31 @@ async function verifyPlatformInventoryLifecycle(
     requestHash: "8".repeat(64),
   });
   if (order === null) throw new Error("Inventory quote was not accepted");
+  const confirmedAt = new Date();
   await database.$transaction([
+    database.payment.update({
+      data: {
+        providerCode: "SYNTHETIC_VERIFICATION",
+        providerOccurredAt: confirmedAt,
+        providerPaymentReference: `verify-payment-${order.paymentId}`,
+        status: "SUCCEEDED",
+        succeededAt: confirmedAt,
+        version: { increment: 1 },
+      },
+      where: { id: order.paymentId },
+    }),
+    database.paymentStatusHistory.create({
+      data: {
+        fromStatus: "CREATED",
+        id: v7(),
+        occurredAt: confirmedAt,
+        paymentId: order.paymentId,
+        reasonCode: "SYNTHETIC_VERIFICATION_PAYMENT_SUCCEEDED",
+        toStatus: "SUCCEEDED",
+      },
+    }),
     database.pharmacyOrder.update({
-      data: { status: "CONFIRMED", version: { increment: 1 } },
+      data: { confirmedAt, status: "CONFIRMED", version: { increment: 1 } },
       where: { id: order.id },
     }),
     database.inventoryReservation.update({
