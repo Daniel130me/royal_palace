@@ -3,6 +3,9 @@ BEGIN;
 -- PostgreSQL does not permit a newly added enum value to be used safely before
 -- the surrounding transaction commits. Rebuild the enum instead so the type,
 -- column, default, and updated transition guard remain one atomic migration.
+DROP TRIGGER "inventory_reservations_state_transition_guard"
+  ON "inventory_reservations";
+
 ALTER TABLE "inventory_reservations"
   ALTER COLUMN "status" DROP DEFAULT;
 
@@ -29,9 +32,9 @@ ALTER TABLE "inventory_reservations"
     "provider_code" <> 'PLATFORM_INVENTORY' OR "provider_reservation_reference" IS NOT NULL
   );
 
--- Replace the transition function installed by the quote/order migration. The
--- existing trigger keeps pointing at this function, leaving one authoritative
--- database state machine instead of multiple guards with conflicting rules.
+-- Replace the transition function installed by the quote/order migration,
+-- leaving one authoritative database state machine instead of multiple guards
+-- with conflicting rules.
 CREATE OR REPLACE FUNCTION enforce_inventory_reservation_state_transition()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -44,6 +47,10 @@ BEGIN
   END IF;
   RAISE EXCEPTION 'invalid inventory reservation status transition: % -> %', OLD."status", NEW."status";
 END $$;
+
+CREATE TRIGGER "inventory_reservations_state_transition_guard"
+BEFORE UPDATE OF "status" ON "inventory_reservations"
+FOR EACH ROW EXECUTE FUNCTION enforce_inventory_reservation_state_transition();
 
 CREATE OR REPLACE FUNCTION validate_pharmacy_quote_catalogue_scope()
 RETURNS trigger LANGUAGE plpgsql AS $$

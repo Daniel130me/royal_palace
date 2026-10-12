@@ -1055,7 +1055,7 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
       [`provider_${paymentId}`, paymentId],
     );
     await client.query(
-      'UPDATE "inventory_reservations" SET "status" = \'CONSUMED\', "updated_at" = now(), "version" = "version" + 1 WHERE "quote_id" = $1',
+      'UPDATE "inventory_reservations" SET "status" = \'COMMITTED\', "updated_at" = now(), "version" = "version" + 1 WHERE "quote_id" = $1',
       [quoteId],
     );
     await client.query(
@@ -1081,6 +1081,10 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
     await client.query(
       'INSERT INTO "prescription_dispense_lines" ("id", "dispense_event_id", "prescription_item_id", "fill_number", "quantity", "quantity_unit", "dispensed_medication_name") VALUES ($1, $2, $3, 0, 2, $4, $5)',
       [v7(), dispenseEventId, itemId, "tablet", "Commercial medicine"],
+    );
+    await client.query(
+      'UPDATE "inventory_reservations" SET "status" = \'CONSUMED\', "updated_at" = now(), "version" = "version" + 1 WHERE "quote_id" = $1',
+      [quoteId],
     );
     await client.query("COMMIT");
     await client.query(
