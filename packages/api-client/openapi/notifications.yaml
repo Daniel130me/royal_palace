@@ -1,8 +1,93 @@
 openapi: 3.1.0
 info:
-  title: Royal Palace Notification Administration API
-  version: 1.0.0
+  title: Royal Palace Notification API
+  version: 1.1.0
+  description: >-
+    Authenticated inbox and notification-preference contract. Browser clients use
+    the same-origin /api paths; external delivery remains independently provider-gated.
 paths:
+  /api/notifications:
+    get:
+      operationId: listNotificationInbox
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - in: query
+          name: unreadOnly
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Bounded owner-scoped notification page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationInboxList" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/notifications/{itemId}/read:
+    post:
+      operationId: markNotificationRead
+      parameters:
+        - { $ref: "#/components/parameters/ItemId" }
+        - { $ref: "#/components/parameters/CsrfToken" }
+      responses:
+        "201":
+          description: Notification read receipt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationRead" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      parameters:
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                limit: { type: integer, minimum: 1, maximum: 200, default: 200 }
+      responses:
+        "201":
+          description: Bounded mark-all result; repeat while hasMore is true
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationMarkAllRead" }
+  /api/notifications/preferences:
+    get:
+      operationId: listNotificationPreferences
+      responses:
+        "200":
+          description: Effective channel preferences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationPreferenceList" }
+  /api/notifications/preferences/email/marketing:
+    patch:
+      operationId: updateEmailMarketingPreference
+      parameters:
+        - { $ref: "#/components/parameters/CsrfToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [enabled, expectedVersion]
+              properties:
+                enabled: { type: boolean }
+                expectedVersion: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated marketing preference
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationPreference" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /api/admin/notifications/{deliveryId}/replay:
     post:
       operationId: replayNotificationDelivery
@@ -11,10 +96,7 @@ paths:
           name: deliveryId
           required: true
           schema: { type: string, format: uuid }
-        - in: header
-          name: x-rp-csrf-token
-          required: true
-          schema: { type: string, minLength: 1 }
+        - { $ref: "#/components/parameters/CsrfToken" }
       requestBody:
         required: true
         content:
@@ -41,3 +123,131 @@ paths:
         "403": { description: Administrator authorization required }
         "409": { description: Delivery is not replayable or already has an active replay }
         "503": { description: Notification delivery is not enabled in this environment }
+components:
+  parameters:
+    CsrfToken:
+      in: header
+      name: x-rp-csrf-token
+      required: true
+      schema: { type: string, minLength: 1 }
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string, minLength: 1, maxLength: 1024 }
+    ItemId:
+      in: path
+      name: itemId
+      required: true
+      schema: { type: string, format: uuid }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+  responses:
+    Conflict:
+      description: Optimistic version conflict
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InvalidRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Notification was not found in the actor's scope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthenticated:
+      description: Authentication is required
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+    CursorPageInfo:
+      type: object
+      additionalProperties: false
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    NotificationCategory:
+      type: string
+      enum: [SECURITY, TRANSACTIONAL, MARKETING]
+    NotificationTemplateKey:
+      type: string
+      enum:
+        - APPLICATION_ACTION_REQUIRED
+        - APPLICATION_STATUS_UPDATED
+        - APPOINTMENT_STATUS_UPDATED
+        - PAYMENT_STATUS_UPDATED
+        - PHARMACY_ORDER_ACTION_REQUIRED
+        - PHARMACY_ORDER_STATUS_UPDATED
+        - PRESCRIPTION_ACTION_REQUIRED
+        - PRESCRIPTION_STATUS_UPDATED
+        - SECURITY_ALERT
+    NotificationInboxItem:
+      type: object
+      additionalProperties: false
+      required:
+        [category, createdAt, id, locale, readAt, reference, resourceId, resourceType, templateKey]
+      properties:
+        category: { $ref: "#/components/schemas/NotificationCategory" }
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        locale: { type: string }
+        readAt: { type: [string, "null"], format: date-time }
+        reference: { type: string }
+        resourceId: { type: [string, "null"] }
+        resourceType: { type: [string, "null"] }
+        templateKey: { $ref: "#/components/schemas/NotificationTemplateKey" }
+    NotificationInboxList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, unreadCount]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationInboxItem" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+        unreadCount: { type: integer, minimum: 0 }
+    NotificationRead:
+      type: object
+      additionalProperties: false
+      required: [id, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        readAt: { type: string, format: date-time }
+    NotificationMarkAllRead:
+      type: object
+      additionalProperties: false
+      required: [hasMore, markedCount]
+      properties:
+        hasMore: { type: boolean }
+        markedCount: { type: integer, minimum: 0, maximum: 200 }
+    NotificationPreference:
+      type: object
+      additionalProperties: false
+      required: [category, channel, enabled, mutable, version]
+      properties:
+        category: { $ref: "#/components/schemas/NotificationCategory" }
+        channel: { type: string, enum: [EMAIL] }
+        enabled: { type: boolean }
+        mutable: { type: boolean }
+        version: { type: integer, minimum: 0 }
+    NotificationPreferenceList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationPreference" }

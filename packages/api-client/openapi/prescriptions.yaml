@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, direct OTC, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
@@ -1019,6 +1019,40 @@ paths:
                   expired: { type: integer, minimum: 0, maximum: 100 }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/pharmacy/settings:
+    get:
+      operationId: getPharmacyOperationalSettings
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      responses:
+        "200":
+          description: Pharmacy identity and operational fulfilment settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyOperationalSettings" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updatePharmacyOperationalSettings
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePharmacyOperationalSettingsInput" }
+      responses:
+        "200":
+          description: Updated pharmacy operational settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyOperationalSettings" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 components:
   parameters:
     IdempotencyKey:
@@ -1161,6 +1195,38 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    PharmacyOperationalSettings:
+      type: object
+      additionalProperties: false
+      required:
+        [deliveryEnabled, organization, pickupEnabled, preparationTargetMinutes, updatedAt, version]
+      properties:
+        deliveryEnabled: { type: boolean }
+        organization:
+          type: object
+          additionalProperties: false
+          required: [displayName, id, publicPhone, verificationStatus, websiteUrl]
+          properties:
+            displayName: { type: string }
+            id: { type: string, format: uuid }
+            publicPhone: { type: [string, "null"] }
+            verificationStatus:
+              type: string
+              enum: [PENDING, VERIFIED, REVOKED, SUSPENDED]
+            websiteUrl: { type: [string, "null"], format: uri }
+        pickupEnabled: { type: boolean }
+        preparationTargetMinutes: { type: integer, minimum: 5, maximum: 10080 }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 0 }
+    UpdatePharmacyOperationalSettingsInput:
+      type: object
+      additionalProperties: false
+      required: [deliveryEnabled, expectedVersion, pickupEnabled, preparationTargetMinutes]
+      properties:
+        deliveryEnabled: { type: boolean }
+        expectedVersion: { type: integer, minimum: 0 }
+        pickupEnabled: { type: boolean }
+        preparationTargetMinutes: { type: integer, minimum: 5, maximum: 10080 }
     ScannedPrescriptionStatus:
       type: string
       enum:

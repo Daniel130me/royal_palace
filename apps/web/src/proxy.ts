@@ -62,6 +62,10 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
   new RegExp(`^/api/admin/payments/${UUID_PATH_SEGMENT}/reconcile$`, "i"),
   new RegExp(`^/api/admin/notifications/${UUID_PATH_SEGMENT}/replay$`, "i"),
   new RegExp(
+    `^/api/notifications(?:/${UUID_PATH_SEGMENT}/read|/read-all|/preferences(?:/email/marketing)?)?$`,
+    "i",
+  ),
+  new RegExp(
     `^/api/provider/prescriptions(?:/${UUID_PATH_SEGMENT}/(?:draft|sign|cancel|substitutions/${UUID_PATH_SEGMENT}/decision))?$`,
     "i",
   ),
@@ -74,7 +78,9 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
     "i",
   ),
   new RegExp(`^/api/prescriptions/${UUID_PATH_SEGMENT}(?:/dispense-events)?$`, "i"),
-  /^\/api\/pharmacy\/(?:prescriptions|scanned-prescriptions|quotes|orders)$/i,
+  /^\/api\/pharmacy\/(?:prescriptions|scanned-prescriptions|quotes|orders|catalog-items|product-classifications|settings)$/i,
+  new RegExp(`^/api/pharmacy/catalog-items/${UUID_PATH_SEGMENT}$`, "i"),
+  /^\/api\/pharmacy\/inventory\/(?:locations|lots|movements)$/i,
   new RegExp(`^/api/pharmacy/(?:quotes|orders)/${UUID_PATH_SEGMENT}$`, "i"),
   new RegExp(
     `^/api/pharmacy/prescriptions/${UUID_PATH_SEGMENT}/(?:accept|substitutions|dispense|return|quotes)$`,

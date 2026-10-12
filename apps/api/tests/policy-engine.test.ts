@@ -52,6 +52,17 @@ function baselineRequest(
 ): AuthorizationRequest {
   const base = { actor: session, policy };
   switch (policy) {
+    case AUTHORIZATION_POLICY.VIEW_NOTIFICATION_INBOX:
+    case AUTHORIZATION_POLICY.MANAGE_NOTIFICATION_PREFERENCES:
+      return {
+        ...base,
+        policy,
+        context: {
+          recipientPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "notification_inbox",
+        },
+      };
     case AUTHORIZATION_POLICY.VIEW_ORGANIZATION:
       return {
         ...base,
@@ -146,6 +157,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
+    case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
       return {
         ...base,
         policy,
@@ -247,6 +259,8 @@ describe("PolicyEngine", () => {
     CANCEL_OWN_PHARMACY_ORDER: [],
     MANAGE_PHARMACY_HANDOFF: [],
     MANAGE_PHARMACY_INVENTORY: [],
+    MANAGE_PHARMACY_SETTINGS: [],
+    MANAGE_NOTIFICATION_PREFERENCES: [],
     ADMINISTER_PHARMACY_DISPUTE: ["ADMINISTRATOR"],
     MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
@@ -256,6 +270,7 @@ describe("PolicyEngine", () => {
     REVIEW_MANAGER_TICKET: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_MANAGER_EARNINGS: ["FINANCE", "ADMINISTRATOR"],
     VIEW_MANAGER_REFERRALS: ["SUPPORT", "ADMINISTRATOR"],
+    VIEW_NOTIFICATION_INBOX: [],
     VIEW_ORGANIZATION: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],

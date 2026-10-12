@@ -658,9 +658,13 @@
         {
           "id": "notifications",
           "file": "pages/notifications.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-5",
-          "productionFiles": []
+          "productionFiles": [
+            "apps/web/src/features/pharmacy/pages/notifications.tsx",
+            "apps/api/src/notification/application/notification-inbox.service.ts",
+            "apps/api/src/notification/infrastructure/prisma-notification-inbox.repository.ts"
+          ]
         },
         {
           "id": "order-detail",
@@ -711,9 +715,13 @@
         {
           "id": "settings",
           "file": "pages/settings.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-5",
-          "productionFiles": []
+          "productionFiles": [
+            "apps/web/src/features/pharmacy/pages/settings.tsx",
+            "apps/api/src/pharmacy/application/pharmacy-settings.service.ts",
+            "apps/api/src/pharmacy/infrastructure/prisma-pharmacy-settings.repository.ts"
+          ]
         },
         {
           "id": "settlements",

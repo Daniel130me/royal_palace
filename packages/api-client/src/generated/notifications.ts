@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/api/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listNotificationInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/{itemId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listNotificationPreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/preferences/email/marketing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateEmailMarketingPreference"];
+        trace?: never;
+    };
     "/api/admin/notifications/{deliveryId}/replay": {
         parameters: {
             query?: never;
@@ -23,20 +103,245 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
-    responses: never;
-    parameters: never;
+    schemas: {
+        Error: {
+            error: string;
+            message: string;
+        };
+        CursorPageInfo: {
+            endCursor: string | null;
+            hasNextPage: boolean;
+        };
+        /** @enum {string} */
+        NotificationCategory: "SECURITY" | "TRANSACTIONAL" | "MARKETING";
+        /** @enum {string} */
+        NotificationTemplateKey: "APPLICATION_ACTION_REQUIRED" | "APPLICATION_STATUS_UPDATED" | "APPOINTMENT_STATUS_UPDATED" | "PAYMENT_STATUS_UPDATED" | "PHARMACY_ORDER_ACTION_REQUIRED" | "PHARMACY_ORDER_STATUS_UPDATED" | "PRESCRIPTION_ACTION_REQUIRED" | "PRESCRIPTION_STATUS_UPDATED" | "SECURITY_ALERT";
+        NotificationInboxItem: {
+            category: components["schemas"]["NotificationCategory"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            locale: string;
+            /** Format: date-time */
+            readAt: string | null;
+            reference: string;
+            resourceId: string | null;
+            resourceType: string | null;
+            templateKey: components["schemas"]["NotificationTemplateKey"];
+        };
+        NotificationInboxList: {
+            data: components["schemas"]["NotificationInboxItem"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+            unreadCount: number;
+        };
+        NotificationRead: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            readAt: string;
+        };
+        NotificationMarkAllRead: {
+            hasMore: boolean;
+            markedCount: number;
+        };
+        NotificationPreference: {
+            category: components["schemas"]["NotificationCategory"];
+            /** @enum {string} */
+            channel: "EMAIL";
+            enabled: boolean;
+            mutable: boolean;
+            version: number;
+        };
+        NotificationPreferenceList: {
+            data: components["schemas"]["NotificationPreference"][];
+        };
+    };
+    responses: {
+        /** @description Optimistic version conflict */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Request validation failed */
+        InvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Notification was not found in the actor's scope */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Authentication is required */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
+    parameters: {
+        CsrfToken: string;
+        Cursor: string;
+        ItemId: string;
+        Limit: number;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listNotificationInbox: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                unreadOnly?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded owner-scoped notification page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationInboxList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                itemId: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification read receipt */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRead"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @default 200 */
+                    limit?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Bounded mark-all result; repeat while hasMore is true */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMarkAllRead"];
+                };
+            };
+        };
+    };
+    listNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective channel preferences */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferenceList"];
+                };
+            };
+        };
+    };
+    updateEmailMarketingPreference: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                    expectedVersion: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated marketing preference */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreference"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+        };
+    };
     replayNotificationDelivery: {
         parameters: {
             query?: never;
             header: {
-                "x-rp-csrf-token": string;
+                "x-rp-csrf-token": components["parameters"]["CsrfToken"];
             };
             path: {
                 deliveryId: string;

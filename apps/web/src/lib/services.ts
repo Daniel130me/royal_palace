@@ -4,6 +4,7 @@
 
 import {
   createManagerClient,
+  createNotificationClient,
   createOnboardingClient,
   createPublicDiscoveryClient,
   createPrescriptionClient,
@@ -146,6 +147,38 @@ const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
   fetch: authenticatedGeneratedFetch,
 });
 const generatedPrescriptionClient = createPrescriptionClient({ fetch: prescriptionBffFetch });
+const generatedNotificationClient = createNotificationClient({
+  fetch: authenticatedGeneratedFetch,
+});
+
+export const productionNotificationService = {
+  list: (input: { cursor?: string; limit?: number; unreadOnly?: boolean } = {}) =>
+    generatedNotificationClient
+      .GET("/api/notifications", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  markRead: (itemId: string) =>
+    generatedNotificationClient
+      .POST("/api/notifications/{itemId}/read", {
+        params: { header: csrfHeader(), path: { itemId } },
+      })
+      .then(unwrapGeneratedResponse),
+  markAllRead: (limit = 200) =>
+    generatedNotificationClient
+      .POST("/api/notifications/read-all", {
+        body: { limit },
+        params: { header: csrfHeader() },
+      })
+      .then(unwrapGeneratedResponse),
+  preferences: () =>
+    generatedNotificationClient.GET("/api/notifications/preferences").then(unwrapGeneratedResponse),
+  updateEmailMarketing: (body: { enabled: boolean; expectedVersion: number }) =>
+    generatedNotificationClient
+      .PATCH("/api/notifications/preferences/email/marketing", {
+        body,
+        params: { header: csrfHeader() },
+      })
+      .then(unwrapGeneratedResponse),
+};
 
 export const productionPrescriptionService = {
   provider: {
@@ -294,6 +327,22 @@ export const productionPrescriptionService = {
         .then(unwrapGeneratedResponse),
   },
   pharmacy: {
+    settings: (organizationId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/settings", {
+          params: { header: { ...requestHeader(), "x-organization-id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
+    updateSettings: (
+      organizationId: string,
+      body: PrescriptionComponents["schemas"]["UpdatePharmacyOperationalSettingsInput"],
+    ) =>
+      generatedPrescriptionClient
+        .PATCH("/v1/pharmacy/settings", {
+          body,
+          params: { header: { ...requestHeader(), "x-organization-id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
     catalogItems: (
       organizationId: string,
       input: {

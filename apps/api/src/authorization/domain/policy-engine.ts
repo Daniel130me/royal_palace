@@ -59,6 +59,7 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_HANDOFF:
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
+      case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
         return this.canManagePharmacyPrescription(
           request.actor,
           request.context.organizationId,
@@ -95,6 +96,11 @@ export class PolicyEngine {
           request.context.organizationId,
           request.policy,
         );
+      case AUTHORIZATION_POLICY.VIEW_NOTIFICATION_INBOX:
+      case AUTHORIZATION_POLICY.MANAGE_NOTIFICATION_PREFERENCES:
+        return request.actor.principalId === request.context.recipientPrincipalId
+          ? this.allow(request.policy, this.firstActorRole(request.actor), ALLOW.OWNER)
+          : this.deny(request.policy, "notification_recipient_required");
       case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:

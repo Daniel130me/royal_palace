@@ -11,6 +11,9 @@ type Context = { params: Promise<{ segments?: string[] }> };
 
 export async function GET(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
+  if (segments.length === 1 && segments[0] === "settings") {
+    return proxyAuthenticatedOrganizationApi(request, "/v1/pharmacy/settings", "GET");
+  }
   if (
     segments.length === 1 &&
     ["prescriptions", "scanned-prescriptions", "quotes", "orders"].includes(segments[0]!)
@@ -109,6 +112,9 @@ export async function POST(request: NextRequest, context: Context) {
 
 export async function PATCH(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
+  if (segments.length === 1 && segments[0] === "settings") {
+    return proxyAuthenticatedOrganizationApi(request, "/v1/pharmacy/settings", "PATCH");
+  }
   const catalogItemId = exactUuid(segments[1]);
   return segments.length === 2 && segments[0] === "catalog-items" && catalogItemId !== null
     ? proxyAuthenticatedOrganizationApi(

@@ -731,6 +731,59 @@ absence is tracked as a release-blocking corrective program rather than accepted
 
 - Real clinical, inventory, payment, refund/dispute, and logistics providers remain
   disabled pending qualification. Synthetic success is not production approval.
+
+## Checkpoint 11C4P-5A completion report
+
+### Scope and architecture
+
+- Added a durable notification inbox beside the independently gated external-delivery
+  outbox. Personal items and shared organization items use the same bounded repository,
+  while read state is stored per principal so one staff member cannot clear another's
+  inbox.
+- Added controlled pharmacy operational settings for pickup, delivery handoff, and a
+  preparation target. Verified organization identity remains read-only and continues to
+  use the administrator-controlled verification workflow.
+- Added named authorization policies, generated OpenAPI clients, exact same-origin BFF
+  routes, pharmacy navigation, unread badges, preference controls, and focused service
+  tests. Existing catalogue and inventory routes were also added to the protected-environment
+  production allowlist after this review identified that prior checkpoint wiring was
+  incomplete there.
+
+### Security, privacy, data, and performance
+
+- Recipient and organization scope comes only from the authenticated server session.
+  Notification identifiers outside that scope return not found; the browser cannot submit
+  a principal or organization recipient.
+- Mandatory security and transactional messages are always enabled. Marketing email is
+  disabled by default, requires explicit self-service consent evidence, and uses optimistic
+  version checks. External providers remain disabled until qualification and templates
+  carry only privacy-safe references, never clinical details.
+- Notification pages are cursor-bounded to 50, mark-all work is bounded to 200, and the
+  database has recipient/time indexes plus unique per-reader receipts. Pharmacy settings
+  are a single organization-keyed row with database checks, an active-pharmacy trigger,
+  and optimistic concurrency.
+
+### Standards walkthrough
+
+- **Readable and extendable:** policy, application, repository, controller, generated
+  contract, BFF, and UI responsibilities remain separated; future channels can reuse the
+  inbox without coupling the domain transaction to an email vendor.
+- **Security first:** session-derived scope, CSRF on mutations, exact route shapes,
+  read-only verified identity, consent evidence, and database invariants fail closed.
+- **Query conscious:** two bounded queries produce a page and unread count with no N+1
+  reads; settings use one keyed lookup and one concurrency-controlled write transaction.
+- **No magic or hard-coded product assumptions:** notification categories and templates are
+  controlled contracts, locale is stored per message, organization IDs come from session
+  membership, and real vendors/regions remain configuration and qualification decisions.
+- **No short-term patching:** the prototype's generic notification CRUD was not restored;
+  the implementation adds durable recipient semantics, audit evidence, concurrency, and
+  production contracts before reconnecting the approved screens.
+
+### Remaining boundary
+
+- 11C4P-5B remains open for pharmacy delivery integration and administrator order
+  oversight. Settlement, commission, and payout screens remain committed to their planned
+  vertical slice and were not removed.
 - Paper-prescription upload and direct OTC ordering currently lack production
   document-verification and OTC commercial policies. They remain mandatory approved
   capabilities and must be rebuilt through the corrective parity program, not restored

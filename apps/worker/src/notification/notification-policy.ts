@@ -60,6 +60,22 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
       title: "Payment updated",
     }),
   },
+  [NOTIFICATION_TEMPLATE.PHARMACY_ORDER_ACTION_REQUIRED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Action is required for pharmacy order ${reference}. Sign in to review it securely.`,
+      subject: "Pharmacy order action required",
+      title: "Pharmacy order action required",
+    }),
+  },
+  [NOTIFICATION_TEMPLATE.PHARMACY_ORDER_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Pharmacy order ${reference} has an update. Sign in to view it securely.`,
+      subject: "Pharmacy order updated",
+      title: "Pharmacy order updated",
+    }),
+  },
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: {
     category: "TRANSACTIONAL",
     render: (reference) => ({

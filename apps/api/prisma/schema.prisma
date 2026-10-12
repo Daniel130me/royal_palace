@@ -511,6 +511,9 @@ model IdentityPrincipal {
   notificationReplays          NotificationDelivery[]             @relation("NotificationReplayActor")
   notificationEndpoints        NotificationRecipientEndpoint[]
   notificationPreferences      NotificationPreference[]
+  notificationInboxItems       NotificationInboxItem[]             @relation("NotificationInboxPrincipalRecipient")
+  notificationInboxReads       NotificationInboxRead[]             @relation("NotificationInboxReader")
+  updatedPharmacySettings      PharmacyOperationalSettings[]       @relation("PharmacyOperationalSettingsUpdater")
   prescriptionStatusChanges    PrescriptionStatusHistory[]        @relation("PrescriptionStatusActor")
   createdSubstitutionProposals PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
   substitutionDecisions        PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
@@ -654,6 +657,8 @@ model Organization {
   inventoryLots                     InventoryLot[]
   inventoryMovements                InventoryMovement[]
   scannedPrescriptions              ScannedPrescription[]
+  notificationInboxItems            NotificationInboxItem[]
+  pharmacyOperationalSettings       PharmacyOperationalSettings?
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -1452,6 +1457,40 @@ model NotificationPreference {
   @@map("notification_preferences")
 }
 
+model NotificationInboxItem {
+  id                      String                @id @db.Uuid
+  deduplicationKey        String                @unique @map("deduplication_key") @db.VarChar(200)
+  recipientPrincipalId    String?               @map("recipient_principal_id") @db.Uuid
+  recipientOrganizationId String?               @map("recipient_organization_id") @db.Uuid
+  category                NotificationCategory
+  templateKey             String                @map("template_key") @db.VarChar(100)
+  locale                  String                @db.VarChar(35)
+  reference               String                @db.VarChar(64)
+  resourceType            String?               @map("resource_type") @db.VarChar(100)
+  resourceId              String?               @map("resource_id") @db.Uuid
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  recipientPrincipal      IdentityPrincipal?    @relation("NotificationInboxPrincipalRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  recipientOrganization   Organization?         @relation(fields: [recipientOrganizationId], references: [id], onDelete: Restrict)
+  reads                    NotificationInboxRead[]
+
+  @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_inbox_principal_created_idx")
+  @@index([recipientOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_inbox_org_created_idx")
+  @@map("notification_inbox_items")
+}
+
+model NotificationInboxRead {
+  id          String            @id @db.Uuid
+  itemId      String            @map("item_id") @db.Uuid
+  principalId String            @map("principal_id") @db.Uuid
+  readAt      DateTime          @default(now()) @map("read_at") @db.Timestamptz(6)
+  item        NotificationInboxItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  principal   IdentityPrincipal @relation("NotificationInboxReader", fields: [principalId], references: [id], onDelete: Restrict)
+
+  @@unique([itemId, principalId], map: "notification_inbox_reads_item_principal_key")
+  @@index([principalId, readAt(sort: Desc), itemId], map: "notification_inbox_reads_principal_read_idx")
+  @@map("notification_inbox_reads")
+}
+
 model NotificationAttempt {
   id                String                     @id @db.Uuid
   deliveryId        String                     @map("delivery_id") @db.Uuid
@@ -2187,6 +2226,21 @@ model PharmacyOrderResolution {
   @@index([orderId, status, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_order_resolutions_order_status_idx")
   @@index([status, type, createdAt, id], map: "pharmacy_order_resolutions_status_type_idx")
   @@map("pharmacy_order_resolutions")
+}
+
+model PharmacyOperationalSettings {
+  organizationId          String            @id @map("organization_id") @db.Uuid
+  pickupEnabled           Boolean           @default(true) @map("pickup_enabled")
+  deliveryEnabled         Boolean           @default(false) @map("delivery_enabled")
+  preparationTargetMinutes Int              @default(60) @map("preparation_target_minutes")
+  updatedByPrincipalId    String            @map("updated_by_principal_id") @db.Uuid
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int               @default(1)
+  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  updatedBy               IdentityPrincipal @relation("PharmacyOperationalSettingsUpdater", fields: [updatedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@map("pharmacy_operational_settings")
 }
 
 model PrescriptionJurisdictionPolicy {

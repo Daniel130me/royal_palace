@@ -836,10 +836,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pharmacy/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyOperationalSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePharmacyOperationalSettings"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PharmacyOperationalSettings: {
+            deliveryEnabled: boolean;
+            organization: {
+                displayName: string;
+                /** Format: uuid */
+                id: string;
+                publicPhone: string | null;
+                /** @enum {string} */
+                verificationStatus: "PENDING" | "VERIFIED" | "REVOKED" | "SUSPENDED";
+                /** Format: uri */
+                websiteUrl: string | null;
+            };
+            pickupEnabled: boolean;
+            preparationTargetMinutes: number;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        UpdatePharmacyOperationalSettingsInput: {
+            deliveryEnabled: boolean;
+            expectedVersion: number;
+            pickupEnabled: boolean;
+            preparationTargetMinutes: number;
+        };
         /** @enum {string} */
         ScannedPrescriptionStatus: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "APPROVED" | "REJECTED" | "SCAN_FAILED" | "WITHDRAWN";
         ScannedPrescriptionSummary: {
@@ -3187,6 +3227,62 @@ export interface operations {
             };
             403: components["responses"]["AccessDenied"];
             503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    getPharmacyOperationalSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pharmacy identity and operational fulfilment settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyOperationalSettings"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePharmacyOperationalSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePharmacyOperationalSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Updated pharmacy operational settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyOperationalSettings"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

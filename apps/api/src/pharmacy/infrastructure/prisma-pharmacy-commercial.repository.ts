@@ -1,9 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { PharmacyOrderResponse, PharmacyQuoteResponse } from "@royal-palace/contracts";
+import {
+  NOTIFICATION_TEMPLATE,
+  type PharmacyOrderResponse,
+  type PharmacyQuoteResponse,
+} from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { enqueueOrganizationInboxNotification } from "../../notification/infrastructure/enqueue-notification.js";
 import {
   PharmacyCommercialConflictError,
   type PharmacyCommercialRepository,
@@ -790,12 +795,13 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
 
           const orderId = createOpaqueId();
           const paymentId = createOpaqueId();
+          const orderNumber = `ORDER-${orderId.toUpperCase()}`;
           await transaction.pharmacyOrder.create({
             data: {
               acceptedAt: now,
               acceptedByPrincipalId: input.patientPrincipalId,
               id: orderId,
-              orderNumber: `ORDER-${orderId.toUpperCase()}`,
+              orderNumber,
               patientId: quote.patientId,
               pharmacyOrganizationId: quote.pharmacyOrganizationId,
               prescriptionId: quote.prescriptionId,
@@ -826,6 +832,14 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
               reasonCode: "PHARMACY_QUOTE_ACCEPTED",
               toStatus: "CREATED",
             },
+          });
+          await enqueueOrganizationInboxNotification(transaction, {
+            deduplicationKey: `pharmacy-order:${orderId}:accepted`,
+            organizationId: quote.pharmacyOrganizationId,
+            reference: orderNumber,
+            resourceId: orderId,
+            resourceType: "PHARMACY_ORDER",
+            templateKey: NOTIFICATION_TEMPLATE.PHARMACY_ORDER_ACTION_REQUIRED,
           });
           await transaction.idempotencyKey.update({
             data: {

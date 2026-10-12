@@ -306,6 +306,16 @@ stakeholder UAT; this checkpoint does not enable a real provider or real patient
 
 ### Following checkpoint
 
-11C4P-5 restores pharmacy notifications, organization settings, delivery integration,
-and administrator order oversight without weakening the completed clinical, commercial,
-privacy, or inventory boundaries.
+11C4P-5A now restores pharmacy notifications and organization operational settings on
+production policy, persistence, generated-client, exact-BFF, and browser surfaces.
+Notification access is derived from the signed-in principal and memberships; shared
+organization items use per-reader receipts, all growing reads are bounded and indexed,
+mandatory security/transactional email cannot be disabled, and marketing remains explicit
+opt-in. Verified identity fields are read-only, while fulfilment settings use optimistic
+concurrency and database invariants. Real external notification delivery remains disabled
+until provider and region qualification, and external messages never contain clinical
+details.
+
+11C4P-5B is next: privacy-minimized delivery integration and bounded administrator order
+oversight without weakening the completed clinical, commercial, privacy, or inventory
+boundaries.

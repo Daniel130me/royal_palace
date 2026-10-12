@@ -33,6 +33,8 @@ export const NOTIFICATION_TEMPLATE = {
   APPLICATION_STATUS_UPDATED: "APPLICATION_STATUS_UPDATED",
   APPOINTMENT_STATUS_UPDATED: "APPOINTMENT_STATUS_UPDATED",
   PAYMENT_STATUS_UPDATED: "PAYMENT_STATUS_UPDATED",
+  PHARMACY_ORDER_ACTION_REQUIRED: "PHARMACY_ORDER_ACTION_REQUIRED",
+  PHARMACY_ORDER_STATUS_UPDATED: "PHARMACY_ORDER_STATUS_UPDATED",
   PRESCRIPTION_ACTION_REQUIRED: "PRESCRIPTION_ACTION_REQUIRED",
   PRESCRIPTION_STATUS_UPDATED: "PRESCRIPTION_STATUS_UPDATED",
   SECURITY_ALERT: "SECURITY_ALERT",
@@ -47,6 +49,46 @@ export interface NotificationReplayResponse {
   id: string;
   replayOfId: string;
   status: "PENDING";
+}
+
+export interface NotificationInboxItemResponse {
+  category: NotificationCategory;
+  createdAt: string;
+  id: string;
+  locale: string;
+  readAt: string | null;
+  reference: string;
+  resourceId: string | null;
+  resourceType: string | null;
+  templateKey: NotificationTemplateKey;
+}
+
+export interface NotificationInboxListResponse {
+  data: readonly NotificationInboxItemResponse[];
+  pageInfo: CursorPageInfo;
+  unreadCount: number;
+}
+
+export interface NotificationReadResponse {
+  id: string;
+  readAt: string;
+}
+
+export interface NotificationMarkAllReadResponse {
+  hasMore: boolean;
+  markedCount: number;
+}
+
+export interface NotificationPreferenceResponse {
+  category: NotificationCategory;
+  channel: NotificationChannel;
+  enabled: boolean;
+  mutable: boolean;
+  version: number;
+}
+
+export interface NotificationPreferenceListResponse {
+  data: readonly NotificationPreferenceResponse[];
 }
 
 export interface BeginLoginResponse {
@@ -881,6 +923,21 @@ export interface PharmacyQuoteListResponse {
 export interface PharmacyOrderListResponse {
   data: readonly PharmacyOrderResponse[];
   pageInfo: CursorPageInfo;
+}
+
+export interface PharmacyOperationalSettingsResponse {
+  deliveryEnabled: boolean;
+  organization: {
+    displayName: string;
+    id: string;
+    publicPhone: string | null;
+    verificationStatus: "PENDING" | "VERIFIED" | "REVOKED" | "SUSPENDED";
+    websiteUrl: string | null;
+  };
+  pickupEnabled: boolean;
+  preparationTargetMinutes: number;
+  updatedAt: string;
+  version: number;
 }
 
 export type PharmacyProductClassificationKind = "CATEGORY" | "DOSAGE_FORM";
