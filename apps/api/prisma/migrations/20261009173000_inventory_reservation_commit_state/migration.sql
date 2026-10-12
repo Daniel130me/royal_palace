@@ -1,3 +1,5 @@
+BEGIN;
+
 ALTER TYPE "InventoryReservationStatus" ADD VALUE 'COMMITTED' AFTER 'HELD';
 
 ALTER TABLE "inventory_reservations"
@@ -94,3 +96,5 @@ END $$;
 CREATE TRIGGER "inventory_reservation_allocations_identity_guard"
 BEFORE UPDATE ON "inventory_reservation_allocations"
 FOR EACH ROW EXECUTE FUNCTION prevent_inventory_reservation_allocation_identity_change();
+
+COMMIT;
