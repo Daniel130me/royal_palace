@@ -48,6 +48,152 @@ export class PharmacyCommercialService {
     @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
   ) {}
 
+  async listPatientCatalogItems(
+    context: PharmacyCommercialRequestContext,
+    input: { cursor?: string; limit: number; pharmacyOrganizationId: string; query?: string },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: input.pharmacyOrganizationId,
+        resourceType: "patient_pharmacy_catalogue",
+      },
+      policy: AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE,
+      requestId: context.requestId,
+    });
+    return this.repository.listPatientCatalogItems({
+      ...(input.cursor === undefined ? {} : { cursor: decodeNameCursor(input.cursor) }),
+      limit: input.limit,
+      pharmacyOrganizationId: input.pharmacyOrganizationId,
+      ...(input.query === undefined ? {} : { query: input.query }),
+    });
+  }
+
+  async createDirectQuote(
+    context: PharmacyCommercialRequestContext,
+    input: {
+      idempotencyKey: string;
+      lines: readonly { catalogItemId: string; quantity: number }[];
+      pharmacyOrganizationId: string;
+      validForSeconds: number;
+    },
+  ) {
+    this.assertCommercialWorkflowEnabled();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: input.pharmacyOrganizationId,
+        resourceType: "direct_pharmacy_quote",
+      },
+      policy: AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE,
+      requestId: context.requestId,
+    });
+    if (input.validForSeconds > this.config.inventoryGateway.reservationTtlSeconds) {
+      throw invalidLine(
+        "quote_duration_exceeds_inventory_hold",
+        "Quote duration exceeds the configured inventory hold",
+      );
+    }
+    const preparation = await this.repository.findDirectPreparation({
+      catalogItemIds: input.lines.map((line) => line.catalogItemId),
+      patientPrincipalId: context.actor.principalId,
+      pharmacyOrganizationId: input.pharmacyOrganizationId,
+    });
+    if (preparation === null) {
+      throw new PharmacyCommercialFlowError(
+        "direct_catalogue_not_available",
+        404,
+        "Pharmacy catalogue is not available",
+      );
+    }
+    const itemById = new Map(preparation.items.map((item) => [item.catalogItemId, item]));
+    const currencies = new Set(preparation.items.map((item) => item.currency));
+    if (currencies.size !== 1) {
+      throw invalidLine("mixed_quote_currency", "All items must use the same currency");
+    }
+    const lines: PharmacyQuoteResolvedLine[] = input.lines.map((line, index) => {
+      const item = itemById.get(line.catalogItemId);
+      if (item === undefined || item.prescriptionRequired || item.controlledMedication) {
+        throw invalidLine(
+          "direct_item_not_eligible",
+          "Direct orders may contain only eligible non-prescription items",
+        );
+      }
+      if (Number(item.availableQuantity) < line.quantity) {
+        throw invalidLine("insufficient_stock", "Requested quantity is not available");
+      }
+      return {
+        catalogItemId: item.catalogItemId,
+        lineNumber: index + 1,
+        lineSubtotalMinor: item.unitPriceMinor * BigInt(line.quantity),
+        medicationCode: item.medicationCode,
+        medicationCodeSystem: item.medicationCodeSystem,
+        medicationName: item.medicationName,
+        prescriptionItemId: null,
+        quantity: line.quantity.toFixed(3),
+        quantityUnit: item.dosageFormName,
+        strength: item.strength,
+        unitPriceMinor: item.unitPriceMinor,
+      };
+    });
+    const currency = preparation.items[0]!.currency;
+    const expiresAt = new Date(Date.now() + input.validForSeconds * 1000);
+    const requestHash = hashRequest({ ...input, lines: input.lines });
+    const existing = await this.repository.findQuoteByIdempotency({
+      idempotencyKey: input.idempotencyKey,
+      principalId: context.actor.principalId,
+    });
+    if (existing !== null) {
+      if (existing.requestHash !== requestHash) {
+        throw new PharmacyCommercialConflictError("IDEMPOTENCY_CONFLICT");
+      }
+      return existing.quote;
+    }
+    const reservation = await this.inventory.reserve({
+      expiresAt,
+      idempotencyKey: `${context.actor.principalId}:${input.idempotencyKey}`,
+      lines: lines.map((line) => ({
+        catalogItemId: line.catalogItemId ?? null,
+        medicationCode: line.medicationCode,
+        prescriptionItemId: null,
+        quantity: line.quantity,
+        substitutionProposalId: null,
+      })),
+      pharmacyOrganizationId: input.pharmacyOrganizationId,
+    });
+    try {
+      const quote = await this.repository.createQuote({
+        charges: [],
+        currency,
+        expiresAt,
+        fillNumber: null,
+        idempotencyKey: input.idempotencyKey,
+        inventoryReservation: reservation,
+        lines,
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        preparation,
+        principalId: context.actor.principalId,
+        requestHash,
+      });
+      if (quote === null) throw new PharmacyCommercialConflictError("VERSION_CONFLICT");
+      return quote;
+    } catch (error) {
+      const winner = await this.repository.findQuoteByIdempotency({
+        idempotencyKey: input.idempotencyKey,
+        principalId: context.actor.principalId,
+      });
+      if (winner !== null && winner.requestHash === requestHash) return winner.quote;
+      await this.inventory.release({
+        providerReservationReference: reservation.providerReservationReference,
+        reason: "QUOTE_PERSISTENCE_FAILED",
+      });
+      throw error;
+    }
+  }
+
   async createQuote(
     context: PharmacyCommercialRequestContext,
     input: {
@@ -556,6 +702,9 @@ function resolveQuoteLines(
   const items = new Map(preparation.items.map((item) => [item.id, item]));
   const substitutions = new Map(preparation.substitutions.map((item) => [item.id, item]));
   return inputLines.map((line) => {
+    if (line.prescriptionItemId === null) {
+      throw invalidLine("quote_item_not_eligible", "Prescription quote requires an item");
+    }
     const item = items.get(line.prescriptionItemId);
     if (item === undefined) {
       throw invalidLine(
@@ -643,6 +792,19 @@ function decodeCreatedCursor(value: string): { createdAt: Date; id: string } {
     const createdAt = new Date(decoded.createdAt);
     if (!Number.isFinite(createdAt.getTime())) throw new Error();
     return { createdAt, id: decoded.id };
+  } catch {
+    throw new PharmacyCommercialFlowError("invalid_cursor", 400, "Cursor is invalid");
+  }
+}
+
+function decodeNameCursor(value: string): { id: string; sortValue: string } {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      id?: unknown;
+      sortValue?: unknown;
+    };
+    if (typeof decoded.id !== "string" || typeof decoded.sortValue !== "string") throw new Error();
+    return { id: decoded.id, sortValue: decoded.sortValue };
   } catch {
     throw new PharmacyCommercialFlowError("invalid_cursor", 400, "Cursor is invalid");
   }

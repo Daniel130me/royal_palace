@@ -343,6 +343,11 @@ enum PharmacyQuoteStatus {
   SUPERSEDED
 }
 
+enum PharmacyQuoteKind {
+  PRESCRIPTION
+  DIRECT_OTC
+}
+
 enum PharmacyQuoteChargeType {
   TAX
   FEE
@@ -1770,11 +1775,12 @@ model PrescriptionRoute {
 model PharmacyQuote {
   id                     String                @id @db.Uuid
   quoteNumber            String                @unique @map("quote_number") @db.VarChar(64)
-  prescriptionId         String                @map("prescription_id") @db.Uuid
-  prescriptionRouteId    String                @map("prescription_route_id") @db.Uuid
+  kind                   PharmacyQuoteKind     @default(PRESCRIPTION)
+  prescriptionId         String?               @map("prescription_id") @db.Uuid
+  prescriptionRouteId    String?               @map("prescription_route_id") @db.Uuid
   pharmacyOrganizationId String                @map("pharmacy_organization_id") @db.Uuid
   patientId              String                @map("patient_id") @db.Uuid
-  fillNumber             Int                   @map("fill_number")
+  fillNumber             Int?                  @map("fill_number")
   currency               String                @db.Char(3)
   subtotalMinor          BigInt                @map("subtotal_minor")
   taxMinor               BigInt                @default(0) @map("tax_minor")
@@ -1788,8 +1794,8 @@ model PharmacyQuote {
   createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                Int                   @default(1)
-  prescription           Prescription          @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
-  prescriptionRoute      PrescriptionRoute     @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  prescription           Prescription?         @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  prescriptionRoute      PrescriptionRoute?    @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
   pharmacyOrganization   Organization          @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
   patient                Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
   createdByPrincipal     IdentityPrincipal     @relation("PharmacyQuoteCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
@@ -1809,7 +1815,7 @@ model PharmacyQuote {
 model PharmacyQuoteLine {
   id                     String                            @id @db.Uuid
   quoteId                String                            @map("quote_id") @db.Uuid
-  prescriptionItemId     String                            @map("prescription_item_id") @db.Uuid
+  prescriptionItemId     String?                           @map("prescription_item_id") @db.Uuid
   substitutionProposalId String?                           @map("substitution_proposal_id") @db.Uuid
   catalogItemId          String?                           @map("catalog_item_id") @db.Uuid
   lineNumber             Int                               @map("line_number")
@@ -1823,7 +1829,7 @@ model PharmacyQuoteLine {
   lineSubtotalMinor      BigInt                            @map("line_subtotal_minor")
   createdAt              DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
   quote                  PharmacyQuote                     @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  prescriptionItem       PrescriptionItem                  @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
+  prescriptionItem       PrescriptionItem?                 @relation(fields: [prescriptionItemId], references: [id], onDelete: Restrict)
   substitutionProposal   PrescriptionSubstitutionProposal? @relation(fields: [substitutionProposalId], references: [id], onDelete: Restrict)
   catalogItem            PharmacyCatalogItem?              @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
   inventoryAllocations   InventoryReservationAllocation[]
@@ -2032,8 +2038,8 @@ model PharmacyOrder {
   id                     String                    @id @db.Uuid
   orderNumber            String                    @unique @map("order_number") @db.VarChar(64)
   quoteId                String                    @unique @map("quote_id") @db.Uuid
-  prescriptionId         String                    @map("prescription_id") @db.Uuid
-  prescriptionRouteId    String                    @map("prescription_route_id") @db.Uuid
+  prescriptionId         String?                   @map("prescription_id") @db.Uuid
+  prescriptionRouteId    String?                   @map("prescription_route_id") @db.Uuid
   pharmacyOrganizationId String                    @map("pharmacy_organization_id") @db.Uuid
   patientId              String                    @map("patient_id") @db.Uuid
   status                 PharmacyOrderStatus       @default(PENDING_PAYMENT)
@@ -2045,8 +2051,8 @@ model PharmacyOrder {
   updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
   version                Int                       @default(1)
   quote                  PharmacyQuote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  prescription           Prescription              @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
-  prescriptionRoute      PrescriptionRoute         @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  prescription           Prescription?             @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
+  prescriptionRoute      PrescriptionRoute?        @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
   pharmacyOrganization   Organization              @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
   patient                Patient                   @relation(fields: [patientId], references: [id], onDelete: Restrict)
   acceptedByPrincipal    IdentityPrincipal         @relation("PharmacyOrderAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)

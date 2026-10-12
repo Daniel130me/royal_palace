@@ -168,6 +168,35 @@ export const productionPrescriptionService = {
         .then(unwrapGeneratedResponse),
   },
   patient: {
+    pharmacyCatalogItems: (
+      pharmacyOrganizationId: string,
+      q?: string,
+      cursor?: string,
+      limit = 50,
+    ) =>
+      generatedPrescriptionClient
+        .GET("/v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/catalog-items", {
+          params: {
+            header: requestHeader(),
+            path: { pharmacyOrganizationId },
+            query: { cursor, limit, q },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    createDirectQuote: (
+      pharmacyOrganizationId: string,
+      body: PrescriptionComponents["schemas"]["CreateDirectPharmacyQuoteInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/quotes", {
+          body,
+          params: {
+            header: { ...requestHeader(), "Idempotency-Key": idempotencyKey },
+            path: { pharmacyOrganizationId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
     list: (cursor?: string, limit = 25) =>
       generatedPrescriptionClient
         .GET("/v1/patient/prescriptions", {

@@ -20,6 +20,7 @@ import { PatientNotifications } from "./pages/notifications";
 import { PatientSettings } from "./pages/settings";
 import { PatientConsultation } from "./pages/consultation";
 import { PatientPharmacies } from "./pages/pharmacies";
+import { PatientPharmacyDetail } from "./pages/pharmacy-detail";
 import { PatientLaboratories } from "./pages/laboratories";
 import { PatientHospitals } from "./pages/hospitals";
 import {
@@ -81,6 +82,8 @@ export function PatientPortal() {
         <PatientConsultation />
       ) : page === "pharmacies" ? (
         <PatientPharmacies />
+      ) : page === "pharmacy" ? (
+        <PatientPharmacyDetail />
       ) : page === "laboratories" ? (
         <PatientLaboratories />
       ) : page === "hospitals" ? (

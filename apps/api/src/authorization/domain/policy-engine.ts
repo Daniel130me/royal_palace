@@ -64,6 +64,7 @@ export class PolicyEngine {
           request.policy,
         );
       case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
+      case AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.CANCEL_OWN_PHARMACY_ORDER:
         return request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId

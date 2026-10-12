@@ -35,7 +35,9 @@ export class SyntheticInventoryGateway implements InventoryGateway {
     const canonical = JSON.stringify({
       idempotencyKey: input.idempotencyKey,
       lines: [...input.lines].sort((left, right) =>
-        left.prescriptionItemId.localeCompare(right.prescriptionItemId),
+        (left.prescriptionItemId ?? left.catalogItemId ?? "").localeCompare(
+          right.prescriptionItemId ?? right.catalogItemId ?? "",
+        ),
       ),
       pharmacyOrganizationId: input.pharmacyOrganizationId,
     });
@@ -75,7 +77,9 @@ export class PlatformInventoryGateway implements InventoryGateway {
           expiresAt: input.expiresAt.toISOString(),
           idempotencyKey: input.idempotencyKey,
           lines: [...input.lines].sort((left, right) =>
-            left.prescriptionItemId.localeCompare(right.prescriptionItemId),
+            (left.prescriptionItemId ?? left.catalogItemId ?? "").localeCompare(
+              right.prescriptionItemId ?? right.catalogItemId ?? "",
+            ),
           ),
           pharmacyOrganizationId: input.pharmacyOrganizationId,
           providerReservationReference,

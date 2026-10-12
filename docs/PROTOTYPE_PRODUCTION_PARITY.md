@@ -102,9 +102,9 @@ than restoring insecure prototype endpoints.
 
 | Approved capability                            | Prototype reference                                    | Current status | Required production replacement                                                                                                          |
 | ---------------------------------------------- | ------------------------------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Patient pharmacy detail                        | `patient/pages/pharmacy-detail.tsx`                    | `CORRECTIVE`   | Restore full pharmacy detail and ordering entry through public discovery plus authenticated commerce contracts                           |
+| Patient pharmacy detail                        | `patient/pages/pharmacy-detail.tsx`                    | `CONNECTED`    | Verified discovery now opens a patient-safe catalogue/cart backed by authenticated commerce contracts                                  |
 | Patient prescription upload and upload history | `patient/pages/upload-prescription.tsx`, `uploads.tsx` | `CORRECTIVE`   | Purpose-bound object upload, malware scan, document verification queue, status/history, and authorized conversion to a pharmacy workflow |
-| Direct/OTC pharmacy ordering                   | `actions/direct-pharmacy-order`, pharmacy-detail flow  | `CORRECTIVE`   | Governed catalogue/cart/quote/order workflow that does not bypass payment, stock, tax, or pharmacy ownership rules                       |
+| Direct/OTC pharmacy ordering                   | `actions/direct-pharmacy-order`, pharmacy-detail flow  | `CONNECTED`    | Server-priced OTC cart creates an inventory-held quote and uses the existing acceptance, payment, handoff, and audit state machines      |
 | Administrator order oversight                  | `admin/pages/orders.tsx`                               | `CORRECTIVE`   | Privacy-minimized search/detail, exception/dispute operations, audit, and bounded reporting                                              |
 | Pharmacy inventory                             | `pharmacy/pages/inventory.tsx`                         | `CORRECTIVE`   | Internal stock ledger with products/SKUs, locations, lots/batches, expiry, adjustments, reservations, dispense linkage, and audit        |
 | Pharmacy products and product detail           | `pharmacy/pages/products.tsx`, `product.tsx`           | `CORRECTIVE`   | Governed pharmacy catalogue and price/availability management backed by inventory ownership                                              |
@@ -119,6 +119,14 @@ The prescription issuance, patient routing, quote acceptance, pharmacy order,
 payment-state, cancellation, dispensing, and handoff capabilities were replaced by
 production contracts in 11A–11C4 and remain in scope. Their old unsafe action routes do
 not need to return because the approved user outcomes must use the production services.
+
+11C4P-3 restores the approved pharmacy-detail, all/OTC/Rx filtering, catalogue,
+cart, and direct-order entry outcome. The replacement does not trust browser prices,
+expose operational stock quantities, accept prescription-only or controlled items into
+a direct cart, or mark payment as complete. Tax, delivery, and other
+jurisdiction-dependent charges cannot be supplied by the browser; protected activation
+remains fail-closed until the applicable commercial and regional pricing rules are
+qualified. Delivery presentation returns in 11C4P-5 as recorded below.
 
 ## Implementation order for the corrective work
 

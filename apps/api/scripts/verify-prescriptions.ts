@@ -496,7 +496,7 @@ async function main(): Promise<void> {
     const queuePlan = await verifyPharmacyQueuePlan(database, fixture);
 
     process.stdout.write(
-      `Prescription verification passed: owner-scoped lists, signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, FEFO inventory reservation and dispense consumption, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
+      `Prescription verification passed: owner-scoped lists, signing immutability, temporal policy guards, consented substitution, proposal/refill ordering, immutable concurrent-idempotent dispense events, quantity/refill accounting, FEFO inventory reservation and prescription/direct-OTC consumption, safe return/rerouting, cancellation/expiry concurrency, patient routing, concurrent pharmacy acceptance, bounded expiry, and ${queuePlan}.\n`,
     );
   } finally {
     await database.$disconnect();
@@ -722,6 +722,12 @@ async function verifyPlatformInventoryLifecycle(
     throw new Error("Dispensing did not atomically consume the exact FEFO reservation");
   }
 
+  await verifyDirectOtcInventoryHandoff(database, commercial, gateway, fixture, {
+    categoryId: category.id,
+    dosageFormId: dosageForm.id,
+    locationId,
+  });
+
   const expiringPrescription = await createAcceptedPrescription(
     prescriptions,
     fixture,
@@ -797,6 +803,205 @@ async function verifyPlatformInventoryLifecycle(
     !releasedLot.reservedQuantity.equals(0)
   ) {
     throw new Error("Bounded quote expiry did not release its exact inventory hold");
+  }
+}
+
+async function verifyDirectOtcInventoryHandoff(
+  database: PrismaService,
+  commercial: PrismaPharmacyCommercialRepository,
+  gateway: PlatformInventoryGateway,
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+  classification: { categoryId: string; dosageFormId: string; locationId: string },
+): Promise<void> {
+  const catalogItemId = v7();
+  const lotId = v7();
+  const now = new Date();
+  await database.$transaction([
+    database.pharmacyCatalogItem.create({
+      data: {
+        categoryId: classification.categoryId,
+        createdByPrincipalId: fixture.pharmacistPrincipalId,
+        currency: "EUR",
+        dosageFormId: classification.dosageFormId,
+        id: catalogItemId,
+        lowStockThreshold: "1",
+        name: "Synthetic direct OTC medicine",
+        nearExpiryDays: 30,
+        onHandQuantity: "3",
+        pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+        prescriptionRequired: false,
+        sku: `VERIFY-DIRECT-${catalogItemId}`,
+        unitPriceMinor: 175n,
+      },
+    }),
+    database.inventoryLot.create({
+      data: {
+        batchNumber: `DIRECT-${lotId}`,
+        catalogItemId,
+        expiryDate: new Date("2030-03-01T00:00:00.000Z"),
+        id: lotId,
+        locationId: classification.locationId,
+        onHandQuantity: "3",
+        pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+        receivedAt: now,
+      },
+    }),
+  ]);
+
+  const preparation = await commercial.findDirectPreparation({
+    catalogItemIds: [catalogItemId],
+    patientPrincipalId: fixture.patientPrincipalId,
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+  });
+  if (preparation === null || preparation.kind !== "DIRECT_OTC") {
+    throw new Error("Eligible direct OTC inventory was not quotable");
+  }
+
+  const expiresAt = new Date(Date.now() + 15 * 60_000);
+  const inventoryReservation = await gateway.reserve({
+    expiresAt,
+    idempotencyKey: `verify-direct-reservation-${v7()}`,
+    lines: [
+      {
+        catalogItemId,
+        medicationCode: null,
+        prescriptionItemId: null,
+        quantity: "2.000",
+        substitutionProposalId: null,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+  });
+  const quote = await commercial.createQuote({
+    charges: [],
+    currency: "EUR",
+    expiresAt,
+    fillNumber: null,
+    idempotencyKey: `verify-direct-quote-${v7()}`,
+    inventoryReservation,
+    lines: [
+      {
+        catalogItemId,
+        lineNumber: 1,
+        lineSubtotalMinor: 350n,
+        medicationCode: null,
+        medicationCodeSystem: null,
+        medicationName: "Synthetic direct OTC medicine",
+        prescriptionItemId: null,
+        quantity: "2.000",
+        quantityUnit: preparation.items[0]!.dosageFormName,
+        strength: null,
+        unitPriceMinor: 175n,
+      },
+    ],
+    pharmacyOrganizationId: fixture.pharmacyOrganizationId,
+    preparation,
+    principalId: fixture.patientPrincipalId,
+    requestHash: "b".repeat(64),
+  });
+  if (
+    quote === null ||
+    quote.kind !== "DIRECT_OTC" ||
+    quote.prescriptionId !== null ||
+    quote.prescriptionRouteId !== null ||
+    quote.fillNumber !== null
+  ) {
+    throw new Error("Direct OTC quote did not persist its source discriminator correctly");
+  }
+
+  const order = await commercial.acceptQuote({
+    expectedVersion: quote.version,
+    idempotencyKey: `verify-direct-accept-${v7()}`,
+    patientPrincipalId: fixture.patientPrincipalId,
+    quoteId: quote.id,
+    requestHash: "c".repeat(64),
+  });
+  if (order === null || order.prescriptionId !== null || order.prescriptionRouteId !== null) {
+    throw new Error("Direct OTC order did not preserve its source boundary");
+  }
+
+  const confirmedAt = new Date();
+  await database.$transaction([
+    database.payment.update({
+      data: {
+        providerCode: "SYNTHETIC_VERIFICATION",
+        providerOccurredAt: confirmedAt,
+        providerPaymentReference: `verify-direct-payment-${order.paymentId}`,
+        status: "SUCCEEDED",
+        succeededAt: confirmedAt,
+        version: { increment: 1 },
+      },
+      where: { id: order.paymentId },
+    }),
+    database.paymentStatusHistory.create({
+      data: {
+        fromStatus: "CREATED",
+        id: v7(),
+        occurredAt: confirmedAt,
+        paymentId: order.paymentId,
+        reasonCode: "SYNTHETIC_VERIFICATION_PAYMENT_SUCCEEDED",
+        toStatus: "SUCCEEDED",
+      },
+    }),
+    database.pharmacyOrder.update({
+      data: { confirmedAt, status: "CONFIRMED", version: { increment: 1 } },
+      where: { id: order.id },
+    }),
+    database.inventoryReservation.update({
+      data: { status: "COMMITTED", version: { increment: 1 } },
+      where: { quoteId: quote.id },
+    }),
+  ]);
+
+  const prepared = await commercial.prepareHandoff({
+    expectedOrderVersion: order.version + 1,
+    idempotencyKey: `verify-direct-prepare-${v7()}`,
+    method: "PICKUP",
+    orderId: order.id,
+    principalId: fixture.pharmacistPrincipalId,
+    requestHash: "d".repeat(64),
+  });
+  if (prepared?.handoff === null || prepared?.handoff.status !== "READY") {
+    throw new Error("Direct OTC pickup was not prepared");
+  }
+  const completed = await commercial.completeHandoff({
+    expectedHandoffVersion: prepared.handoff.version,
+    idempotencyKey: `verify-direct-complete-${v7()}`,
+    orderId: order.id,
+    principalId: fixture.pharmacistPrincipalId,
+    requestHash: "e".repeat(64),
+  });
+  if (completed?.handoff?.status !== "HANDED_OFF") {
+    throw new Error("Direct OTC pickup was not completed");
+  }
+
+  const [catalogItem, lot, reservation, allocation, movements] = await Promise.all([
+    database.pharmacyCatalogItem.findUniqueOrThrow({ where: { id: catalogItemId } }),
+    database.inventoryLot.findUniqueOrThrow({ where: { id: lotId } }),
+    database.inventoryReservation.findUniqueOrThrow({ where: { quoteId: quote.id } }),
+    database.inventoryReservationAllocation.findFirstOrThrow({
+      where: { reservation: { quoteId: quote.id } },
+    }),
+    database.inventoryMovement.findMany({
+      where: {
+        reasonCode: "DIRECT_OTC_HANDOFF",
+        referenceId: order.id,
+        referenceType: "PHARMACY_ORDER",
+        type: "DISPENSE",
+      },
+    }),
+  ]);
+  if (
+    catalogItem.onHandQuantity.toString() !== "1" ||
+    !catalogItem.reservedQuantity.equals(0) ||
+    lot.onHandQuantity.toString() !== "1" ||
+    !lot.reservedQuantity.equals(0) ||
+    reservation.status !== "CONSUMED" ||
+    allocation.consumedQuantity.toString() !== "2" ||
+    movements.length !== 1 ||
+    movements[0]?.quantity.toString() !== "2"
+  ) {
+    throw new Error("Direct OTC handoff did not atomically consume its exact reservation");
   }
 }
 

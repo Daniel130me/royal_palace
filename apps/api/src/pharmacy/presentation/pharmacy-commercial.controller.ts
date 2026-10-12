@@ -99,6 +99,24 @@ const listSchema = z
     limit: z.coerce.number().int().min(1).max(50).default(25),
   })
   .strict();
+const patientCatalogListSchema = listSchema.extend({
+  q: z.string().trim().min(1).max(120).optional(),
+});
+const directQuoteSchema = z
+  .object({
+    lines: z
+      .array(
+        z.object({ catalogItemId: idSchema, quantity: z.number().int().min(1).max(999) }).strict(),
+      )
+      .min(1)
+      .max(50),
+    validForSeconds: z.number().int().min(60).max(86_400),
+  })
+  .strict()
+  .refine(
+    (input) => new Set(input.lines.map((line) => line.catalogItemId)).size === input.lines.length,
+    { path: ["lines"] },
+  );
 const expirationSchema = z
   .object({ limit: z.coerce.number().int().min(1).max(100).default(100) })
   .strict();
@@ -237,6 +255,40 @@ export class PatientPharmacyCommercialController {
   constructor(
     @Inject(PharmacyCommercialService) private readonly commercial: PharmacyCommercialService,
   ) {}
+
+  @Get("pharmacies/:pharmacyOrganizationId/catalog-items")
+  @PolicyProtected(AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE)
+  listCatalogItems(
+    @Param("pharmacyOrganizationId") pharmacyOrganizationId: string,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(patientCatalogListSchema, query);
+    return execute(() =>
+      this.commercial.listPatientCatalogItems(context(request), {
+        ...input,
+        pharmacyOrganizationId: parse(idSchema, pharmacyOrganizationId),
+        query: input.q,
+      }),
+    );
+  }
+
+  @Post("pharmacies/:pharmacyOrganizationId/quotes")
+  @PolicyProtected(AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE)
+  createDirectQuote(
+    @Param("pharmacyOrganizationId") pharmacyOrganizationId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.commercial.createDirectQuote(context(request), {
+        ...parse(directQuoteSchema, body),
+        idempotencyKey: parse(idempotencyKeySchema, idempotencyKey),
+        pharmacyOrganizationId: parse(idSchema, pharmacyOrganizationId),
+      }),
+    );
+  }
 
   @Get("quotes")
   @PolicyProtected(AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE)

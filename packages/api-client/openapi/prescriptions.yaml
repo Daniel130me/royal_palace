@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
-    Internal service contract for synthetic-only prescription, substitution, dispensing, quote, and pharmacy-order workflows. Browser clients
+    Internal service contract for synthetic-only prescription, substitution, dispensing, direct OTC, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
 paths:
   /v1/pharmacy/catalog-items:
@@ -280,6 +280,53 @@ paths:
         "200": { $ref: "#/components/responses/PharmacyQuoteResponse" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/catalog-items:
+    get:
+      operationId: listPatientPharmacyCatalogItems
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - {
+            in: path,
+            name: pharmacyOrganizationId,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - { in: query, name: cursor, schema: { type: string, minLength: 1, maxLength: 1024 } }
+        - {
+            in: query,
+            name: limit,
+            schema: { type: integer, minimum: 1, maximum: 50, default: 25 },
+          }
+        - { in: query, name: q, schema: { type: string, minLength: 1, maxLength: 120 } }
+      responses:
+        "200": { $ref: "#/components/responses/PatientPharmacyCatalogItemListResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
+  /v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/quotes:
+    post:
+      operationId: createDirectPharmacyQuote
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+        - {
+            in: path,
+            name: pharmacyOrganizationId,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDirectPharmacyQuoteInput" }
+      responses:
+        "201": { $ref: "#/components/responses/PharmacyQuoteResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/patient/pharmacy/quotes:
     get:
@@ -850,6 +897,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/PharmacyCatalogItemList" }
+    PatientPharmacyCatalogItemListResponse:
+      description: Bounded patient-safe pharmacy catalogue page without operational stock data
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PatientPharmacyCatalogItemList" }
     InventoryLocationResponse:
       description: Pharmacy stock location
       content:
@@ -1063,6 +1115,52 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/PharmacyCatalogItem" } }
         pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PatientPharmacyCatalogItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          available,
+          brandName,
+          category,
+          controlledMedication,
+          currency,
+          directOrderEligible,
+          dosageForm,
+          genericName,
+          id,
+          manufacturer,
+          name,
+          pharmacyOrganizationId,
+          prescriptionRequired,
+          strength,
+          unitPriceMinor,
+          version,
+        ]
+      properties:
+        available: { type: boolean }
+        brandName: { type: [string, "null"] }
+        category: { $ref: "#/components/schemas/PharmacyProductClassification" }
+        controlledMedication: { type: boolean }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        directOrderEligible: { type: boolean }
+        dosageForm: { $ref: "#/components/schemas/PharmacyProductClassification" }
+        genericName: { type: [string, "null"] }
+        id: { type: string, format: uuid }
+        manufacturer: { type: [string, "null"] }
+        name: { type: string }
+        pharmacyOrganizationId: { type: string, format: uuid }
+        prescriptionRequired: { type: boolean }
+        strength: { type: [string, "null"] }
+        unitPriceMinor: { type: string, pattern: '^\d+$' }
+        version: { type: integer, minimum: 1 }
+    PatientPharmacyCatalogItemList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PatientPharmacyCatalogItem" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
     InventoryLocation:
       type: object
       additionalProperties: false
@@ -1197,13 +1295,30 @@ components:
           maxItems: 50
           items: { $ref: "#/components/schemas/PharmacyQuoteLineInput" }
         validForSeconds: { type: integer, minimum: 60, maximum: 86400 }
+    CreateDirectPharmacyQuoteInput:
+      type: object
+      additionalProperties: false
+      required: [lines, validForSeconds]
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [catalogItemId, quantity]
+            properties:
+              catalogItemId: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1, maximum: 999 }
+        validForSeconds: { type: integer, minimum: 60, maximum: 86400 }
     PharmacyQuoteLineInput:
       type: object
       additionalProperties: false
       required: [prescriptionItemId, quantity, unitPriceMinor]
       properties:
         catalogItemId: { type: string, format: uuid }
-        prescriptionItemId: { type: string, format: uuid }
+        prescriptionItemId: { type: [string, "null"], format: uuid }
         quantity: { type: string, pattern: "^(?:0|[1-9]\\d{0,8})(?:\\.\\d{1,3})?$" }
         substitutionProposalId: { type: string, format: uuid }
         unitPriceMinor: { type: string, pattern: "^\\d{1,16}$" }
@@ -1271,6 +1386,7 @@ components:
           feeMinor,
           fillNumber,
           id,
+          kind,
           inventoryReservation,
           lines,
           orderId,
@@ -1292,8 +1408,9 @@ components:
         currency: { type: string }
         expiresAt: { type: string, format: date-time }
         feeMinor: { type: string, pattern: "^\\d+$" }
-        fillNumber: { type: integer, minimum: 0, maximum: 99 }
+        fillNumber: { type: [integer, "null"], minimum: 0, maximum: 99 }
         id: { type: string, format: uuid }
+        kind: { type: string, enum: [PRESCRIPTION, DIRECT_OTC] }
         inventoryReservation:
           type: object
           additionalProperties: false
@@ -1305,8 +1422,8 @@ components:
         orderId: { type: [string, "null"], format: uuid }
         patientId: { type: string, format: uuid }
         pharmacyOrganizationId: { type: string, format: uuid }
-        prescriptionId: { type: string, format: uuid }
-        prescriptionRouteId: { type: string, format: uuid }
+        prescriptionId: { type: [string, "null"], format: uuid }
+        prescriptionRouteId: { type: [string, "null"], format: uuid }
         quoteNumber: { type: string }
         status: { type: string, enum: [ACTIVE, ACCEPTED, EXPIRED, CANCELLED, SUPERSEDED] }
         subtotalMinor: { type: string, pattern: "^\\d+$" }
@@ -1358,8 +1475,8 @@ components:
         patientId: { type: string, format: uuid }
         paymentId: { type: string, format: uuid }
         pharmacyOrganizationId: { type: string, format: uuid }
-        prescriptionId: { type: string, format: uuid }
-        prescriptionRouteId: { type: string, format: uuid }
+        prescriptionId: { type: [string, "null"], format: uuid }
+        prescriptionRouteId: { type: [string, "null"], format: uuid }
         quote: { $ref: "#/components/schemas/PharmacyQuote" }
         status:
           {

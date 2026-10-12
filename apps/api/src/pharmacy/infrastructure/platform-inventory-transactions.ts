@@ -413,6 +413,115 @@ export async function consumePlatformInventory(
   }
 }
 
+/**
+ * Consumes a paid direct-OTC reservation at physical handoff. Unlike a
+ * prescription order, the immutable handoff is the fulfillment evidence.
+ */
+export async function consumeDirectPlatformInventory(
+  transaction: Transaction,
+  input: { actorPrincipalId: string; orderId: string },
+): Promise<void> {
+  const order = await transaction.pharmacyOrder.findUnique({
+    include: {
+      quote: {
+        include: {
+          inventoryReservation: {
+            include: { allocations: { include: { lot: true } } },
+          },
+        },
+      },
+    },
+    where: { id: input.orderId },
+  });
+  const reservation = order?.quote.inventoryReservation;
+  if (
+    order === null ||
+    order === undefined ||
+    order.status !== "CONFIRMED" ||
+    order.quote.kind !== "DIRECT_OTC" ||
+    reservation === null ||
+    reservation === undefined ||
+    reservation.providerCode !== PLATFORM_INVENTORY_PROVIDER_CODE ||
+    reservation.status !== "COMMITTED"
+  ) {
+    throw new PharmacyCommercialConflictError("INVENTORY_RESERVATION_INVALID");
+  }
+  const outstanding = reservation.allocations.map((allocation) => ({
+    allocation,
+    quantity: allocation.quantity.sub(allocation.releasedQuantity).sub(allocation.consumedQuantity),
+  }));
+  if (
+    outstanding.length === 0 ||
+    outstanding.some(({ quantity }) => quantity.lessThanOrEqualTo(0))
+  ) {
+    throw new PharmacyCommercialConflictError("INVENTORY_RESERVATION_INVALID");
+  }
+  const plans = outstanding.map(({ allocation, quantity }) => ({
+    catalogItemId: allocation.catalogItemId,
+    lotId: allocation.lotId,
+    quantity,
+    quoteLineId: allocation.quoteLineId,
+  }));
+  const quantityByLot = sumPlans(plans, (plan) => plan.lotId);
+  const quantityByItem = sumPlans(plans, (plan) => plan.catalogItemId);
+  for (const [lotId, quantity] of quantityByLot) {
+    const lot = outstanding.find(({ allocation }) => allocation.lotId === lotId)!.allocation.lot;
+    const onHandAfter = lot.onHandQuantity.sub(quantity);
+    const reservedAfter = lot.reservedQuantity.sub(quantity);
+    if (onHandAfter.lessThan(0) || reservedAfter.lessThan(0)) {
+      throw new PharmacyCommercialConflictError("INVARIANT_VIOLATION");
+    }
+    const updated = await transaction.inventoryLot.updateMany({
+      data: {
+        onHandQuantity: onHandAfter,
+        reservedQuantity: reservedAfter,
+        status: onHandAfter.equals(0) ? "DEPLETED" : lot.status,
+        version: { increment: 1 },
+      },
+      where: { id: lot.id, version: lot.version },
+    });
+    if (updated.count !== 1) throw new PharmacyCommercialConflictError("VERSION_CONFLICT");
+    await transaction.inventoryMovement.create({
+      data: {
+        actorPrincipalId: input.actorPrincipalId,
+        catalogItemId: lot.catalogItemId,
+        id: createOpaqueId(),
+        idempotencyKey: `direct-handoff:${input.orderId}:${lot.id}`,
+        locationId: lot.locationId,
+        lotId: lot.id,
+        onHandAfter,
+        pharmacyOrganizationId: order.pharmacyOrganizationId,
+        quantity,
+        reasonCode: "DIRECT_OTC_HANDOFF",
+        referenceId: order.id,
+        referenceType: "PHARMACY_ORDER",
+        requestHash: movementHash("DISPENSE", order.id, lot.id, quantity),
+        reservedAfter,
+        type: "DISPENSE",
+      },
+    });
+  }
+  for (const [catalogItemId, quantity] of quantityByItem) {
+    await transaction.pharmacyCatalogItem.update({
+      data: {
+        onHandQuantity: { decrement: quantity },
+        reservedQuantity: { decrement: quantity },
+      },
+      where: { id: catalogItemId },
+    });
+  }
+  for (const { allocation, quantity } of outstanding) {
+    await transaction.inventoryReservationAllocation.update({
+      data: { consumedQuantity: { increment: quantity }, version: { increment: 1 } },
+      where: { id: allocation.id },
+    });
+  }
+  await transaction.inventoryReservation.update({
+    data: { status: "CONSUMED", version: { increment: 1 } },
+    where: { id: reservation.id },
+  });
+}
+
 function catalogMatchesMedication(
   item: {
     brandName: string | null;

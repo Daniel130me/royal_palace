@@ -686,6 +686,7 @@ export interface PharmacyPrescriptionListResponse {
 }
 
 export type PharmacyQuoteStatus = "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
+export type PharmacyQuoteKind = "PRESCRIPTION" | "DIRECT_OTC";
 
 export interface PharmacyQuoteLineResponse {
   catalogItemId: string | null;
@@ -695,7 +696,7 @@ export interface PharmacyQuoteLineResponse {
   medicationCode: string | null;
   medicationCodeSystem: string | null;
   medicationName: string;
-  prescriptionItemId: string;
+  prescriptionItemId: string | null;
   quantity: string;
   quantityUnit: string;
   strength: string | null;
@@ -717,8 +718,9 @@ export interface PharmacyQuoteResponse {
   currency: string;
   expiresAt: string;
   feeMinor: string;
-  fillNumber: number;
+  fillNumber: number | null;
   id: string;
+  kind: PharmacyQuoteKind;
   inventoryReservation: {
     expiresAt: string;
     status: "HELD" | "COMMITTED" | "RELEASED" | "CONSUMED" | "EXPIRED";
@@ -727,8 +729,8 @@ export interface PharmacyQuoteResponse {
   orderId: string | null;
   patientId: string;
   pharmacyOrganizationId: string;
-  prescriptionId: string;
-  prescriptionRouteId: string;
+  prescriptionId: string | null;
+  prescriptionRouteId: string | null;
   quoteNumber: string;
   status: PharmacyQuoteStatus;
   subtotalMinor: string;
@@ -787,8 +789,8 @@ export interface PharmacyOrderResponse {
   patientId: string;
   paymentId: string;
   pharmacyOrganizationId: string;
-  prescriptionId: string;
-  prescriptionRouteId: string;
+  prescriptionId: string | null;
+  prescriptionRouteId: string | null;
   quote: PharmacyQuoteResponse;
   status: PharmacyOrderStatus;
   updatedAt: string;
@@ -860,6 +862,31 @@ export interface PharmacyCatalogItemResponse {
 
 export interface PharmacyCatalogItemListResponse {
   data: readonly PharmacyCatalogItemResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+/** Patient-safe catalogue projection; operational stock and SKU data stay private. */
+export interface PatientPharmacyCatalogItemResponse {
+  available: boolean;
+  brandName: string | null;
+  category: PharmacyProductClassificationResponse;
+  controlledMedication: boolean;
+  currency: string;
+  directOrderEligible: boolean;
+  dosageForm: PharmacyProductClassificationResponse;
+  genericName: string | null;
+  id: string;
+  manufacturer: string | null;
+  name: string;
+  pharmacyOrganizationId: string;
+  prescriptionRequired: boolean;
+  strength: string | null;
+  unitPriceMinor: string;
+  version: number;
+}
+
+export interface PatientPharmacyCatalogItemListResponse {
+  data: readonly PatientPharmacyCatalogItemResponse[];
   pageInfo: CursorPageInfo;
 }
 

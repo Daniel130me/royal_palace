@@ -11,6 +11,7 @@ import { PharmacyCommercialService } from "../src/pharmacy/application/pharmacy-
 import type {
   InventoryGateway,
   PharmacyCommercialRepository,
+  DirectPharmacyQuotePreparation,
   PharmacyQuotePreparation,
 } from "../src/pharmacy/domain/pharmacy-commercial.types.js";
 import {
@@ -42,6 +43,7 @@ function session(
 
 function preparation(overrides: Partial<PharmacyQuotePreparation> = {}): PharmacyQuotePreparation {
   return {
+    kind: "PRESCRIPTION",
     items: [
       {
         id: createOpaqueId(),
@@ -77,6 +79,7 @@ function quoteFrom(prepared: PharmacyQuotePreparation): PharmacyQuoteResponse {
     feeMinor: "0",
     fillNumber: 0,
     id: createOpaqueId(),
+    kind: "PRESCRIPTION",
     inventoryReservation: {
       expiresAt: new Date(now.getTime() + 600_000).toISOString(),
       status: "HELD",
@@ -145,6 +148,127 @@ function createService(
 }
 
 describe("PharmacyCommercialService", () => {
+  it("builds direct OTC quotes from server-owned catalogue prices", async () => {
+    const pharmacyOrganizationId = createOpaqueId();
+    const patientPrincipalId = createOpaqueId();
+    const catalogItemId = createOpaqueId();
+    const directPreparation: DirectPharmacyQuotePreparation = {
+      items: [
+        {
+          availableQuantity: "25.000",
+          brandName: "Example",
+          catalogItemId,
+          controlledMedication: false,
+          currency: "USD",
+          dosageFormName: "tablet",
+          genericName: "Example generic",
+          medicationCode: null,
+          medicationCodeSystem: null,
+          medicationName: "Example OTC",
+          prescriptionRequired: false,
+          strength: "10 mg",
+          unitPriceMinor: 375n,
+          version: 4,
+        },
+      ],
+      kind: "DIRECT_OTC",
+      patientId: createOpaqueId(),
+      patientPrincipalId,
+    };
+    const expected = {
+      ...quoteFrom(preparation()),
+      fillNumber: null,
+      kind: "DIRECT_OTC" as const,
+      prescriptionId: null,
+      prescriptionRouteId: null,
+    };
+    const createQuote = vi.fn<PharmacyCommercialRepository["createQuote"]>(async (input) => {
+      expect(input).toMatchObject({
+        charges: [],
+        currency: "USD",
+        fillNumber: null,
+        preparation: { kind: "DIRECT_OTC" },
+      });
+      expect(input.lines[0]).toMatchObject({
+        catalogItemId,
+        lineSubtotalMinor: 750n,
+        prescriptionItemId: null,
+        unitPriceMinor: 375n,
+      });
+      return expected;
+    });
+    const service = createService({
+      createQuote,
+      findDirectPreparation: vi.fn(async () => directPreparation),
+    });
+
+    await expect(
+      service.createDirectQuote(
+        {
+          actor: session("PATIENT", { principalId: patientPrincipalId }),
+          requestId: "request-direct-quote",
+        },
+        {
+          idempotencyKey: "direct-quote-key",
+          lines: [{ catalogItemId, quantity: 2 }],
+          pharmacyOrganizationId,
+          validForSeconds: 600,
+        },
+      ),
+    ).resolves.toEqual(expected);
+    expect(createQuote).toHaveBeenCalledOnce();
+  });
+
+  it("rejects prescription-only catalogue items before reserving inventory", async () => {
+    const pharmacyOrganizationId = createOpaqueId();
+    const patientPrincipalId = createOpaqueId();
+    const catalogItemId = createOpaqueId();
+    const reserve = vi.fn<InventoryGateway["reserve"]>();
+    const directPreparation: DirectPharmacyQuotePreparation = {
+      items: [
+        {
+          availableQuantity: "10.000",
+          brandName: null,
+          catalogItemId,
+          controlledMedication: false,
+          currency: "USD",
+          dosageFormName: "tablet",
+          genericName: null,
+          medicationCode: null,
+          medicationCodeSystem: null,
+          medicationName: "Prescription medicine",
+          prescriptionRequired: true,
+          strength: null,
+          unitPriceMinor: 500n,
+          version: 1,
+        },
+      ],
+      kind: "DIRECT_OTC",
+      patientId: createOpaqueId(),
+      patientPrincipalId,
+    };
+    const service = createService(
+      { findDirectPreparation: vi.fn(async () => directPreparation) },
+      { providerCode: "TEST", release: vi.fn(async () => undefined), reserve },
+    );
+
+    await expect(
+      service.createDirectQuote(
+        {
+          actor: session("PATIENT", { principalId: patientPrincipalId }),
+          requestId: "request-direct-rx-rejected",
+        },
+        {
+          idempotencyKey: "direct-rx-key",
+          lines: [{ catalogItemId, quantity: 1 }],
+          pharmacyOrganizationId,
+          validForSeconds: 600,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "direct_item_not_eligible", status: 400 });
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
   it("fails closed when inventory qualification is disabled", async () => {
     await expect(
       createService({}, new SyntheticInventoryGateway(), false).getQuote(

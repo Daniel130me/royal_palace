@@ -228,6 +228,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/catalog-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientPharmacyCatalogItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/pharmacy/pharmacies/{pharmacyOrganizationId}/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createDirectPharmacyQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/patient/pharmacy/quotes": {
         parameters: {
             query?: never;
@@ -714,6 +746,30 @@ export interface components {
             data: components["schemas"]["PharmacyCatalogItem"][];
             pageInfo: components["schemas"]["CursorPageInfo"];
         };
+        PatientPharmacyCatalogItem: {
+            available: boolean;
+            brandName: string | null;
+            category: components["schemas"]["PharmacyProductClassification"];
+            controlledMedication: boolean;
+            currency: string;
+            directOrderEligible: boolean;
+            dosageForm: components["schemas"]["PharmacyProductClassification"];
+            genericName: string | null;
+            /** Format: uuid */
+            id: string;
+            manufacturer: string | null;
+            name: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            prescriptionRequired: boolean;
+            strength: string | null;
+            unitPriceMinor: string;
+            version: number;
+        };
+        PatientPharmacyCatalogItemList: {
+            data: components["schemas"]["PatientPharmacyCatalogItem"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
         InventoryLocation: {
             code: string;
             /** Format: uuid */
@@ -793,11 +849,19 @@ export interface components {
             lines: components["schemas"]["PharmacyQuoteLineInput"][];
             validForSeconds: number;
         };
+        CreateDirectPharmacyQuoteInput: {
+            lines: {
+                /** Format: uuid */
+                catalogItemId: string;
+                quantity: number;
+            }[];
+            validForSeconds: number;
+        };
         PharmacyQuoteLineInput: {
             /** Format: uuid */
             catalogItemId?: string;
             /** Format: uuid */
-            prescriptionItemId: string;
+            prescriptionItemId: string | null;
             quantity: string;
             /** Format: uuid */
             substitutionProposalId?: string;
@@ -846,9 +910,11 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             feeMinor: string;
-            fillNumber: number;
+            fillNumber: number | null;
             /** Format: uuid */
             id: string;
+            /** @enum {string} */
+            kind: "PRESCRIPTION" | "DIRECT_OTC";
             inventoryReservation: {
                 /** Format: date-time */
                 expiresAt: string;
@@ -863,9 +929,9 @@ export interface components {
             /** Format: uuid */
             pharmacyOrganizationId: string;
             /** Format: uuid */
-            prescriptionId: string;
+            prescriptionId: string | null;
             /** Format: uuid */
-            prescriptionRouteId: string;
+            prescriptionRouteId: string | null;
             quoteNumber: string;
             /** @enum {string} */
             status: "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
@@ -897,9 +963,9 @@ export interface components {
             /** Format: uuid */
             pharmacyOrganizationId: string;
             /** Format: uuid */
-            prescriptionId: string;
+            prescriptionId: string | null;
             /** Format: uuid */
-            prescriptionRouteId: string;
+            prescriptionRouteId: string | null;
             quote: components["schemas"]["PharmacyQuote"];
             /** @enum {string} */
             status: "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "REFUNDED" | "DISPUTE_PENDING" | "DISPUTED";
@@ -1289,6 +1355,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["PharmacyCatalogItemList"];
+            };
+        };
+        /** @description Bounded patient-safe pharmacy catalogue page without operational stock data */
+        PatientPharmacyCatalogItemListResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PatientPharmacyCatalogItemList"];
             };
         };
         /** @description Pharmacy stock location */
@@ -1766,6 +1841,55 @@ export interface operations {
             200: components["responses"]["PharmacyQuoteResponse"];
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    listPatientPharmacyCatalogItems: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                q?: string;
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                pharmacyOrganizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PatientPharmacyCatalogItemListResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            503: components["responses"]["WorkflowDisabled"];
+        };
+    };
+    createDirectPharmacyQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                pharmacyOrganizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDirectPharmacyQuoteInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyQuoteResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             503: components["responses"]["WorkflowDisabled"];
         };
     };

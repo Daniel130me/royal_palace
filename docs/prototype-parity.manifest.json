@@ -560,9 +560,13 @@
         {
           "id": "pharmacy-detail",
           "file": "pages/pharmacy-detail.tsx",
-          "status": "CORRECTIVE",
+          "status": "CONNECTED",
           "checkpoint": "11C4P-3",
-          "productionFiles": []
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/pharmacy-detail.tsx",
+            "apps/api/src/pharmacy/application/pharmacy-commercial.service.ts",
+            "apps/api/src/pharmacy/infrastructure/prisma-pharmacy-commercial.repository.ts"
+          ]
         },
         {
           "id": "prescription-detail",

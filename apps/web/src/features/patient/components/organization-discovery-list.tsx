@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { initials } from "@/lib/format";
+import { navigate } from "@/lib/nav";
 import { formatPublicLocation, publicLocationLabel } from "@/lib/public-location";
 import { publicDiscoveryService } from "@/lib/services";
 
@@ -179,6 +180,17 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
             return (
               <CompactListItem
                 key={item.id}
+                chevron={props.organizationType === "PHARMACY"}
+                onClick={
+                  props.organizationType === "PHARMACY"
+                    ? () =>
+                        navigate("patient", "pharmacy", {
+                          id: item.id,
+                          location: location === undefined ? "" : formatPublicLocation(location),
+                          name: item.displayName,
+                        })
+                    : undefined
+                }
                 leading={
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className={props.accentClassName}>

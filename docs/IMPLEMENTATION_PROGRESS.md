@@ -267,7 +267,14 @@ that completes an increment.
           bounded `SYSTEM_WORKER` expiry boundary reclaims abandoned holds safely under
           concurrent runs. The platform-owned adapter is allowed in protected
           environments; synthetic inventory remains prohibited there.
-      - `[ ]` 11C4P-3 OTC/direct ordering.
+      - `[x]` 11C4P-3 OTC/direct ordering. Verified pharmacy discovery now opens the
+        approved catalogue/cart experience. Patient-safe bounded catalogue reads hide
+        operational stock data; server-owned price snapshots, item eligibility,
+        idempotency, FEFO holds, payment creation, cancellation, direct handoff
+        consumption, database source constraints, and audit authorization all reuse the
+        production commercial aggregate. Protected activation stays disabled pending
+        jurisdictional tax/fee and provider qualification; no browser-supplied charge
+        can enter the quote.
       - `[ ]` 11C4P-4 scanned-prescription upload and verification history.
       - `[ ]` 11C4P-5 notifications, settings, delivery integration, and admin order
         oversight.

@@ -7,6 +7,18 @@ type Context = { params: Promise<{ segments?: string[] }> };
 
 export async function GET(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
+  const pharmacyId = exactUuid(segments[1]);
+  if (
+    segments.length === 3 &&
+    segments[0] === "pharmacies" &&
+    pharmacyId !== null &&
+    segments[2] === "catalog-items"
+  ) {
+    return proxyAuthenticatedList(
+      request,
+      `/v1/patient/pharmacy/pharmacies/${pharmacyId}/catalog-items`,
+    );
+  }
   if (segments.length === 1 && ["quotes", "orders"].includes(segments[0]!)) {
     return proxyAuthenticatedList(request, `/v1/patient/pharmacy/${segments[0]}`);
   }
@@ -18,6 +30,19 @@ export async function GET(request: NextRequest, context: Context) {
 
 export async function POST(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
+  const pharmacyId = exactUuid(segments[1]);
+  if (
+    segments.length === 3 &&
+    segments[0] === "pharmacies" &&
+    pharmacyId !== null &&
+    segments[2] === "quotes"
+  ) {
+    return proxyAuthenticatedApi(
+      request,
+      `/v1/patient/pharmacy/pharmacies/${pharmacyId}/quotes`,
+      "POST",
+    );
+  }
   const resourceId = exactUuid(segments[1]);
   if (resourceId === null || segments.length !== 3) return pharmacyBffNotFound();
   const action = segments[0] === "quotes" ? "accept" : segments[0] === "orders" ? "cancel" : null;
