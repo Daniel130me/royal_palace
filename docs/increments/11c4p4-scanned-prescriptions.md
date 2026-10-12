@@ -82,6 +82,9 @@ image as a platform-authored clinical prescription:
 - The previously published 4A migration is unchanged. Audit-trigger enrichment and
   scanned-quote schema changes are forward-only migrations, avoiding migration checksum
   drift in environments that have already applied 4A.
+- A forward-only alignment migration gives the scanned-prescription foreign keys their
+  deterministic Prisma names. This removes schema drift without changing referential
+  behavior or rewriting either published migration.
 - Non-standard condition: the published 4A migration predates the repository's explicit
   transaction wrapper rule. Its normalized SHA-256 digest is pinned in the migration
   verifier so it cannot drift silently; all later migrations remain required to use
