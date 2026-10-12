@@ -6,6 +6,7 @@ import type { paths as ManagerPaths } from "./generated/manager.js";
 import type { paths as SchedulingPaymentPaths } from "./generated/scheduling-payment.js";
 import type { paths as NotificationPaths } from "./generated/notifications.js";
 import type { paths as PrescriptionPaths } from "./generated/prescriptions.js";
+import type { paths as LaboratoryPaths } from "./generated/laboratory.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
 export type {
@@ -28,6 +29,10 @@ export type {
   components as PrescriptionComponents,
   paths as PrescriptionPaths,
 } from "./generated/prescriptions.js";
+export type {
+  components as LaboratoryComponents,
+  paths as LaboratoryPaths,
+} from "./generated/laboratory.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
@@ -89,6 +94,17 @@ export function createPrescriptionClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<PrescriptionPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createLaboratoryClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<LaboratoryPaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

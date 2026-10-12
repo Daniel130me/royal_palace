@@ -802,6 +802,79 @@ export interface PharmacyPrescriptionListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export type LaboratoryRequestPriority = "ROUTINE" | "URGENT";
+export type LaboratoryRequestStatus = "ACTIVE" | "CANCELLED" | "COMPLETED";
+export type LaboratoryBookingStatus =
+  | "CONFIRMED"
+  | "SAMPLE_COLLECTION_PENDING"
+  | "SAMPLE_COLLECTED"
+  | "PROCESSING"
+  | "RESULT_READY"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface LaboratoryStatusHistoryResponse<TStatus extends string> {
+  fromStatus: TStatus | null;
+  id: string;
+  occurredAt: string;
+  reasonCode: string;
+  toStatus: TStatus;
+}
+
+export interface LaboratoryBookingResponse {
+  acceptedAt: string;
+  bookingNumber: string;
+  cancelledAt: string | null;
+  completedAt: string | null;
+  id: string;
+  laboratory: { displayName: string; id: string };
+  processingStartedAt: string | null;
+  resultReadyAt: string | null;
+  sampleCollectedAt: string | null;
+  scheduledAt: string | null;
+  status: LaboratoryBookingStatus;
+  statusHistory: readonly LaboratoryStatusHistoryResponse<LaboratoryBookingStatus>[];
+  updatedAt: string;
+  version: number;
+}
+
+export interface LaboratoryRequestResponse {
+  appointmentId: string;
+  bookings: readonly LaboratoryBookingResponse[];
+  cancelledAt: string | null;
+  clinicalIndication: string;
+  completedAt: string | null;
+  createdAt: string;
+  id: string;
+  orderedAt: string;
+  patient: { displayName: string; id: string };
+  practitioner: { displayName: string; id: string };
+  priority: LaboratoryRequestPriority;
+  requestNumber: string;
+  service: { code: string; id: string; name: string };
+  specimenInstructions: string | null;
+  status: LaboratoryRequestStatus;
+  statusHistory: readonly LaboratoryStatusHistoryResponse<LaboratoryRequestStatus>[];
+  updatedAt: string;
+  version: number;
+}
+
+export interface LaboratoryRequestListResponse {
+  data: readonly LaboratoryRequestResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+/** Laboratory queues omit consultation linkage and practitioner-only clinical context. */
+export type LaboratoryQueueRequestResponse = Omit<
+  LaboratoryRequestResponse,
+  "appointmentId" | "statusHistory"
+>;
+
+export interface LaboratoryBookingListResponse {
+  data: readonly LaboratoryQueueRequestResponse[];
+  pageInfo: CursorPageInfo;
+}
+
 export type PharmacyQuoteStatus = "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
 export type PharmacyQuoteKind = "PRESCRIPTION" | "DIRECT_OTC" | "SCANNED_PRESCRIPTION";
 

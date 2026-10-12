@@ -313,10 +313,15 @@ that completes an increment.
     - `[x]` 11D1 establishes the additive request/booking aggregate, append-only
       histories, PostgreSQL state and ownership constraints, queue/owner indexes,
       application state machines, and default-deny practitioner/patient/exact-lab
-      authorization. It is synthetic-only and has no browser or real clinical
-      activation.
-    - `[ ]` 11D2–11D4 API/routing, operations UI, result/critical-result, commercial
-      parity, migration/load evidence, and qualification remain open.
+      authorization. It is synthetic-only and has no real clinical activation.
+    - `[x]` 11D2A adds verified-practitioner request creation, patient-owned verified
+      laboratory routing, idempotent booking, exact-organization queues/detail,
+      controlled collection/processing/cancellation transitions, business audit,
+      generated OpenAPI, and exact BFF allowlists. Cross-laboratory history is filtered
+      at the response boundary and real activation remains disabled.
+    - `[ ]` 11D2B–11D4 operations UI cutover, result/critical-result, commercial parity,
+      migration/load evidence, and qualification remain open. Every approved laboratory,
+      patient, and practitioner prototype capability remains in the release register.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

@@ -1,0 +1,410 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Laboratory API
+  version: 1.0.0
+  description: >-
+    Synthetic-only laboratory request, patient routing, and laboratory operations contract.
+    Browser clients use authenticated same-origin backend-for-frontend routes.
+paths:
+  /v1/provider/laboratory-requests:
+    get:
+      operationId: listPractitionerLaboratoryRequests
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - { in: query, name: patientId, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          {
+            description: Issuer-scoped requests,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/LaboratoryRequestList" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+    post:
+      operationId: createLaboratoryRequest
+      parameters: [{ $ref: "#/components/parameters/RequestId" }]
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/CreateLaboratoryRequestInput" } },
+          }
+      responses:
+        "201":
+          {
+            description: Laboratory request created,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/LaboratoryRequest" } } },
+          }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/patient/laboratory-requests:
+    get:
+      operationId: listPatientLaboratoryRequests
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          {
+            description: Patient-owned requests,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/LaboratoryRequestList" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/patient/laboratory-requests/{requestId}/bookings:
+    post:
+      operationId: bookLaboratoryRequest
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+        - { $ref: "#/components/parameters/LaboratoryRequestId" }
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/BookLaboratoryRequestInput" } },
+          }
+      responses:
+        "201":
+          {
+            description: Laboratory booking created,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/LaboratoryRequest" } } },
+          }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/laboratory-requests/{requestId}:
+    get:
+      operationId: getLaboratoryRequest
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/LaboratoryRequestId" }
+      responses:
+        "200":
+          {
+            description: Relationship-scoped request,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/LaboratoryRequest" } } },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/laboratory/bookings:
+    get:
+      operationId: listLaboratoryBookings
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - {
+            in: query,
+            name: status,
+            schema: { $ref: "#/components/schemas/LaboratoryBookingStatus" },
+          }
+      responses:
+        "200":
+          {
+            description: Exact-organization laboratory queue,
+            content:
+              {
+                application/json: { schema: { $ref: "#/components/schemas/LaboratoryQueueList" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/laboratory/bookings/{bookingId}/transitions:
+    post:
+      operationId: transitionLaboratoryBooking
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: bookingId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/TransitionLaboratoryBookingInput" } },
+          }
+      responses:
+        "200":
+          {
+            description: Booking transitioned,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/LaboratoryQueueRequest" } },
+              },
+          }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/laboratory/bookings/{bookingId}:
+    get:
+      operationId: getLaboratoryBooking
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: bookingId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          {
+            description: Organization-scoped booking detail,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/LaboratoryQueueRequest" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  parameters:
+    RequestId:
+      {
+        in: header,
+        name: x-request-id,
+        required: true,
+        schema: { type: string, minLength: 1, maxLength: 128 },
+      }
+    OrganizationId:
+      {
+        in: header,
+        name: x-organization-id,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    IdempotencyKey:
+      {
+        in: header,
+        name: Idempotency-Key,
+        required: true,
+        schema: { type: string, minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" },
+      }
+    Cursor: { in: query, name: cursor, schema: { type: string, minLength: 1, maxLength: 1024 } }
+    Limit:
+      { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50, default: 25 } }
+    LaboratoryRequestId:
+      { in: path, name: requestId, required: true, schema: { type: string, format: uuid } }
+  responses:
+    InvalidRequest: { description: Invalid request }
+    AccessDenied: { description: Access denied }
+    Conflict: { description: Concurrent or invariant conflict }
+    NotFound: { description: Resource not found }
+  schemas:
+    CursorPageInfo:
+      type: object
+      additionalProperties: false
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    NamedResource:
+      type: object
+      additionalProperties: false
+      required: [displayName, id]
+      properties:
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+    ServiceResource:
+      type: object
+      additionalProperties: false
+      required: [code, id, name]
+      properties:
+        code: { type: string }
+        id: { type: string, format: uuid }
+        name: { type: string }
+    LaboratoryRequestStatus: { type: string, enum: [ACTIVE, CANCELLED, COMPLETED] }
+    LaboratoryBookingStatus:
+      {
+        type: string,
+        enum:
+          [
+            CONFIRMED,
+            SAMPLE_COLLECTION_PENDING,
+            SAMPLE_COLLECTED,
+            PROCESSING,
+            RESULT_READY,
+            COMPLETED,
+            CANCELLED,
+          ],
+      }
+    LaboratoryRequestPriority: { type: string, enum: [ROUTINE, URGENT] }
+    RequestStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [fromStatus, id, occurredAt, reasonCode, toStatus]
+      properties:
+        fromStatus:
+          { oneOf: [{ $ref: "#/components/schemas/LaboratoryRequestStatus" }, { type: "null" }] }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        reasonCode: { type: string }
+        toStatus: { $ref: "#/components/schemas/LaboratoryRequestStatus" }
+    BookingStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [fromStatus, id, occurredAt, reasonCode, toStatus]
+      properties:
+        fromStatus:
+          { oneOf: [{ $ref: "#/components/schemas/LaboratoryBookingStatus" }, { type: "null" }] }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        reasonCode: { type: string }
+        toStatus: { $ref: "#/components/schemas/LaboratoryBookingStatus" }
+    LaboratoryBooking:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acceptedAt,
+          bookingNumber,
+          cancelledAt,
+          completedAt,
+          id,
+          laboratory,
+          processingStartedAt,
+          resultReadyAt,
+          sampleCollectedAt,
+          scheduledAt,
+          status,
+          statusHistory,
+          updatedAt,
+          version,
+        ]
+      properties:
+        acceptedAt: { type: string, format: date-time }
+        bookingNumber: { type: string }
+        cancelledAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        id: { type: string, format: uuid }
+        laboratory: { $ref: "#/components/schemas/NamedResource" }
+        processingStartedAt: { type: [string, "null"], format: date-time }
+        resultReadyAt: { type: [string, "null"], format: date-time }
+        sampleCollectedAt: { type: [string, "null"], format: date-time }
+        scheduledAt: { type: [string, "null"], format: date-time }
+        status: { $ref: "#/components/schemas/LaboratoryBookingStatus" }
+        statusHistory: { type: array, items: { $ref: "#/components/schemas/BookingStatusHistory" } }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    LaboratoryRequestBase:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          bookings,
+          cancelledAt,
+          clinicalIndication,
+          completedAt,
+          createdAt,
+          id,
+          orderedAt,
+          patient,
+          practitioner,
+          priority,
+          requestNumber,
+          service,
+          specimenInstructions,
+          status,
+          updatedAt,
+          version,
+        ]
+      properties:
+        bookings: { type: array, items: { $ref: "#/components/schemas/LaboratoryBooking" } }
+        cancelledAt: { type: [string, "null"], format: date-time }
+        clinicalIndication: { type: string }
+        completedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        orderedAt: { type: string, format: date-time }
+        patient: { $ref: "#/components/schemas/NamedResource" }
+        practitioner: { $ref: "#/components/schemas/NamedResource" }
+        priority: { $ref: "#/components/schemas/LaboratoryRequestPriority" }
+        requestNumber: { type: string }
+        service: { $ref: "#/components/schemas/ServiceResource" }
+        specimenInstructions: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/LaboratoryRequestStatus" }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    LaboratoryRequest:
+      allOf:
+        - { $ref: "#/components/schemas/LaboratoryRequestBase" }
+        - type: object
+          required: [appointmentId, statusHistory]
+          properties:
+            appointmentId: { type: string, format: uuid }
+            statusHistory:
+              { type: array, items: { $ref: "#/components/schemas/RequestStatusHistory" } }
+    LaboratoryQueueRequest:
+      description: Laboratory view omits consultation linkage and request history.
+      $ref: "#/components/schemas/LaboratoryRequestBase"
+    LaboratoryRequestList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/LaboratoryRequest" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    LaboratoryQueueList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/LaboratoryQueueRequest" } }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    CreateLaboratoryRequestInput:
+      type: object
+      additionalProperties: false
+      required: [appointmentId, clinicalIndication, patientId, serviceId]
+      properties:
+        appointmentId: { type: string, format: uuid }
+        clinicalIndication: { type: string, minLength: 1, maxLength: 2000 }
+        patientId: { type: string, format: uuid }
+        priority: { $ref: "#/components/schemas/LaboratoryRequestPriority" }
+        serviceId: { type: string, format: uuid }
+        specimenInstructions: { type: string, minLength: 1, maxLength: 1000 }
+    BookLaboratoryRequestInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, laboratoryOrganizationId]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        laboratoryOrganizationId: { type: string, format: uuid }
+        scheduledAt: { type: string, format: date-time }
+    TransitionLaboratoryBookingInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reasonCode, toStatus]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        reasonCode:
+          {
+            type: string,
+            enum:
+              [
+                collection_arranged,
+                sample_collected,
+                processing_started,
+                patient_cancelled,
+                laboratory_cancelled,
+                sample_invalid,
+              ],
+          }
+        toStatus:
+          {
+            type: string,
+            enum: [SAMPLE_COLLECTION_PENDING, SAMPLE_COLLECTED, PROCESSING, CANCELLED],
+          }

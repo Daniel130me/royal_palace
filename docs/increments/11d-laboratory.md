@@ -6,9 +6,10 @@
 
 This increment replaces the approved laboratory prototype surfaces with a controlled
 production aggregate. It does not remove or narrow the signed prototype scope.
-Checkpoint 11D1 establishes the durable request and booking boundary; API, result,
-critical-result, commercial, notification, settings, and browser work remain tracked
-below and must be completed before parity can be claimed.
+Checkpoint 11D1 establishes the durable request and booking boundary. Checkpoint 11D2A
+adds the authenticated production API and BFF boundary. Result, critical-result,
+commercial, notification, settings, and browser cutover work remain tracked below and
+must be completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -43,11 +44,18 @@ below and must be completed before parity can be claimed.
 - [x] Add explicit application-layer request and booking state machines with tests.
 - [x] Add named, default-deny authorization policies for the issuing practitioner,
       owning patient, and exact laboratory membership; deny managers and support.
-- [ ] Add repository/application services, idempotency, audit events, OpenAPI contracts,
-      exact BFF routes, telemetry, and representative query-plan evidence.
+- [x] Add repository/application services, booking idempotency, business and
+      authorization audit events, generated OpenAPI contracts, and exact BFF routes.
+- [ ] Add representative laboratory query-plan/load evidence and protected-environment
+      telemetry validation before 11D qualification.
 
 ### 11D2 — request routing and laboratory operations
 
+- [x] 11D2A provides verified-practitioner request creation, patient-owned laboratory
+      selection, organization-scoped queues and booking detail, bounded cursor
+      pagination, optimistic transitions through processing/cancellation, synthetic-only
+      fail-closed activation, and privacy-minimized laboratory projections. Result-ready
+      and completion transitions remain reserved for verified result publication.
 - [ ] Connect practitioner request creation and patient laboratory selection.
 - [ ] Add laboratory queues, scheduling, specimen collection, processing, cancellation,
       bounded cursor pagination, concurrency tests, and privacy-minimized projections.
@@ -107,6 +115,7 @@ It replaces only the booking-scope trigger function and does not rewrite stored 
   independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
-- **Non-standard/open work:** 11D1 is a foundation checkpoint, not a usable laboratory
-  feature. It has no API/browser activation or result aggregate yet; those are explicit
-  release-blocking items above.
+- **Non-standard/open work:** 11D2A is an API checkpoint, not complete prototype parity.
+  The approved screens still use their legacy prototype services until 11D2B connects
+  them atomically; result, critical-result, commercial, and qualification work remains
+  explicitly release-blocking. No approved screen or capability has been removed.
