@@ -10,9 +10,20 @@ import {
   requireCsrf,
   SESSION_COOKIE,
   setAuthenticatedCookies,
+  trustedCallbackUrl,
 } from "../../src/lib/auth/bff.js";
 
 describe("BFF authentication boundary", () => {
+  it("reconstructs OIDC callbacks from the configured origin instead of the request host", () => {
+    const request = new NextRequest(
+      "http://untrusted-proxy.invalid/api/bff/auth/callback?code=opaque&state=state",
+    );
+
+    expect(trustedCallbackUrl(request)).toBe(
+      "http://127.0.0.1:3000/api/bff/auth/callback?code=opaque&state=state",
+    );
+  });
+
   it("stores an encrypted HttpOnly session reference and rejects tampering", () => {
     const response = NextResponse.json({ ok: true });
     setAuthenticatedCookies(response, "0199a18e-a400-7000-8000-000000000001", "csrf-token");

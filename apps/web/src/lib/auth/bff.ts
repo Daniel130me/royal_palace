@@ -341,6 +341,15 @@ export function webOrigin(): string {
   return config.webOrigin;
 }
 
+export function trustedCallbackUrl(request: NextRequest): string {
+  // Host and forwarded-host headers are proxy-controlled. OIDC callback validation
+  // must use the configured public origin rather than reflecting either header.
+  return new URL(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    config.webOrigin,
+  ).toString();
+}
+
 function baseCookieOptions(httpOnly: boolean) {
   return {
     httpOnly,

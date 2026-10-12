@@ -180,3 +180,19 @@ are explicitly flagged rather than presented as production-ready.
 **Next increment:** Increment 05 — named default-deny policy engine and audit boundary.
 Increment 04B stays visible as a separate release gate and is not silently absorbed into
 later work.
+
+## Local browser-review addendum (2026-10-12)
+
+The original 04A checkpoint intentionally shipped only an in-process OIDC conformance
+fixture. Browser acceptance review subsequently required an interactive credential
+screen. A loopback-only synthetic OIDC runtime now provides that screen and the same
+Authorization Code + PKCE contract used by a qualified provider. It is guarded by
+`APP_ENV=development`, an explicit `SYNTHETIC_IDENTITY_ENABLED=true` opt-in, loopback
+issuer/callback validation, and synthetic `.invalid` accounts. The runtime cannot start
+in staging or production and is not a deployment or outage fallback.
+
+Reviewer accounts are linked through normal external identities to application-owned
+roles and organization memberships. Browser sessions therefore continue to derive
+authorization from PostgreSQL, never from submitted roles or a persona selector. The
+local credential is supplied only through the ignored `.env.local` file, is never stored
+in the application database, and must not be reused in any protected environment.

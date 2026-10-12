@@ -8,6 +8,7 @@ import {
   readLoginTransactionId,
   requestId,
   setAuthenticatedCookies,
+  trustedCallbackUrl,
   webOrigin,
 } from "@/lib/auth/bff";
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const result = await callIdentityApi<CompleteLoginResponse>(
       "/v1/internal/auth/login/callback",
       {
-        currentUrl: request.url,
+        currentUrl: trustedCallbackUrl(request),
         transactionId: readLoginTransactionId(request),
       },
       requestId(request),

@@ -2,11 +2,45 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
+import { SYNTHETIC_IDENTITY_ACCOUNTS } from "../scripts/synthetic-identity/accounts.js";
 import { PROFESSION_SEEDS, SPECIALTY_SEEDS } from "./seed-data/practitioner-catalogues.js";
 
-const SYNTHETIC_ISSUER = "https://identity.synthetic.invalid";
-const SYNTHETIC_SUPPORT_ROLE_ID = "0199a18e-a400-7000-8000-000000000001";
-const SYNTHETIC_ADMIN_ROLE_ID = "0199a18e-a400-7000-8000-000000000002";
+const SYNTHETIC_ROLE_IDS = {
+  "administrator-reviewer": "0199a18e-a400-7000-8000-000000000001",
+  "support-reviewer": "0199a18e-a400-7000-8000-000000000002",
+  "patient-reviewer": "0199a18e-a400-7000-8000-000000000003",
+  "provider-reviewer": "0199a18e-a400-7000-8000-000000000004",
+  "manager-reviewer": "0199a18e-a400-7000-8000-000000000005",
+  "logistics-reviewer": "0199a18e-a400-7000-8000-000000000006",
+  "hospital-reviewer": "0199a18e-a400-7000-8000-000000000007",
+  "pharmacy-reviewer": "0199a18e-a400-7000-8000-000000000008",
+  "laboratory-reviewer": "0199a18e-a400-7000-8000-000000000009",
+} as const;
+const SYNTHETIC_REVIEWER_ROLES = {
+  "administrator-reviewer": "ADMINISTRATOR",
+  "support-reviewer": "SUPPORT",
+  "patient-reviewer": "PATIENT",
+  "provider-reviewer": "PROVIDER",
+  "manager-reviewer": "MANAGER",
+  "logistics-reviewer": "LOGISTICS",
+} as const;
+const SYNTHETIC_MEMBERSHIPS = [
+  {
+    membershipId: "0199a18e-a400-7000-8000-000000000021",
+    organizationId: "0199a18e-a400-7000-8000-000000000201",
+    subject: "hospital-reviewer",
+  },
+  {
+    membershipId: "0199a18e-a400-7000-8000-000000000022",
+    organizationId: "0199a18e-a400-7000-8000-000000000203",
+    subject: "pharmacy-reviewer",
+  },
+  {
+    membershipId: "0199a18e-a400-7000-8000-000000000023",
+    organizationId: "0199a18e-a400-7000-8000-000000000204",
+    subject: "laboratory-reviewer",
+  },
+] as const;
 const SYNTHETIC_SERVICES = [
   {
     id: "0199a18e-a400-7000-8000-000000000101",
@@ -218,88 +252,153 @@ async function main(): Promise<void> {
   assertSyntheticSeedIsAllowed();
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl === undefined) throw new Error("DATABASE_URL is required");
+  const syntheticIssuer = syntheticIssuerFromEnvironment();
 
   const database = new PrismaClient({
     adapter: new PrismaPg({ connectionString: databaseUrl }),
   });
 
   try {
-    const externalIdentity = await database.externalIdentity.findUnique({
-      where: {
-        issuer_subject: {
-          issuer: SYNTHETIC_ISSUER,
-          subject: "support-reviewer",
-        },
-      },
-      select: { principalId: true },
-    });
-    const principal =
-      externalIdentity === null
-        ? await database.identityPrincipal.create({
-            data: {
-              id: createOpaqueId(),
-              externalIdentities: {
-                create: {
-                  id: createOpaqueId(),
-                  issuer: SYNTHETIC_ISSUER,
-                  subject: "support-reviewer",
-                },
-              },
-            },
-            select: { id: true },
-          })
-        : { id: externalIdentity.principalId };
-
-    await database.roleAssignment.upsert({
-      where: { id: SYNTHETIC_SUPPORT_ROLE_ID },
-      create: {
-        id: SYNTHETIC_SUPPORT_ROLE_ID,
-        principalId: principal.id,
-        role: "SUPPORT",
-        scope: "PLATFORM",
-      },
-      update: {},
-      select: { id: true },
-    });
-    const adminIdentity = await database.externalIdentity.findUnique({
-      where: {
-        issuer_subject: { issuer: SYNTHETIC_ISSUER, subject: "administrator-reviewer" },
-      },
-      select: { principalId: true },
-    });
-    const administrator =
-      adminIdentity === null
-        ? await database.identityPrincipal.create({
-            data: {
-              id: createOpaqueId(),
-              externalIdentities: {
-                create: {
-                  id: createOpaqueId(),
-                  issuer: SYNTHETIC_ISSUER,
-                  subject: "administrator-reviewer",
-                },
-              },
-            },
-            select: { id: true },
-          })
-        : { id: adminIdentity.principalId };
-    await database.roleAssignment.upsert({
-      where: { id: SYNTHETIC_ADMIN_ROLE_ID },
-      create: {
-        id: SYNTHETIC_ADMIN_ROLE_ID,
-        principalId: administrator.id,
-        role: "ADMINISTRATOR",
-        scope: "PLATFORM",
-      },
-      update: {},
-      select: { id: true },
-    });
+    const reviewerPrincipals = await seedReviewerIdentities(database, syntheticIssuer);
     await seedPublicDiscovery(database);
     await seedPractitionerDiscovery(database);
+    await seedReviewerPortals(database, reviewerPrincipals);
     await seedOnboardingApplications(database);
   } finally {
     await database.$disconnect();
   }
+}
+
+type ReviewerPrincipalMap = ReadonlyMap<string, string>;
+
+async function seedReviewerIdentities(
+  database: PrismaClient,
+  issuer: string,
+): Promise<ReviewerPrincipalMap> {
+  const principals = new Map<string, string>();
+  for (const account of SYNTHETIC_IDENTITY_ACCOUNTS) {
+    const externalIdentity = await database.externalIdentity.findUnique({
+      where: { issuer_subject: { issuer, subject: account.subject } },
+      select: { principalId: true },
+    });
+    const principalId =
+      externalIdentity === null
+        ? (
+            await database.identityPrincipal.create({
+              data: {
+                id: createOpaqueId(),
+                externalIdentities: {
+                  create: { id: createOpaqueId(), issuer, subject: account.subject },
+                },
+              },
+              select: { id: true },
+            })
+          ).id
+        : externalIdentity.principalId;
+    principals.set(account.subject, principalId);
+
+    const platformRole =
+      SYNTHETIC_REVIEWER_ROLES[account.subject as keyof typeof SYNTHETIC_REVIEWER_ROLES];
+    if (platformRole === undefined) continue;
+    await database.roleAssignment.upsert({
+      where: { id: SYNTHETIC_ROLE_IDS[account.subject] },
+      create: {
+        id: SYNTHETIC_ROLE_IDS[account.subject],
+        principalId,
+        role: platformRole,
+        scope: "PLATFORM",
+      },
+      update: { principalId, role: platformRole, scope: "PLATFORM" },
+      select: { id: true },
+    });
+  }
+  return principals;
+}
+
+async function seedReviewerPortals(
+  database: PrismaClient,
+  principals: ReviewerPrincipalMap,
+): Promise<void> {
+  const patientPrincipalId = requiredReviewerPrincipal(principals, "patient-reviewer");
+  await database.patient.upsert({
+    where: { principalId: patientPrincipalId },
+    create: {
+      id: "0199a18e-a400-7000-8000-000000000031",
+      principalId: patientPrincipalId,
+      familyName: "Reviewer",
+      givenName: "Patient",
+      preferredLanguage: "en",
+    },
+    update: { familyName: "Reviewer", givenName: "Patient", preferredLanguage: "en" },
+    select: { id: true },
+  });
+
+  const providerPrincipalId = requiredReviewerPrincipal(principals, "provider-reviewer");
+  await database.practitioner.update({
+    where: { id: SYNTHETIC_PRACTITIONERS[0].id },
+    data: { principalId: providerPrincipalId },
+    select: { id: true },
+  });
+
+  const managerPrincipalId = requiredReviewerPrincipal(principals, "manager-reviewer");
+  await database.managerProfile.upsert({
+    where: { principalId: managerPrincipalId },
+    create: {
+      id: "0199a18e-a400-7000-8000-000000000032",
+      principalId: managerPrincipalId,
+      displayName: "Synthetic Manager Reviewer",
+    },
+    update: { displayName: "Synthetic Manager Reviewer", status: "ACTIVE" },
+    select: { id: true },
+  });
+
+  for (const fixture of SYNTHETIC_MEMBERSHIPS) {
+    const principalId = requiredReviewerPrincipal(principals, fixture.subject);
+    await database.membership.upsert({
+      where: { id: fixture.membershipId },
+      create: {
+        id: fixture.membershipId,
+        organizationId: fixture.organizationId,
+        principalId,
+      },
+      update: { organizationId: fixture.organizationId, principalId },
+      select: { id: true },
+    });
+    await database.roleAssignment.upsert({
+      where: { id: SYNTHETIC_ROLE_IDS[fixture.subject] },
+      create: {
+        id: SYNTHETIC_ROLE_IDS[fixture.subject],
+        membershipId: fixture.membershipId,
+        role: "ORGANIZATION_STAFF",
+        scope: "ORGANIZATION",
+      },
+      update: {
+        membershipId: fixture.membershipId,
+        role: "ORGANIZATION_STAFF",
+        scope: "ORGANIZATION",
+      },
+      select: { id: true },
+    });
+  }
+}
+
+function requiredReviewerPrincipal(principals: ReviewerPrincipalMap, subject: string): string {
+  const principalId = principals.get(subject);
+  if (principalId === undefined)
+    throw new Error(`Missing synthetic reviewer principal: ${subject}`);
+  return principalId;
+}
+
+function syntheticIssuerFromEnvironment(): string {
+  const value = process.env.OIDC_ISSUER_URL;
+  if (value === undefined) throw new Error("OIDC_ISSUER_URL is required for the synthetic seed");
+  const issuer = new URL(value);
+  const loopback =
+    issuer.hostname === "localhost" || issuer.hostname === "127.0.0.1" || issuer.hostname === "::1";
+  if (issuer.protocol !== "http:" || !loopback) {
+    throw new Error("Synthetic identities may only be seeded for a loopback HTTP issuer");
+  }
+  return issuer.origin;
 }
 
 async function seedOnboardingApplications(database: PrismaClient): Promise<void> {

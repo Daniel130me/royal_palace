@@ -23,17 +23,17 @@ Every action updates the shared database and the change appears in every relevan
 
 ## Technology stack
 
-| Layer | Technology |
-|---|---|
-| Framework | **Next.js 16** (App Router, Turbopack) |
-| Backend foundation | **NestJS + Fastify** modular API and worker shells |
-| Language | **TypeScript 5** (strict, no `any`) |
-| Styling | Tailwind CSS 4 + shadcn/ui (New York) |
-| Database | **Prisma ORM** + SQLite (prototype) |
-| State | Zustand (client SPA view router) + TanStack-ready service layer |
-| Icons | Lucide React |
-| Toasts | Sonner |
-| Charts | Recharts (admin reports) |
+| Layer              | Technology                                                      |
+| ------------------ | --------------------------------------------------------------- |
+| Framework          | **Next.js 16** (App Router, Turbopack)                          |
+| Backend foundation | **NestJS + Fastify** modular API and worker shells              |
+| Language           | **TypeScript 5** (strict, no `any`)                             |
+| Styling            | Tailwind CSS 4 + shadcn/ui (New York)                           |
+| Database           | **Prisma ORM** + SQLite (prototype)                             |
+| State              | Zustand (client SPA view router) + TanStack-ready service layer |
+| Icons              | Lucide React                                                    |
+| Toasts             | Sonner                                                          |
+| Charts             | Recharts (admin reports)                                        |
 
 > The original build spec proposed Vite + React Router + JSON Server. This implementation adapts that architecture to the required **Next.js 16 + Prisma** stack while preserving the spec's service-layer / typed-domain-model separation. The single user-visible route (`/`) hosts a client-side SPA view router (hash-based deep links + back button) that switches between portals.
 
@@ -72,23 +72,35 @@ maintenance warning.
 
 ---
 
-## Demo credentials
+## Local review credentials
 
-All accounts use the password **`demo123`**.
+The production application uses vendor-neutral OpenID Connect. Local review uses a
+separate loopback-only synthetic identity provider so every approved portal remains
+testable without restoring the prototype's browser-trusted sessions or plaintext user
+table. Set `SYNTHETIC_IDENTITY_PASSWORD` in the ignored `.env.local` file; all local
+review accounts use that value.
 
-| Role | Email | Name |
-|---|---|---|
-| Patient | `amina@demo.com` | Amina Bello |
-| Doctor | `doctor@demo.com` | Dr. Tunde Adeyemi (GP) |
-| Doctor (2) | `doctor2@demo.com` | Dr. Funmi Okafor (Cardiologist) |
-| Pharmacy | `pharmacy@demo.com` | Grace Community Pharmacy |
-| Laboratory | `lab@demo.com` | MedLab Diagnostics |
-| Logistics | `logistics@demo.com` | SwiftCare Logistics |
-| Admin | `admin@demo.com` | Royal Palace Admin |
-| **Manager** | `manager@demo.com` | Oluwagbenga Kosoko (Manager ID MGR-00128, code MGR00128) |
-| Manager (2) | `manager2@demo.com` | Adaeze Umeh (pending verification, manages Sunrise Pharmacy) |
+| Portal                | Local-only email                           |
+| --------------------- | ------------------------------------------ |
+| Patient               | `patient-reviewer@synthetic.invalid`       |
+| Healthcare specialist | `provider-reviewer@synthetic.invalid`      |
+| Manager               | `manager-reviewer@synthetic.invalid`       |
+| Hospital              | `hospital-reviewer@synthetic.invalid`      |
+| Pharmacy              | `pharmacy-reviewer@synthetic.invalid`      |
+| Laboratory            | `laboratory-reviewer@synthetic.invalid`    |
+| Logistics             | `logistics-reviewer@synthetic.invalid`     |
+| Support               | `support-reviewer@synthetic.invalid`       |
+| Administrator         | `administrator-reviewer@synthetic.invalid` |
 
-A floating **Demo Persona Switcher** (bottom-right) lets you instantly jump between roles without re-typing credentials.
+Start the identity provider in its own terminal before opening the web login:
+
+```bash
+pnpm --filter @royal-palace/api identity:local
+```
+
+The provider refuses to start unless `APP_ENV=development`,
+`SYNTHETIC_IDENTITY_ENABLED=true`, and both the issuer and callback use a loopback
+HTTP address. It is not a fallback identity provider for staging or production.
 
 ---
 
@@ -103,17 +115,18 @@ identifiers, view only their resulting earnings, and request payouts.
 
 ### Key concepts
 
-| Concept | Behaviour |
-|---|---|
+| Concept              | Behaviour                                                                                                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Referral attribution | Signed/unguessable links associate an applicant with a manager without granting the manager access to the application. Production attribution changes require audited administrative correction. |
-| Manager earnings | Immutable records derived from eligible, settled activity by attributed patients. Managers see their earning—not the patient's gross payment or Royal Palace revenue. |
-| Revenue share rules | Effective-dated and stored in integer basis points. The exact approved rule used for an earning remains traceable. |
-| Available balance | Matured, unallocated earnings. Payout requests re-validate against it inside a transaction and FIFO-allocate whole ledger entries. |
-| Support | Managers may escalate and follow tickets using ticket ID, display name/minimal identifier, category, safe status, timestamps, and manager-authored follow-up only. |
+| Manager earnings     | Immutable records derived from eligible, settled activity by attributed patients. Managers see their earning—not the patient's gross payment or Royal Palace revenue.                            |
+| Revenue share rules  | Effective-dated and stored in integer basis points. The exact approved rule used for an earning remains traceable.                                                                               |
+| Available balance    | Matured, unallocated earnings. Payout requests re-validate against it inside a transaction and FIFO-allocate whole ledger entries.                                                               |
+| Support              | Managers may escalate and follow tickets using ticket ID, display name/minimal identifier, category, safe status, timestamps, and manager-authored follow-up only.                               |
 
 ### Demo walkthrough (Manager module)
 
-1. Log in as `manager@demo.com` / `demo123` (or use the "Kosoko · Manager" persona button).
+1. Log in as `manager-reviewer@synthetic.invalid` with the password configured in
+   `SYNTHETIC_IDENTITY_PASSWORD`.
 2. Dashboard — referral activity, minimal enrollment status, earnings, payout balance, and support follow-up without private applicant data.
 3. **Enrollment Links** — copy a patient, hospital, pharmacy, or laboratory enrollment link; the applicant supplies their own information.
 4. **Enrollment Status** — track only the minimal submitted/review/decision status available to the referring manager.
@@ -132,11 +145,11 @@ pnpm dev
 pnpm test
 ```
 
-> **Prototype limitation.** Authentication is simulated (session echoed from the client via `x-rp-session`), bank data is plaintext-but-masked-in-responses, and payouts are not disbursed to real banks. Production requires server-managed sessions, hashed credentials, CSRF protection, authorization middleware, encrypted secrets/tokenized payout recipients and PostgreSQL.
+> **Local review boundary.** Synthetic identity, data, payments, and notifications are
+> development/test facilities only. Real providers remain disabled until the relevant
+> provider, region, security, privacy, and operational qualification is approved.
 
 ---
-
-
 
 ---
 
@@ -241,15 +254,15 @@ The seed data and UI are designed so a presenter can walk the complete connected
 
 The app is served from the single `/` route. Navigation is hash-based:
 
-| Portal | Example views |
-|---|---|
-| Public | `#/public/home`, `#/public/providers`, `#/public/provider?id=PRO-001`, `#/public/pricing`, `#/public/how-it-works`, `#/public/help` |
-| Patient | `#/patient/dashboard`, `#/patient/doctors`, `#/patient/book`, `#/patient/appointments`, `#/patient/appointment?id=APT-002`, `#/patient/consultation?id=APT-002`, `#/patient/records`, `#/patient/prescriptions`, `#/patient/laboratory`, `#/patient/orders`, `#/patient/family`, `#/patient/consent` |
-| Provider | `#/provider/dashboard`, `#/provider/appointments`, `#/provider/encounter?id=ENC-001`, `#/provider/prescriptions`, `#/provider/laboratory-requests`, `#/provider/referrals`, `#/provider/results`, `#/provider/earnings`, `#/provider/verification` |
-| Pharmacy | `#/pharmacy/dashboard`, `#/pharmacy/prescriptions`, `#/pharmacy/orders`, `#/pharmacy/order?id=ORD-001`, `#/pharmacy/products`, `#/pharmacy/inventory`, `#/pharmacy/commissions` |
-| Laboratory | `#/laboratory/dashboard`, `#/laboratory/requests`, `#/laboratory/bookings`, `#/laboratory/result-new?requestId=LABREQ-001`, `#/laboratory/critical-results` |
-| Logistics | `#/logistics/dashboard`, `#/logistics/assignments`, `#/logistics/delivery?id=DEL-001`, `#/logistics/history`, `#/logistics/earnings` |
-| Admin | `#/admin/dashboard`, `#/admin/providers`, `#/admin/provider?id=PRO-003`, `#/admin/pricing`, `#/admin/pharmacy-commissions`, `#/admin/payments`, `#/admin/settlements`, `#/admin/audit` |
+| Portal     | Example views                                                                                                                                                                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public     | `#/public/home`, `#/public/providers`, `#/public/provider?id=PRO-001`, `#/public/pricing`, `#/public/how-it-works`, `#/public/help`                                                                                                                                                                  |
+| Patient    | `#/patient/dashboard`, `#/patient/doctors`, `#/patient/book`, `#/patient/appointments`, `#/patient/appointment?id=APT-002`, `#/patient/consultation?id=APT-002`, `#/patient/records`, `#/patient/prescriptions`, `#/patient/laboratory`, `#/patient/orders`, `#/patient/family`, `#/patient/consent` |
+| Provider   | `#/provider/dashboard`, `#/provider/appointments`, `#/provider/encounter?id=ENC-001`, `#/provider/prescriptions`, `#/provider/laboratory-requests`, `#/provider/referrals`, `#/provider/results`, `#/provider/earnings`, `#/provider/verification`                                                   |
+| Pharmacy   | `#/pharmacy/dashboard`, `#/pharmacy/prescriptions`, `#/pharmacy/orders`, `#/pharmacy/order?id=ORD-001`, `#/pharmacy/products`, `#/pharmacy/inventory`, `#/pharmacy/commissions`                                                                                                                      |
+| Laboratory | `#/laboratory/dashboard`, `#/laboratory/requests`, `#/laboratory/bookings`, `#/laboratory/result-new?requestId=LABREQ-001`, `#/laboratory/critical-results`                                                                                                                                          |
+| Logistics  | `#/logistics/dashboard`, `#/logistics/assignments`, `#/logistics/delivery?id=DEL-001`, `#/logistics/history`, `#/logistics/earnings`                                                                                                                                                                 |
+| Admin      | `#/admin/dashboard`, `#/admin/providers`, `#/admin/provider?id=PRO-003`, `#/admin/pricing`, `#/admin/pharmacy-commissions`, `#/admin/payments`, `#/admin/settlements`, `#/admin/audit`                                                                                                               |
 
 ---
 
@@ -268,14 +281,14 @@ The app is served from the single `/` route. Navigation is hash-based:
 
 When the production Royal Palace API is introduced, only the `/api/*` routes need re-implementation. The following are the swappable boundaries:
 
-| Prototype | Production replacement |
-|---|---|
-| `/api/auth/login` | NextAuth.js / OAuth / production identity |
-| `/api/resources/*` + `/api/actions/*` | Production REST/GraphQL API |
-| Mock payment action | Paystack / Flutterwave gateway |
-| Simulated consultation UI | WebRTC / video provider |
-| Mock file metadata | S3 / object storage |
-| DB `Notification` rows | SMS / email / push service |
+| Prototype                             | Production replacement                    |
+| ------------------------------------- | ----------------------------------------- |
+| `/api/auth/login`                     | NextAuth.js / OAuth / production identity |
+| `/api/resources/*` + `/api/actions/*` | Production REST/GraphQL API               |
+| Mock payment action                   | Paystack / Flutterwave gateway            |
+| Simulated consultation UI             | WebRTC / video provider                   |
+| Mock file metadata                    | S3 / object storage                       |
+| DB `Notification` rows                | SMS / email / push service                |
 
 The typed service layer (`apps/web/src/lib/services.ts`), domain types
 (`apps/web/src/types/index.ts`) and all UI components remain intact during the workspace move.

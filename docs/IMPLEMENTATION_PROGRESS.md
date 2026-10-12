@@ -97,6 +97,9 @@ that completes an increment.
   - `[x]` Enforce application-owned roles/memberships and authentication assurance.
   - `[x]` Remove plaintext/default credentials, browser identity authority, and
     `x-rp-session` authorization from the active path.
+  - `[x]` Add an explicitly enabled, loopback-only synthetic OIDC runtime and seeded
+    reviewer principals for browser acceptance testing without weakening the protected
+    environment boundary.
   - `[x]` Pass conformance, security, migration, and repository quality gates; publish
     the Section 20 completion report; commit and push.
 - `[!]` **Increment 04B — Production identity-provider qualification**

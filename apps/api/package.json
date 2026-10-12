@@ -16,6 +16,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:validate": "tsx scripts/validate-prisma.ts",
     "dev": "node --watch --env-file-if-exists=../../.env.local --import tsx src/main.ts",
+    "identity:local": "node --env-file-if-exists=../../.env.local --import tsx scripts/start-synthetic-identity-provider.ts",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "start": "node --env-file-if-exists=../../.env.local dist/main.js",
