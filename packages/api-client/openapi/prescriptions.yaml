@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Royal Palace Prescription and Pharmacy API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     Internal service contract for synthetic-only prescription, substitution, dispensing, direct OTC, quote, and pharmacy-order workflows. Browser clients
     must access these operations through authenticated same-origin backend-for-frontend routes.
@@ -86,6 +86,154 @@ paths:
               schema: { $ref: "#/components/schemas/PrivateDocumentDownload" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /v1/pharmacy/scanned-prescriptions:
+    get:
+      operationId: listPharmacyScannedPrescriptions
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Clean scanned prescriptions assigned to the requesting pharmacy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionList" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}:
+    get:
+      operationId: getPharmacyScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Minimal pharmacy review view for an assigned scanned prescription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionDetail" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/download:
+    get:
+      operationId: downloadPharmacyScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Short-lived private download for the clean assigned document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrivateDocumentDownload" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/start-review:
+    post:
+      operationId: startPharmacyScannedPrescriptionReview
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScannedPrescriptionReviewInput" }
+      responses:
+        "201":
+          description: Review started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionDetail" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/request-information:
+    post:
+      operationId: requestScannedPrescriptionInformation
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScannedPrescriptionReviewInput" }
+      responses:
+        "201":
+          description: Additional information requested from the patient
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionDetail" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/approve:
+    post:
+      operationId: approvePharmacyScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScannedPrescriptionReviewInput" }
+      responses:
+        "201":
+          description: Scanned prescription approved for quote preparation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionDetail" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/reject:
+    post:
+      operationId: rejectPharmacyScannedPrescription
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScannedPrescriptionReviewInput" }
+      responses:
+        "201":
+          description: Scanned prescription rejected with a patient-visible explanation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyScannedPrescriptionDetail" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/pharmacy/scanned-prescriptions/{prescriptionId}/quotes:
+    post:
+      operationId: createScannedPrescriptionQuote
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+        - { in: path, name: prescriptionId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDirectPharmacyQuoteInput" }
+      responses:
+        "201": { $ref: "#/components/responses/PharmacyQuoteResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/WorkflowDisabled" }
   /v1/pharmacy/catalog-items:
     get:
       operationId: listPharmacyCatalogItems
@@ -1095,6 +1243,43 @@ components:
           type: array
           items: { $ref: "#/components/schemas/ScannedPrescriptionSummary" }
         pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PharmacyScannedPrescriptionSummary:
+      allOf:
+        - { $ref: "#/components/schemas/ScannedPrescriptionSummary" }
+        - type: object
+          required: [patient]
+          properties:
+            patient:
+              type: object
+              additionalProperties: false
+              required: [displayName]
+              properties:
+                displayName: { type: string }
+    PharmacyScannedPrescriptionDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PharmacyScannedPrescriptionSummary" }
+        - type: object
+          required: [history]
+          properties:
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/ScannedPrescriptionHistoryEntry" }
+    PharmacyScannedPrescriptionList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PharmacyScannedPrescriptionSummary" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    ScannedPrescriptionReviewInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        patientVisibleNote: { type: [string, "null"], minLength: 2, maxLength: 1000 }
     CreateScannedPrescriptionUploadInput:
       type: object
       additionalProperties: false
@@ -1557,7 +1742,7 @@ components:
         medicationCode: { type: [string, "null"] }
         medicationCodeSystem: { type: [string, "null"] }
         medicationName: { type: string }
-        prescriptionItemId: { type: string, format: uuid }
+        prescriptionItemId: { type: [string, "null"], format: uuid }
         quantity: { type: string }
         quantityUnit: { type: string }
         strength: { type: [string, "null"] }
@@ -1593,6 +1778,7 @@ components:
           pharmacyOrganizationId,
           prescriptionId,
           prescriptionRouteId,
+          scannedPrescriptionId,
           quoteNumber,
           status,
           subtotalMinor,
@@ -1609,7 +1795,7 @@ components:
         feeMinor: { type: string, pattern: "^\\d+$" }
         fillNumber: { type: [integer, "null"], minimum: 0, maximum: 99 }
         id: { type: string, format: uuid }
-        kind: { type: string, enum: [PRESCRIPTION, DIRECT_OTC] }
+        kind: { type: string, enum: [PRESCRIPTION, DIRECT_OTC, SCANNED_PRESCRIPTION] }
         inventoryReservation:
           type: object
           additionalProperties: false
@@ -1623,6 +1809,7 @@ components:
         pharmacyOrganizationId: { type: string, format: uuid }
         prescriptionId: { type: [string, "null"], format: uuid }
         prescriptionRouteId: { type: [string, "null"], format: uuid }
+        scannedPrescriptionId: { type: [string, "null"], format: uuid }
         quoteNumber: { type: string }
         status: { type: string, enum: [ACTIVE, ACCEPTED, EXPIRED, CANCELLED, SUPERSEDED] }
         subtotalMinor: { type: string, pattern: "^\\d+$" }

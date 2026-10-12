@@ -700,18 +700,29 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       'INSERT INTO "scanned_prescription_status_history" ("id", "scanned_prescription_id", "to_status", "reason_code") VALUES ($1, $2, $3, $4)',
       [v7(), scannedPrescriptionId, "AWAITING_UPLOAD", "UPLOAD_INTENT_CREATED"],
     );
+    await client.query("SELECT set_config('app.actor_principal_id', $1, false)", [principalId]);
+    await client.query("SELECT set_config('app.patient_visible_note', $1, false)", [
+      "Synthetic patient-visible update",
+    ]);
     await client.query(
       'UPDATE "scanned_prescriptions" SET "status" = \'QUARANTINED\', "status_reason_code" = \'UPLOAD_COMPLETED\', "updated_at" = now() WHERE "id" = $1',
       [scannedPrescriptionId],
     );
-    const scannedHistory = await client.query<{ reason_code: string; to_status: string }>(
-      'SELECT "reason_code", "to_status"::text FROM "scanned_prescription_status_history" WHERE "scanned_prescription_id" = $1 ORDER BY "occurred_at", "id"',
+    const scannedHistory = await client.query<{
+      actor_principal_id: string | null;
+      patient_visible_note: string | null;
+      reason_code: string;
+      to_status: string;
+    }>(
+      'SELECT "actor_principal_id"::text, "patient_visible_note", "reason_code", "to_status"::text FROM "scanned_prescription_status_history" WHERE "scanned_prescription_id" = $1 ORDER BY "occurred_at", "id"',
       [scannedPrescriptionId],
     );
     if (
       scannedHistory.rows.length !== 2 ||
       scannedHistory.rows[1]?.to_status !== "QUARANTINED" ||
-      scannedHistory.rows[1]?.reason_code !== "UPLOAD_COMPLETED"
+      scannedHistory.rows[1]?.reason_code !== "UPLOAD_COMPLETED" ||
+      scannedHistory.rows[1]?.actor_principal_id !== principalId ||
+      scannedHistory.rows[1]?.patient_visible_note !== "Synthetic patient-visible update"
     ) {
       throw new Error("Scanned-prescription status history was not recorded atomically");
     }

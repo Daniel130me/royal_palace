@@ -26,6 +26,14 @@ function patientSession(principalId = createOpaqueId()): CurrentSession {
   };
 }
 
+function pharmacySession(organizationId: string): CurrentSession {
+  return {
+    ...patientSession(),
+    memberships: [{ organizationId, organizationType: "PHARMACY", roles: ["ORGANIZATION_STAFF"] }],
+    roles: ["ORGANIZATION_STAFF"],
+  };
+}
+
 function publicDetail(id = createOpaqueId()): ScannedPrescriptionDetail {
   return {
     createdAt: "2026-10-12T00:00:00.000Z",
@@ -61,12 +69,18 @@ function fixture(detail = publicDetail()) {
       prescription: detail,
       storageObjectKey: `scanned-prescriptions/${detail.id}`,
     })),
+    findForPharmacy: vi.fn(async () => null),
     findOwned: vi.fn(async () => hiddenRecord),
+    listForPharmacy: vi.fn(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    })),
     listOwned: vi.fn(async () => ({
       data: [detail],
       pageInfo: { endCursor: null, hasNextPage: false },
     })),
     rejectUpload: vi.fn(async () => undefined),
+    transitionReview: vi.fn(async () => null),
   };
   const storage: DocumentStorage = {
     inspectQuarantined: vi.fn(async () => ({
@@ -170,5 +184,62 @@ describe("ScannedPrescriptionService", () => {
       status: 404,
     });
     expect(storage.signCleanDownload).not.toHaveBeenCalled();
+  });
+
+  it("returns only the minimal assigned-patient view to a pharmacy member", async () => {
+    const organizationId = createOpaqueId();
+    const detail = {
+      ...publicDetail(),
+      pharmacyOrganizationId: organizationId,
+      status: "CLEAN" as const,
+    };
+    const { repository, service } = fixture(detail);
+    vi.mocked(repository.findForPharmacy).mockResolvedValueOnce({
+      ...detail,
+      cleanObjectKey: `clean/${detail.id}`,
+      cleanVersionId: "clean-version-1",
+      patient: { displayName: "Synthetic Patient" },
+    });
+
+    const result = await service.findForPharmacy(
+      { actor: pharmacySession(organizationId), requestId: "request-pharmacy-read" },
+      organizationId,
+      detail.id,
+    );
+
+    expect(result.patient).toEqual({ displayName: "Synthetic Patient" });
+    expect(result).not.toHaveProperty("cleanObjectKey");
+    expect(result).not.toHaveProperty("cleanVersionId");
+    expect(result).not.toHaveProperty("declaredSha256");
+  });
+
+  it("requires a patient-visible explanation before requesting information", async () => {
+    const organizationId = createOpaqueId();
+    const detail = {
+      ...publicDetail(),
+      pharmacyOrganizationId: organizationId,
+      status: "UNDER_REVIEW" as const,
+    };
+    const { repository, service } = fixture(detail);
+    vi.mocked(repository.findForPharmacy).mockResolvedValueOnce({
+      ...detail,
+      cleanObjectKey: `clean/${detail.id}`,
+      cleanVersionId: "clean-version-1",
+      patient: { displayName: "Synthetic Patient" },
+    });
+
+    await expect(
+      service.transitionReview(
+        { actor: pharmacySession(organizationId), requestId: "request-more-information" },
+        {
+          expectedVersion: detail.version,
+          patientVisibleNote: null,
+          pharmacyOrganizationId: organizationId,
+          prescriptionId: detail.id,
+          toStatus: "MORE_INFORMATION_REQUIRED",
+        },
+      ),
+    ).rejects.toMatchObject({ code: "patient_note_required", status: 400 });
+    expect(repository.transitionReview).not.toHaveBeenCalled();
   });
 });

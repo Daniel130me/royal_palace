@@ -180,6 +180,25 @@ export class PharmacyCommercialController {
     );
   }
 
+  @Post("scanned-prescriptions/:prescriptionId/quotes")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE)
+  createScannedPrescriptionQuote(
+    @Param("prescriptionId") prescriptionId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.commercial.createScannedPrescriptionQuote(context(request), {
+        ...parse(directQuoteSchema, body),
+        idempotencyKey: parse(idempotencyKeySchema, idempotencyKey),
+        pharmacyOrganizationId: parse(idSchema, organizationId),
+        scannedPrescriptionId: parse(idSchema, prescriptionId),
+      }),
+    );
+  }
+
   @Get("quotes/:quoteId")
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_PHARMACY_QUOTE)
   getQuote(@Param("quoteId") quoteId: string, @Req() request: AuthenticatedInternalRequest) {

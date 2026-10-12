@@ -438,7 +438,7 @@ export async function consumeDirectPlatformInventory(
     order === null ||
     order === undefined ||
     order.status !== "CONFIRMED" ||
-    order.quote.kind !== "DIRECT_OTC" ||
+    order.quote.kind === "PRESCRIPTION" ||
     reservation === null ||
     reservation === undefined ||
     reservation.providerCode !== PLATFORM_INVENTORY_PROVIDER_CODE ||
@@ -492,7 +492,8 @@ export async function consumeDirectPlatformInventory(
         onHandAfter,
         pharmacyOrganizationId: order.pharmacyOrganizationId,
         quantity,
-        reasonCode: "DIRECT_OTC_HANDOFF",
+        reasonCode:
+          order.quote.kind === "DIRECT_OTC" ? "DIRECT_OTC_HANDOFF" : "SCANNED_PRESCRIPTION_HANDOFF",
         referenceId: order.id,
         referenceType: "PHARMACY_ORDER",
         requestHash: movementHash("DISPENSE", order.id, lot.id, quantity),

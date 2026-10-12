@@ -42,10 +42,51 @@ clinical authority merely because malware scanning succeeds.
   serializable transaction, preventing concurrent quota bypass and unbounded storage
   reservation.
 
-## Checkpoint 4B retained scope
+## Checkpoint 4B outcome
 
-The next checkpoint adds pharmacy review with minimum necessary visibility, patient
-information requests, explicit approval/rejection, and controlled conversion into the
-existing commercial quote/order workflow. It must preserve the distinction between a
-scanned external document and a platform prescription, record every reviewer decision,
-and never expose one patient's file to another pharmacy.
+Checkpoint 4B completes the scanned-prescription workflow without treating an uploaded
+image as a platform-authored clinical prescription:
+
+- Only an active member of the specifically assigned pharmacy can list, inspect, or
+  download the clean document. The review contract exposes the patient's display name
+  and upload metadata, not clinical records or internal storage coordinates.
+- Review is an explicit optimistic-concurrency state machine: clean documents enter
+  review, may request more information, and may be approved or rejected. Requests and
+  rejections require a patient-visible explanation. Every transition is appended with
+  the reviewer principal and explanation in database-owned immutable history.
+- The patient upload-detail screen displays the review history and the latest visible
+  pharmacy request. Quarantined or failed content is never downloadable.
+- An approved upload may produce one active inventory-held quote using pharmacy
+  catalogue selections and server-owned prices. Prescription-required items are allowed
+  only after this review; controlled medicines remain fail-closed pending a separately
+  qualified workflow.
+- Scanned-origin quotes carry their own source identifier and cannot populate digital
+  prescription or route fields. Database constraints enforce that separation, prevent
+  multiple active quotes for one upload, and keep the commercial snapshot immutable.
+- Quote acceptance, payment, inventory reservation, cancellation, handoff, dispute, and
+  refund behavior reuse the existing commercial aggregate. Handoff consumes the exact
+  platform inventory reservation; it does not fabricate digital dispense evidence.
+
+## Checkpoint 4B security and performance review
+
+- Named policies protect both review and quote conversion, and exact BFF allowlists
+  reject arbitrary pharmacy paths or malformed identifiers.
+- Pharmacy queues are capped and cursor-paginated. The
+  `(pharmacy_organization_id, created_at DESC, id DESC)` index supports the queue order
+  without sorting the full organization history.
+- Catalogue reads and quote lines are capped at 50. Price, currency, item eligibility,
+  controlled-medicine status, catalogue version, stock, and source version are all
+  revalidated inside the quote transaction.
+- Idempotency and a partial unique index prevent duplicate active scanned-document
+  quotes. Inventory reservations are compensated if persistence loses the race.
+- The previously published 4A migration is unchanged. Audit-trigger enrichment and
+  scanned-quote schema changes are forward-only migrations, avoiding migration checksum
+  drift in environments that have already applied 4A.
+
+## Remaining release boundary
+
+The feature is production-shaped but remains synthetic-only until the prescription and
+pharmacy qualification gate is accepted. Stakeholder clinical/pharmacy review, real
+identity/provider qualification, regional legal/privacy approval, and production
+storage/payment/inventory configuration are still mandatory before real data or public
+activation.

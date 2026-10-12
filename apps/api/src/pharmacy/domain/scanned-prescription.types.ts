@@ -1,4 +1,6 @@
 import type {
+  PharmacyScannedPrescriptionDetail,
+  PharmacyScannedPrescriptionListResponse,
   ScannedPrescriptionDetail,
   ScannedPrescriptionListResponse,
 } from "@royal-palace/contracts";
@@ -36,11 +38,32 @@ export interface ScannedPrescriptionRepository {
     limit: number;
     patientPrincipalId: string;
   }): Promise<ScannedPrescriptionListResponse>;
+  findForPharmacy(input: { pharmacyOrganizationId: string; prescriptionId: string }): Promise<
+    | (PharmacyScannedPrescriptionDetail & {
+        cleanObjectKey: string | null;
+        cleanVersionId: string | null;
+      })
+    | null
+  >;
+  listForPharmacy(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    pharmacyOrganizationId: string;
+  }): Promise<PharmacyScannedPrescriptionListResponse>;
   rejectUpload(input: {
     patientPrincipalId: string;
     prescriptionId: string;
     reasonCode: string;
   }): Promise<void>;
+  transitionReview(input: {
+    actorPrincipalId: string;
+    expectedVersion: number;
+    patientVisibleNote: string | null;
+    pharmacyOrganizationId: string;
+    prescriptionId: string;
+    reasonCode: string;
+    toStatus: "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "APPROVED" | "REJECTED";
+  }): Promise<PharmacyScannedPrescriptionDetail | null>;
 }
 
 export const SCANNED_PRESCRIPTION_REPOSITORY = Symbol("SCANNED_PRESCRIPTION_REPOSITORY");

@@ -274,6 +274,19 @@ export interface ScannedPrescriptionDetail extends ScannedPrescriptionSummary {
   history: readonly ScannedPrescriptionHistoryEntry[];
 }
 
+export interface PharmacyScannedPrescriptionSummary extends ScannedPrescriptionSummary {
+  patient: { displayName: string };
+}
+
+export interface PharmacyScannedPrescriptionDetail extends PharmacyScannedPrescriptionSummary {
+  history: readonly ScannedPrescriptionHistoryEntry[];
+}
+
+export interface PharmacyScannedPrescriptionListResponse {
+  data: readonly PharmacyScannedPrescriptionSummary[];
+  pageInfo: CursorPageInfo;
+}
+
 export interface ScannedPrescriptionListResponse {
   data: readonly ScannedPrescriptionSummary[];
   pageInfo: CursorPageInfo;
@@ -748,7 +761,7 @@ export interface PharmacyPrescriptionListResponse {
 }
 
 export type PharmacyQuoteStatus = "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
-export type PharmacyQuoteKind = "PRESCRIPTION" | "DIRECT_OTC";
+export type PharmacyQuoteKind = "PRESCRIPTION" | "DIRECT_OTC" | "SCANNED_PRESCRIPTION";
 
 export interface PharmacyQuoteLineResponse {
   catalogItemId: string | null;
@@ -793,6 +806,7 @@ export interface PharmacyQuoteResponse {
   pharmacyOrganizationId: string;
   prescriptionId: string | null;
   prescriptionRouteId: string | null;
+  scannedPrescriptionId: string | null;
   quoteNumber: string;
   status: PharmacyQuoteStatus;
   subtotalMinor: string;

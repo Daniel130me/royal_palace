@@ -686,7 +686,13 @@
           "id": "prescriptions",
           "file": "pages/prescriptions.tsx",
           "status": "CONNECTED",
-          "checkpoint": "11C4"
+          "checkpoint": "11C4P-4B",
+          "productionFiles": [
+            "apps/web/src/features/pharmacy/pages/prescriptions.tsx",
+            "apps/web/src/features/pharmacy/pages/scanned-prescription.tsx",
+            "apps/api/src/pharmacy/application/scanned-prescription.service.ts",
+            "apps/api/src/pharmacy/application/pharmacy-commercial.service.ts"
+          ]
         },
         {
           "id": "product-detail",

@@ -5,6 +5,7 @@ import { AppShell } from "@/components/healthcare/app-shell";
 import { PharmacyDashboard } from "./pages/dashboard";
 import { PharmacyPrescriptions } from "./pages/prescriptions";
 import { PharmacyPrescriptionDetail } from "./pages/prescription";
+import { PharmacyScannedPrescriptionDetail } from "./pages/scanned-prescription";
 import { PharmacyOrders } from "./pages/orders";
 import { PharmacyOrderDetail } from "./pages/order";
 import { PharmacyProducts } from "./pages/products";
@@ -30,6 +31,8 @@ export function PharmacyPortal() {
         <PharmacyPrescriptions />
       ) : page === "prescription" ? (
         <PharmacyPrescriptionDetail />
+      ) : page === "scanned-prescription" ? (
+        <PharmacyScannedPrescriptionDetail />
       ) : page === "orders" ? (
         <PharmacyOrders />
       ) : page === "order" ? (

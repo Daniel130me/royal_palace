@@ -13,6 +13,7 @@ import type {
   PharmacyCommercialRepository,
   DirectPharmacyQuotePreparation,
   PharmacyQuotePreparation,
+  ScannedPrescriptionQuotePreparation,
 } from "../src/pharmacy/domain/pharmacy-commercial.types.js";
 import {
   PlatformInventoryGateway,
@@ -90,6 +91,7 @@ function quoteFrom(prepared: PharmacyQuotePreparation): PharmacyQuoteResponse {
     pharmacyOrganizationId: createOpaqueId(),
     prescriptionId: prepared.prescriptionId,
     prescriptionRouteId: prepared.routeId,
+    scannedPrescriptionId: null,
     quoteNumber: `QUOTE-${createOpaqueId()}`,
     status: "ACTIVE",
     subtotalMinor: "1000",
@@ -148,6 +150,133 @@ function createService(
 }
 
 describe("PharmacyCommercialService", () => {
+  it("builds scanned-prescription quotes from approved server-owned catalogue snapshots", async () => {
+    const pharmacyOrganizationId = createOpaqueId();
+    const catalogItemId = createOpaqueId();
+    const scannedPrescriptionId = createOpaqueId();
+    const scannedPreparation: ScannedPrescriptionQuotePreparation = {
+      items: [
+        {
+          availableQuantity: "8.000",
+          brandName: null,
+          catalogItemId,
+          controlledMedication: false,
+          currency: "GBP",
+          dosageFormName: "capsule",
+          genericName: "Synthetic generic",
+          medicationCode: null,
+          medicationCodeSystem: null,
+          medicationName: "Prescription-only medicine",
+          prescriptionRequired: true,
+          strength: "20 mg",
+          unitPriceMinor: 425n,
+          version: 2,
+        },
+      ],
+      kind: "SCANNED_PRESCRIPTION",
+      patientId: createOpaqueId(),
+      patientPrincipalId: createOpaqueId(),
+      scannedPrescriptionId,
+      scannedPrescriptionVersion: 5,
+    };
+    const expected: PharmacyQuoteResponse = {
+      ...quoteFrom(preparation()),
+      currency: "GBP",
+      fillNumber: null,
+      kind: "SCANNED_PRESCRIPTION",
+      prescriptionId: null,
+      prescriptionRouteId: null,
+      scannedPrescriptionId,
+    };
+    const createQuote = vi.fn<PharmacyCommercialRepository["createQuote"]>(async (input) => {
+      expect(input).toMatchObject({
+        currency: "GBP",
+        fillNumber: null,
+        preparation: { kind: "SCANNED_PRESCRIPTION", scannedPrescriptionId },
+      });
+      expect(input.lines[0]).toMatchObject({
+        catalogItemId,
+        lineSubtotalMinor: 850n,
+        prescriptionItemId: null,
+        unitPriceMinor: 425n,
+      });
+      return expected;
+    });
+    const service = createService({
+      createQuote,
+      findScannedPreparation: vi.fn(async () => scannedPreparation),
+    });
+
+    await expect(
+      service.createScannedPrescriptionQuote(
+        {
+          actor: session("ORGANIZATION_STAFF", { organizationId: pharmacyOrganizationId }),
+          requestId: "request-scanned-quote",
+        },
+        {
+          idempotencyKey: "scanned-quote-key",
+          lines: [{ catalogItemId, quantity: 2 }],
+          pharmacyOrganizationId,
+          scannedPrescriptionId,
+          validForSeconds: 600,
+        },
+      ),
+    ).resolves.toEqual(expected);
+    expect(createQuote).toHaveBeenCalledOnce();
+  });
+
+  it("keeps controlled medicines fail-closed for uploaded prescriptions", async () => {
+    const pharmacyOrganizationId = createOpaqueId();
+    const catalogItemId = createOpaqueId();
+    const preparation: ScannedPrescriptionQuotePreparation = {
+      items: [
+        {
+          availableQuantity: "10.000",
+          brandName: null,
+          catalogItemId,
+          controlledMedication: true,
+          currency: "USD",
+          dosageFormName: "tablet",
+          genericName: null,
+          medicationCode: null,
+          medicationCodeSystem: null,
+          medicationName: "Controlled medicine",
+          prescriptionRequired: true,
+          strength: null,
+          unitPriceMinor: 500n,
+          version: 1,
+        },
+      ],
+      kind: "SCANNED_PRESCRIPTION",
+      patientId: createOpaqueId(),
+      patientPrincipalId: createOpaqueId(),
+      scannedPrescriptionId: createOpaqueId(),
+      scannedPrescriptionVersion: 1,
+    };
+    const reserve = vi.fn<InventoryGateway["reserve"]>();
+    const service = createService(
+      { findScannedPreparation: vi.fn(async () => preparation) },
+      { providerCode: "TEST", release: vi.fn(async () => undefined), reserve },
+    );
+
+    await expect(
+      service.createScannedPrescriptionQuote(
+        {
+          actor: session("ORGANIZATION_STAFF", { organizationId: pharmacyOrganizationId }),
+          requestId: "request-controlled-scanned",
+        },
+        {
+          idempotencyKey: "controlled-scanned-key",
+          lines: [{ catalogItemId, quantity: 1 }],
+          pharmacyOrganizationId,
+          scannedPrescriptionId: preparation.scannedPrescriptionId,
+          validForSeconds: 600,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "scanned_item_not_eligible", status: 400 });
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
   it("builds direct OTC quotes from server-owned catalogue prices", async () => {
     const pharmacyOrganizationId = createOpaqueId();
     const patientPrincipalId = createOpaqueId();

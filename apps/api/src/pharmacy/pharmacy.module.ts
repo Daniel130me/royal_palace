@@ -39,7 +39,10 @@ import {
   PrescriptionReadController,
   ProviderPrescriptionController,
 } from "./presentation/prescription.controller.js";
-import { PatientScannedPrescriptionController } from "./presentation/scanned-prescription.controller.js";
+import {
+  PatientScannedPrescriptionController,
+  PharmacyScannedPrescriptionController,
+} from "./presentation/scanned-prescription.controller.js";
 
 @Module({
   imports: [AuthorizationModule, DocumentStorageModule, IdentityModule],
@@ -50,6 +53,7 @@ import { PatientScannedPrescriptionController } from "./presentation/scanned-pre
     PatientPharmacyCommercialController,
     PatientPrescriptionController,
     PatientScannedPrescriptionController,
+    PharmacyScannedPrescriptionController,
     PharmacyCommercialController,
     PharmacyInventoryController,
     PharmacyPrescriptionController,

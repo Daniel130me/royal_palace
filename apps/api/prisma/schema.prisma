@@ -359,6 +359,7 @@ enum PharmacyQuoteStatus {
 enum PharmacyQuoteKind {
   PRESCRIPTION
   DIRECT_OTC
+  SCANNED_PRESCRIPTION
 }
 
 enum PharmacyQuoteChargeType {
@@ -1212,9 +1213,11 @@ model ScannedPrescription {
   patient                Patient                            @relation(fields: [patientId], references: [id], onDelete: Restrict)
   pharmacyOrganization   Organization?                      @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
   history                ScannedPrescriptionStatusHistory[]
+  pharmacyQuotes         PharmacyQuote[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "scanned_prescriptions_patient_created_idx")
   @@index([pharmacyOrganizationId, status, createdAt, id], map: "scanned_prescriptions_pharmacy_status_idx")
+  @@index([pharmacyOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "scanned_prescriptions_pharmacy_created_idx")
   @@index([status, scanAvailableAt, createdAt, id], map: "scanned_prescriptions_scan_queue_idx")
   @@map("scanned_prescriptions")
 }
@@ -1850,6 +1853,7 @@ model PharmacyQuote {
   kind                   PharmacyQuoteKind     @default(PRESCRIPTION)
   prescriptionId         String?               @map("prescription_id") @db.Uuid
   prescriptionRouteId    String?               @map("prescription_route_id") @db.Uuid
+  scannedPrescriptionId  String?               @map("scanned_prescription_id") @db.Uuid
   pharmacyOrganizationId String                @map("pharmacy_organization_id") @db.Uuid
   patientId              String                @map("patient_id") @db.Uuid
   fillNumber             Int?                  @map("fill_number")
@@ -1868,6 +1872,7 @@ model PharmacyQuote {
   version                Int                   @default(1)
   prescription           Prescription?         @relation(fields: [prescriptionId], references: [id], onDelete: Restrict)
   prescriptionRoute      PrescriptionRoute?    @relation(fields: [prescriptionRouteId], references: [id], onDelete: Restrict)
+  scannedPrescription    ScannedPrescription?  @relation(fields: [scannedPrescriptionId], references: [id], onDelete: Restrict)
   pharmacyOrganization   Organization          @relation(fields: [pharmacyOrganizationId], references: [id], onDelete: Restrict)
   patient                Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
   createdByPrincipal     IdentityPrincipal     @relation("PharmacyQuoteCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
@@ -1880,6 +1885,7 @@ model PharmacyQuote {
   @@index([pharmacyOrganizationId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_org_created_idx")
   @@index([pharmacyOrganizationId, status, expiresAt, id], map: "pharmacy_quotes_org_status_expiry_idx")
   @@index([prescriptionRouteId, fillNumber, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_route_fill_created_idx")
+  @@index([scannedPrescriptionId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_quotes_scanned_created_idx")
   @@index([status, expiresAt, id], map: "pharmacy_quotes_expiry_idx")
   @@map("pharmacy_quotes")
 }

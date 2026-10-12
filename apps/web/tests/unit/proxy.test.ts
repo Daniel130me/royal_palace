@@ -90,6 +90,16 @@ describe("web request correlation", () => {
       isApiRouteEnabled("production", "/api/patient/scanned-prescriptions/not-a-uuid/download"),
     ).toBe(false);
     expect(isApiRouteEnabled("production", "/api/pharmacy/orders")).toBe(true);
+    expect(isApiRouteEnabled("production", "/api/pharmacy/scanned-prescriptions")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/pharmacy/scanned-prescriptions/0199a18e-a400-7000-8000-000000000703/approve",
+      ),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/pharmacy/scanned-prescriptions/not-a-uuid/download"),
+    ).toBe(false);
     expect(isApiRouteEnabled("production", "/api/patient/pharmacy/quotes")).toBe(true);
     expect(
       isApiRouteEnabled(

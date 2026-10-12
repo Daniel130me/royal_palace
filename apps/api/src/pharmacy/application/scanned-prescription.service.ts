@@ -162,10 +162,111 @@ export class ScannedPrescriptionService {
   async downloadOwned(context: ScannedPrescriptionRequestContext, prescriptionId: string) {
     await this.authorizeOwner(context, prescriptionId);
     const record = await this.requireOwned(context, prescriptionId);
+    if (record.cleanObjectKey === null) {
+      throw new ScannedPrescriptionFlowError(
+        "prescription_document_not_available",
+        404,
+        "Prescription document is unavailable",
+      );
+    }
+    return this.signDownload(record.cleanObjectKey, record.cleanVersionId);
+  }
+
+  async listForPharmacy(
+    context: ScannedPrescriptionRequestContext,
+    pharmacyOrganizationId: string,
+    limit: number,
+    cursor?: string,
+  ) {
+    await this.authorizePharmacy(context, pharmacyOrganizationId, "list");
+    return this.repository.listForPharmacy({
+      ...(cursor === undefined ? {} : { cursor: decodeCursor(cursor) }),
+      limit: Math.min(Math.max(limit, 1), MAX_LIST_LIMIT),
+      pharmacyOrganizationId,
+    });
+  }
+
+  async findForPharmacy(
+    context: ScannedPrescriptionRequestContext,
+    pharmacyOrganizationId: string,
+    prescriptionId: string,
+  ) {
+    await this.authorizePharmacy(context, pharmacyOrganizationId, prescriptionId);
+    return stripPharmacyStorage(
+      await this.requireForPharmacy(pharmacyOrganizationId, prescriptionId),
+    );
+  }
+
+  async downloadForPharmacy(
+    context: ScannedPrescriptionRequestContext,
+    pharmacyOrganizationId: string,
+    prescriptionId: string,
+  ) {
+    await this.authorizePharmacy(context, pharmacyOrganizationId, prescriptionId);
+    const record = await this.requireForPharmacy(pharmacyOrganizationId, prescriptionId);
+    if (record.cleanObjectKey === null) {
+      throw new ScannedPrescriptionFlowError(
+        "prescription_document_not_available",
+        404,
+        "Prescription document is unavailable",
+      );
+    }
+    return this.signDownload(record.cleanObjectKey, record.cleanVersionId);
+  }
+
+  async transitionReview(
+    context: ScannedPrescriptionRequestContext,
+    input: {
+      expectedVersion: number;
+      patientVisibleNote: string | null;
+      pharmacyOrganizationId: string;
+      prescriptionId: string;
+      toStatus: "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "APPROVED" | "REJECTED";
+    },
+  ) {
+    await this.authorizePharmacy(context, input.pharmacyOrganizationId, input.prescriptionId);
+    const current = await this.requireForPharmacy(
+      input.pharmacyOrganizationId,
+      input.prescriptionId,
+    );
+    const allowedFrom: Record<typeof input.toStatus, readonly string[]> = {
+      APPROVED: ["UNDER_REVIEW"],
+      MORE_INFORMATION_REQUIRED: ["UNDER_REVIEW"],
+      REJECTED: ["UNDER_REVIEW"],
+      UNDER_REVIEW: ["CLEAN", "MORE_INFORMATION_REQUIRED"],
+    };
+    if (!allowedFrom[input.toStatus].includes(current.status)) {
+      throw conflict("invalid_review_transition", "Review status cannot be changed this way");
+    }
     if (
-      record.cleanObjectKey === null ||
-      ((this.config.appEnvironment === "staging" || this.config.appEnvironment === "production") &&
-        record.cleanVersionId === null)
+      ["MORE_INFORMATION_REQUIRED", "REJECTED"].includes(input.toStatus) &&
+      (input.patientVisibleNote === null || input.patientVisibleNote.length < 2)
+    ) {
+      throw new ScannedPrescriptionFlowError(
+        "patient_note_required",
+        400,
+        "A patient-visible explanation is required",
+      );
+    }
+    const result = await this.repository.transitionReview({
+      actorPrincipalId: context.actor.principalId,
+      expectedVersion: input.expectedVersion,
+      patientVisibleNote: input.patientVisibleNote,
+      pharmacyOrganizationId: input.pharmacyOrganizationId,
+      prescriptionId: input.prescriptionId,
+      reasonCode: reviewReason(input.toStatus),
+      toStatus: input.toStatus,
+    });
+    if (result === null) {
+      throw conflict("review_version_conflict", "Review changed; reload and retry");
+    }
+    return result;
+  }
+
+  private async signDownload(cleanObjectKey: string, cleanVersionId: string | null) {
+    if (
+      (this.config.appEnvironment === "staging" || this.config.appEnvironment === "production") &&
+      cleanVersionId === null
     ) {
       throw new ScannedPrescriptionFlowError(
         "prescription_document_not_available",
@@ -176,8 +277,8 @@ export class ScannedPrescriptionService {
     const expiresAt = new Date(Date.now() + this.config.objectStorage.downloadTtlSeconds * 1000);
     const url = await this.storage.signCleanDownload({
       expiresInSeconds: this.config.objectStorage.downloadTtlSeconds,
-      key: record.cleanObjectKey,
-      versionId: record.cleanVersionId,
+      key: cleanObjectKey,
+      versionId: cleanVersionId,
     });
     return { expiresAt: expiresAt.toISOString(), url };
   }
@@ -195,9 +296,37 @@ export class ScannedPrescriptionService {
     });
   }
 
+  private authorizePharmacy(
+    context: ScannedPrescriptionRequestContext,
+    organizationId: string,
+    resourceId: string,
+  ) {
+    return this.authorization.authorize({
+      actor: context.actor,
+      context: { organizationId, resourceId, resourceType: "pharmacy_scanned_prescription" },
+      policy: AUTHORIZATION_POLICY.MANAGE_PHARMACY_SCANNED_PRESCRIPTION,
+      requestId: context.requestId,
+    });
+  }
+
   private async requireOwned(context: ScannedPrescriptionRequestContext, prescriptionId: string) {
     const record = await this.repository.findOwned({
       patientPrincipalId: context.actor.principalId,
+      prescriptionId,
+    });
+    if (record === null) {
+      throw new ScannedPrescriptionFlowError(
+        "scanned_prescription_not_found",
+        404,
+        "Scanned prescription not found",
+      );
+    }
+    return record;
+  }
+
+  private async requireForPharmacy(pharmacyOrganizationId: string, prescriptionId: string) {
+    const record = await this.repository.findForPharmacy({
+      pharmacyOrganizationId,
       prescriptionId,
     });
     if (record === null) {
@@ -222,6 +351,24 @@ function toPublicDetail(record: Awaited<ReturnType<ScannedPrescriptionRepository
     ...detail
   } = record;
   return detail;
+}
+
+function stripPharmacyStorage(
+  record: NonNullable<Awaited<ReturnType<ScannedPrescriptionRepository["findForPharmacy"]>>>,
+) {
+  const { cleanObjectKey: _clean, cleanVersionId: _version, ...detail } = record;
+  return detail;
+}
+
+function reviewReason(
+  status: "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "APPROVED" | "REJECTED",
+) {
+  return {
+    APPROVED: "PHARMACY_REVIEW_APPROVED",
+    MORE_INFORMATION_REQUIRED: "PHARMACY_REQUESTED_INFORMATION",
+    REJECTED: "PHARMACY_REVIEW_REJECTED",
+    UNDER_REVIEW: "PHARMACY_REVIEW_STARTED",
+  }[status];
 }
 
 function decodeCursor(cursor: string): { createdAt: Date; id: string } {

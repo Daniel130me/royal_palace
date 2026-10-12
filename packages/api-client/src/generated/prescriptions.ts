@@ -84,6 +84,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pharmacy/scanned-prescriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPharmacyScannedPrescriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPharmacyScannedPrescription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadPharmacyScannedPrescription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/start-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startPharmacyScannedPrescriptionReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/request-information": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestScannedPrescriptionInformation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approvePharmacyScannedPrescription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rejectPharmacyScannedPrescription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pharmacy/scanned-prescriptions/{prescriptionId}/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createScannedPrescriptionQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pharmacy/catalog-items": {
         parameters: {
             query?: never;
@@ -751,6 +879,22 @@ export interface components {
             data: components["schemas"]["ScannedPrescriptionSummary"][];
             pageInfo: components["schemas"]["CursorPageInfo"];
         };
+        PharmacyScannedPrescriptionSummary: components["schemas"]["ScannedPrescriptionSummary"] & {
+            patient: {
+                displayName: string;
+            };
+        };
+        PharmacyScannedPrescriptionDetail: components["schemas"]["PharmacyScannedPrescriptionSummary"] & {
+            history: components["schemas"]["ScannedPrescriptionHistoryEntry"][];
+        };
+        PharmacyScannedPrescriptionList: {
+            data: components["schemas"]["PharmacyScannedPrescriptionSummary"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        ScannedPrescriptionReviewInput: {
+            expectedVersion: number;
+            patientVisibleNote?: string | null;
+        };
         CreateScannedPrescriptionUploadInput: {
             /** @enum {string} */
             declaredContentType: "application/pdf" | "image/heic" | "image/heif" | "image/jpeg" | "image/png";
@@ -1036,7 +1180,7 @@ export interface components {
             medicationCodeSystem: string | null;
             medicationName: string;
             /** Format: uuid */
-            prescriptionItemId: string;
+            prescriptionItemId: string | null;
             quantity: string;
             quantityUnit: string;
             strength: string | null;
@@ -1065,7 +1209,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "PRESCRIPTION" | "DIRECT_OTC";
+            kind: "PRESCRIPTION" | "DIRECT_OTC" | "SCANNED_PRESCRIPTION";
             inventoryReservation: {
                 /** Format: date-time */
                 expiresAt: string;
@@ -1083,6 +1227,8 @@ export interface components {
             prescriptionId: string | null;
             /** Format: uuid */
             prescriptionRouteId: string | null;
+            /** Format: uuid */
+            scannedPrescriptionId: string | null;
             quoteNumber: string;
             /** @enum {string} */
             status: "ACTIVE" | "ACCEPTED" | "EXPIRED" | "CANCELLED" | "SUPERSEDED";
@@ -1723,6 +1869,241 @@ export interface operations {
             };
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPharmacyScannedPrescriptions: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Clean scanned prescriptions assigned to the requesting pharmacy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    getPharmacyScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Minimal pharmacy review view for an assigned scanned prescription */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionDetail"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadPharmacyScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Short-lived private download for the clean assigned document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateDocumentDownload"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startPharmacyScannedPrescriptionReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedPrescriptionReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Review started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    requestScannedPrescriptionInformation: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedPrescriptionReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Additional information requested from the patient */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    approvePharmacyScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedPrescriptionReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Scanned prescription approved for quote preparation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rejectPharmacyScannedPrescription: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedPrescriptionReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Scanned prescription rejected with a patient-visible explanation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PharmacyScannedPrescriptionDetail"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createScannedPrescriptionQuote: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                prescriptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDirectPharmacyQuoteInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PharmacyQuoteResponse"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+            503: components["responses"]["WorkflowDisabled"];
         };
     };
     listPharmacyCatalogItems: {

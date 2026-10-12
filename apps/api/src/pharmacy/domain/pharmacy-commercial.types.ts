@@ -84,9 +84,19 @@ export interface DirectPharmacyQuotePreparation {
   }[];
 }
 
+export interface ScannedPrescriptionQuotePreparation extends Omit<
+  DirectPharmacyQuotePreparation,
+  "kind"
+> {
+  kind: "SCANNED_PRESCRIPTION";
+  scannedPrescriptionId: string;
+  scannedPrescriptionVersion: number;
+}
+
 /** Backwards-compatible name for the prescription quote preparation aggregate. */
 export type PharmacyQuotePreparation = PrescriptionPharmacyQuotePreparation;
-export type AnyPharmacyQuotePreparation = PharmacyQuotePreparation | DirectPharmacyQuotePreparation;
+export type AnyPharmacyQuotePreparation =
+  PharmacyQuotePreparation | DirectPharmacyQuotePreparation | ScannedPrescriptionQuotePreparation;
 
 export interface InventoryReservationEvidence {
   evidenceHash: string;
@@ -197,6 +207,11 @@ export interface PharmacyCommercialRepository {
     patientPrincipalId: string;
     pharmacyOrganizationId: string;
   }): Promise<DirectPharmacyQuotePreparation | null>;
+  findScannedPreparation(input: {
+    catalogItemIds: readonly string[];
+    pharmacyOrganizationId: string;
+    scannedPrescriptionId: string;
+  }): Promise<ScannedPrescriptionQuotePreparation | null>;
   listPatientCatalogItems(input: {
     cursor?: { id: string; sortValue: string };
     limit: number;

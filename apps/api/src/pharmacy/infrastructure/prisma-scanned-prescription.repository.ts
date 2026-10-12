@@ -25,6 +25,11 @@ const summarySelect = {
   version: true,
 } satisfies Prisma.ScannedPrescriptionSelect;
 
+const pharmacySummarySelect = {
+  ...summarySelect,
+  patient: { select: { familyName: true, givenName: true } },
+} satisfies Prisma.ScannedPrescriptionSelect;
+
 @Injectable()
 export class PrismaScannedPrescriptionRepository implements ScannedPrescriptionRepository {
   constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
@@ -111,6 +116,28 @@ export class PrismaScannedPrescriptionRepository implements ScannedPrescriptionR
     };
   }
 
+  async findForPharmacy(input: Parameters<ScannedPrescriptionRepository["findForPharmacy"]>[0]) {
+    const record = await this.database.scannedPrescription.findFirst({
+      include: {
+        history: { orderBy: [{ occurredAt: "asc" }, { id: "asc" }] },
+        patient: { select: { familyName: true, givenName: true } },
+      },
+      where: {
+        id: input.prescriptionId,
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        status: {
+          in: ["CLEAN", "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED", "APPROVED", "REJECTED"],
+        },
+      },
+    });
+    if (record === null) return null;
+    return {
+      ...mapPharmacyDetail(record),
+      cleanObjectKey: record.cleanObjectKey,
+      cleanVersionId: record.cleanVersionId,
+    };
+  }
+
   async listOwned(input: Parameters<ScannedPrescriptionRepository["listOwned"]>[0]) {
     const rows = await this.database.scannedPrescription.findMany({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -145,8 +172,46 @@ export class PrismaScannedPrescriptionRepository implements ScannedPrescriptionR
     };
   }
 
+  async listForPharmacy(input: Parameters<ScannedPrescriptionRepository["listForPharmacy"]>[0]) {
+    const rows = await this.database.scannedPrescription.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: pharmacySummarySelect,
+      take: input.limit + 1,
+      where: {
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        status: {
+          in: ["CLEAN", "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED", "APPROVED", "REJECTED"],
+        },
+        ...(input.cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: input.cursor.createdAt } },
+                { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
+              ],
+            }),
+      },
+    });
+    const visible = rows.slice(0, input.limit);
+    const last = visible.at(-1);
+    return {
+      data: visible.map(mapPharmacySummary),
+      pageInfo: {
+        endCursor:
+          last === undefined
+            ? null
+            : Buffer.from(
+                JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id }),
+                "utf8",
+              ).toString("base64url"),
+        hasNextPage: rows.length > input.limit,
+      },
+    };
+  }
+
   async completeUpload(input: Parameters<ScannedPrescriptionRepository["completeUpload"]>[0]) {
     return this.database.$transaction(async (transaction) => {
+      await setTransitionActor(transaction, input.patientPrincipalId);
       const record = await transaction.scannedPrescription.findFirst({
         select: { id: true, status: true },
         where: {
@@ -175,6 +240,7 @@ export class PrismaScannedPrescriptionRepository implements ScannedPrescriptionR
 
   async rejectUpload(input: Parameters<ScannedPrescriptionRepository["rejectUpload"]>[0]) {
     await this.database.$transaction(async (transaction) => {
+      await setTransitionActor(transaction, input.patientPrincipalId);
       const record = await transaction.scannedPrescription.findFirst({
         select: { id: true, status: true },
         where: { id: input.prescriptionId, patient: { principalId: input.patientPrincipalId } },
@@ -190,6 +256,48 @@ export class PrismaScannedPrescriptionRepository implements ScannedPrescriptionR
       });
     });
   }
+
+  async transitionReview(input: Parameters<ScannedPrescriptionRepository["transitionReview"]>[0]) {
+    return this.database.$transaction(async (transaction) => {
+      await setTransitionContext(transaction, input.actorPrincipalId, input.patientVisibleNote);
+      const changed = await transaction.scannedPrescription.updateMany({
+        data: {
+          status: input.toStatus,
+          statusReasonCode: input.reasonCode,
+          updatedAt: new Date(),
+          version: { increment: 1 },
+        },
+        where: {
+          id: input.prescriptionId,
+          pharmacyOrganizationId: input.pharmacyOrganizationId,
+          version: input.expectedVersion,
+        },
+      });
+      if (changed.count !== 1) return null;
+      return mapPharmacyDetail(
+        await transaction.scannedPrescription.findUniqueOrThrow({
+          include: {
+            history: { orderBy: [{ occurredAt: "asc" }, { id: "asc" }] },
+            patient: { select: { familyName: true, givenName: true } },
+          },
+          where: { id: input.prescriptionId },
+        }),
+      );
+    });
+  }
+}
+
+async function setTransitionActor(transaction: Prisma.TransactionClient, principalId: string) {
+  await setTransitionContext(transaction, principalId, null);
+}
+
+async function setTransitionContext(
+  transaction: Prisma.TransactionClient,
+  principalId: string,
+  patientVisibleNote: string | null,
+) {
+  await transaction.$queryRaw`SELECT set_config('app.actor_principal_id', ${principalId}, true)`;
+  await transaction.$queryRaw`SELECT set_config('app.patient_visible_note', ${patientVisibleNote ?? ""}, true)`;
 }
 
 export class ScannedPrescriptionPersistenceError extends Error {
@@ -203,6 +311,12 @@ export class ScannedPrescriptionPersistenceError extends Error {
 
 type SummaryRecord = Prisma.ScannedPrescriptionGetPayload<{ select: typeof summarySelect }>;
 type DetailRecord = Prisma.ScannedPrescriptionGetPayload<{ include: { history: true } }>;
+type PharmacySummaryRecord = Prisma.ScannedPrescriptionGetPayload<{
+  select: typeof pharmacySummarySelect;
+}>;
+type PharmacyDetailRecord = Prisma.ScannedPrescriptionGetPayload<{
+  include: { history: true; patient: { select: { familyName: true; givenName: true } } };
+}>;
 
 function mapSummary(record: SummaryRecord) {
   return {
@@ -226,6 +340,27 @@ function mapSummary(record: SummaryRecord) {
 function mapDetail(record: DetailRecord) {
   return {
     ...mapSummary(record),
+    history: record.history.map((entry) => ({
+      fromStatus: entry.fromStatus,
+      id: entry.id,
+      occurredAt: entry.occurredAt.toISOString(),
+      patientVisibleNote: entry.patientVisibleNote,
+      reasonCode: entry.reasonCode,
+      toStatus: entry.toStatus,
+    })),
+  };
+}
+
+function mapPharmacySummary(record: PharmacySummaryRecord) {
+  return {
+    ...mapSummary(record),
+    patient: { displayName: `${record.patient.givenName} ${record.patient.familyName}` },
+  };
+}
+
+function mapPharmacyDetail(record: PharmacyDetailRecord) {
+  return {
+    ...mapPharmacySummary(record),
     history: record.history.map((entry) => ({
       fromStatus: entry.fromStatus,
       id: entry.id,

@@ -427,6 +427,69 @@ export const productionPrescriptionService = {
           },
         })
         .then(unwrapGeneratedResponse),
+    scannedPrescriptions: (organizationId: string, cursor?: string, limit = 25) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/scanned-prescriptions", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    scannedPrescription: (organizationId: string, prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/scanned-prescriptions/{prescriptionId}", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    downloadScannedPrescription: (organizationId: string, prescriptionId: string) =>
+      generatedPrescriptionClient
+        .GET("/v1/pharmacy/scanned-prescriptions/{prescriptionId}/download", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    transitionScannedPrescription: (
+      organizationId: string,
+      prescriptionId: string,
+      action: "start-review" | "request-information" | "approve" | "reject",
+      body: PrescriptionComponents["schemas"]["ScannedPrescriptionReviewInput"],
+    ) => {
+      const path = `/v1/pharmacy/scanned-prescriptions/{prescriptionId}/${action}` as const;
+      return generatedPrescriptionClient
+        .POST(path, {
+          body,
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse);
+    },
+    createScannedPrescriptionQuote: (
+      organizationId: string,
+      prescriptionId: string,
+      body: PrescriptionComponents["schemas"]["CreateDirectPharmacyQuoteInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedPrescriptionClient
+        .POST("/v1/pharmacy/scanned-prescriptions/{prescriptionId}/quotes", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "x-organization-id": organizationId,
+            },
+            path: { prescriptionId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
     acceptPrescription: (organizationId: string, prescriptionId: string, expectedVersion: number) =>
       generatedPrescriptionClient
         .POST("/v1/pharmacy/prescriptions/{prescriptionId}/accept", {

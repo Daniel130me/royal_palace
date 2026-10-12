@@ -275,16 +275,17 @@ that completes an increment.
         production commercial aggregate. Protected activation stays disabled pending
         jurisdictional tax/fee and provider qualification; no browser-supplied charge
         can enter the quote.
-      - `[~]` 11C4P-4 scanned-prescription upload and verification history.
+      - `[x]` 11C4P-4 scanned-prescription upload, verification, review, and conversion.
         - `[x]` 11C4P-4A provides patient-owned upload intents, private quarantine,
           byte/checksum/type verification, asynchronous malware scanning, clean-object
           release, bounded status history, short-lived downloads, optional routing to
           one verified pharmacy, generated contracts/BFF routes, and the approved upload
           and history screens. Storage coordinates never enter public contracts.
-        - `[ ]` 11C4P-4B adds least-privilege pharmacy review, information requests,
-          explicit approve/reject decisions, and controlled conversion into the existing
-          quote/order flow. A scan result alone must never become a practitioner-authored
-          digital prescription.
+        - `[x]` 11C4P-4B adds pharmacy-assignment-scoped review and clean-document
+          download, patient-visible information requests, actor-attributed append-only
+          decisions, and controlled conversion to one server-priced, inventory-held
+          scanned-origin quote. Controlled medicines remain fail-closed, and the upload
+          never becomes a practitioner-authored digital prescription.
       - `[ ]` 11C4P-5 notifications, settings, delivery integration, and admin order
         oversight.
     - `[!]` 11C5 qualification evidence is open. The controlled evidence register and

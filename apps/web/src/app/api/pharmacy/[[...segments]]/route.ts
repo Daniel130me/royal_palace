@@ -11,7 +11,10 @@ type Context = { params: Promise<{ segments?: string[] }> };
 
 export async function GET(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
-  if (segments.length === 1 && ["prescriptions", "quotes", "orders"].includes(segments[0]!)) {
+  if (
+    segments.length === 1 &&
+    ["prescriptions", "scanned-prescriptions", "quotes", "orders"].includes(segments[0]!)
+  ) {
     return proxyAuthenticatedList(request, `/v1/pharmacy/${segments[0]}`, {
       requireOrganization: true,
     });
@@ -29,6 +32,17 @@ export async function GET(request: NextRequest, context: Context) {
       : proxyAuthenticatedOrganizationApi(request, path, "GET");
   }
   const resourceId = exactUuid(segments[1]);
+  if (
+    resourceId !== null &&
+    segments[0] === "scanned-prescriptions" &&
+    (segments.length === 2 || (segments.length === 3 && segments[2] === "download"))
+  ) {
+    return proxyAuthenticatedOrganizationApi(
+      request,
+      `/v1/pharmacy/scanned-prescriptions/${resourceId}${segments[2] === "download" ? "/download" : ""}`,
+      "GET",
+    );
+  }
   if (resourceId !== null && segments.length === 2 && ["quotes", "orders"].includes(segments[0]!)) {
     return proxyAuthenticatedApi(request, `/v1/pharmacy/${segments[0]}/${resourceId}`, "GET");
   }
@@ -49,6 +63,17 @@ export async function POST(request: NextRequest, context: Context) {
   }
   const resourceId = exactUuid(segments[1]);
   if (resourceId === null) return pharmacyBffNotFound();
+  if (
+    segments[0] === "scanned-prescriptions" &&
+    segments.length === 3 &&
+    ["start-review", "request-information", "approve", "reject", "quotes"].includes(segments[2]!)
+  ) {
+    return proxyAuthenticatedOrganizationApi(
+      request,
+      `/v1/pharmacy/scanned-prescriptions/${resourceId}/${segments[2]}`,
+      "POST",
+    );
+  }
   if (
     segments[0] === "prescriptions" &&
     segments.length === 3 &&

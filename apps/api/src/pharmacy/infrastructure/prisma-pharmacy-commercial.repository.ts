@@ -218,6 +218,54 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
     };
   }
 
+  async findScannedPreparation(
+    input: Parameters<PharmacyCommercialRepository["findScannedPreparation"]>[0],
+  ) {
+    const scanned = await this.database.scannedPrescription.findFirst({
+      include: {
+        patient: { select: { id: true, principalId: true } },
+      },
+      where: {
+        id: input.scannedPrescriptionId,
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        status: "APPROVED",
+      },
+    });
+    if (scanned === null) return null;
+    const items = await this.database.pharmacyCatalogItem.findMany({
+      include: { dosageForm: { select: { name: true } } },
+      where: {
+        id: { in: [...input.catalogItemIds] },
+        pharmacyOrganizationId: input.pharmacyOrganizationId,
+        status: "ACTIVE",
+      },
+    });
+    if (items.length !== input.catalogItemIds.length) return null;
+    return {
+      items: items.map((item) => ({
+        availableQuantity: item.onHandQuantity.sub(item.reservedQuantity).toFixed(3),
+        brandName: item.brandName,
+        catalogItemId: item.id,
+        controlledMedication: item.controlledMedication,
+        currency: item.currency,
+        dosageFormName: item.dosageForm.name,
+        genericName: item.genericName,
+        medicationCode: item.medicationCode,
+        medicationCodeSystem: item.medicationCodeSystem,
+        medicationName: item.name,
+        prescriptionRequired: item.prescriptionRequired,
+        strength: item.strength,
+        unitPriceMinor: item.unitPriceMinor,
+        version: item.version,
+      })),
+      kind: "SCANNED_PRESCRIPTION" as const,
+      patientId: scanned.patient.id,
+      patientPrincipalId: scanned.patient.principalId,
+      scannedPrescriptionId: scanned.id,
+      scannedPrescriptionVersion: scanned.version,
+    };
+  }
+
   async listPatientCatalogItems(input: {
     cursor?: { id: string; sortValue: string };
     limit: number;
@@ -353,6 +401,17 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                   },
                 })
               : null;
+          const scannedPrescription =
+            input.preparation.kind === "SCANNED_PRESCRIPTION"
+              ? await transaction.scannedPrescription.findFirst({
+                  select: { version: true },
+                  where: {
+                    id: input.preparation.scannedPrescriptionId,
+                    pharmacyOrganizationId: input.pharmacyOrganizationId,
+                    status: "APPROVED",
+                  },
+                })
+              : null;
           if (
             input.preparation.kind === "PRESCRIPTION" &&
             (route === null ||
@@ -372,7 +431,15 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
             throw new PharmacyCommercialConflictError("INVALID_PRESCRIPTION_STATE");
           }
 
-          if (input.preparation.kind === "DIRECT_OTC") {
+          if (
+            input.preparation.kind === "SCANNED_PRESCRIPTION" &&
+            (scannedPrescription === null ||
+              scannedPrescription.version !== input.preparation.scannedPrescriptionVersion)
+          ) {
+            throw new PharmacyCommercialConflictError("VERSION_CONFLICT");
+          }
+
+          if (input.preparation.kind !== "PRESCRIPTION") {
             const currentItems = await transaction.pharmacyCatalogItem.findMany({
               select: {
                 controlledMedication: true,
@@ -398,7 +465,7 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                 return (
                   snapshot === undefined ||
                   item.status !== "ACTIVE" ||
-                  item.prescriptionRequired ||
+                  (input.preparation.kind === "DIRECT_OTC" && item.prescriptionRequired) ||
                   item.controlledMedication ||
                   item.version !== snapshot.version ||
                   item.currency !== snapshot.currency ||
@@ -421,7 +488,16 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                     status: "ACTIVE",
                   },
                 })
-              : [];
+              : input.preparation.kind === "SCANNED_PRESCRIPTION"
+                ? await transaction.pharmacyQuote.findMany({
+                    select: { id: true, inventoryReservation: { select: { id: true } } },
+                    where: {
+                      expiresAt: { lte: now },
+                      scannedPrescriptionId: input.preparation.scannedPrescriptionId,
+                      status: "ACTIVE",
+                    },
+                  })
+                : [];
           if (expiredQuotes.length > 0) {
             const expiredIds = expiredQuotes.map((quote) => quote.id);
             for (const quote of expiredQuotes) {
@@ -452,7 +528,15 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                     status: { in: ["ACTIVE", "ACCEPTED"] },
                   },
                 })
-              : null;
+              : input.preparation.kind === "SCANNED_PRESCRIPTION"
+                ? await transaction.pharmacyQuote.findFirst({
+                    select: { id: true },
+                    where: {
+                      scannedPrescriptionId: input.preparation.scannedPrescriptionId,
+                      status: { in: ["ACTIVE", "ACCEPTED"] },
+                    },
+                  })
+                : null;
           if (activeQuote !== null) {
             throw new PharmacyCommercialConflictError("ACTIVE_QUOTE_EXISTS");
           }
@@ -528,6 +612,10 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
                 input.preparation.kind === "PRESCRIPTION" ? input.preparation.prescriptionId : null,
               prescriptionRouteId:
                 input.preparation.kind === "PRESCRIPTION" ? input.preparation.routeId : null,
+              scannedPrescriptionId:
+                input.preparation.kind === "SCANNED_PRESCRIPTION"
+                  ? input.preparation.scannedPrescriptionId
+                  : null,
               quoteNumber: `QUOTE-${quoteId.toUpperCase()}`,
               subtotalMinor,
               taxMinor,
@@ -922,7 +1010,7 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
       async (transaction, order, now) => {
         if (order.status !== "CONFIRMED" || order.handoff?.status !== "READY") return false;
         if (order.handoff.version !== input.expectedHandoffVersion) return false;
-        if (order.quote.kind === "DIRECT_OTC") {
+        if (order.quote.kind !== "PRESCRIPTION") {
           await consumeDirectPlatformInventory(transaction, {
             actorPrincipalId: input.principalId,
             orderId: order.id,
@@ -952,7 +1040,7 @@ export class PrismaPharmacyCommercialRepository implements PharmacyCommercialRep
       async (transaction, order, now) => {
         if (order.version !== input.expectedVersion) return false;
         const hasFulfillmentEvidence =
-          order.quote.kind === "DIRECT_OTC"
+          order.quote.kind !== "PRESCRIPTION"
             ? order.handoff?.status === "HANDED_OFF"
             : await hasDispenseEvidence(transaction, order);
         if (!hasFulfillmentEvidence) {
@@ -1232,6 +1320,7 @@ function mapQuote(row: QuoteRecord): PharmacyQuoteResponse {
     pharmacyOrganizationId: row.pharmacyOrganizationId,
     prescriptionId: row.prescriptionId,
     prescriptionRouteId: row.prescriptionRouteId,
+    scannedPrescriptionId: row.scannedPrescriptionId,
     quoteNumber: row.quoteNumber,
     status: row.status,
     subtotalMinor: row.subtotalMinor.toString(),
