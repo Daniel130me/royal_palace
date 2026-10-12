@@ -21,6 +21,22 @@ const LOCAL_GRANT_TTL_SECONDS = 8 * 60 * 60;
 const LOCAL_ID_TOKEN_TTL_SECONDS = 5 * 60;
 const LOCAL_INTERACTION_TTL_SECONDS = 600;
 const LOCAL_SESSION_TTL_SECONDS = 8 * 60 * 60;
+const LOCAL_IDENTITY_PAGE_STYLES = `
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f3f6f5; color: #15211d; }
+    main { width: min(100%, 460px); padding: 36px; border: 1px solid #d7e0dc; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(21, 33, 29, .10); }
+    .eyebrow { margin: 0 0 8px; color: #237d61; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: 30px; line-height: 1.15; }
+    .intro { margin: 12px 0 24px; color: #53635d; line-height: 1.55; }
+    label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 650; }
+    select, input { width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid #b8c7c1; border-radius: 10px; background: white; color: inherit; font: inherit; }
+    select:focus, input:focus { outline: 3px solid rgba(35, 125, 97, .18); border-color: #237d61; }
+    button, .primary-action { display: inline-grid; width: 100%; min-height: 50px; margin-top: 24px; place-items: center; border: 0; border-radius: 10px; background: #17694f; color: white; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+    button:hover, .primary-action:hover { background: #10543f; }
+    .notice { margin: 22px 0 0; padding: 12px 14px; border-radius: 10px; background: #f1f8f5; color: #38564b; font-size: 13px; line-height: 1.45; }
+    .error { margin: 0 0 16px; padding: 11px 13px; border-radius: 9px; background: #fff0f0; color: #9f1f1f; font-size: 14px; }
+`;
 
 export async function startSyntheticIdentityProvider(
   environment: NodeJS.ProcessEnv = process.env,
@@ -116,13 +132,21 @@ async function routeRequest(
     return;
   }
 
-  if (request.method === "GET") {
-    await handleInteractionGet(provider, config, request, response);
-    return;
-  }
-  if (request.method === "POST") {
-    await handleInteractionPost(provider, config, request, response);
-    return;
+  try {
+    if (request.method === "GET") {
+      await handleInteractionGet(provider, config, request, response);
+      return;
+    }
+    if (request.method === "POST") {
+      await handleInteractionPost(provider, config, request, response);
+      return;
+    }
+  } catch (error: unknown) {
+    if (isInvalidInteractionRequest(error)) {
+      sendExpiredInteractionPage(response, config);
+      return;
+    }
+    throw error;
   }
   response.setHeader("allow", "GET, POST");
   sendText(response, 405, "Method not allowed");
@@ -237,22 +261,7 @@ function sendLoginPage(response: ServerResponse, interaction: Interaction, error
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Royal Palace local review sign in</title>
-  <style>
-    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f3f6f5; color: #15211d; }
-    main { width: min(100%, 460px); padding: 36px; border: 1px solid #d7e0dc; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(21, 33, 29, .10); }
-    .eyebrow { margin: 0 0 8px; color: #237d61; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { margin: 0; font-size: 30px; line-height: 1.15; }
-    .intro { margin: 12px 0 24px; color: #53635d; line-height: 1.55; }
-    label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 650; }
-    select, input { width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid #b8c7c1; border-radius: 10px; background: white; color: inherit; font: inherit; }
-    select:focus, input:focus { outline: 3px solid rgba(35, 125, 97, .18); border-color: #237d61; }
-    button { width: 100%; min-height: 50px; margin-top: 24px; border: 0; border-radius: 10px; background: #17694f; color: white; font: inherit; font-weight: 700; cursor: pointer; }
-    button:hover { background: #10543f; }
-    .notice { margin: 22px 0 0; padding: 12px 14px; border-radius: 10px; background: #f1f8f5; color: #38564b; font-size: 13px; line-height: 1.45; }
-    .error { margin: 0 0 16px; padding: 11px 13px; border-radius: 9px; background: #fff0f0; color: #9f1f1f; font-size: 14px; }
-  </style>
+  <style>${LOCAL_IDENTITY_PAGE_STYLES}</style>
 </head>
 <body>
   <main>
@@ -271,7 +280,38 @@ function sendLoginPage(response: ServerResponse, interaction: Interaction, error
   </main>
 </body>
 </html>`;
-  response.statusCode = error === undefined ? 200 : 401;
+  sendHtml(response, error === undefined ? 200 : 401, html);
+}
+
+function sendExpiredInteractionPage(
+  response: ServerResponse,
+  config: SyntheticIdentityConfig,
+): void {
+  const loginUrl = new URL("/api/bff/auth/login", config.redirectUri);
+  loginUrl.searchParams.set("returnTo", "/");
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Royal Palace sign-in session expired</title>
+  <style>${LOCAL_IDENTITY_PAGE_STYLES}</style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Local review environment</p>
+    <h1>Sign-in session expired</h1>
+    <p class="intro">For security, local sign-in pages expire after ${LOCAL_INTERACTION_TTL_SECONDS / 60} minutes. Start a new sign-in and enter the review password again.</p>
+    <a class="primary-action" href="${escapeHtml(loginUrl.toString())}">Start a new sign-in</a>
+    <p class="notice">No account or password data was changed.</p>
+  </main>
+</body>
+</html>`;
+  sendHtml(response, 410, html);
+}
+
+function sendHtml(response: ServerResponse, status: number, html: string): void {
+  response.statusCode = status;
   response.setHeader("cache-control", "no-store");
   response.setHeader(
     "content-security-policy",
@@ -314,6 +354,10 @@ function sendText(response: ServerResponse, status: number, message: string): vo
 
 function safeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+function isInvalidInteractionRequest(error: unknown): boolean {
+  return error instanceof Error && error.message === "invalid_request";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
