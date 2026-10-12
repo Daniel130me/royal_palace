@@ -1,6 +1,28 @@
 BEGIN;
 
-ALTER TYPE "InventoryReservationStatus" ADD VALUE 'COMMITTED' AFTER 'HELD';
+-- PostgreSQL does not permit a newly added enum value to be used safely before
+-- the surrounding transaction commits. Rebuild the enum instead so the type,
+-- column, default, and updated transition guard remain one atomic migration.
+ALTER TABLE "inventory_reservations"
+  ALTER COLUMN "status" DROP DEFAULT;
+
+ALTER TYPE "InventoryReservationStatus"
+  RENAME TO "InventoryReservationStatus_previous";
+
+CREATE TYPE "InventoryReservationStatus" AS ENUM (
+  'HELD',
+  'COMMITTED',
+  'RELEASED',
+  'CONSUMED',
+  'EXPIRED'
+);
+
+ALTER TABLE "inventory_reservations"
+  ALTER COLUMN "status" TYPE "InventoryReservationStatus"
+    USING "status"::text::"InventoryReservationStatus",
+  ALTER COLUMN "status" SET DEFAULT 'HELD';
+
+DROP TYPE "InventoryReservationStatus_previous";
 
 ALTER TABLE "inventory_reservations"
   ADD CONSTRAINT "inventory_reservations_platform_reference_check" CHECK (
