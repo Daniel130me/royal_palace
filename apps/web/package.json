@@ -3,7 +3,7 @@
   "version": "0.2.1",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "node --env-file-if-exists=../../.env.local scripts/start-dev.mjs",
     "build": "next build && node scripts/package-standalone.mjs",
     "start": "node scripts/start-standalone.mjs",
     "typecheck": "tsc --noEmit",
@@ -88,6 +88,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.18",
+    "@types/node": "24.13.6",
     "@types/react": "19.2.8",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.2",
