@@ -1,7 +1,7 @@
 import { cp, mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import pg from "pg";
 import { v7 } from "uuid";
@@ -17,6 +17,12 @@ import {
 const { Client } = pg;
 const FIRST_MIGRATION = "20260928120000_foundation_identity_and_organizations";
 const PAYMENT_SUBJECT_MIGRATION = "20261007190000_payment_subject_foundation";
+const PINNED_NON_ATOMIC_MIGRATIONS = new Map([
+  [
+    "20261012170000_scanned_prescription_uploads",
+    "0a8737430331f872aca92f36a86b0961cd1775e9fb3f65c085a8b690eadef3d8",
+  ],
+]);
 
 async function main(): Promise<void> {
   const baseUrl = requireDisposableDatabase();
@@ -1366,12 +1372,22 @@ async function assertMigrationsAreTransactional(): Promise<void> {
     .map((entry) => entry.name)
     .sort();
   for (const migration of migrations) {
-    const sql = (await readFile(join(migrationsRoot, migration, "migration.sql"), "utf8"))
-      .trim()
-      .toUpperCase();
-    if (!sql.startsWith("BEGIN;") || !sql.endsWith("COMMIT;")) {
+    const source = await readFile(join(migrationsRoot, migration, "migration.sql"), "utf8");
+    const normalizedSource = source.replaceAll("\r\n", "\n");
+    const sql = normalizedSource.trim().toUpperCase();
+    if (sql.startsWith("BEGIN;") && sql.endsWith("COMMIT;")) continue;
+
+    // This migration was published before the atomicity gate existed. Rewriting it
+    // would invalidate Prisma checksums in environments that have already applied it,
+    // so its exact bytes are pinned while every later migration remains fail-closed.
+    const expectedDigest = PINNED_NON_ATOMIC_MIGRATIONS.get(migration);
+    const actualDigest = createHash("sha256").update(normalizedSource, "utf8").digest("hex");
+    if (expectedDigest === undefined || actualDigest !== expectedDigest) {
       throw new Error(`${migration} must be atomic (BEGIN/COMMIT)`);
     }
+    process.stderr.write(
+      `Verified pinned non-atomic published migration ${migration}; do not modify it in place.\n`,
+    );
   }
 }
 

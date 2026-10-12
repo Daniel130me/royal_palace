@@ -82,6 +82,11 @@ image as a platform-authored clinical prescription:
 - The previously published 4A migration is unchanged. Audit-trigger enrichment and
   scanned-quote schema changes are forward-only migrations, avoiding migration checksum
   drift in environments that have already applied 4A.
+- Non-standard condition: the published 4A migration predates the repository's explicit
+  transaction wrapper rule. Its normalized SHA-256 digest is pinned in the migration
+  verifier so it cannot drift silently; all later migrations remain required to use
+  `BEGIN`/`COMMIT`. An environment interrupted while applying 4A requires an operator-led
+  Prisma migration repair and must not be advanced automatically.
 
 ## Remaining release boundary
 
