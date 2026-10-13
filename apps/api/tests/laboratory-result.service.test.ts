@@ -13,6 +13,7 @@ const patientPrincipalId = "0199a18e-a400-7000-8000-000000000101";
 const practitionerPrincipalId = "0199a18e-a400-7000-8000-000000000102";
 const organizationId = "0199a18e-a400-7000-8000-000000000103";
 const resultId = "0199a18e-a400-7000-8000-000000000104";
+const attachmentId = "0199a18e-a400-7000-8000-000000000108";
 
 function session(role: "PATIENT" | "PROVIDER" | "ORGANIZATION_STAFF"): CurrentSession {
   return {
@@ -63,22 +64,34 @@ describe("LaboratoryResultService", () => {
   const repository = {
     acknowledgeCritical: vi.fn(),
     createAmendment: vi.fn(),
+    completeAttachmentUpload: vi.fn(),
+    createAttachmentUpload: vi.fn(),
     createDraft: vi.fn(),
     findCriticalById: vi.fn(),
+    findAttachmentById: vi.fn(),
     findResultById: vi.fn(),
     listCriticalByPractitioner: vi.fn(),
     listResults: vi.fn(),
     publish: vi.fn(),
+    rejectAttachmentUpload: vi.fn(),
     resolveCritical: vi.fn(),
     transitionResult: vi.fn(),
     updateDraft: vi.fn(),
   } satisfies Record<keyof LaboratoryResultRepository, ReturnType<typeof vi.fn>>;
+  const storage = {
+    inspectQuarantined: vi.fn(),
+    signCleanDownload: vi.fn(),
+    signUpload: vi.fn(),
+  };
   const service = new LaboratoryResultService(
     repository as unknown as LaboratoryResultRepository,
     { authorize } as unknown as AuthorizationService,
+    storage,
     {
+      appEnvironment: "test",
       clinicalWorkflow: { mode: "synthetic" },
       laboratory: { criticalAcknowledgementSeconds: 1800 },
+      objectStorage: { downloadTtlSeconds: 300, uploadTtlSeconds: 600 },
     } as ApiServiceConfig,
   );
 
@@ -109,5 +122,46 @@ describe("LaboratoryResultService", () => {
     expect(response).not.toHaveProperty("patientPrincipalId");
     expect(response).not.toHaveProperty("practitionerPrincipalId");
     expect(response).not.toHaveProperty("laboratoryOrganizationId");
+  });
+
+  it("verifies quarantine evidence before scheduling an attachment scan", async () => {
+    repository.findAttachmentById.mockResolvedValue({
+      cleanObjectKey: null,
+      cleanVersionId: null,
+      declaredContentType: "application/pdf",
+      declaredSha256: "a".repeat(64),
+      declaredSizeBytes: 100,
+      id: attachmentId,
+      laboratoryOrganizationId: organizationId,
+      originalFilename: "result.pdf",
+      patientPrincipalId,
+      practitionerPrincipalId,
+      resultId,
+      resultStatus: "DRAFT",
+      status: "AWAITING_UPLOAD",
+      storageObjectKey: `laboratory-result-attachments/${attachmentId}`,
+      uploadExpiresAt: new Date(Date.now() + 60_000),
+    });
+    storage.inspectQuarantined.mockResolvedValue({
+      checksumSha256: Buffer.from("a".repeat(64), "hex").toString("base64"),
+      contentType: "application/pdf",
+      sizeBytes: 100,
+      versionId: "quarantine-version",
+    });
+    repository.completeAttachmentUpload.mockResolvedValue(true);
+
+    await expect(
+      service.completeAttachmentUpload(
+        { actor: session("ORGANIZATION_STAFF"), requestId: "request-3" },
+        organizationId,
+        resultId,
+        attachmentId,
+      ),
+    ).resolves.toEqual({ status: "QUARANTINED" });
+    expect(repository.completeAttachmentUpload).toHaveBeenCalledWith({
+      attachmentId,
+      organizationId,
+      quarantineVersionId: "quarantine-version",
+    });
   });
 });

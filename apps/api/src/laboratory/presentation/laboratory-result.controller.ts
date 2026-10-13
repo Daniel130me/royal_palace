@@ -84,6 +84,25 @@ const laboratoryListSchema = listSchema
 const criticalListSchema = listSchema
   .extend({ status: z.enum(["OPEN", "ACKNOWLEDGED", "ESCALATED", "RESOLVED"]).optional() })
   .strict();
+const MAX_LABORATORY_RESULT_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const attachmentUploadSchema = z
+  .object({
+    declaredContentType: z.enum([
+      "application/pdf",
+      "image/heic",
+      "image/heif",
+      "image/jpeg",
+      "image/png",
+    ]),
+    declaredSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    declaredSizeBytes: z.number().int().positive().max(MAX_LABORATORY_RESULT_ATTACHMENT_BYTES),
+    originalFilename: z.string().trim().min(1).max(255),
+    purpose: z
+      .string()
+      .trim()
+      .regex(/^[a-z][a-z0-9_]{2,79}$/),
+  })
+  .strict();
 
 @Controller("v1/laboratory/results")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -203,6 +222,59 @@ export class LaboratoryResultOperationsController {
       ),
     );
   }
+
+  @Post(":resultId/attachment-upload-intents")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT)
+  createAttachmentUpload(
+    @Param("resultId") resultId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.results.createAttachmentUploadIntent(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(idSchema, resultId),
+        parse(attachmentUploadSchema, body),
+      ),
+    );
+  }
+
+  @Post(":resultId/attachments/:attachmentId/complete")
+  @HttpCode(HttpStatus.OK)
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT)
+  completeAttachmentUpload(
+    @Param("resultId") resultId: string,
+    @Param("attachmentId") attachmentId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.results.completeAttachmentUpload(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(idSchema, resultId),
+        parse(idSchema, attachmentId),
+      ),
+    );
+  }
+
+  @Get(":resultId/attachments/:attachmentId/download")
+  @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
+  downloadAttachment(
+    @Param("resultId") resultId: string,
+    @Param("attachmentId") attachmentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.results.downloadAttachment(
+        context(request),
+        parse(idSchema, resultId),
+        parse(idSchema, attachmentId),
+      ),
+    );
+  }
 }
 
 @Controller("v1/patient/laboratory-results")
@@ -220,6 +292,22 @@ export class PatientLaboratoryResultController {
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
   get(@Param("resultId") resultId: string, @Req() request: AuthenticatedInternalRequest) {
     return execute(() => this.results.get(context(request), parse(idSchema, resultId)));
+  }
+
+  @Get(":resultId/attachments/:attachmentId/download")
+  @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
+  downloadAttachment(
+    @Param("resultId") resultId: string,
+    @Param("attachmentId") attachmentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.results.downloadAttachment(
+        context(request),
+        parse(idSchema, resultId),
+        parse(idSchema, attachmentId),
+      ),
+    );
   }
 }
 
@@ -240,6 +328,22 @@ export class ProviderLaboratoryResultController {
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
   get(@Param("resultId") resultId: string, @Req() request: AuthenticatedInternalRequest) {
     return execute(() => this.results.get(context(request), parse(idSchema, resultId)));
+  }
+
+  @Get("laboratory-results/:resultId/attachments/:attachmentId/download")
+  @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
+  downloadAttachment(
+    @Param("resultId") resultId: string,
+    @Param("attachmentId") attachmentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.results.downloadAttachment(
+        context(request),
+        parse(idSchema, resultId),
+        parse(idSchema, attachmentId),
+      ),
+    );
   }
 
   @Get("laboratory-critical-results")

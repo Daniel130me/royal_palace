@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthorizationModule } from "../authorization/authorization.module.js";
 import { IdentityModule } from "../identity/identity.module.js";
+import { DocumentStorageModule } from "../platform/documents/document-storage.module.js";
 import { LaboratoryService } from "./application/laboratory.service.js";
 import { LaboratoryResultService } from "./application/laboratory-result.service.js";
 import { LABORATORY_RESULT_REPOSITORY } from "./domain/laboratory-result.types.js";
@@ -21,7 +22,7 @@ import {
 } from "./presentation/laboratory-result.controller.js";
 
 @Module({
-  imports: [AuthorizationModule, IdentityModule],
+  imports: [AuthorizationModule, DocumentStorageModule, IdentityModule],
   controllers: [
     LaboratoryOperationsController,
     LaboratoryRequestReadController,

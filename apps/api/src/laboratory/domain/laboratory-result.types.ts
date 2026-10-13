@@ -34,7 +34,40 @@ export interface LaboratoryCriticalResultAccessRecord extends LaboratoryCritical
   resultId: string;
 }
 
+export interface LaboratoryResultAttachmentAccessRecord {
+  cleanObjectKey: string | null;
+  cleanVersionId: string | null;
+  declaredContentType: string;
+  declaredSha256: string;
+  declaredSizeBytes: number;
+  id: string;
+  laboratoryOrganizationId: string;
+  originalFilename: string;
+  patientPrincipalId: string;
+  practitionerPrincipalId: string;
+  resultId: string;
+  resultStatus: LaboratoryResultStatus;
+  status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
+  storageObjectKey: string | null;
+  uploadExpiresAt: Date | null;
+}
+
 export interface LaboratoryResultRepository {
+  completeAttachmentUpload(input: {
+    attachmentId: string;
+    organizationId: string;
+    quarantineVersionId: string | null;
+  }): Promise<boolean>;
+  createAttachmentUpload(input: {
+    declaredContentType: string;
+    declaredSha256: string;
+    declaredSizeBytes: number;
+    organizationId: string;
+    originalFilename: string;
+    purpose: string;
+    resultId: string;
+    uploadExpiresAt: Date;
+  }): Promise<{ attachmentId: string; storageObjectKey: string }>;
   acknowledgeCritical(input: {
     actorPrincipalId: string;
     criticalResultId: string;
@@ -58,6 +91,10 @@ export interface LaboratoryResultRepository {
     requestId: string;
   }): Promise<LaboratoryResultAccessRecord>;
   findCriticalById(criticalResultId: string): Promise<LaboratoryCriticalResultAccessRecord | null>;
+  findAttachmentById(input: {
+    attachmentId: string;
+    resultId: string;
+  }): Promise<LaboratoryResultAttachmentAccessRecord | null>;
   findResultById(resultId: string): Promise<LaboratoryResultAccessRecord | null>;
   listCriticalByPractitioner(input: {
     cursor?: { acknowledgementDueAt: Date; id: string };
@@ -84,6 +121,11 @@ export interface LaboratoryResultRepository {
     requestId: string;
     resultId: string;
   }): Promise<LaboratoryResultAccessRecord | null>;
+  rejectAttachmentUpload(input: {
+    attachmentId: string;
+    organizationId: string;
+    reasonCode: string;
+  }): Promise<void>;
   resolveCritical(input: {
     actorPrincipalId: string;
     criticalResultId: string;

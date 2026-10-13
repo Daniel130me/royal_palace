@@ -21,6 +21,7 @@ import { LaboratoryConflictError } from "../domain/laboratory.types.js";
 
 const CREATE_RESULT_OPERATION = "laboratory.result.create";
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000;
+const MAX_ATTACHMENTS_PER_RESULT = 20;
 
 const resultInclude = {
   attachments: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
@@ -52,6 +53,131 @@ export class PrismaLaboratoryResultRepository implements LaboratoryResultReposit
       where: { id: resultId },
     });
     return row === null ? null : mapResult(row);
+  }
+
+  async createAttachmentUpload(input: {
+    declaredContentType: string;
+    declaredSha256: string;
+    declaredSizeBytes: number;
+    organizationId: string;
+    originalFilename: string;
+    purpose: string;
+    resultId: string;
+    uploadExpiresAt: Date;
+  }) {
+    return this.database.$transaction(async (transaction) => {
+      const result = await transaction.laboratoryResult.findFirst({
+        select: { id: true },
+        where: {
+          id: input.resultId,
+          laboratoryOrganizationId: input.organizationId,
+          status: "DRAFT",
+        },
+      });
+      if (result === null) throw new LaboratoryConflictError("INVALID_STATE");
+      const activeCount = await transaction.laboratoryResultAttachment.count({
+        where: {
+          resultId: input.resultId,
+          status: { in: ["AWAITING_UPLOAD", "QUARANTINED", "SCANNING", "CLEAN"] },
+        },
+      });
+      if (activeCount >= MAX_ATTACHMENTS_PER_RESULT) {
+        throw new LaboratoryConflictError("INVARIANT_VIOLATION");
+      }
+      const attachmentId = createOpaqueId();
+      const storageObjectKey = `laboratory-result-attachments/${attachmentId}`;
+      await transaction.laboratoryResultAttachment.create({
+        data: {
+          declaredContentType: input.declaredContentType,
+          declaredSha256: input.declaredSha256,
+          declaredSizeBytes: input.declaredSizeBytes,
+          id: attachmentId,
+          originalFilename: input.originalFilename,
+          purpose: input.purpose,
+          resultId: input.resultId,
+          storageObjectKey,
+          uploadExpiresAt: input.uploadExpiresAt,
+          updatedAt: new Date(),
+        },
+      });
+      return { attachmentId, storageObjectKey };
+    });
+  }
+
+  async findAttachmentById(input: { attachmentId: string; resultId: string }) {
+    const row = await this.database.laboratoryResultAttachment.findFirst({
+      include: {
+        result: {
+          include: {
+            patient: { select: { principalId: true } },
+            practitioner: { select: { principalId: true } },
+          },
+        },
+      },
+      where: { id: input.attachmentId, resultId: input.resultId },
+    });
+    if (row === null || row.result.practitioner.principalId === null) return null;
+    return {
+      cleanObjectKey: row.cleanObjectKey,
+      cleanVersionId: row.cleanVersionId,
+      declaredContentType: row.declaredContentType,
+      declaredSha256: row.declaredSha256,
+      declaredSizeBytes: row.declaredSizeBytes,
+      id: row.id,
+      laboratoryOrganizationId: row.result.laboratoryOrganizationId,
+      originalFilename: row.originalFilename,
+      patientPrincipalId: row.result.patient.principalId,
+      practitionerPrincipalId: row.result.practitioner.principalId,
+      resultId: row.resultId,
+      resultStatus: row.result.status,
+      status: row.status,
+      storageObjectKey: row.storageObjectKey,
+      uploadExpiresAt: row.uploadExpiresAt,
+    };
+  }
+
+  async completeAttachmentUpload(input: {
+    attachmentId: string;
+    organizationId: string;
+    quarantineVersionId: string | null;
+  }) {
+    const changed = await this.database.laboratoryResultAttachment.updateMany({
+      data: {
+        quarantineVersionId: input.quarantineVersionId,
+        scanAvailableAt: new Date(),
+        status: "QUARANTINED",
+        statusReasonCode: "UPLOAD_COMPLETED",
+        updatedAt: new Date(),
+        version: { increment: 1 },
+      },
+      where: {
+        id: input.attachmentId,
+        result: { laboratoryOrganizationId: input.organizationId, status: "DRAFT" },
+        status: "AWAITING_UPLOAD",
+        uploadExpiresAt: { gt: new Date() },
+      },
+    });
+    return changed.count === 1;
+  }
+
+  async rejectAttachmentUpload(input: {
+    attachmentId: string;
+    organizationId: string;
+    reasonCode: string;
+  }) {
+    await this.database.laboratoryResultAttachment.updateMany({
+      data: {
+        status: "REJECTED",
+        statusReasonCode: input.reasonCode,
+        updatedAt: new Date(),
+        version: { increment: 1 },
+      },
+      where: {
+        id: input.attachmentId,
+        result: { laboratoryOrganizationId: input.organizationId, status: "DRAFT" },
+        status: "AWAITING_UPLOAD",
+      },
+    });
   }
 
   async createDraft(input: {

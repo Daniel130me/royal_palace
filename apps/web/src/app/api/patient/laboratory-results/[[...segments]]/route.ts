@@ -18,6 +18,20 @@ export function GET(request: NextRequest, context: { params: Promise<{ segments?
       return path === null ? laboratoryBffNotFound() : proxyAuthenticatedApi(request, path, "GET");
     }
     const resultId = segments.length === 1 ? exactLaboratoryUuid(segments[0]) : null;
+    const attachmentResultId = segments.length === 4 ? exactLaboratoryUuid(segments[0]) : null;
+    const attachmentId = segments.length === 4 ? exactLaboratoryUuid(segments[2]) : null;
+    if (
+      attachmentResultId !== null &&
+      attachmentId !== null &&
+      segments[1] === "attachments" &&
+      segments[3] === "download"
+    ) {
+      return proxyAuthenticatedApi(
+        request,
+        `/v1/patient/laboratory-results/${attachmentResultId}/attachments/${attachmentId}/download`,
+        "GET",
+      );
+    }
     return resultId === null
       ? laboratoryBffNotFound()
       : proxyAuthenticatedApi(request, `/v1/patient/laboratory-results/${resultId}`, "GET");

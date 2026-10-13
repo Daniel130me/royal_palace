@@ -10,6 +10,10 @@ import type {
 
 import { AuthorizationService } from "../../authorization/application/authorization.service.js";
 import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
+import {
+  DOCUMENT_STORAGE,
+  type DocumentStorage,
+} from "../../platform/documents/document-storage.port.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
 import type { LaboratoryRequestContext } from "./laboratory.service.js";
 import { LaboratoryFlowError } from "./laboratory.service.js";
@@ -27,8 +31,145 @@ export class LaboratoryResultService {
     @Inject(LABORATORY_RESULT_REPOSITORY)
     private readonly repository: LaboratoryResultRepository,
     @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
+    @Inject(DOCUMENT_STORAGE) private readonly storage: DocumentStorage,
     @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
   ) {}
+
+  async createAttachmentUploadIntent(
+    context: LaboratoryRequestContext,
+    organizationId: string,
+    resultId: string,
+    input: {
+      declaredContentType: string;
+      declaredSha256: string;
+      declaredSizeBytes: number;
+      originalFilename: string;
+      purpose: string;
+    },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizeLaboratoryManagement(context, organizationId, resultId);
+    const uploadExpiresAt = new Date(
+      Date.now() + this.config.objectStorage.uploadTtlSeconds * 1000,
+    );
+    const reserved = await this.repository.createAttachmentUpload({
+      ...input,
+      organizationId,
+      resultId,
+      uploadExpiresAt,
+    });
+    const signed = await this.storage.signUpload({
+      contentType: input.declaredContentType,
+      expiresInSeconds: this.config.objectStorage.uploadTtlSeconds,
+      key: reserved.storageObjectKey,
+      sha256Hex: input.declaredSha256,
+    });
+    return {
+      attachmentId: reserved.attachmentId,
+      upload: {
+        expiresAt: uploadExpiresAt.toISOString(),
+        headers: signed.headers,
+        method: "PUT" as const,
+        url: signed.url,
+      },
+    };
+  }
+
+  async completeAttachmentUpload(
+    context: LaboratoryRequestContext,
+    organizationId: string,
+    resultId: string,
+    attachmentId: string,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizeLaboratoryManagement(context, organizationId, resultId);
+    const attachment = await this.requireAttachment(resultId, attachmentId);
+    if (
+      attachment.laboratoryOrganizationId !== organizationId ||
+      attachment.status !== "AWAITING_UPLOAD" ||
+      attachment.storageObjectKey === null ||
+      attachment.uploadExpiresAt === null ||
+      attachment.uploadExpiresAt.getTime() <= Date.now()
+    ) {
+      throw attachmentConflict();
+    }
+    const evidence = await this.storage.inspectQuarantined(attachment.storageObjectKey);
+    if (evidence === null) throw attachmentConflict("Attachment upload is incomplete");
+    const expectedChecksum = Buffer.from(attachment.declaredSha256, "hex").toString("base64");
+    if (
+      evidence.checksumSha256 !== expectedChecksum ||
+      evidence.sizeBytes !== attachment.declaredSizeBytes ||
+      evidence.contentType !== attachment.declaredContentType ||
+      ((this.config.appEnvironment === "staging" || this.config.appEnvironment === "production") &&
+        evidence.versionId === null)
+    ) {
+      await this.repository.rejectAttachmentUpload({
+        attachmentId,
+        organizationId,
+        reasonCode: "UPLOAD_EVIDENCE_MISMATCH",
+      });
+      throw attachmentConflict("Attachment upload failed verification");
+    }
+    const completed = await this.repository.completeAttachmentUpload({
+      attachmentId,
+      organizationId,
+      quarantineVersionId: evidence.versionId,
+    });
+    if (!completed) throw attachmentConflict();
+    return { status: "QUARANTINED" as const };
+  }
+
+  async downloadAttachment(
+    context: LaboratoryRequestContext,
+    resultId: string,
+    attachmentId: string,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    const attachment = await this.requireAttachment(resultId, attachmentId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        laboratoryOrganizationId: attachment.laboratoryOrganizationId,
+        patientPrincipalId: attachment.patientPrincipalId,
+        practitionerPrincipalId: attachment.practitionerPrincipalId,
+        resourceId: attachment.resultId,
+        resourceType: "laboratory_result_attachment",
+      },
+      policy: AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT,
+      requestId: context.requestId,
+    });
+    const laboratoryMember = context.actor.memberships.some(
+      (membership) => membership.organizationId === attachment.laboratoryOrganizationId,
+    );
+    if (
+      (!laboratoryMember && attachment.resultStatus !== "PUBLISHED") ||
+      attachment.status !== "CLEAN" ||
+      attachment.cleanObjectKey === null
+    ) {
+      throw new LaboratoryFlowError(
+        "laboratory_result_attachment_not_found",
+        404,
+        "Attachment was not found",
+      );
+    }
+    if (
+      (this.config.appEnvironment === "staging" || this.config.appEnvironment === "production") &&
+      attachment.cleanVersionId === null
+    ) {
+      throw new LaboratoryFlowError(
+        "laboratory_result_attachment_not_found",
+        404,
+        "Attachment was not found",
+      );
+    }
+    const expiresAt = new Date(Date.now() + this.config.objectStorage.downloadTtlSeconds * 1000);
+    const url = await this.storage.signCleanDownload({
+      expiresInSeconds: this.config.objectStorage.downloadTtlSeconds,
+      key: attachment.cleanObjectKey,
+      versionId: attachment.cleanVersionId,
+    });
+    return { expiresAt: expiresAt.toISOString(), url };
+  }
 
   async createDraft(
     context: LaboratoryRequestContext,
@@ -345,6 +486,18 @@ export class LaboratoryResultService {
     return result;
   }
 
+  private async requireAttachment(resultId: string, attachmentId: string) {
+    const attachment = await this.repository.findAttachmentById({ attachmentId, resultId });
+    if (attachment === null) {
+      throw new LaboratoryFlowError(
+        "laboratory_result_attachment_not_found",
+        404,
+        "Attachment was not found",
+      );
+    }
+    return attachment;
+  }
+
   private requireMutation<T>(result: T | null): T {
     if (result === null) {
       throw new LaboratoryFlowError(
@@ -409,4 +562,8 @@ function isLaboratoryMember(actor: CurrentSession, result: LaboratoryResultAcces
 function publicCriticalResult(result: LaboratoryCriticalResultAccessRecord) {
   const { practitionerPrincipalId: _practitionerPrincipalId, ...response } = result;
   return response;
+}
+
+function attachmentConflict(message = "Attachment upload is unavailable") {
+  return new LaboratoryFlowError("laboratory_result_attachment_conflict", 409, message);
 }

@@ -212,6 +212,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/laboratory/results/{resultId}/attachment-upload-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createLaboratoryResultAttachmentUploadIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/attachments/{attachmentId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["completeLaboratoryResultAttachmentUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/attachments/{attachmentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadLaboratoryResultAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/patient/laboratory-results": {
         parameters: {
             query?: never;
@@ -244,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/patient/laboratory-results/{resultId}/attachments/{attachmentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadPatientLaboratoryResultAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/provider/laboratory-results": {
         parameters: {
             query?: never;
@@ -268,6 +332,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getPractitionerLaboratoryResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-results/{resultId}/attachments/{attachmentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadPractitionerLaboratoryResultAttachment"];
         put?: never;
         post?: never;
         delete?: never;
@@ -515,6 +595,39 @@ export interface components {
             /** @enum {string} */
             status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
         };
+        CreateLaboratoryResultAttachmentInput: {
+            /** @enum {string} */
+            declaredContentType: "application/pdf" | "image/heic" | "image/heif" | "image/jpeg" | "image/png";
+            declaredSha256: string;
+            declaredSizeBytes: number;
+            originalFilename: string;
+            purpose: string;
+        };
+        LaboratoryResultAttachmentUploadIntent: {
+            /** Format: uuid */
+            attachmentId: string;
+            upload: {
+                /** Format: date-time */
+                expiresAt: string;
+                headers: {
+                    [key: string]: string;
+                };
+                /** @constant */
+                method: "PUT";
+                /** Format: uri */
+                url: string;
+            };
+        };
+        LaboratoryResultAttachmentCompletion: {
+            /** @constant */
+            status: "QUARANTINED";
+        };
+        SignedDownload: {
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uri */
+            url: string;
+        };
         LaboratoryCriticalResult: {
             /** Format: date-time */
             acknowledgementDueAt: string;
@@ -610,6 +723,7 @@ export interface components {
         LaboratoryRequestId: string;
         ResultId: string;
         CriticalResultId: string;
+        AttachmentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1055,6 +1169,93 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    createLaboratoryResultAttachmentUploadIntent: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLaboratoryResultAttachmentInput"];
+            };
+        };
+        responses: {
+            /** @description Quarantine upload intent created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResultAttachmentUploadIntent"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    completeLaboratoryResultAttachmentUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+                attachmentId: components["parameters"]["AttachmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload evidence accepted for scanning */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResultAttachmentCompletion"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    downloadLaboratoryResultAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+                attachmentId: components["parameters"]["AttachmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Short-lived clean-object download */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedDownload"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listPatientLaboratoryResults: {
         parameters: {
             query?: {
@@ -1107,6 +1308,33 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    downloadPatientLaboratoryResultAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+                attachmentId: components["parameters"]["AttachmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Patient-owned clean attachment download */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedDownload"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listPractitionerLaboratoryResults: {
         parameters: {
             query?: {
@@ -1153,6 +1381,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadPractitionerLaboratoryResultAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+                attachmentId: components["parameters"]["AttachmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practitioner-owned clean attachment download */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedDownload"];
                 };
             };
             403: components["responses"]["AccessDenied"];

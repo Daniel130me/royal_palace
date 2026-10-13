@@ -11,8 +11,9 @@ adds the authenticated production API and BFF boundary. Checkpoint 11D2B connect
 approved request, booking, and operational dashboard surfaces to that boundary. Checkpoint
 11D3A establishes the durable result, attachment, amendment, and critical-result integrity
 model. Checkpoint 11D3B adds the secured structured-result application/API boundary and
-exact browser allowlists. Attachment transfer, result screens, critical escalation execution,
-commercial, notification, settings, and remaining supporting-screen cutover work remain
+exact browser allowlists. Checkpoint 11D3C extends the shared quarantine-first document
+pipeline to result attachments and adds bounded, concurrency-safe critical-result escalation.
+Result screens, commercial, settings, and remaining supporting-screen cutover work remain
 tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
@@ -90,10 +91,10 @@ tracked below and must be completed before parity can be claimed.
       patient/practitioner/laboratory reads, acknowledgement, and resolution APIs with
       generated contracts, exact BFF allowlists, optimistic concurrency, immutable published
       output, privacy-safe notifications, and default-deny relationship authorization.
-- [ ] Add result-attachment registration/upload/scan/download APIs over the existing
+- [x] 11D3C adds result-attachment registration/upload/scan/download APIs over the existing
       quarantine-first attachment records. No attachment may be published or downloaded
       before clean-scan evidence exists.
-- [ ] Add the bounded critical-result escalation worker and privacy-safe inbox/email
+- [x] 11D3C adds the bounded critical-result escalation worker and privacy-safe inbox/email
       notifications. External messages must contain no clinical values or diagnoses.
 - [ ] Connect patient/practitioner result views and laboratory result creation/results
       screens using generated contracts.
@@ -151,11 +152,14 @@ back.
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the patient results tab temporarily retains its
   patient-filtered prototype result reader until 11D3 replaces it atomically; it is not
-  a production clinical-result boundary. The new durable result tables are intentionally
-  unreachable until the authorization, application, API, worker, and browser boundaries are
-  completed. Attachment transfer, result screen cutover, critical escalation execution,
-  home collection, commercial, supporting-screen, query-plan/load, and qualification work
-  remains explicitly release-blocking. No approved screen or navigation destination has been
-  removed. Laboratory publication currently permits one authorized laboratory member to
-  review and publish; whether Nigerian qualification requires independent second-person
+  a production clinical-result boundary. The durable result API and exact BFF boundaries
+  are available, but the approved result screens have not yet been cut over to them. Result
+  screen cutover, home collection, commercial, supporting-screen,
+  query-plan/load, and qualification work remains explicitly release-blocking. No approved
+  screen or navigation destination has been removed. Laboratory publication currently permits
+  one authorized laboratory member to review and publish; whether Nigerian qualification
+  requires independent second-person
   verification is an explicit clinical-governance decision and must not be silently assumed.
+  The overdue critical-result worker currently escalates status and repeats the action-required
+  alert to the ordering practitioner; selection of any additional qualified on-call escalation
+  destination remains a clinical-governance and operational qualification decision.

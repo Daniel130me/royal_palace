@@ -13,7 +13,7 @@ export interface DocumentJob {
   declaredSizeBytes: number;
   scanAttemptCount: number;
   scanLeaseToken: string;
-  resourceKind: "APPLICATION" | "SCANNED_PRESCRIPTION";
+  resourceKind: "APPLICATION" | "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION";
 }
 
 const EXPIRY_SWEEP_BATCH_SIZE = 100;
@@ -21,7 +21,7 @@ const SCAN_LEASE_MS = 10 * 60_000;
 
 export class PostgresDocumentJobs {
   private readonly pool: Pool;
-  private nextSource: DocumentJob["resourceKind"] = "APPLICATION";
+  private nextSourceIndex = 0;
 
   constructor(config: WorkerServiceConfig) {
     this.pool = new Pool({
@@ -37,10 +37,17 @@ export class PostgresDocumentJobs {
   }
 
   async claim(): Promise<DocumentJob | null> {
-    const preferred = this.nextSource;
-    const alternate = preferred === "APPLICATION" ? "SCANNED_PRESCRIPTION" : "APPLICATION";
-    this.nextSource = alternate;
-    return (await this.claimFrom(preferred)) ?? (await this.claimFrom(alternate));
+    const sources = documentKinds();
+    for (let offset = 0; offset < sources.length; offset += 1) {
+      const index = (this.nextSourceIndex + offset) % sources.length;
+      const claimed = await this.claimFrom(sources[index]!);
+      if (claimed !== null) {
+        this.nextSourceIndex = (index + 1) % sources.length;
+        return claimed;
+      }
+    }
+    this.nextSourceIndex = (this.nextSourceIndex + 1) % sources.length;
+    return null;
   }
 
   private async claimFrom(resourceKind: DocumentJob["resourceKind"]): Promise<DocumentJob | null> {
@@ -101,7 +108,7 @@ export class PostgresDocumentJobs {
       documentSources().map((source) =>
         this.pool.query(
           `UPDATE ${source.table} AS document
-       SET status = 'SCAN_FAILED', status_reason_code = 'SCAN_RETRY_EXHAUSTED',
+       SET status = '${source.failureStatus}', status_reason_code = 'SCAN_RETRY_EXHAUSTED',
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            scanned_at = clock_timestamp(), updated_at = clock_timestamp(),
            version = version + 1
@@ -152,13 +159,14 @@ export class PostgresDocumentJobs {
 
   async finish(job: DocumentJob, status: "REJECTED" | "SCAN_FAILED", reasonCode: string) {
     const source = documentSource(job.resourceKind);
+    const finalStatus = status === "SCAN_FAILED" ? source.failureStatus : "REJECTED";
     await this.pool.query(
       `UPDATE ${source.table}
        SET status = $3::${source.statusType}, status_reason_code = $4,
            scan_lease_token = NULL, scan_lease_expires_at = NULL,
            scanned_at = clock_timestamp(), updated_at = clock_timestamp(), version = version + 1
        WHERE id = $1::uuid AND scan_lease_token = $2::uuid AND status = 'SCANNING'`,
-      [job.id, job.scanLeaseToken, status, reasonCode],
+      [job.id, job.scanLeaseToken, finalStatus, reasonCode],
     );
   }
 
@@ -176,16 +184,37 @@ export class PostgresDocumentJobs {
 }
 
 interface DocumentSource {
+  failureStatus: "REJECTED" | "SCAN_FAILED";
   statusType: string;
   table: string;
 }
 
 function documentSources(): readonly DocumentSource[] {
-  return [documentSource("APPLICATION"), documentSource("SCANNED_PRESCRIPTION")];
+  return documentKinds().map(documentSource);
+}
+
+function documentKinds(): readonly DocumentJob["resourceKind"][] {
+  return ["APPLICATION", "SCANNED_PRESCRIPTION", "LABORATORY_RESULT_ATTACHMENT"];
 }
 
 function documentSource(resourceKind: DocumentJob["resourceKind"]): DocumentSource {
-  return resourceKind === "APPLICATION"
-    ? { statusType: '"ApplicationDocumentStatus"', table: "application_documents" }
-    : { statusType: '"ScannedPrescriptionStatus"', table: "scanned_prescriptions" };
+  if (resourceKind === "APPLICATION") {
+    return {
+      failureStatus: "SCAN_FAILED",
+      statusType: '"ApplicationDocumentStatus"',
+      table: "application_documents",
+    };
+  }
+  if (resourceKind === "SCANNED_PRESCRIPTION") {
+    return {
+      failureStatus: "SCAN_FAILED",
+      statusType: '"ScannedPrescriptionStatus"',
+      table: "scanned_prescriptions",
+    };
+  }
+  return {
+    failureStatus: "REJECTED",
+    statusType: '"LaboratoryResultAttachmentStatus"',
+    table: "laboratory_result_attachments",
+  };
 }

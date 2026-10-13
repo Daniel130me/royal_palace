@@ -45,6 +45,8 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
       CREATE TYPE "ScannedPrescriptionStatus" AS ENUM
         ('AWAITING_UPLOAD', 'QUARANTINED', 'SCANNING', 'CLEAN', 'UNDER_REVIEW',
          'MORE_INFORMATION_REQUIRED', 'APPROVED', 'REJECTED', 'SCAN_FAILED', 'WITHDRAWN');
+      CREATE TYPE "LaboratoryResultAttachmentStatus" AS ENUM
+        ('AWAITING_UPLOAD', 'QUARANTINED', 'SCANNING', 'CLEAN', 'REJECTED');
       CREATE TABLE application_documents (
         id uuid PRIMARY KEY,
         status "ApplicationDocumentStatus" NOT NULL,
@@ -73,6 +75,30 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
       CREATE TABLE scanned_prescriptions (
         id uuid PRIMARY KEY,
         status "ScannedPrescriptionStatus" NOT NULL,
+        storage_object_key text NOT NULL,
+        quarantine_version_id text,
+        clean_object_key text,
+        clean_version_id text,
+        declared_content_type text NOT NULL,
+        declared_sha256 char(64) NOT NULL,
+        declared_size_bytes integer NOT NULL,
+        detected_content_type text,
+        verified_size_bytes integer,
+        verified_sha256 char(64),
+        upload_expires_at timestamptz,
+        scan_available_at timestamptz,
+        scan_lease_token uuid,
+        scan_lease_expires_at timestamptz,
+        scan_attempt_count integer NOT NULL DEFAULT 0,
+        status_reason_code text,
+        scanned_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        version integer NOT NULL DEFAULT 1
+      );
+      CREATE TABLE laboratory_result_attachments (
+        id uuid PRIMARY KEY,
+        status "LaboratoryResultAttachmentStatus" NOT NULL,
         storage_object_key text NOT NULL,
         quarantine_version_id text,
         clean_object_key text,
@@ -253,6 +279,37 @@ describe.skipIf(!enabled)("PostgreSQL document job leasing", () => {
     ).toBe(true);
     const clean = await fixture.query<{ status: string; status_reason_code: string }>(
       "SELECT status, status_reason_code FROM scanned_prescriptions WHERE id = $1",
+      [id],
+    );
+    expect(clean.rows[0]).toMatchObject({ status: "CLEAN", status_reason_code: "SCAN_CLEAN" });
+  });
+
+  it("leases and records clean evidence for laboratory result attachments", async () => {
+    const id = "0199f323-6e1b-70af-8d8e-e4d2a65cf820";
+    await fixture.query(
+      `INSERT INTO laboratory_result_attachments
+         (id, status, storage_object_key, declared_content_type, declared_sha256,
+          declared_size_bytes, scan_available_at)
+       VALUES ($1, 'QUARANTINED', $2, 'application/pdf', $3, 100,
+               clock_timestamp() - interval '1 second')`,
+      [id, `laboratory-result-attachments/${id}`, "a".repeat(64)],
+    );
+
+    const claim = await jobs.claim();
+    expect(claim).toMatchObject({ id, resourceKind: "LABORATORY_RESULT_ATTACHMENT" });
+    if (claim === null) throw new Error("Laboratory attachment was not claimed");
+    expect(
+      await jobs.markClean({
+        job: claim,
+        cleanObjectKey: `laboratory-result-attachments/${id}`,
+        cleanVersionId: "verified",
+        contentType: "application/pdf",
+        sizeBytes: 100,
+        sha256Hex: "a".repeat(64),
+      }),
+    ).toBe(true);
+    const clean = await fixture.query<{ status: string; status_reason_code: string }>(
+      "SELECT status, status_reason_code FROM laboratory_result_attachments WHERE id = $1",
       [id],
     );
     expect(clean.rows[0]).toMatchObject({ status: "CLEAN", status_reason_code: "SCAN_CLEAN" });

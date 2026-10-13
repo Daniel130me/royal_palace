@@ -330,7 +330,10 @@ that completes an increment.
     - `[x]` 11D3B establishes secured structured-result drafting, review, publication,
       amendment, bounded patient/practitioner/laboratory reads, critical acknowledgement and
       resolution APIs, generated contracts, and exact browser allowlists.
-    - `[ ]` 11D3C–11D4 attachment transfer, result screens, bounded escalation execution, home collection,
+    - `[x]` 11D3C extends the shared quarantine-first scanner to laboratory-result
+      attachments and adds a bounded, concurrency-safe overdue critical-result escalation
+      worker with privacy-safe durable notifications.
+    - `[ ]` 11D3D–11D4 result screens, home collection,
       services/notifications/settings cutover, commercial parity, migration/load evidence,
       and qualification remain open. Every approved laboratory, patient, and practitioner
       prototype capability remains in the release register.

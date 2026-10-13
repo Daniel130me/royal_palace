@@ -11,6 +11,8 @@ import {
 export function GET(request: NextRequest, context: { params: Promise<{ segments?: string[] }> }) {
   return context.params.then(({ segments = [] }) => {
     const bookingId = segments.length === 2 ? exactLaboratoryUuid(segments[1]) : null;
+    const resultId = segments[0] === "results" ? exactLaboratoryUuid(segments[1]) : null;
+    const attachmentId = exactLaboratoryUuid(segments[3]);
     const path =
       segments.length === 1 && segments[0] === "bookings"
         ? laboratoryQueuePath(request.nextUrl)
@@ -20,7 +22,13 @@ export function GET(request: NextRequest, context: { params: Promise<{ segments?
             ? laboratoryResultListPath("/v1/laboratory/results", request.nextUrl, "result")
             : segments[0] === "results" && bookingId !== null
               ? `/v1/laboratory/results/${bookingId}`
-              : null;
+              : resultId !== null &&
+                  segments[2] === "attachments" &&
+                  attachmentId !== null &&
+                  segments[4] === "download" &&
+                  segments.length === 5
+                ? `/v1/laboratory/results/${resultId}/attachments/${attachmentId}/download`
+                : null;
     return path === null
       ? laboratoryBffNotFound()
       : proxyAuthenticatedOrganizationApi(request, path, "GET");
@@ -33,6 +41,27 @@ export function POST(request: NextRequest, context: { params: Promise<{ segments
     const resultId = segments.length >= 2 ? exactLaboratoryUuid(segments[1]) : null;
     if (segments.length === 1 && segments[0] === "results") {
       return proxyAuthenticatedOrganizationApi(request, "/v1/laboratory/results", "POST");
+    }
+    if (resultId !== null && segments.length === 3 && segments[2] === "attachment-upload-intents") {
+      return proxyAuthenticatedOrganizationApi(
+        request,
+        `/v1/laboratory/results/${resultId}/attachment-upload-intents`,
+        "POST",
+      );
+    }
+    const attachmentId = exactLaboratoryUuid(segments[3]);
+    if (
+      resultId !== null &&
+      attachmentId !== null &&
+      segments.length === 5 &&
+      segments[2] === "attachments" &&
+      segments[4] === "complete"
+    ) {
+      return proxyAuthenticatedOrganizationApi(
+        request,
+        `/v1/laboratory/results/${resultId}/attachments/${attachmentId}/complete`,
+        "POST",
+      );
     }
     return segments[0] === "bookings" && bookingId !== null && segments[2] === "transitions"
       ? proxyAuthenticatedOrganizationApi(

@@ -256,7 +256,9 @@ export class DocumentScanWorker implements OnModuleInit, OnModuleDestroy {
 }
 
 function objectPrefix(resourceKind: DocumentJob["resourceKind"]): string {
-  return resourceKind === "APPLICATION" ? "application-documents" : "scanned-prescriptions";
+  if (resourceKind === "APPLICATION") return "application-documents";
+  if (resourceKind === "SCANNED_PRESCRIPTION") return "scanned-prescriptions";
+  return "laboratory-result-attachments";
 }
 
 function isPreconditionFailure(error: unknown): boolean {
