@@ -319,9 +319,13 @@ that completes an increment.
       controlled collection/processing/cancellation transitions, business audit,
       generated OpenAPI, and exact BFF allowlists. Cross-laboratory history is filtered
       at the response boundary and real activation remains disabled.
-    - `[ ]` 11D2B–11D4 operations UI cutover, result/critical-result, commercial parity,
-      migration/load evidence, and qualification remain open. Every approved laboratory,
-      patient, and practitioner prototype capability remains in the release register.
+    - `[x]` 11D2B connects practitioner ordering, patient verified-laboratory selection,
+      exact-organization dashboard/queues/detail, scheduling, collection, processing,
+      and cancellation screens to generated production contracts.
+    - `[ ]` 11D3–11D4 result/critical-result, home collection, services/notifications/
+      settings cutover, commercial parity, migration/load evidence, and qualification
+      remain open. Every approved laboratory, patient, and practitioner prototype
+      capability remains in the release register.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

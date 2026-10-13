@@ -1,193 +1,275 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { labRequestService } from "@/lib/services";
-import type { Patient } from "@/types";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
+import type { PublicService } from "@royal-palace/contracts";
+import { FlaskConical } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, FlaskConical, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { publicDiscoveryService, productionLaboratoryService } from "@/lib/services";
+import type { Patient } from "@/types";
 
 interface LabRequestDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  patient: Patient | null;
-  encounterId: string;
-  providerId: string;
+  appointmentId: string;
   onCreated: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  patient: Patient | null;
 }
 
-const SAMPLE_TYPES = ["Venous blood", "Capillary blood", "Urine (mid-stream)", "Urine (24h)", "Stool", "Sputum", "Throat swab", "Tissue biopsy", "Other"];
+const SAMPLE_TYPES = [
+  "Venous blood",
+  "Capillary blood",
+  "Urine (mid-stream)",
+  "Urine (24h)",
+  "Stool",
+  "Sputum",
+  "Throat swab",
+  "Tissue biopsy",
+  "Other",
+] as const;
 
-export function LabRequestDialog({ open, onOpenChange, patient, encounterId, providerId, onCreated }: LabRequestDialogProps) {
-  const [tests, setTests] = useState<string[]>([""]);
+function buildSpecimenInstructions(input: {
+  fastingRequired: boolean;
+  notes: string;
+  preparationInstructions: string;
+  sampleType: string;
+}): string | undefined {
+  const instructions = [
+    `Specimen: ${input.sampleType}`,
+    input.fastingRequired ? "Fasting required." : undefined,
+    input.preparationInstructions.trim() || undefined,
+    input.notes.trim() ? `Laboratory note: ${input.notes.trim()}` : undefined,
+  ].filter((value): value is string => value !== undefined);
+  return instructions.length > 0 ? instructions.join("\n") : undefined;
+}
+
+export function LabRequestDialog({
+  appointmentId,
+  onCreated,
+  onOpenChange,
+  open,
+  patient,
+}: LabRequestDialogProps) {
+  const [services, setServices] = useState<readonly PublicService[]>([]);
+  const [serviceId, setServiceId] = useState("");
   const [clinicalIndication, setClinicalIndication] = useState("");
-  const [priority, setPriority] = useState("routine");
+  const [priority, setPriority] = useState<"ROUTINE" | "URGENT">("ROUTINE");
   const [preparationInstructions, setPreparationInstructions] = useState("");
   const [fastingRequired, setFastingRequired] = useState(false);
-  const [sampleType, setSampleType] = useState("Venous blood");
+  const [sampleType, setSampleType] = useState<string>(SAMPLE_TYPES[0]);
   const [notes, setNotes] = useState("");
+  const [loadingServices, setLoadingServices] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setTests([""]);
-      setClinicalIndication("");
-      setPriority("routine");
-      setPreparationInstructions("");
-      setFastingRequired(false);
-      setSampleType("Venous blood");
-      setNotes("");
-      setError(null);
-    }
+    if (!open) return;
+    setServiceId("");
+    setClinicalIndication("");
+    setPriority("ROUTINE");
+    setPreparationInstructions("");
+    setFastingRequired(false);
+    setSampleType(SAMPLE_TYPES[0]);
+    setNotes("");
+    setError(null);
+
+    const controller = new AbortController();
+    setLoadingServices(true);
+    publicDiscoveryService
+      .services("LABORATORY", controller.signal)
+      .then((response) => setServices(response.data))
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            cause instanceof Error ? cause.message : "Laboratory services could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingServices(false);
+      });
+    return () => controller.abort();
   }, [open]);
 
-  function updateTest(idx: number, v: string) {
-    setTests((prev) => prev.map((t, i) => (i === idx ? v : t)));
-  }
-  function addTest() { setTests((prev) => [...prev, ""]); }
-  function removeTest(idx: number) {
-    setTests((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
-  }
+  const selectedService = useMemo(
+    () => services.find((service) => service.id === serviceId),
+    [serviceId, services],
+  );
 
   async function submit() {
-    if (!patient) return;
-    const validTests = tests.map((t) => t.trim()).filter(Boolean);
-    if (validTests.length === 0) {
-      setError("Add at least one test name.");
-      return;
-    }
-    if (!clinicalIndication.trim()) {
-      setError("Clinical indication is required.");
+    if (!patient || !serviceId || !clinicalIndication.trim()) {
+      setError("Choose a test service and enter the clinical indication.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      await labRequestService.create({
-        encounterId,
+      await productionLaboratoryService.provider.create({
+        appointmentId,
+        clinicalIndication: clinicalIndication.trim(),
         patientId: patient.id,
-        requestingProviderId: providerId,
-        tests: validTests,
-        clinicalIndication,
         priority,
-        preparationInstructions: preparationInstructions || undefined,
-        fastingRequired,
-        sampleType,
-        notes: notes || undefined,
-        actorId: providerId,
+        serviceId,
+        specimenInstructions: buildSpecimenInstructions({
+          fastingRequired,
+          notes,
+          preparationInstructions,
+          sampleType,
+        }),
       });
       onCreated();
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Laboratory request could not be created.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const activeAllergies = patient?.allergies.filter((a) => a.status === "active") ?? [];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><FlaskConical className="h-5 w-5" /> Order laboratory test</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <FlaskConical className="h-5 w-5" /> Order laboratory test
+          </DialogTitle>
           <DialogDescription>
-            For {patient ? `${patient.firstName} ${patient.lastName}` : "patient"} · Encounter {encounterId}
+            For {patient ? `${patient.firstName} ${patient.lastName}` : "patient"}. Tests use the
+            controlled laboratory catalogue so the patient can find a compatible verified lab.
           </DialogDescription>
         </DialogHeader>
 
-        {activeAllergies.length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
-            <strong>Note:</strong> patient allergies: {activeAllergies.map((a) => a.name).join(", ")}. Some tests may require alternative sample handling.
-          </div>
-        )}
-
         <div className="space-y-4">
-          <div>
-            <Label className="text-xs font-medium">Tests *</Label>
-            <p className="text-xs text-muted-foreground mb-2">Add each test on its own line.</p>
-            <div className="space-y-2">
-              {tests.map((t, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input
-                    value={t}
-                    onChange={(e) => updateTest(idx, e.target.value)}
-                    placeholder={`e.g. ${idx === 0 ? "Full Blood Count" : idx === 1 ? "Lipid Profile" : "Fasting Blood Glucose"}`}
-                  />
-                  {tests.length > 1 && (
-                    <Button size="icon" variant="ghost" className="shrink-0 text-rose-600" onClick={() => removeTest(idx)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" size="sm" className="mt-2" onClick={addTest}>
-              <Plus className="h-4 w-4 mr-1" /> Add test
-            </Button>
+          <div className="space-y-1.5">
+            <Label>Test service *</Label>
+            <Select value={serviceId} onValueChange={setServiceId} disabled={loadingServices}>
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    loadingServices ? "Loading controlled services…" : "Choose a service"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {services.map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name} ({service.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedService && (
+              <p className="text-xs text-muted-foreground">
+                Patients will only be offered verified laboratories that provide{" "}
+                {selectedService.name}.
+              </p>
+            )}
           </div>
 
-          <div>
-            <Label className="text-xs font-medium">Clinical indication *</Label>
-            <Textarea rows={3} value={clinicalIndication} onChange={(e) => setClinicalIndication(e.target.value)} placeholder="Reason for ordering these tests." />
+          <div className="space-y-1.5">
+            <Label htmlFor="lab-clinical-indication">Clinical indication *</Label>
+            <Textarea
+              id="lab-clinical-indication"
+              rows={3}
+              value={clinicalIndication}
+              onChange={(event) => setClinicalIndication(event.target.value)}
+              placeholder="Reason for ordering this test."
+            />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs font-medium">Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <div className="space-y-1.5">
+              <Label>Priority</Label>
+              <Select
+                value={priority}
+                onValueChange={(value) => setPriority(value as typeof priority)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="routine">Routine</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="stat">STAT (immediate)</SelectItem>
+                  <SelectItem value="ROUTINE">Routine</SelectItem>
+                  <SelectItem value="URGENT">Urgent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs font-medium">Sample type</Label>
+            <div className="space-y-1.5">
+              <Label>Sample type</Label>
               <Select value={sampleType} onValueChange={setSampleType}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {SAMPLE_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs font-medium">Preparation instructions</Label>
-            <Textarea rows={2} value={preparationInstructions} onChange={(e) => setPreparationInstructions(e.target.value)} placeholder="e.g. Fast for 10-12 hours before sample collection." />
+          <div className="space-y-1.5">
+            <Label htmlFor="lab-preparation">Preparation instructions</Label>
+            <Textarea
+              id="lab-preparation"
+              rows={2}
+              value={preparationInstructions}
+              onChange={(event) => setPreparationInstructions(event.target.value)}
+              placeholder="For example, fast for 10–12 hours before collection."
+            />
           </div>
 
           <div className="flex items-center justify-between rounded-md border p-3">
             <div>
-              <Label className="text-xs font-medium">Fasting required</Label>
-              <p className="text-xs text-muted-foreground">Patient must fast before sample collection.</p>
+              <Label>Fasting required</Label>
+              <p className="text-xs text-muted-foreground">
+                The patient must fast before collection.
+              </p>
             </div>
             <Switch checked={fastingRequired} onCheckedChange={setFastingRequired} />
           </div>
 
-          <div>
-            <Label className="text-xs font-medium">Notes for the laboratory</Label>
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional handling notes." />
+          <div className="space-y-1.5">
+            <Label htmlFor="lab-notes">Notes for the laboratory</Label>
+            <Textarea
+              id="lab-notes"
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Optional specimen-handling note."
+            />
           </div>
 
           {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={submit} disabled={submitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={submit}
+            disabled={submitting || loadingServices || services.length === 0}
+          >
             {submitting ? "Creating…" : "Create lab request"}
           </Button>
         </DialogFooter>
@@ -195,7 +277,3 @@ export function LabRequestDialog({ open, onOpenChange, patient, encounterId, pro
     </Dialog>
   );
 }
-
-// suppress unused import warning for Badge/Trash2 if not used
-void Badge;
-void Trash2;

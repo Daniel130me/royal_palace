@@ -7,9 +7,10 @@
 This increment replaces the approved laboratory prototype surfaces with a controlled
 production aggregate. It does not remove or narrow the signed prototype scope.
 Checkpoint 11D1 establishes the durable request and booking boundary. Checkpoint 11D2A
-adds the authenticated production API and BFF boundary. Result, critical-result,
-commercial, notification, settings, and browser cutover work remain tracked below and
-must be completed before parity can be claimed.
+adds the authenticated production API and BFF boundary. Checkpoint 11D2B connects the
+approved request, booking, and operational dashboard surfaces to that boundary. Result,
+critical-result, commercial, notification, settings, and remaining supporting-screen
+cutover work remain tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -56,11 +57,19 @@ must be completed before parity can be claimed.
       pagination, optimistic transitions through processing/cancellation, synthetic-only
       fail-closed activation, and privacy-minimized laboratory projections. Result-ready
       and completion transitions remain reserved for verified result publication.
-- [ ] Connect practitioner request creation and patient laboratory selection.
-- [ ] Add laboratory queues, scheduling, specimen collection, processing, cancellation,
+- [x] Connect practitioner request creation and patient laboratory selection using the
+      controlled service catalogue and verified laboratories that offer the exact test.
+- [x] Add laboratory queues, scheduling, specimen collection, processing, cancellation,
       bounded cursor pagination, concurrency tests, and privacy-minimized projections.
-- [ ] Connect the approved dashboard, bookings, request list/detail, services,
-      notifications, and settings screens without removing prototype capability.
+- [x] Connect the approved dashboard, bookings, and request list/detail screens without
+      exposing unassigned requests or full patient records.
+- [x] Retire the replaced ungated prototype create, booking, and status mutation routes
+      after confirming that no production or prototype screen still consumes them.
+- [ ] Connect the approved services, notifications, and settings screens; preserve their
+      current prototype surfaces until their production contracts are available.
+- [ ] Add durable home-collection instructions and laboratory commercial pricing/payment
+      to their owning fulfilment and commercial aggregates. These approved controls are
+      tracked rather than encoded into clinical request text or temporary browser state.
 
 ### 11D3 — result and critical-result workflow
 
@@ -115,7 +124,9 @@ It replaces only the booking-scope trigger function and does not rewrite stored 
   independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
-- **Non-standard/open work:** 11D2A is an API checkpoint, not complete prototype parity.
-  The approved screens still use their legacy prototype services until 11D2B connects
-  them atomically; result, critical-result, commercial, and qualification work remains
-  explicitly release-blocking. No approved screen or capability has been removed.
+- **Non-standard/open work:** the patient results tab temporarily retains its
+  patient-filtered prototype result reader until 11D3 replaces it atomically; it is not
+  a production clinical-result boundary. Laboratory result, critical-result, home
+  collection, commercial, supporting-screen, query-plan/load, and qualification work
+  remains explicitly release-blocking. No approved screen or navigation destination has
+  been removed.

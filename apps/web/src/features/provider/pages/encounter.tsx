@@ -510,8 +510,7 @@ export function ProviderEncounter() {
         open={labOpen}
         onOpenChange={setLabOpen}
         patient={patient}
-        encounterId={encounter.id}
-        providerId={providerId}
+        appointmentId={encounter.appointmentId}
         onCreated={() => {
           setLabOpen(false);
           toast.success("Laboratory request created.", {

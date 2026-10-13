@@ -4,13 +4,14 @@
 
 import {
   createManagerClient,
+  createLaboratoryClient,
   createNotificationClient,
   createOnboardingClient,
   createPublicDiscoveryClient,
   createPrescriptionClient,
   createSchedulingPaymentClient,
 } from "@royal-palace/api-client";
-import type { PrescriptionComponents } from "@royal-palace/api-client";
+import type { LaboratoryComponents, PrescriptionComponents } from "@royal-palace/api-client";
 import type {
   OnboardingApplicationDetail,
   OnboardingApplicationListResponse,
@@ -143,10 +144,11 @@ export const hospitalService = {
 const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
 const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
 const generatedManagerClient = createManagerClient({ fetch: authenticatedGeneratedFetch });
+const generatedLaboratoryClient = createLaboratoryClient({ fetch: versionedBffFetch });
 const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
   fetch: authenticatedGeneratedFetch,
 });
-const generatedPrescriptionClient = createPrescriptionClient({ fetch: prescriptionBffFetch });
+const generatedPrescriptionClient = createPrescriptionClient({ fetch: versionedBffFetch });
 const generatedNotificationClient = createNotificationClient({
   fetch: authenticatedGeneratedFetch,
 });
@@ -178,6 +180,85 @@ export const productionNotificationService = {
         params: { header: csrfHeader() },
       })
       .then(unwrapGeneratedResponse),
+};
+
+export const productionLaboratoryService = {
+  provider: {
+    list: (patientId?: string, cursor?: string, limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/provider/laboratory-requests", {
+          params: { header: requestHeader(), query: { cursor, limit, patientId } },
+        })
+        .then(unwrapGeneratedResponse),
+    create: (body: LaboratoryComponents["schemas"]["CreateLaboratoryRequestInput"]) =>
+      generatedLaboratoryClient
+        .POST("/v1/provider/laboratory-requests", {
+          body,
+          params: { header: requestHeader() },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  patient: {
+    list: (cursor?: string, limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/patient/laboratory-requests", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    book: (
+      requestId: string,
+      body: LaboratoryComponents["schemas"]["BookLaboratoryRequestInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/patient/laboratory-requests/{requestId}/bookings", {
+          body,
+          params: {
+            header: { ...requestHeader(), "Idempotency-Key": idempotencyKey },
+            path: { requestId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  laboratory: {
+    list: (
+      organizationId: string,
+      status?: LaboratoryComponents["schemas"]["LaboratoryBookingStatus"],
+      cursor?: string,
+      limit = 25,
+    ) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/bookings", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit, status },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    getBooking: (organizationId: string, bookingId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/bookings/{bookingId}", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { bookingId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    transition: (
+      organizationId: string,
+      bookingId: string,
+      body: LaboratoryComponents["schemas"]["TransitionLaboratoryBookingInput"],
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/laboratory/bookings/{bookingId}/transitions", {
+          body,
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { bookingId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
 };
 
 export const productionPrescriptionService = {
@@ -893,13 +974,13 @@ function requestHeader() {
   return { ...csrfHeader(), "x-request-id": crypto.randomUUID() };
 }
 
-function prescriptionBffFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+function versionedBffFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const source = input instanceof Request ? input.url : String(input);
   const url = new URL(
     source,
     typeof window === "undefined" ? "http://localhost" : window.location.origin,
   );
-  if (!url.pathname.startsWith("/v1/")) throw new Error("Prescription client path is invalid");
+  if (!url.pathname.startsWith("/v1/")) throw new Error("Versioned API client path is invalid");
   url.pathname = `/api/${url.pathname.slice(4)}`;
   const target = `${url.pathname}${url.search}`;
   return authenticatedGeneratedFetch(
@@ -1104,12 +1185,6 @@ export const labRequestService = {
   list: (params?: Record<string, string>) =>
     resource.list<LaboratoryRequest>("laboratoryRequest", params),
   get: (id: string) => resource.get<LaboratoryRequest>("laboratoryRequest", id),
-  create: (body: Record<string, unknown>) =>
-    action("create-lab-request", body).then((r) => r.data as LaboratoryRequest),
-  book: (body: Record<string, unknown>) =>
-    action("book-lab", body).then((r) => r.data as LaboratoryBooking),
-  progress: (bookingId: string, status: string, actorId: string) =>
-    action("progress-lab", { bookingId, status, actorId }).then((r) => r.data as LaboratoryBooking),
   publishResult: (body: Record<string, unknown>) =>
     action("publish-lab-result", body).then((r) => r.data as LaboratoryResult),
 };
