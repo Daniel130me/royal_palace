@@ -8,9 +8,11 @@ This increment replaces the approved laboratory prototype surfaces with a contro
 production aggregate. It does not remove or narrow the signed prototype scope.
 Checkpoint 11D1 establishes the durable request and booking boundary. Checkpoint 11D2A
 adds the authenticated production API and BFF boundary. Checkpoint 11D2B connects the
-approved request, booking, and operational dashboard surfaces to that boundary. Result,
-critical-result, commercial, notification, settings, and remaining supporting-screen
-cutover work remain tracked below and must be completed before parity can be claimed.
+approved request, booking, and operational dashboard surfaces to that boundary. Checkpoint
+11D3A establishes the durable result, attachment, amendment, and critical-result integrity
+model. Result APIs and screens, critical escalation execution, commercial, notification,
+settings, and remaining supporting-screen cutover work remain tracked below and must be
+completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -75,10 +77,19 @@ cutover work remain tracked below and must be completed before parity can be cla
 
 ### 11D3 — result and critical-result workflow
 
-- [ ] Define structured result, attachment, amendment, verification, and publication
-      records; never overwrite a published result.
-- [ ] Define critical-result acknowledgement/escalation with durable attempts, explicit
-      ownership, time bounds, and privacy-safe external notifications.
+- [x] 11D3A adds structured components, quarantined attachment metadata, append-only
+      amendment chains, verification/publication actors, status history, content digests,
+      bounded owner/organization indexes, and PostgreSQL guards that prevent published
+      result mutation.
+- [x] 11D3A adds durable critical-result ownership, acknowledgement deadlines,
+      acknowledgement/escalation/resolution states, and notification-attempt linkage.
+      The acknowledgement window will be supplied by qualified policy configuration at
+      publication time; it is deliberately not a database or country-specific constant.
+- [ ] Add result drafting, review, publication, amendment, attachment, patient/provider
+      read, acknowledgement, and resolution APIs with generated contracts and default-deny
+      authorization.
+- [ ] Add the bounded critical-result escalation worker and privacy-safe inbox/email
+      notifications. External messages must contain no clinical values or diagnoses.
 - [ ] Connect patient/practitioner result views and laboratory result creation/results
       screens using generated contracts.
 
@@ -112,6 +123,13 @@ Migration `20261012242000_laboratory_service_scope_guard` hardens booking accept
 the selected verified laboratory must actively offer the request's controlled service.
 It replaces only the booking-scope trigger function and does not rewrite stored rows.
 
+Migration `20261013100000_laboratory_result_integrity_foundation` is additive. It creates
+the result, component, attachment, status-history, critical-result, and critical-notification
+records plus database guards for scope, state shape, immutable publication, clean attachment
+review, and append-only history. Rollback retains these clinical records; destructive down
+migration is forbidden. The API must continue ignoring the new tables if its binary is rolled
+back.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -128,7 +146,8 @@ It replaces only the booking-scope trigger function and does not rewrite stored 
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the patient results tab temporarily retains its
   patient-filtered prototype result reader until 11D3 replaces it atomically; it is not
-  a production clinical-result boundary. Laboratory result, critical-result, home
-  collection, commercial, supporting-screen, query-plan/load, and qualification work
-  remains explicitly release-blocking. No approved screen or navigation destination has
-  been removed.
+  a production clinical-result boundary. The new durable result tables are intentionally
+  unreachable until the authorization, application, API, worker, and browser boundaries are
+  completed. Result API/screen cutover, critical escalation execution, home collection,
+  commercial, supporting-screen, query-plan/load, and qualification work remains explicitly
+  release-blocking. No approved screen or navigation destination has been removed.

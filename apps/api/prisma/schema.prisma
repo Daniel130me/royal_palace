@@ -227,6 +227,42 @@ enum LaboratoryBookingStatus {
   CANCELLED
 }
 
+enum LaboratoryResultStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum LaboratoryResultFlag {
+  NORMAL
+  LOW
+  HIGH
+  ABNORMAL
+  CRITICAL
+}
+
+enum LaboratoryCriticalResultStatus {
+  OPEN
+  ACKNOWLEDGED
+  ESCALATED
+  RESOLVED
+}
+
+enum LaboratoryCriticalNotificationPurpose {
+  INITIAL
+  REMINDER
+  ESCALATION
+}
+
+enum LaboratoryResultAttachmentStatus {
+  AWAITING_UPLOAD
+  QUARANTINED
+  SCANNING
+  CLEAN
+  REJECTED
+}
+
 enum PaymentStatus {
   CREATED
   PENDING
@@ -549,6 +585,14 @@ model IdentityPrincipal {
   scannedPrescriptionHistory     ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
   laboratoryRequestStatusHistory LaboratoryRequestStatusHistory[]   @relation("LaboratoryRequestStatusActor")
   laboratoryBookingStatusHistory LaboratoryBookingStatusHistory[]   @relation("LaboratoryBookingStatusActor")
+  laboratoryResultsCreated       LaboratoryResult[]                 @relation("LaboratoryResultCreator")
+  laboratoryResultsVerified      LaboratoryResult[]                 @relation("LaboratoryResultVerifier")
+  laboratoryResultsPublished     LaboratoryResult[]                 @relation("LaboratoryResultPublisher")
+  laboratoryResultStatusHistory  LaboratoryResultStatusHistory[]    @relation("LaboratoryResultStatusActor")
+  criticalResultsOwned           LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultOwner")
+  criticalResultsAcknowledged    LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultAcknowledger")
+  criticalResultsResolved        LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultResolver")
+  criticalResultNotifications    LaboratoryCriticalNotification[]   @relation("LaboratoryCriticalNotificationRecipient")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -577,6 +621,7 @@ model Patient {
   pharmacyOrders       PharmacyOrder[]
   scannedPrescriptions ScannedPrescription[]
   laboratoryRequests   LaboratoryRequest[]
+  laboratoryResults    LaboratoryResult[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -684,6 +729,7 @@ model Organization {
   notificationInboxItems            NotificationInboxItem[]
   pharmacyOperationalSettings       PharmacyOperationalSettings?
   laboratoryBookings                LaboratoryBooking[]
+  laboratoryResults                 LaboratoryResult[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -889,6 +935,7 @@ model Practitioner {
   appointments        Appointment[]
   prescriptions       Prescription[]
   laboratoryRequests  LaboratoryRequest[]
+  laboratoryResults   LaboratoryResult[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -1411,35 +1458,36 @@ model InboxEvent {
 }
 
 model NotificationDelivery {
-  id                    String                     @id @db.Uuid
-  deduplicationKey      String                     @unique @map("deduplication_key") @db.VarChar(200)
-  recipientPrincipalId  String                     @map("recipient_principal_id") @db.Uuid
-  channel               NotificationChannel
-  category              NotificationCategory       @default(TRANSACTIONAL)
-  templateKey           String                     @map("template_key") @db.VarChar(100)
-  templateVersion       Int                        @map("template_version")
-  locale                String                     @db.VarChar(35)
-  variables             Json                       @default("{}") @db.JsonB
-  status                NotificationDeliveryStatus @default(PENDING)
-  availableAt           DateTime                   @default(now()) @map("available_at") @db.Timestamptz(6)
-  attemptCount          Int                        @default(0) @map("attempt_count")
-  leaseToken            String?                    @map("lease_token") @db.Uuid
-  leaseExpiresAt        DateTime?                  @map("lease_expires_at") @db.Timestamptz(6)
-  providerCode          String?                    @map("provider_code") @db.VarChar(64)
-  providerMessageId     String?                    @map("provider_message_id") @db.VarChar(255)
-  deliveredAt           DateTime?                  @map("delivered_at") @db.Timestamptz(6)
-  lastErrorCode         String?                    @map("last_error_code") @db.VarChar(100)
-  replayOfId            String?                    @map("replay_of_id") @db.Uuid
-  replayedByPrincipalId String?                    @map("replayed_by_principal_id") @db.Uuid
-  replayReason          String?                    @map("replay_reason") @db.VarChar(500)
-  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int                        @default(1)
-  recipient             IdentityPrincipal          @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
-  replayOf              NotificationDelivery?      @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
-  replays               NotificationDelivery[]     @relation("NotificationReplayChain")
-  replayedBy            IdentityPrincipal?         @relation("NotificationReplayActor", fields: [replayedByPrincipalId], references: [id], onDelete: Restrict)
-  attempts              NotificationAttempt[]
+  id                             String                          @id @db.Uuid
+  deduplicationKey               String                          @unique @map("deduplication_key") @db.VarChar(200)
+  recipientPrincipalId           String                          @map("recipient_principal_id") @db.Uuid
+  channel                        NotificationChannel
+  category                       NotificationCategory            @default(TRANSACTIONAL)
+  templateKey                    String                          @map("template_key") @db.VarChar(100)
+  templateVersion                Int                             @map("template_version")
+  locale                         String                          @db.VarChar(35)
+  variables                      Json                            @default("{}") @db.JsonB
+  status                         NotificationDeliveryStatus      @default(PENDING)
+  availableAt                    DateTime                        @default(now()) @map("available_at") @db.Timestamptz(6)
+  attemptCount                   Int                             @default(0) @map("attempt_count")
+  leaseToken                     String?                         @map("lease_token") @db.Uuid
+  leaseExpiresAt                 DateTime?                       @map("lease_expires_at") @db.Timestamptz(6)
+  providerCode                   String?                         @map("provider_code") @db.VarChar(64)
+  providerMessageId              String?                         @map("provider_message_id") @db.VarChar(255)
+  deliveredAt                    DateTime?                       @map("delivered_at") @db.Timestamptz(6)
+  lastErrorCode                  String?                         @map("last_error_code") @db.VarChar(100)
+  replayOfId                     String?                         @map("replay_of_id") @db.Uuid
+  replayedByPrincipalId          String?                         @map("replayed_by_principal_id") @db.Uuid
+  replayReason                   String?                         @map("replay_reason") @db.VarChar(500)
+  createdAt                      DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                        Int                             @default(1)
+  recipient                      IdentityPrincipal               @relation("NotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  replayOf                       NotificationDelivery?           @relation("NotificationReplayChain", fields: [replayOfId], references: [id], onDelete: Restrict)
+  replays                        NotificationDelivery[]          @relation("NotificationReplayChain")
+  replayedBy                     IdentityPrincipal?              @relation("NotificationReplayActor", fields: [replayedByPrincipalId], references: [id], onDelete: Restrict)
+  attempts                       NotificationAttempt[]
+  laboratoryCriticalNotification LaboratoryCriticalNotification?
 
   @@unique([providerCode, providerMessageId], map: "notification_deliveries_provider_message_key")
   @@index([recipientPrincipalId, createdAt(sort: Desc), id(sort: Desc)], map: "notification_deliveries_recipient_created_idx")
@@ -1872,6 +1920,7 @@ model LaboratoryBooking {
   request                  LaboratoryRequest                @relation(fields: [requestId], references: [id], onDelete: Restrict)
   laboratoryOrganization   Organization                     @relation(fields: [laboratoryOrganizationId], references: [id], onDelete: Restrict)
   statusHistory            LaboratoryBookingStatusHistory[]
+  results                  LaboratoryResult[]
 
   @@index([laboratoryOrganizationId, status, acceptedAt(sort: Desc), id(sort: Desc)], map: "laboratory_bookings_org_status_accepted_idx")
   @@index([requestId, createdAt, id], map: "laboratory_bookings_request_created_idx")
@@ -1892,6 +1941,164 @@ model LaboratoryBookingStatusHistory {
 
   @@index([bookingId, occurredAt, id], map: "laboratory_booking_history_booking_idx")
   @@map("laboratory_booking_status_history")
+}
+
+model LaboratoryResult {
+  id                       String                          @id @db.Uuid
+  resultNumber             String                          @unique @map("result_number") @db.VarChar(64)
+  bookingId                String                          @map("booking_id") @db.Uuid
+  patientId                String                          @map("patient_id") @db.Uuid
+  practitionerId           String                          @map("practitioner_id") @db.Uuid
+  laboratoryOrganizationId String                          @map("laboratory_organization_id") @db.Uuid
+  previousResultId         String?                         @unique @map("previous_result_id") @db.Uuid
+  status                   LaboratoryResultStatus          @default(DRAFT)
+  summaryFlag              LaboratoryResultFlag            @default(NORMAL) @map("summary_flag")
+  interpretation           String?                         @db.VarChar(4000)
+  contentDigest            String?                         @map("content_digest") @db.Char(64)
+  createdByPrincipalId     String                          @map("created_by_principal_id") @db.Uuid
+  verifiedByPrincipalId    String?                         @map("verified_by_principal_id") @db.Uuid
+  publishedByPrincipalId   String?                         @map("published_by_principal_id") @db.Uuid
+  verifiedAt               DateTime?                       @map("verified_at") @db.Timestamptz(6)
+  publishedAt              DateTime?                       @map("published_at") @db.Timestamptz(6)
+  supersededAt             DateTime?                       @map("superseded_at") @db.Timestamptz(6)
+  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                  Int                             @default(1)
+  booking                  LaboratoryBooking               @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  patient                  Patient                         @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner             Practitioner                    @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  laboratoryOrganization   Organization                    @relation(fields: [laboratoryOrganizationId], references: [id], onDelete: Restrict)
+  previousResult           LaboratoryResult?               @relation("LaboratoryResultAmendment", fields: [previousResultId], references: [id], onDelete: Restrict)
+  amendedResult            LaboratoryResult?               @relation("LaboratoryResultAmendment")
+  createdByPrincipal       IdentityPrincipal               @relation("LaboratoryResultCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  verifiedByPrincipal      IdentityPrincipal?              @relation("LaboratoryResultVerifier", fields: [verifiedByPrincipalId], references: [id], onDelete: Restrict)
+  publishedByPrincipal     IdentityPrincipal?              @relation("LaboratoryResultPublisher", fields: [publishedByPrincipalId], references: [id], onDelete: Restrict)
+  components               LaboratoryResultComponent[]
+  attachments              LaboratoryResultAttachment[]
+  statusHistory            LaboratoryResultStatusHistory[]
+  criticalResults          LaboratoryCriticalResult[]
+
+  @@index([patientId, publishedAt(sort: Desc), id(sort: Desc)], map: "laboratory_results_patient_published_idx")
+  @@index([practitionerId, publishedAt(sort: Desc), id(sort: Desc)], map: "laboratory_results_practitioner_published_idx")
+  @@index([laboratoryOrganizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "laboratory_results_org_status_created_idx")
+  @@index([bookingId, createdAt, id], map: "laboratory_results_booking_created_idx")
+  @@map("laboratory_results")
+}
+
+model LaboratoryResultComponent {
+  id             String                    @id @db.Uuid
+  resultId       String                    @map("result_id") @db.Uuid
+  lineNumber     Int                       @map("line_number")
+  code           String?                   @db.VarChar(120)
+  codeSystem     String?                   @map("code_system") @db.VarChar(255)
+  name           String                    @db.VarChar(240)
+  value          String                    @db.VarChar(500)
+  unit           String?                   @db.VarChar(120)
+  referenceRange String?                   @map("reference_range") @db.VarChar(500)
+  flag           LaboratoryResultFlag      @default(NORMAL)
+  note           String?                   @db.VarChar(1000)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  result         LaboratoryResult          @relation(fields: [resultId], references: [id], onDelete: Restrict)
+  criticalResult LaboratoryCriticalResult?
+
+  @@unique([resultId, lineNumber], map: "laboratory_result_components_result_line_key")
+  @@index([resultId, flag, id], map: "laboratory_result_components_result_flag_idx")
+  @@map("laboratory_result_components")
+}
+
+model LaboratoryResultAttachment {
+  id                  String                           @id @db.Uuid
+  resultId            String                           @map("result_id") @db.Uuid
+  purpose             String                           @db.VarChar(80)
+  originalFilename    String                           @map("original_filename") @db.VarChar(255)
+  declaredContentType String                           @map("declared_content_type") @db.VarChar(127)
+  declaredSizeBytes   Int                              @map("declared_size_bytes")
+  declaredSha256      String                           @map("declared_sha256") @db.Char(64)
+  storageObjectKey    String?                          @unique @map("storage_object_key") @db.VarChar(1024)
+  uploadExpiresAt     DateTime?                        @map("upload_expires_at") @db.Timestamptz(6)
+  quarantineVersionId String?                          @map("quarantine_version_id") @db.VarChar(255)
+  cleanObjectKey      String?                          @unique @map("clean_object_key") @db.VarChar(1024)
+  cleanVersionId      String?                          @map("clean_version_id") @db.VarChar(255)
+  detectedContentType String?                          @map("detected_content_type") @db.VarChar(127)
+  verifiedSizeBytes   Int?                             @map("verified_size_bytes")
+  verifiedSha256      String?                          @map("verified_sha256") @db.Char(64)
+  scanLeaseToken      String?                          @map("scan_lease_token") @db.Uuid
+  scanLeaseExpiresAt  DateTime?                        @map("scan_lease_expires_at") @db.Timestamptz(6)
+  scanAvailableAt     DateTime?                        @map("scan_available_at") @db.Timestamptz(6)
+  scanAttemptCount    Int                              @default(0) @map("scan_attempt_count")
+  scannedAt           DateTime?                        @map("scanned_at") @db.Timestamptz(6)
+  status              LaboratoryResultAttachmentStatus @default(AWAITING_UPLOAD)
+  statusReasonCode    String?                          @map("status_reason_code") @db.VarChar(100)
+  createdAt           DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                              @default(1)
+  result              LaboratoryResult                 @relation(fields: [resultId], references: [id], onDelete: Restrict)
+
+  @@index([resultId, status, createdAt, id], map: "laboratory_result_attachments_result_status_idx")
+  @@index([status, scanAvailableAt, id], map: "laboratory_result_attachments_scan_queue_idx")
+  @@map("laboratory_result_attachments")
+}
+
+model LaboratoryResultStatusHistory {
+  id               String                  @id @db.Uuid
+  resultId         String                  @map("result_id") @db.Uuid
+  actorPrincipalId String                  @map("actor_principal_id") @db.Uuid
+  fromStatus       LaboratoryResultStatus? @map("from_status")
+  toStatus         LaboratoryResultStatus  @map("to_status")
+  reasonCode       String                  @map("reason_code") @db.VarChar(100)
+  occurredAt       DateTime                @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  result           LaboratoryResult        @relation(fields: [resultId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal       @relation("LaboratoryResultStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([resultId, occurredAt, id], map: "laboratory_result_history_result_idx")
+  @@map("laboratory_result_status_history")
+}
+
+model LaboratoryCriticalResult {
+  id                        String                           @id @db.Uuid
+  resultId                  String                           @map("result_id") @db.Uuid
+  componentId               String                           @unique @map("component_id") @db.Uuid
+  ownerPrincipalId          String                           @map("owner_principal_id") @db.Uuid
+  status                    LaboratoryCriticalResultStatus   @default(OPEN)
+  acknowledgementDueAt      DateTime                         @map("acknowledgement_due_at") @db.Timestamptz(6)
+  acknowledgedByPrincipalId String?                          @map("acknowledged_by_principal_id") @db.Uuid
+  acknowledgedAt            DateTime?                        @map("acknowledged_at") @db.Timestamptz(6)
+  escalatedAt               DateTime?                        @map("escalated_at") @db.Timestamptz(6)
+  resolvedByPrincipalId     String?                          @map("resolved_by_principal_id") @db.Uuid
+  resolvedAt                DateTime?                        @map("resolved_at") @db.Timestamptz(6)
+  resolutionCode            String?                          @map("resolution_code") @db.VarChar(100)
+  createdAt                 DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                   Int                              @default(1)
+  result                    LaboratoryResult                 @relation(fields: [resultId], references: [id], onDelete: Restrict)
+  component                 LaboratoryResultComponent        @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  ownerPrincipal            IdentityPrincipal                @relation("LaboratoryCriticalResultOwner", fields: [ownerPrincipalId], references: [id], onDelete: Restrict)
+  acknowledgedByPrincipal   IdentityPrincipal?               @relation("LaboratoryCriticalResultAcknowledger", fields: [acknowledgedByPrincipalId], references: [id], onDelete: Restrict)
+  resolvedByPrincipal       IdentityPrincipal?               @relation("LaboratoryCriticalResultResolver", fields: [resolvedByPrincipalId], references: [id], onDelete: Restrict)
+  notifications             LaboratoryCriticalNotification[]
+
+  @@index([ownerPrincipalId, status, acknowledgementDueAt, id], map: "laboratory_critical_results_owner_status_due_idx")
+  @@index([status, acknowledgementDueAt, id], map: "laboratory_critical_results_status_due_idx")
+  @@index([resultId, status, id], map: "laboratory_critical_results_result_status_idx")
+  @@map("laboratory_critical_results")
+}
+
+model LaboratoryCriticalNotification {
+  id                     String                                @id @db.Uuid
+  criticalResultId       String                                @map("critical_result_id") @db.Uuid
+  recipientPrincipalId   String                                @map("recipient_principal_id") @db.Uuid
+  notificationDeliveryId String?                               @unique @map("notification_delivery_id") @db.Uuid
+  purpose                LaboratoryCriticalNotificationPurpose
+  sequence               Int
+  createdAt              DateTime                              @default(now()) @map("created_at") @db.Timestamptz(6)
+  criticalResult         LaboratoryCriticalResult              @relation(fields: [criticalResultId], references: [id], onDelete: Restrict)
+  recipientPrincipal     IdentityPrincipal                     @relation("LaboratoryCriticalNotificationRecipient", fields: [recipientPrincipalId], references: [id], onDelete: Restrict)
+  notificationDelivery   NotificationDelivery?                 @relation(fields: [notificationDeliveryId], references: [id], onDelete: Restrict)
+
+  @@unique([criticalResultId, purpose, sequence], map: "laboratory_critical_notifications_result_purpose_sequence_key")
+  @@index([criticalResultId, createdAt, id], map: "laboratory_critical_notifications_result_created_idx")
+  @@map("laboratory_critical_notifications")
 }
 
 model Prescription {
