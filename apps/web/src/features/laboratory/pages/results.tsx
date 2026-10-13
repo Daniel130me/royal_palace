@@ -1,180 +1,242 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { useLabContext } from "../use-lab-context";
-import { laboratoryService } from "@/lib/services";
-import type { LaboratoryResult } from "@/types";
+import type { LaboratoryResultFlag, LaboratoryResultResponse } from "@royal-palace/contracts";
+import { FileCheck2, FileText, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+
 import {
-  PageHeader, EmptyState, ErrorState, SkeletonGrid,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
 } from "@/components/healthcare/page-header";
-import { StatusBadge } from "@/components/healthcare/status-badge";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { ExpandableCard } from "@/components/healthcare/compact-list";
-import { toast } from "sonner";
-import { formatDate, fullName } from "@/lib/format";
-import {
-  FileText, Search, FileCheck2, AlertTriangle,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
+import { navigate } from "@/lib/nav";
+import { productionLaboratoryService } from "@/lib/services";
+import { useLabContext } from "../use-lab-context";
 
 type TabKey = "all" | "critical" | "abnormal" | "normal";
 
+function matchesTab(flag: LaboratoryResultFlag, tab: TabKey) {
+  if (tab === "all") return true;
+  if (tab === "critical") return flag === "CRITICAL";
+  if (tab === "normal") return flag === "NORMAL";
+  return flag !== "NORMAL" && flag !== "CRITICAL";
+}
+
 export function LabResults() {
-  const { labId, reload } = useLabContext();
-  const [results, setResults] = useState<LaboratoryResult[]>([]);
+  const { labId } = useLabContext();
+  const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
   const [query, setQuery] = useState("");
 
-  const load = () => {
-    if (!labId) return;
-    setLoading(true);
-    laboratoryService
-      .results(labId)
-      .then((r) => setResults([...r].sort((a, b) => b.resultDate.localeCompare(a.resultDate))))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load results."))
-      .finally(() => setLoading(false));
-  };
+  const load = useCallback(
+    async (cursor?: string) => {
+      if (!labId) return;
+      if (cursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const response = await productionLaboratoryService.laboratory.results(
+          labId,
+          undefined,
+          cursor,
+        );
+        setResults((current) =>
+          cursor === undefined ? response.data : [...current, ...response.data],
+        );
+        setEndCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Laboratory results could not be loaded.",
+        );
+      } finally {
+        if (cursor === undefined) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [labId],
+  );
 
-  useEffect(load, [labId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const critical = useMemo(() => results.filter((r) => r.abnormalIndicator === "critical"), [results]);
-  const abnormal = useMemo(() => results.filter((r) => r.abnormalIndicator === "high" || r.abnormalIndicator === "low"), [results]);
-  const normal = useMemo(() => results.filter((r) => !r.abnormalIndicator || r.abnormalIndicator === "normal"), [results]);
+  const counts = useMemo(
+    () => ({
+      abnormal: results.filter(
+        (result) => result.summaryFlag !== "NORMAL" && result.summaryFlag !== "CRITICAL",
+      ).length,
+      critical: results.filter((result) => result.summaryFlag === "CRITICAL").length,
+      normal: results.filter((result) => result.summaryFlag === "NORMAL").length,
+    }),
+    [results],
+  );
 
   const visible = useMemo(() => {
-    const base = tab === "critical" ? critical : tab === "abnormal" ? abnormal : tab === "normal" ? normal : results;
-    if (!query.trim()) return base;
-    const q = query.toLowerCase();
-    return base.filter((r) =>
-      r.test.toLowerCase().includes(q) ||
-      r.resultNumber.toLowerCase().includes(q) ||
-      (r.patient && `${r.patient.firstName} ${r.patient.lastName}`.toLowerCase().includes(q)) ||
-      (r.value ?? "").toLowerCase().includes(q)
-    );
-  }, [tab, query, results, critical, abnormal, normal]);
+    const term = query.trim().toLowerCase();
+    return results.filter((result) => {
+      if (!matchesTab(result.summaryFlag, tab)) return false;
+      if (!term) return true;
+      return `${result.service.name} ${result.resultNumber} ${result.patient.displayName} ${result.components
+        .map((component) => `${component.name} ${component.value}`)
+        .join(" ")}`
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [query, results, tab]);
+
+  async function publish(result: LaboratoryResultResponse) {
+    if (!labId) return;
+    setPublishingId(result.id);
+    try {
+      const reviewed =
+        result.status === "DRAFT"
+          ? await productionLaboratoryService.laboratory.transitionResultReview(labId, result.id, {
+              expectedVersion: result.version,
+              reasonCode: "submitted_for_review",
+              toStatus: "IN_REVIEW",
+            })
+          : result;
+      await productionLaboratoryService.laboratory.publishResult(
+        labId,
+        result.id,
+        reviewed.version,
+      );
+      toast.success("Result published securely to the patient and ordering practitioner.");
+      await load();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "The result could not be published.");
+      await load();
+    } finally {
+      setPublishingId(null);
+    }
+  }
 
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
-        <div className="h-9 bg-muted/40 animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
+        <div className="h-9 animate-pulse rounded-lg bg-muted/40" />
         <SkeletonGrid count={4} />
       </div>
     );
   }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error) return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Results"
-        description="Laboratory results published by your lab."
+        description="Draft, review and publish laboratory results through the controlled workflow."
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate("laboratory", "bookings")} className="hidden lg:inline-flex">
-            <FileCheck2 className="h-4 w-4" /> Upload new
+          <Button
+            className="hidden lg:inline-flex"
+            onClick={() => navigate("laboratory", "bookings")}
+            size="sm"
+            variant="outline"
+          >
+            <FileCheck2 className="h-4 w-4" /> Enter new
           </Button>
         }
       />
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by test, patient or result number…"
           className="pl-9"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by test, patient or result number…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
       <SegmentedControl
+        onChange={setTab}
         options={[
           { value: "all" as TabKey, label: "All", badge: results.length },
-          { value: "critical" as TabKey, label: "Critical", badge: critical.length },
-          { value: "abnormal" as TabKey, label: "Abnormal", badge: abnormal.length },
-          { value: "normal" as TabKey, label: "Normal", badge: normal.length },
+          { value: "critical" as TabKey, label: "Critical", badge: counts.critical },
+          { value: "abnormal" as TabKey, label: "Abnormal", badge: counts.abnormal },
+          { value: "normal" as TabKey, label: "Normal", badge: counts.normal },
         ]}
-        value={tab}
-        onChange={setTab}
         size="sm"
+        value={tab}
       />
 
       {visible.length === 0 ? (
         <EmptyState
+          action={
+            <Button onClick={() => navigate("laboratory", "bookings")} size="sm">
+              Go to bookings
+            </Button>
+          }
+          compact
+          description="Results entered from a processing booking will appear here."
           icon={FileText}
           title="No results"
-          description="Published results will appear here. Open a booking to upload a new result."
-          action={<Button size="sm" onClick={() => navigate("laboratory", "bookings")}>Go to bookings</Button>}
-          compact
         />
       ) : (
         <div className="space-y-2">
-          {visible.map((r) => {
-            const isCritical = r.abnormalIndicator === "critical";
-            const isAbnormal = r.abnormalIndicator === "high" || r.abnormalIndicator === "low";
+          {visible.map((result) => {
+            const attachmentsReady = result.attachments.every(
+              (attachment) => attachment.status === "CLEAN",
+            );
+            const publishable =
+              (result.status === "DRAFT" || result.status === "IN_REVIEW") && attachmentsReady;
             return (
-              <ExpandableCard
-                key={r.id}
-                className={cn(isCritical && "border-rose-200 bg-rose-50/30")}
-                leading={
-                  <div className={cn(
-                    "rounded-lg p-2 ring-1",
-                    isCritical ? "bg-rose-50 ring-rose-100" : isAbnormal ? "bg-amber-50 ring-amber-100" : "bg-emerald-50 ring-emerald-100"
-                  )}>
-                    {isCritical ? <AlertTriangle className="h-4 w-4 text-rose-600" /> : <FileText className={cn("h-4 w-4", isAbnormal ? "text-amber-600" : "text-emerald-600")} />}
-                  </div>
-                }
-                title={r.test}
-                subtitle={`${r.patient ? fullName(r.patient) : "Patient"} · ${r.resultNumber} · ${formatDate(r.resultDate)}`}
-                trailing={
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold tabular-nums">{r.value} <span className="text-xs text-muted-foreground font-normal">{r.unit}</span></span>
-                    {r.abnormalIndicator ? <StatusBadge status={r.abnormalIndicator} size="sm" /> : <StatusBadge status="normal" size="sm" />}
-                  </div>
-                }
-              >
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <Field label="Reference range" value={r.referenceRange ?? "—"} />
-                    <Field label="Sample collected" value={formatDate(r.sampleCollectionDate)} />
-                    <Field label="Result date" value={formatDate(r.resultDate)} />
-                    <Field label="Reviewer" value={r.reviewer ?? "—"} />
-                  </div>
-                  {r.interpretation && (
-                    <div>
-                      <p className="text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Interpretation</p>
-                      <p className="text-sm bg-muted/40 rounded-lg p-3 leading-relaxed">{r.interpretation}</p>
+              <LaboratoryResultCard
+                actions={
+                  result.status === "DRAFT" || result.status === "IN_REVIEW" ? (
+                    <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+                      <p className="text-xs text-muted-foreground">
+                        {attachmentsReady
+                          ? "Ready for controlled publication."
+                          : "Attachment scanning must finish before publication."}
+                      </p>
+                      <Button
+                        disabled={!publishable || publishingId === result.id}
+                        onClick={() => void publish(result)}
+                        size="sm"
+                      >
+                        {publishingId === result.id ? "Publishing…" : "Publish"}
+                      </Button>
                     </div>
-                  )}
-                  {isCritical && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-rose-700 border-rose-200 hover:bg-rose-50"
-                      onClick={() => toast.success(`Referring provider notified about critical ${r.test} result for ${r.patient ? fullName(r.patient) : "patient"}.`)}
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" /> Notify provider
-                    </Button>
-                  )}
-                </div>
-              </ExpandableCard>
+                  ) : undefined
+                }
+                downloadAttachment={(resultId, attachmentId) =>
+                  productionLaboratoryService.laboratory.resultAttachmentDownload(
+                    labId!,
+                    resultId,
+                    attachmentId,
+                  )
+                }
+                key={result.id}
+                result={result}
+                showPatient
+              />
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-medium mt-0.5">{value}</p>
+      {hasNextPage && endCursor && (
+        <div className="flex justify-center">
+          <Button disabled={loadingMore} onClick={() => void load(endCursor)} variant="outline">
+            {loadingMore ? "Loading…" : "Load more results"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -197,12 +197,61 @@ export const productionLaboratoryService = {
           params: { header: requestHeader() },
         })
         .then(unwrapGeneratedResponse),
+    results: (cursor?: string, limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/provider/laboratory-results", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    result: (resultId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/provider/laboratory-results/{resultId}", {
+          params: { header: requestHeader(), path: { resultId } },
+        })
+        .then(unwrapGeneratedResponse),
+    criticalResults: (cursor?: string, limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/provider/laboratory-critical-results", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    acknowledgeCriticalResult: (criticalResultId: string, expectedVersion: number) =>
+      generatedLaboratoryClient
+        .POST("/v1/provider/laboratory-critical-results/{criticalResultId}/acknowledgements", {
+          body: { expectedVersion },
+          params: { header: requestHeader(), path: { criticalResultId } },
+        })
+        .then(unwrapGeneratedResponse),
+    resultAttachmentDownload: (resultId: string, attachmentId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/provider/laboratory-results/{resultId}/attachments/{attachmentId}/download", {
+          params: { header: requestHeader(), path: { attachmentId, resultId } },
+        })
+        .then(unwrapGeneratedResponse),
   },
   patient: {
     list: (cursor?: string, limit = 25) =>
       generatedLaboratoryClient
         .GET("/v1/patient/laboratory-requests", {
           params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    results: (cursor?: string, limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/patient/laboratory-results", {
+          params: { header: requestHeader(), query: { cursor, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    result: (resultId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/patient/laboratory-results/{resultId}", {
+          params: { header: requestHeader(), path: { resultId } },
+        })
+        .then(unwrapGeneratedResponse),
+    resultAttachmentDownload: (resultId: string, attachmentId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/patient/laboratory-results/{resultId}/attachments/{attachmentId}/download", {
+          params: { header: requestHeader(), path: { attachmentId, resultId } },
         })
         .then(unwrapGeneratedResponse),
     book: (
@@ -255,6 +304,115 @@ export const productionLaboratoryService = {
           params: {
             header: { ...requestHeader(), "x-organization-id": organizationId },
             path: { bookingId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    results: (
+      organizationId: string,
+      status?: LaboratoryComponents["schemas"]["LaboratoryResultStatus"],
+      cursor?: string,
+      limit = 25,
+    ) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/results", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            query: { cursor, limit, status },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    createResult: (
+      organizationId: string,
+      body: LaboratoryComponents["schemas"]["CreateLaboratoryResultInput"],
+      idempotencyKey = crypto.randomUUID(),
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/laboratory/results", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "x-organization-id": organizationId,
+            },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    transitionResultReview: (
+      organizationId: string,
+      resultId: string,
+      body: LaboratoryComponents["schemas"]["TransitionLaboratoryResultInput"],
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/laboratory/results/{resultId}/review-transitions", {
+          body,
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { resultId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    publishResult: (organizationId: string, resultId: string, expectedVersion: number) =>
+      generatedLaboratoryClient
+        .POST("/v1/laboratory/results/{resultId}/publications", {
+          body: { expectedVersion },
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { resultId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    uploadResultAttachment: async (
+      organizationId: string,
+      resultId: string,
+      file: File,
+      purpose = "laboratory_report",
+    ) => {
+      const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+      const declaredSha256 = Array.from(new Uint8Array(digest), (byte) =>
+        byte.toString(16).padStart(2, "0"),
+      ).join("");
+      const intent = await generatedLaboratoryClient
+        .POST("/v1/laboratory/results/{resultId}/attachment-upload-intents", {
+          body: {
+            declaredContentType:
+              file.type as LaboratoryComponents["schemas"]["CreateLaboratoryResultAttachmentInput"]["declaredContentType"],
+            declaredSha256,
+            declaredSizeBytes: file.size,
+            originalFilename: file.name,
+            purpose,
+          },
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { resultId },
+          },
+        })
+        .then(unwrapGeneratedResponse);
+      const upload = await fetch(intent.upload.url, {
+        body: file,
+        credentials: "omit",
+        headers: intent.upload.headers,
+        method: "PUT",
+        mode: "cors",
+        referrerPolicy: "no-referrer",
+      });
+      if (!upload.ok) throw new Error("The result attachment could not be uploaded");
+      await generatedLaboratoryClient
+        .POST("/v1/laboratory/results/{resultId}/attachments/{attachmentId}/complete", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { attachmentId: intent.attachmentId, resultId },
+          },
+        })
+        .then(unwrapGeneratedResponse);
+      return intent.attachmentId;
+    },
+    resultAttachmentDownload: (organizationId: string, resultId: string, attachmentId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/results/{resultId}/attachments/{attachmentId}/download", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { attachmentId, resultId },
           },
         })
         .then(unwrapGeneratedResponse),

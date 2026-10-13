@@ -333,6 +333,9 @@ that completes an increment.
     - `[x]` 11D3C extends the shared quarantine-first scanner to laboratory-result
       attachments and adds a bounded, concurrency-safe overdue critical-result escalation
       worker with privacy-safe durable notifications.
+    - `[~]` 11D3D has connected the laboratory result list, clean-attachment downloads,
+      and controlled publication actions; secure result entry plus patient/practitioner
+      result-reader cutover remains in progress.
     - `[ ]` 11D3D–11D4 result screens, home collection,
       services/notifications/settings cutover, commercial parity, migration/load evidence,
       and qualification remain open. Every approved laboratory, patient, and practitioner

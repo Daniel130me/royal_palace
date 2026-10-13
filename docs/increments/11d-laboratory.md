@@ -13,7 +13,9 @@ approved request, booking, and operational dashboard surfaces to that boundary. 
 model. Checkpoint 11D3B adds the secured structured-result application/API boundary and
 exact browser allowlists. Checkpoint 11D3C extends the shared quarantine-first document
 pipeline to result attachments and adds bounded, concurrency-safe critical-result escalation.
-Result screens, commercial, settings, and remaining supporting-screen cutover work remain
+Checkpoint 11D3D has started by connecting the laboratory result list, clean-attachment
+downloads, and controlled draft/review publication actions. Patient, practitioner, result-entry,
+commercial, settings, and remaining supporting-screen cutover work remain
 tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
@@ -98,6 +100,10 @@ tracked below and must be completed before parity can be claimed.
       notifications. External messages must contain no clinical values or diagnoses.
 - [ ] Connect patient/practitioner result views and laboratory result creation/results
       screens using generated contracts.
+  - [x] Connect the laboratory result list, clean attachment downloads, and controlled
+        draft/review publication actions without retaining the legacy result mutation route.
+  - [ ] Connect secure result entry plus patient and practitioner result views, then retire
+        their replaced legacy readers atomically.
 
 ### 11D4 — commercial parity and qualification
 
@@ -153,8 +159,9 @@ back.
 - **Non-standard/open work:** the patient results tab temporarily retains its
   patient-filtered prototype result reader until 11D3 replaces it atomically; it is not
   a production clinical-result boundary. The durable result API and exact BFF boundaries
-  are available, but the approved result screens have not yet been cut over to them. Result
-  screen cutover, home collection, commercial, supporting-screen,
+  are available, and the laboratory result list now uses them; patient, practitioner, and
+  result-entry screens have not yet been cut over. Remaining result screen cutover, home
+  collection, commercial, supporting-screen,
   query-plan/load, and qualification work remains explicitly release-blocking. No approved
   screen or navigation destination has been removed. Laboratory publication currently permits
   one authorized laboratory member to review and publish; whether Nigerian qualification
