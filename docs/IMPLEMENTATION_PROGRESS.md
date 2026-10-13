@@ -327,7 +327,10 @@ that completes an increment.
       explicit critical-result ownership/deadlines/states, durable notification linkage,
       and bounded patient/practitioner/laboratory/escalation indexes. No new clinical table
       is exposed before its application and authorization boundary exists.
-    - `[ ]` 11D3B–11D4 result APIs/screens, bounded escalation execution, home collection,
+    - `[x]` 11D3B establishes secured structured-result drafting, review, publication,
+      amendment, bounded patient/practitioner/laboratory reads, critical acknowledgement and
+      resolution APIs, generated contracts, and exact browser allowlists.
+    - `[ ]` 11D3C–11D4 attachment transfer, result screens, bounded escalation execution, home collection,
       services/notifications/settings cutover, commercial parity, migration/load evidence,
       and qualification remain open. Every approved laboratory, patient, and practitioner
       prototype capability remains in the release register.

@@ -76,6 +76,22 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
       title: "Pharmacy order updated",
     }),
   },
+  [NOTIFICATION_TEMPLATE.LABORATORY_RESULT_ACTION_REQUIRED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Urgent action is required for secure laboratory result ${reference}. Sign in to review it securely.`,
+      subject: "Urgent laboratory result action required",
+      title: "Urgent laboratory result action required",
+    }),
+  },
+  [NOTIFICATION_TEMPLATE.LABORATORY_RESULT_PUBLISHED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Laboratory result ${reference} is available. Sign in to view it securely.`,
+      subject: "Laboratory result available",
+      title: "Laboratory result available",
+    }),
+  },
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: {
     category: "TRANSACTIONAL",
     render: (reference) => ({

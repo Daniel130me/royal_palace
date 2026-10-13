@@ -15,6 +15,8 @@ const TEMPLATE_CATEGORY: Readonly<Record<NotificationTemplateKey, NotificationCa
   [NOTIFICATION_TEMPLATE.PAYMENT_STATUS_UPDATED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.PHARMACY_ORDER_ACTION_REQUIRED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.PHARMACY_ORDER_STATUS_UPDATED]: "TRANSACTIONAL",
+  [NOTIFICATION_TEMPLATE.LABORATORY_RESULT_ACTION_REQUIRED]: "TRANSACTIONAL",
+  [NOTIFICATION_TEMPLATE.LABORATORY_RESULT_PUBLISHED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_STATUS_UPDATED]: "TRANSACTIONAL",
   [NOTIFICATION_TEMPLATE.SECURITY_ALERT]: "SECURITY",
@@ -39,7 +41,7 @@ export async function enqueueEmailNotification(
     reference: string;
     templateKey: NotificationTemplateKey;
   },
-): Promise<void> {
+): Promise<{ deliveryId: string | null }> {
   const category = TEMPLATE_CATEGORY[input.templateKey];
   await transaction.notificationInboxItem.create({
     data: {
@@ -56,13 +58,14 @@ export async function enqueueEmailNotification(
     },
     select: { id: true },
   });
-  if (config.notificationDelivery.mode === "disabled") return;
+  if (config.notificationDelivery.mode === "disabled") return { deliveryId: null };
+  const deliveryId = createOpaqueId();
   await transaction.notificationDelivery.create({
     data: {
       category,
       channel: "EMAIL",
       deduplicationKey: input.deduplicationKey,
-      id: createOpaqueId(),
+      id: deliveryId,
       locale: INITIAL_NOTIFICATION_LOCALE,
       recipientPrincipalId: input.recipientPrincipalId,
       templateKey: input.templateKey,
@@ -71,6 +74,7 @@ export async function enqueueEmailNotification(
     },
     select: { id: true },
   });
+  return { deliveryId };
 }
 
 /** Adds one shared, per-reader inbox item for members of an organization. */

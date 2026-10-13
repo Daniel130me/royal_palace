@@ -35,6 +35,8 @@ export const NOTIFICATION_TEMPLATE = {
   PAYMENT_STATUS_UPDATED: "PAYMENT_STATUS_UPDATED",
   PHARMACY_ORDER_ACTION_REQUIRED: "PHARMACY_ORDER_ACTION_REQUIRED",
   PHARMACY_ORDER_STATUS_UPDATED: "PHARMACY_ORDER_STATUS_UPDATED",
+  LABORATORY_RESULT_ACTION_REQUIRED: "LABORATORY_RESULT_ACTION_REQUIRED",
+  LABORATORY_RESULT_PUBLISHED: "LABORATORY_RESULT_PUBLISHED",
   PRESCRIPTION_ACTION_REQUIRED: "PRESCRIPTION_ACTION_REQUIRED",
   PRESCRIPTION_STATUS_UPDATED: "PRESCRIPTION_STATUS_UPDATED",
   SECURITY_ALERT: "SECURITY_ALERT",
@@ -861,6 +863,69 @@ export interface LaboratoryRequestResponse {
 
 export interface LaboratoryRequestListResponse {
   data: readonly LaboratoryRequestResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export type LaboratoryResultStatus = "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
+export type LaboratoryResultFlag = "NORMAL" | "LOW" | "HIGH" | "ABNORMAL" | "CRITICAL";
+export type LaboratoryCriticalResultStatus = "OPEN" | "ACKNOWLEDGED" | "ESCALATED" | "RESOLVED";
+
+export interface LaboratoryResultComponentResponse {
+  code: string | null;
+  codeSystem: string | null;
+  flag: LaboratoryResultFlag;
+  id: string;
+  lineNumber: number;
+  name: string;
+  note: string | null;
+  referenceRange: string | null;
+  unit: string | null;
+  value: string;
+}
+
+export interface LaboratoryResultAttachmentResponse {
+  id: string;
+  originalFilename: string;
+  purpose: string;
+  status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
+}
+
+export interface LaboratoryCriticalResultResponse {
+  acknowledgementDueAt: string;
+  acknowledgedAt: string | null;
+  componentId: string;
+  escalatedAt: string | null;
+  id: string;
+  resolutionCode: string | null;
+  resolvedAt: string | null;
+  status: LaboratoryCriticalResultStatus;
+  version: number;
+}
+
+export interface LaboratoryResultResponse {
+  attachments: readonly LaboratoryResultAttachmentResponse[];
+  bookingId: string;
+  components: readonly LaboratoryResultComponentResponse[];
+  createdAt: string;
+  criticalResults: readonly LaboratoryCriticalResultResponse[];
+  id: string;
+  interpretation: string | null;
+  laboratory: { displayName: string; id: string };
+  patient: { displayName: string; id: string };
+  practitioner: { displayName: string; id: string };
+  previousResultId: string | null;
+  publishedAt: string | null;
+  resultNumber: string;
+  service: { code: string; id: string; name: string };
+  status: LaboratoryResultStatus;
+  summaryFlag: LaboratoryResultFlag;
+  updatedAt: string;
+  verifiedAt: string | null;
+  version: number;
+}
+
+export interface LaboratoryResultListResponse {
+  data: readonly LaboratoryResultResponse[];
   pageInfo: CursorPageInfo;
 }
 

@@ -216,7 +216,7 @@ export class LaboratoryOperationsController {
   }
 }
 
-function context(request: AuthenticatedInternalRequest) {
+export function context(request: AuthenticatedInternalRequest) {
   const requestId = request.headers["x-request-id"];
   if (typeof requestId !== "string") {
     throw new HttpException(
@@ -227,7 +227,7 @@ function context(request: AuthenticatedInternalRequest) {
   return { actor: request.currentSession, requestId };
 }
 
-function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new HttpException({ error: "invalid_request", message: "Request is invalid" }, 400);
@@ -235,7 +235,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-async function execute<T>(operation: () => Promise<T>): Promise<T> {
+export async function execute<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {

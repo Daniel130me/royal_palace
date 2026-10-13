@@ -3,7 +3,10 @@ import { Module } from "@nestjs/common";
 import { AuthorizationModule } from "../authorization/authorization.module.js";
 import { IdentityModule } from "../identity/identity.module.js";
 import { LaboratoryService } from "./application/laboratory.service.js";
+import { LaboratoryResultService } from "./application/laboratory-result.service.js";
+import { LABORATORY_RESULT_REPOSITORY } from "./domain/laboratory-result.types.js";
 import { LABORATORY_REPOSITORY } from "./domain/laboratory.types.js";
+import { PrismaLaboratoryResultRepository } from "./infrastructure/prisma-laboratory-result.repository.js";
 import { PrismaLaboratoryRepository } from "./infrastructure/prisma-laboratory.repository.js";
 import {
   LaboratoryOperationsController,
@@ -11,6 +14,11 @@ import {
   PatientLaboratoryController,
   ProviderLaboratoryController,
 } from "./presentation/laboratory.controller.js";
+import {
+  LaboratoryResultOperationsController,
+  PatientLaboratoryResultController,
+  ProviderLaboratoryResultController,
+} from "./presentation/laboratory-result.controller.js";
 
 @Module({
   imports: [AuthorizationModule, IdentityModule],
@@ -19,10 +27,15 @@ import {
     LaboratoryRequestReadController,
     PatientLaboratoryController,
     ProviderLaboratoryController,
+    LaboratoryResultOperationsController,
+    PatientLaboratoryResultController,
+    ProviderLaboratoryResultController,
   ],
   providers: [
     LaboratoryService,
+    LaboratoryResultService,
     { provide: LABORATORY_REPOSITORY, useClass: PrismaLaboratoryRepository },
+    { provide: LABORATORY_RESULT_REPOSITORY, useClass: PrismaLaboratoryResultRepository },
   ],
 })
 export class LaboratoryModule {}

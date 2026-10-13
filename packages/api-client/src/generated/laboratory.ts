@@ -116,6 +116,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/laboratory/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listLaboratoryResults"];
+        put?: never;
+        post: operations["createLaboratoryResultDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getLaboratoryResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateLaboratoryResultDraft"];
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/review-transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transitionLaboratoryResultReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["publishLaboratoryResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/laboratory/results/{resultId}/amendments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createLaboratoryResultAmendment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/laboratory-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientLaboratoryResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/laboratory-results/{resultId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPatientLaboratoryResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPractitionerLaboratoryResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-results/{resultId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPractitionerLaboratoryResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-critical-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPractitionerCriticalLaboratoryResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-critical-results/{criticalResultId}/acknowledgements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acknowledgeCriticalLaboratoryResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/laboratory-critical-results/{criticalResultId}/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveCriticalLaboratoryResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -139,6 +347,12 @@ export interface components {
         LaboratoryRequestStatus: "ACTIVE" | "CANCELLED" | "COMPLETED";
         /** @enum {string} */
         LaboratoryBookingStatus: "CONFIRMED" | "SAMPLE_COLLECTION_PENDING" | "SAMPLE_COLLECTED" | "PROCESSING" | "RESULT_READY" | "COMPLETED" | "CANCELLED";
+        /** @enum {string} */
+        LaboratoryResultStatus: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
+        /** @enum {string} */
+        LaboratoryResultFlag: "NORMAL" | "LOW" | "HIGH" | "ABNORMAL" | "CRITICAL";
+        /** @enum {string} */
+        LaboratoryCriticalResultStatus: "OPEN" | "ACKNOWLEDGED" | "ESCALATED" | "RESOLVED";
         /** @enum {string} */
         LaboratoryRequestPriority: "ROUTINE" | "URGENT";
         RequestStatusHistory: {
@@ -248,6 +462,114 @@ export interface components {
             /** @enum {string} */
             toStatus: "SAMPLE_COLLECTION_PENDING" | "SAMPLE_COLLECTED" | "PROCESSING" | "CANCELLED";
         };
+        LaboratoryResultComponentInput: {
+            code?: string;
+            codeSystem?: string;
+            flag: components["schemas"]["LaboratoryResultFlag"];
+            name: string;
+            note?: string;
+            referenceRange?: string;
+            unit?: string;
+            value: string;
+        };
+        LaboratoryResultContentInput: {
+            components: components["schemas"]["LaboratoryResultComponentInput"][];
+            interpretation?: string;
+        };
+        CreateLaboratoryResultInput: components["schemas"]["LaboratoryResultContentInput"] & {
+            /** Format: uuid */
+            bookingId: string;
+        };
+        UpdateLaboratoryResultInput: components["schemas"]["LaboratoryResultContentInput"] & {
+            expectedVersion: number;
+        };
+        TransitionLaboratoryResultInput: {
+            expectedVersion: number;
+            /** @enum {string} */
+            reasonCode: "submitted_for_review" | "returned_for_correction";
+            /** @enum {string} */
+            toStatus: "DRAFT" | "IN_REVIEW";
+        };
+        VersionInput: {
+            expectedVersion: number;
+        };
+        ResolveCriticalLaboratoryResultInput: {
+            expectedVersion: number;
+            resolutionCode: string;
+        };
+        LaboratoryResultComponent: components["schemas"]["LaboratoryResultComponentInput"] & {
+            code: string | null;
+            codeSystem: string | null;
+            /** Format: uuid */
+            id: string;
+            lineNumber: number;
+            note: string | null;
+            referenceRange: string | null;
+            unit: string | null;
+        };
+        LaboratoryResultAttachment: {
+            /** Format: uuid */
+            id: string;
+            originalFilename: string;
+            purpose: string;
+            /** @enum {string} */
+            status: "AWAITING_UPLOAD" | "QUARANTINED" | "SCANNING" | "CLEAN" | "REJECTED";
+        };
+        LaboratoryCriticalResult: {
+            /** Format: date-time */
+            acknowledgementDueAt: string;
+            /** Format: date-time */
+            acknowledgedAt: string | null;
+            /** Format: uuid */
+            componentId: string;
+            /** Format: date-time */
+            escalatedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            resolutionCode: string | null;
+            /** Format: date-time */
+            resolvedAt: string | null;
+            /** Format: uuid */
+            resultId: string;
+            status: components["schemas"]["LaboratoryCriticalResultStatus"];
+            version: number;
+        };
+        LaboratoryResult: {
+            attachments: components["schemas"]["LaboratoryResultAttachment"][];
+            /** Format: uuid */
+            bookingId: string;
+            components: components["schemas"]["LaboratoryResultComponent"][];
+            /** Format: date-time */
+            createdAt: string;
+            criticalResults: components["schemas"]["LaboratoryCriticalResult"][];
+            /** Format: uuid */
+            id: string;
+            interpretation: string | null;
+            laboratory: components["schemas"]["NamedResource"];
+            patient: components["schemas"]["NamedResource"];
+            practitioner: components["schemas"]["NamedResource"];
+            /** Format: uuid */
+            previousResultId: string | null;
+            /** Format: date-time */
+            publishedAt: string | null;
+            resultNumber: string;
+            service: components["schemas"]["ServiceResource"];
+            status: components["schemas"]["LaboratoryResultStatus"];
+            summaryFlag: components["schemas"]["LaboratoryResultFlag"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            verifiedAt: string | null;
+            version: number;
+        };
+        LaboratoryResultList: {
+            data: components["schemas"]["LaboratoryResult"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        LaboratoryCriticalResultList: {
+            data: components["schemas"]["LaboratoryCriticalResult"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
     };
     responses: {
         /** @description Invalid request */
@@ -286,6 +608,8 @@ export interface components {
         Cursor: string;
         Limit: number;
         LaboratoryRequestId: string;
+        ResultId: string;
+        CriticalResultId: string;
     };
     requestBodies: never;
     headers: never;
@@ -518,6 +842,408 @@ export interface operations {
             };
             403: components["responses"]["AccessDenied"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listLaboratoryResults: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                status?: components["schemas"]["LaboratoryResultStatus"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-scoped results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResultList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    createLaboratoryResultDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLaboratoryResultInput"];
+            };
+        };
+        responses: {
+            /** @description Result draft created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Relationship-scoped result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateLaboratoryResultDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLaboratoryResultInput"];
+            };
+        };
+        responses: {
+            /** @description Result draft updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    transitionLaboratoryResultReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionLaboratoryResultInput"];
+            };
+        };
+        responses: {
+            /** @description Review state transitioned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    publishLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionInput"];
+            };
+        };
+        responses: {
+            /** @description Result published */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createLaboratoryResultAmendment: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaboratoryResultContentInput"];
+            };
+        };
+        responses: {
+            /** @description Amendment draft created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPatientLaboratoryResults: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Patient-owned published results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResultList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    getPatientLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Patient-owned published result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPractitionerLaboratoryResults: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practitioner-owned published results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResultList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    getPractitionerLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                resultId: components["parameters"]["ResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practitioner-owned published result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPractitionerCriticalLaboratoryResults: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                status?: components["schemas"]["LaboratoryCriticalResultStatus"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practitioner-owned critical-result alerts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryCriticalResultList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    acknowledgeCriticalLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                criticalResultId: components["parameters"]["CriticalResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionInput"];
+            };
+        };
+        responses: {
+            /** @description Critical result acknowledged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryCriticalResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    resolveCriticalLaboratoryResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                criticalResultId: components["parameters"]["CriticalResultId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCriticalLaboratoryResultInput"];
+            };
+        };
+        responses: {
+            /** @description Critical result resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryCriticalResult"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

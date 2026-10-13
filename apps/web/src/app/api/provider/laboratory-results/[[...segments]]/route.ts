@@ -1,0 +1,25 @@
+import type { NextRequest } from "next/server";
+
+import { proxyAuthenticatedApi } from "@/lib/auth/bff";
+import {
+  exactLaboratoryUuid,
+  laboratoryBffNotFound,
+  laboratoryResultListPath,
+} from "@/lib/auth/laboratory-bff";
+
+export function GET(request: NextRequest, context: { params: Promise<{ segments?: string[] }> }) {
+  return context.params.then(({ segments = [] }) => {
+    if (segments.length === 0) {
+      const path = laboratoryResultListPath(
+        "/v1/provider/laboratory-results",
+        request.nextUrl,
+        "published",
+      );
+      return path === null ? laboratoryBffNotFound() : proxyAuthenticatedApi(request, path, "GET");
+    }
+    const resultId = segments.length === 1 ? exactLaboratoryUuid(segments[0]) : null;
+    return resultId === null
+      ? laboratoryBffNotFound()
+      : proxyAuthenticatedApi(request, `/v1/provider/laboratory-results/${resultId}`, "GET");
+  });
+}

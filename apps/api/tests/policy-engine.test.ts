@@ -160,6 +160,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_INVENTORY:
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
     case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
+    case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
       return {
         ...base,
         policy,
@@ -193,6 +194,7 @@ function baselineRequest(
         },
       };
     case AUTHORIZATION_POLICY.VIEW_LABORATORY_REQUEST:
+    case AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT:
       return {
         ...base,
         policy,
@@ -202,6 +204,16 @@ function baselineRequest(
           practitionerPrincipalId: targetPrincipalId,
           resourceId,
           resourceType: "laboratory_request",
+        },
+      };
+    case AUTHORIZATION_POLICY.ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT:
+      return {
+        ...base,
+        policy,
+        context: {
+          practitionerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "laboratory_critical_result",
         },
       };
     case AUTHORIZATION_POLICY.VIEW_PHARMACY_ORDER:
@@ -279,6 +291,9 @@ describe("PolicyEngine", () => {
     MANAGE_PHARMACY_INVENTORY: [],
     MANAGE_PHARMACY_SETTINGS: [],
     MANAGE_LABORATORY_BOOKING: [],
+    MANAGE_LABORATORY_RESULT: [],
+    VIEW_LABORATORY_RESULT: [],
+    ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT: [],
     MANAGE_NOTIFICATION_PREFERENCES: [],
     ADMINISTER_PHARMACY_DISPUTE: ["ADMINISTRATOR"],
     MANAGE_OWN_APPLICATION: [],

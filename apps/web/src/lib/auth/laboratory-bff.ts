@@ -10,6 +10,8 @@ const BOOKING_STATUS = new Set([
   "COMPLETED",
   "CANCELLED",
 ]);
+const RESULT_STATUS = new Set(["DRAFT", "IN_REVIEW", "PUBLISHED", "SUPERSEDED"]);
+const CRITICAL_RESULT_STATUS = new Set(["OPEN", "ACKNOWLEDGED", "ESCALATED", "RESOLVED"]);
 
 export function exactLaboratoryUuid(value: string | undefined): string | null {
   return value !== undefined && UUID.test(value) ? value : null;
@@ -24,6 +26,26 @@ export function laboratoryBffNotFound(): NextResponse {
 
 /** Copies only bounded, indexed laboratory queue filters. */
 export function laboratoryQueuePath(requestUrl: URL): string | null {
+  return laboratoryListPath("/v1/laboratory/bookings", requestUrl, BOOKING_STATUS);
+}
+
+export function laboratoryResultListPath(
+  basePath: string,
+  requestUrl: URL,
+  kind: "critical" | "result" | "published",
+): string | null {
+  return laboratoryListPath(
+    basePath,
+    requestUrl,
+    kind === "critical" ? CRITICAL_RESULT_STATUS : kind === "result" ? RESULT_STATUS : null,
+  );
+}
+
+function laboratoryListPath(
+  basePath: string,
+  requestUrl: URL,
+  allowedStatuses: ReadonlySet<string> | null,
+): string | null {
   const output = new URLSearchParams();
   for (const [name, value] of requestUrl.searchParams) {
     if (name === "cursor") {
@@ -31,12 +53,12 @@ export function laboratoryQueuePath(requestUrl: URL): string | null {
     } else if (name === "limit") {
       if (!/^\d{1,2}$/.test(value) || Number(value) < 1 || Number(value) > 50) return null;
     } else if (name === "status") {
-      if (!BOOKING_STATUS.has(value)) return null;
+      if (allowedStatuses === null || !allowedStatuses.has(value)) return null;
     } else {
       return null;
     }
     output.append(name, value);
   }
   const query = output.toString();
-  return query.length === 0 ? "/v1/laboratory/bookings" : `/v1/laboratory/bookings?${query}`;
+  return query.length === 0 ? basePath : `${basePath}?${query}`;
 }

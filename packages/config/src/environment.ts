@@ -169,6 +169,12 @@ const serviceEnvironmentSchema = z
     CLINICAL_WORKFLOW_MODE: clinicalWorkflowModeSchema.default("disabled"),
     INVENTORY_GATEWAY_MODE: inventoryGatewayModeSchema.default("disabled"),
     INVENTORY_RESERVATION_TTL_SECONDS: paymentDurationSchema.default(900),
+    LABORATORY_CRITICAL_ACKNOWLEDGEMENT_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(86_400)
+      .default(3_600),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
@@ -364,6 +370,9 @@ interface BaseServiceConfig {
     mode: z.infer<typeof inventoryGatewayModeSchema>;
     reservationTtlSeconds: number;
   };
+  laboratory: {
+    criticalAcknowledgementSeconds: number;
+  };
   databaseUrl: string;
   dependencyTimeoutMs: number;
   logLevel: LogLevel;
@@ -523,6 +532,9 @@ export function loadServiceConfig(
     inventoryGateway: Object.freeze({
       mode: values.INVENTORY_GATEWAY_MODE,
       reservationTtlSeconds: values.INVENTORY_RESERVATION_TTL_SECONDS,
+    }),
+    laboratory: Object.freeze({
+      criticalAcknowledgementSeconds: values.LABORATORY_CRITICAL_ACKNOWLEDGEMENT_SECONDS,
     }),
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
