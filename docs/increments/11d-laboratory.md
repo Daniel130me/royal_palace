@@ -61,6 +61,8 @@ cutover work remain tracked below and must be completed before parity can be cla
       controlled service catalogue and verified laboratories that offer the exact test.
 - [x] Add laboratory queues, scheduling, specimen collection, processing, cancellation,
       bounded cursor pagination, concurrency tests, and privacy-minimized projections.
+- [x] Surface bounded cursor pagination in practitioner, patient, request-queue, and
+      booking-queue screens so older work remains reachable without unbounded reads.
 - [x] Connect the approved dashboard, bookings, and request list/detail screens without
       exposing unassigned requests or full patient records.
 - [x] Retire the replaced ungated prototype create, booking, and status mutation routes

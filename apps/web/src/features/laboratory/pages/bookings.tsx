@@ -51,27 +51,45 @@ export function LabBookings() {
   const { labId } = useLabContext();
   const [requests, setRequests] = useState<readonly LaboratoryQueueRequestResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [tab, setTab] = useState<TabKey>("scheduled");
   const [query, setQuery] = useState("");
   const [progressing, setProgressing] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!labId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await productionLaboratoryService.laboratory.list(labId);
-      setRequests(response.data);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Laboratory bookings could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [labId]);
+  const load = useCallback(
+    async (cursor?: string) => {
+      if (!labId) return;
+      if (cursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const response = await productionLaboratoryService.laboratory.list(
+          labId,
+          undefined,
+          cursor,
+        );
+        setRequests((current) =>
+          cursor === undefined ? response.data : [...current, ...response.data],
+        );
+        setEndCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Laboratory bookings could not be loaded.",
+        );
+      } finally {
+        if (cursor === undefined) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [labId],
+  );
 
   useEffect(() => {
-    void load();
+    void load(undefined);
   }, [load]);
 
   const groups = useMemo(() => {
@@ -241,6 +259,13 @@ export function LabBookings() {
               </ExpandableCard>
             );
           })}
+        </div>
+      )}
+      {hasNextPage && endCursor && (
+        <div className="flex justify-center">
+          <Button variant="outline" disabled={loadingMore} onClick={() => void load(endCursor)}>
+            {loadingMore ? "Loading…" : "Load more bookings"}
+          </Button>
         </div>
       )}
     </div>

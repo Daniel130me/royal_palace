@@ -13,6 +13,7 @@ import {
 } from "@/components/healthcare/page-header";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { navigate } from "@/lib/nav";
 import { productionLaboratoryService } from "@/lib/services";
@@ -28,26 +29,44 @@ export function LabRequests() {
   const { labId } = useLabContext();
   const [requests, setRequests] = useState<readonly LaboratoryQueueRequestResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [tab, setTab] = useState<TabKey>("incoming");
   const [query, setQuery] = useState("");
 
-  const load = useCallback(async () => {
-    if (!labId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await productionLaboratoryService.laboratory.list(labId);
-      setRequests(response.data);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [labId]);
+  const load = useCallback(
+    async (cursor?: string) => {
+      if (!labId) return;
+      if (cursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const response = await productionLaboratoryService.laboratory.list(
+          labId,
+          undefined,
+          cursor,
+        );
+        setRequests((current) =>
+          cursor === undefined ? response.data : [...current, ...response.data],
+        );
+        setEndCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.",
+        );
+      } finally {
+        if (cursor === undefined) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [labId],
+  );
 
   useEffect(() => {
-    void load();
+    void load(undefined);
   }, [load]);
 
   const groups = useMemo(() => {
@@ -146,6 +165,13 @@ export function LabRequests() {
               />
             );
           })}
+        </div>
+      )}
+      {hasNextPage && endCursor && (
+        <div className="flex justify-center">
+          <Button variant="outline" disabled={loadingMore} onClick={() => void load(endCursor)}>
+            {loadingMore ? "Loading…" : "Load more requests"}
+          </Button>
         </div>
       )}
     </div>

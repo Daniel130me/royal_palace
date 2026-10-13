@@ -29,25 +29,34 @@ function currentBooking(request: LaboratoryRequestResponse) {
 export function ProviderLabRequests() {
   const [requests, setRequests] = useState<readonly LaboratoryRequestResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("pending");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (cursor?: string) => {
+    if (cursor === undefined) setLoading(true);
+    else setLoadingMore(true);
     setError(null);
     try {
-      const response = await productionLaboratoryService.provider.list();
-      setRequests(response.data);
+      const response = await productionLaboratoryService.provider.list(undefined, cursor);
+      setRequests((current) =>
+        cursor === undefined ? response.data : [...current, ...response.data],
+      );
+      setEndCursor(response.pageInfo.endCursor);
+      setHasNextPage(response.pageInfo.hasNextPage);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.");
     } finally {
-      setLoading(false);
+      if (cursor === undefined) setLoading(false);
+      else setLoadingMore(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(undefined);
   }, [load]);
 
   const filtered = useMemo(() => {
@@ -173,9 +182,21 @@ export function ProviderLabRequests() {
 
       <div className="mt-4 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{visible.length} request(s)</p>
-        <Button size="sm" variant="ghost" onClick={() => navigate("provider", "appointments")}>
-          New from encounter <ArrowRight className="ml-1 h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasNextPage && endCursor && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loadingMore}
+              onClick={() => void load(endCursor)}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => navigate("provider", "appointments")}>
+            New from encounter <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

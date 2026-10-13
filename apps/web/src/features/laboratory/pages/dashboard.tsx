@@ -43,7 +43,7 @@ export function LabDashboard() {
     if (!labId) return;
     setDataLoading(true);
     Promise.all([
-      productionLaboratoryService.laboratory.list(labId),
+      productionLaboratoryService.laboratory.list(labId, undefined, undefined, 50),
       laboratoryService.results(labId),
       settlementService
         .list({ entityType: "laboratory", entityId: labId })

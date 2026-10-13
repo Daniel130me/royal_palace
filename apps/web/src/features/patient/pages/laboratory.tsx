@@ -83,32 +83,46 @@ export function PatientLaboratory() {
   const [prototypeResults, setPrototypeResults] = useState<PrototypeLaboratoryRequest[]>([]);
   const [bookingFor, setBookingFor] = useState<LaboratoryRequestResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [tab, setTab] = useState<LabTab>("pending");
 
-  const load = useCallback(async () => {
-    if (!profile) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [production, legacy] = await Promise.all([
-        productionLaboratoryService.patient.list(),
-        // Result publication is cut over in 11D3; keep the approved result surface populated until then.
-        labRequestService.list({ patientId: profile.id }).catch(() => []),
-      ]);
-      setRequests(production.data);
-      setPrototypeResults(
-        legacy.filter((request) => request.status === "completed" && request.result),
-      );
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [profile]);
+  const load = useCallback(
+    async (cursor?: string) => {
+      if (!profile) return;
+      if (cursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const production = await productionLaboratoryService.patient.list(cursor);
+        setRequests((current) =>
+          cursor === undefined ? production.data : [...current, ...production.data],
+        );
+        setEndCursor(production.pageInfo.endCursor);
+        setHasNextPage(production.pageInfo.hasNextPage);
+        if (cursor === undefined) {
+          // Result publication is cut over in 11D3; keep the approved result surface populated until then.
+          const legacy = await labRequestService.list({ patientId: profile.id }).catch(() => []);
+          setPrototypeResults(
+            legacy.filter((request) => request.status === "completed" && request.result),
+          );
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.",
+        );
+      } finally {
+        if (cursor === undefined) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [profile],
+  );
 
   useEffect(() => {
-    void load();
+    void load(undefined);
   }, [load]);
 
   const sections = useMemo(() => {
@@ -236,11 +250,19 @@ export function PatientLaboratory() {
           </div>
         ))}
 
+      {hasNextPage && endCursor && tab !== "results" && (
+        <div className="flex justify-center">
+          <Button variant="outline" disabled={loadingMore} onClick={() => void load(endCursor)}>
+            {loadingMore ? "Loading…" : "Load more requests"}
+          </Button>
+        </div>
+      )}
+
       <LabBookingSheet
         request={bookingFor}
         onBooked={() => {
           setBookingFor(null);
-          void load();
+          void load(undefined);
         }}
         onClose={() => setBookingFor(null)}
       />
