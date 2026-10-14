@@ -24,8 +24,10 @@ governed, effective-dated service prices, immutable booking price snapshots, and
 checkout through the shared payment-subject boundary while keeping clinical state independent
 from settlement. Checkpoint 11D4D adds immutable organization earnings, currency-separated
 daily/monthly/custom-range reporting, concurrency-safe payout reservation, finance review,
-and conservative refund/dispute holds. Real payout execution and the remaining supporting-screen
-work remain tracked below and must be completed before parity can be claimed.
+and conservative refund/dispute holds. Checkpoint 11D4E adds completion-bound verified ratings,
+immutable rating evidence, moderation-safe comments, and database-maintained aggregates. Real
+payout execution and the remaining supporting-screen work remain tracked below and must be
+completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -137,6 +139,9 @@ work remain tracked below and must be completed before parity can be claimed.
       slice. Successful verified payments create earnings exactly once; payout requests reserve
       only available same-currency earnings under serializable isolation; finance review enforces
       separation of duties; refunds, reversals, and disputes fail safe to a reconciliation hold.
+- [x] Require patients to rate completed laboratory services, bind each rating to one owned
+      completed booking, keep optional comments private pending moderation, and expose only
+      database-maintained verified aggregates to laboratory and public discovery surfaces.
 - [ ] Complete clean/upgrade migration tests, failure/concurrency tests, load/query-plan
       evidence, prototype parity verification, and Nigerian qualification/UAT.
 - [ ] Keep all real laboratory processing disabled until the approval evidence is
@@ -191,6 +196,12 @@ positive-amount, currency-shape, uniqueness, and referential constraints. Applic
 retains all financial records. Payout approval is deliberately distinct from provider execution;
 no bank-transfer provider reference or paid status is fabricated by this checkpoint.
 
+Migration `20261014200000_verified_laboratory_reviews` is additive. It creates immutable,
+completion-bound laboratory ratings and a one-row-per-organization aggregate maintained by a
+database trigger. Existing completed services are not fabricated as reviewed. Application
+rollback retains rating evidence and simply stops reading the new tables; destructive down
+migration is forbidden.
+
 ## Checkpoint 11D4C completion report
 
 - Administrators can review all controlled hospital, pharmacy, and laboratory services on
@@ -224,6 +235,26 @@ no bank-transfer provider reference or paid status is fabricated by this checkpo
 - Prototype screens covered by this checkpoint are available at `#/laboratory/settlements`,
   `#/laboratory/payouts`, and `#/admin/settlements`.
 
+## Checkpoint 11D4E completion report
+
+- A patient can submit exactly one 1–5 rating only for a completed laboratory booking that
+  belongs to that patient. Guessing another booking identifier fails the contextual policy.
+- Rating identity, booking, organization, score, comment, and submission time are immutable.
+  PostgreSQL independently verifies booking completion and cross-table patient/organization
+  scope before accepting the row.
+- Optional comments enter `PENDING` moderation and are not returned by public discovery or the
+  laboratory workspace. Scores may contribute immediately because their service completion and
+  patient ownership are verified; future moderation can hide abusive text without rewriting the
+  immutable score evidence.
+- A database trigger maintains one organization summary row during insertion. Discovery lists
+  join this bounded summary instead of aggregating reviews per organization or issuing N+1
+  queries.
+- The patient Laboratory screen shows persistent rating-required cards for completed, unrated
+  services. Verified rating aggregates appear on laboratory discovery cards and the laboratory
+  Settings profile.
+- Prototype screens covered by this checkpoint are available at `#/patient/laboratory`,
+  `#/patient/laboratories`, and `#/laboratory/settings`.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -244,14 +275,17 @@ no bank-transfer provider reference or paid status is fabricated by this checkpo
   reports are bounded to 366 days, use composite organization/currency/status/time indexes, and
   separate currencies rather than performing invalid cross-currency totals. The
   aggregate remains independent of country, currency, payment vendor, or cloud provider.
+  Verified rating discovery reads a one-row organization aggregate maintained atomically with
+  review insertion, so list latency does not grow with review history.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the primary laboratory, patient, and practitioner result
   workflows, embedded result widgets, service catalogue, notification inbox, and profile/settings
   screens now use production boundaries. Laboratory charging now uses the production payment
   boundary. Laboratory settlement reporting and internal payout review now use the production
-  organization-finance boundary. Automated payout execution, verified rating/review, billing and team administration,
-  query-plan/load, and qualification work remains
+  organization-finance boundary. Verified completion-bound laboratory ratings now use the
+  production review boundary. Automated payout execution, comment-moderation administration,
+  billing and team administration, query-plan/load, and qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
   privacy, and jurisdictional procedures are qualified. No approved screen or navigation

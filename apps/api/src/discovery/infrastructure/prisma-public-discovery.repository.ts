@@ -56,6 +56,7 @@ const publicOrganizationSelect = {
       websiteUrl: true,
     },
   },
+  ratingSummary: { select: { ratingCount: true, ratingSum: true } },
 } satisfies Prisma.OrganizationSelect;
 
 type PublicOrganizationRecord = Prisma.OrganizationGetPayload<{
@@ -247,6 +248,13 @@ function mapOrganizationSummary(record: PublicOrganizationRecord): PublicOrganiz
     locations: record.facilityLocations as PublicFacilityLocation[],
     openTwentyFourHours: record.publicProfile.openTwentyFourHours,
     organizationType: record.type,
+    rating: {
+      averageScore:
+        record.ratingSummary === null || record.ratingSummary.ratingCount === 0
+          ? null
+          : record.ratingSummary.ratingSum / record.ratingSummary.ratingCount,
+      reviewCount: record.ratingSummary?.ratingCount ?? 0,
+    },
     services: record.organizationServices.map((offering) => offering.service),
     slug: record.publicProfile.slug,
     summary: record.publicProfile.summary,

@@ -312,6 +312,22 @@ export const productionLaboratoryService = {
           params: { header: requestHeader(), query: { cursor, limit } },
         })
         .then(unwrapGeneratedResponse),
+    reviews: (limit = 25) =>
+      generatedLaboratoryClient
+        .GET("/v1/patient/laboratory-reviews", {
+          params: { header: requestHeader(), query: { limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    submitReview: (
+      bookingId: string,
+      body: LaboratoryComponents["schemas"]["SubmitLaboratoryReviewInput"],
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/patient/laboratory-bookings/{bookingId}/reviews", {
+          body,
+          params: { header: requestHeader(), path: { bookingId } },
+        })
+        .then(unwrapGeneratedResponse),
     result: (resultId: string) =>
       generatedLaboratoryClient
         .GET("/v1/patient/laboratory-results/{resultId}", {

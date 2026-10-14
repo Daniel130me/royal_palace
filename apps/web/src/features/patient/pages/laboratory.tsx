@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   LaboratoryBookingStatus,
   LaboratoryRequestResponse,
+  LaboratoryReviewTaskResponse,
   LaboratoryResultResponse,
   PublicOrganizationSummary,
 } from "@royal-palace/contracts";
@@ -17,6 +18,7 @@ import {
   Home,
   Lock,
   MapPin,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,6 +88,7 @@ export function PatientLaboratory() {
   const { profile } = usePatientContext();
   const [requests, setRequests] = useState<readonly LaboratoryRequestResponse[]>([]);
   const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
+  const [reviewTasks, setReviewTasks] = useState<readonly LaboratoryReviewTaskResponse[]>([]);
   const [bookingFor, setBookingFor] = useState<LaboratoryRequestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -138,10 +141,22 @@ export function PatientLaboratory() {
     }
   }, []);
 
+  const loadReviews = useCallback(async () => {
+    try {
+      const response = await productionLaboratoryService.patient.reviews(50);
+      setReviewTasks(response.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Laboratory ratings could not be loaded.");
+    }
+  }, []);
+
   useEffect(() => {
     void load(undefined);
     void loadResults(undefined);
-  }, [load, loadResults]);
+    void loadReviews();
+  }, [load, loadResults, loadReviews]);
+
+  const pendingReviews = reviewTasks.filter((task) => task.review === null);
 
   const sections = useMemo(() => {
     const ordered = [...requests].sort((left, right) =>
@@ -162,6 +177,22 @@ export function PatientLaboratory() {
   return (
     <div className="space-y-4">
       <PageHeader title="Laboratory" description="Book tests, track samples and view results." />
+
+      {pendingReviews.length > 0 ? (
+        <section className="space-y-2" aria-labelledby="laboratory-ratings-heading">
+          <div>
+            <h2 id="laboratory-ratings-heading" className="text-sm font-semibold">
+              Rating required
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Rate each completed service. Comments remain private until moderation.
+            </p>
+          </div>
+          {pendingReviews.map((task) => (
+            <LaboratoryReviewCard key={task.bookingId} task={task} onSubmitted={loadReviews} />
+          ))}
+        </section>
+      ) : null}
 
       <SegmentedControl<LabTab>
         value={tab}
@@ -281,6 +312,85 @@ export function PatientLaboratory() {
         }}
         onClose={() => setBookingFor(null)}
       />
+    </div>
+  );
+}
+
+function LaboratoryReviewCard({
+  onSubmitted,
+  task,
+}: {
+  onSubmitted: () => Promise<void>;
+  task: LaboratoryReviewTaskResponse;
+}) {
+  const [score, setScore] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    if (score === null) return;
+    setSubmitting(true);
+    try {
+      await productionLaboratoryService.patient.submitReview(task.bookingId, {
+        ...(comment.trim() === "" ? {} : { comment: comment.trim() }),
+        score,
+      });
+      toast.success("Thank you. Your verified rating has been recorded.");
+      await onSubmitted();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "The rating could not be submitted.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{task.service.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {task.laboratory.displayName} · completed {formatDate(task.completedAt)}
+          </p>
+        </div>
+        <Badge variant="outline" className="bg-background text-amber-700">
+          Verified service
+        </Badge>
+      </div>
+      <div className="mt-3 flex gap-1" role="radiogroup" aria-label="Service rating">
+        {[1, 2, 3, 4, 5].map((value) => (
+          <button
+            aria-checked={score === value}
+            aria-label={`${value} star${value === 1 ? "" : "s"}`}
+            className="rounded-md p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            key={value}
+            onClick={() => setScore(value)}
+            role="radio"
+            type="button"
+          >
+            <Star
+              className={
+                score !== null && value <= score
+                  ? "h-6 w-6 fill-amber-400 text-amber-500"
+                  : "h-6 w-6 text-muted-foreground/40"
+              }
+            />
+          </button>
+        ))}
+      </div>
+      <Textarea
+        aria-label="Optional rating comment"
+        className="mt-2 min-h-20 bg-background"
+        maxLength={2000}
+        onChange={(event) => setComment(event.target.value)}
+        placeholder="Optional comment (moderated before publication)"
+        value={comment}
+      />
+      <div className="mt-2 flex justify-end">
+        <Button disabled={score === null || submitting} onClick={() => void submit()} size="sm">
+          {submitting ? "Submitting…" : "Submit rating"}
+        </Button>
+      </div>
     </div>
   );
 }

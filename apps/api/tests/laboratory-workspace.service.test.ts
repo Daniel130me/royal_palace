@@ -31,6 +31,7 @@ const workspace: LaboratoryWorkspaceResponse = {
     websiteUrl: null,
   },
   primaryLocation: null,
+  rating: { averageScore: null, reviewCount: 0 },
   registration: null,
   services: [],
 };

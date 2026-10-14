@@ -7,16 +7,16 @@ separately because they establish or operate the session used by policy enforcem
 
 ## Production API routes
 
-| Method and route | Classification | Enforcement |
-| --- | --- | --- |
-| `GET /health/live` | Public operational probe | No identity or dependency detail |
-| `GET /health/ready` | Public operational probe | Bounded dependency readiness only |
-| `POST /v1/internal/auth/login/start` | Internal authentication lifecycle | HMAC-authenticated BFF request; OIDC state, nonce, and PKCE |
-| `POST /v1/internal/auth/login/callback` | Internal authentication lifecycle | HMAC-authenticated BFF request; one-time OIDC transaction |
-| `POST /v1/internal/auth/session/current` | Authenticated self-session lifecycle | HMAC-authenticated BFF request; opaque encrypted browser cookie resolves the session ID |
-| `POST /v1/internal/auth/session/refresh` | Authenticated self-session lifecycle | Same session boundary; provider subject continuity and token rotation |
-| `POST /v1/internal/auth/session/logout` | Authenticated self-session lifecycle | Same session boundary; local revocation precedes provider best effort |
-| `POST /v1/internal/auth/session/revoke-principal` | Protected privileged action | `REVOKE_PRINCIPAL_SESSIONS`; recent stepped-up administrator; immutable allow/deny audit |
+| Method and route                                  | Classification                       | Enforcement                                                                              |
+| ------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `GET /health/live`                                | Public operational probe             | No identity or dependency detail                                                         |
+| `GET /health/ready`                               | Public operational probe             | Bounded dependency readiness only                                                        |
+| `POST /v1/internal/auth/login/start`              | Internal authentication lifecycle    | HMAC-authenticated BFF request; OIDC state, nonce, and PKCE                              |
+| `POST /v1/internal/auth/login/callback`           | Internal authentication lifecycle    | HMAC-authenticated BFF request; one-time OIDC transaction                                |
+| `POST /v1/internal/auth/session/current`          | Authenticated self-session lifecycle | HMAC-authenticated BFF request; opaque encrypted browser cookie resolves the session ID  |
+| `POST /v1/internal/auth/session/refresh`          | Authenticated self-session lifecycle | Same session boundary; provider subject continuity and token rotation                    |
+| `POST /v1/internal/auth/session/logout`           | Authenticated self-session lifecycle | Same session boundary; local revocation precedes provider best effort                    |
+| `POST /v1/internal/auth/session/revoke-principal` | Protected privileged action          | `REVOKE_PRINCIPAL_SESSIONS`; recent stepped-up administrator; immutable allow/deny audit |
 
 The internal HMAC proves that a request came through the configured BFF; it never grants
 a user role. The API resolves the opaque session to server-owned principal, platform
@@ -34,6 +34,12 @@ Each later vertical slice must explicitly add only its approved same-origin BFF 
 to the protected-environment registry after the corresponding API use case, policy,
 projection, pagination/idempotency behavior, audit behavior, and tests exist. Broad
 prefixes and generic CRUD allowlists are forbidden.
+
+Increment 11D4E adds `GET /v1/patient/laboratory-reviews` and
+`POST /v1/patient/laboratory-bookings/{bookingId}/reviews` under
+`SUBMIT_SERVICE_REVIEW`. The API derives the patient relationship from the booking and permits
+only the matching patient principal; the BFF allowlist accepts an exact UUID path and no broader
+laboratory-booking mutation prefix.
 
 ## Default-deny rules
 

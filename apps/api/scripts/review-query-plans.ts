@@ -71,11 +71,14 @@ async function main(): Promise<void> {
       await reviewPlan(
         client,
         "hospital discovery",
-        `SELECT organization."id", organization."display_name"
+        `SELECT organization."id", organization."display_name",
+                rating."rating_count", rating."rating_sum"
            FROM "organizations" AS organization
            JOIN "organization_public_profiles" AS profile
              ON profile."organization_id" = organization."id"
             AND profile."status" = 'PUBLISHED'
+           LEFT JOIN "organization_rating_summaries" AS rating
+             ON rating."organization_id" = organization."id"
           WHERE organization."type" = 'HOSPITAL'
             AND organization."status" = 'ACTIVE'
             AND organization."verification_status" = 'VERIFIED'

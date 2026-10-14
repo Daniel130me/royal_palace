@@ -35,6 +35,7 @@ export const AUTHORIZATION_POLICY = {
   VIEW_LABORATORY_REQUEST: "VIEW_LABORATORY_REQUEST",
   MANAGE_LABORATORY_BOOKING: "MANAGE_LABORATORY_BOOKING",
   MANAGE_LABORATORY_RESULT: "MANAGE_LABORATORY_RESULT",
+  SUBMIT_SERVICE_REVIEW: "SUBMIT_SERVICE_REVIEW",
   VIEW_LABORATORY_RESULT: "VIEW_LABORATORY_RESULT",
   ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT: "ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT",
   ADMINISTER_PHARMACY_DISPUTE: "ADMINISTER_PHARMACY_DISPUTE",
@@ -61,7 +62,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 20;
+export const AUTHORIZATION_POLICY_VERSION = 21;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -125,6 +126,7 @@ export interface AuthorizationPolicyContexts {
   };
   MANAGE_LABORATORY_BOOKING: ResourceReference & { organizationId: string };
   MANAGE_LABORATORY_RESULT: ResourceReference & { organizationId: string };
+  SUBMIT_SERVICE_REVIEW: ResourceReference & { patientPrincipalId: string };
   VIEW_LABORATORY_RESULT: ResourceReference & {
     laboratoryOrganizationId: string;
     patientPrincipalId: string;

@@ -178,7 +178,13 @@ export interface LaboratoryWorkspaceResponse {
     registrationNumber: string;
     verifiedAt: string | null;
   } | null;
+  rating: OrganizationRatingSummary;
   services: readonly LaboratoryWorkspaceServiceResponse[];
+}
+
+export interface OrganizationRatingSummary {
+  averageScore: number | null;
+  reviewCount: number;
 }
 
 export interface PublicFacilityLocation {
@@ -204,6 +210,7 @@ export interface PublicOrganizationSummary {
   locations: readonly PublicFacilityLocation[];
   openTwentyFourHours: boolean;
   organizationType: PublicOrganizationType;
+  rating: OrganizationRatingSummary;
   services: readonly PublicService[];
   slug: string;
   summary: string | null;
@@ -1016,6 +1023,29 @@ export interface LaboratoryResultResponse {
 export interface LaboratoryResultListResponse {
   data: readonly LaboratoryResultResponse[];
   pageInfo: CursorPageInfo;
+}
+
+export type ReviewCommentStatus = "NOT_PROVIDED" | "PENDING" | "PUBLISHED" | "HIDDEN";
+
+export interface LaboratoryReviewResponse {
+  bookingId: string;
+  comment: string | null;
+  commentStatus: ReviewCommentStatus;
+  id: string;
+  score: number;
+  submittedAt: string;
+}
+
+export interface LaboratoryReviewTaskResponse {
+  bookingId: string;
+  completedAt: string;
+  laboratory: { displayName: string; id: string };
+  review: LaboratoryReviewResponse | null;
+  service: { code: string; id: string; name: string };
+}
+
+export interface LaboratoryReviewListResponse {
+  data: readonly LaboratoryReviewTaskResponse[];
 }
 
 /** Laboratory queues omit consultation linkage and practitioner-only clinical context. */

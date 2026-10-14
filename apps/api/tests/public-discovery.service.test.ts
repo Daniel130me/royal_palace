@@ -17,6 +17,7 @@ const hospital: PublicHospitalSummary = {
   locations: [],
   openTwentyFourHours: true,
   organizationType: "HOSPITAL",
+  rating: { averageScore: null, reviewCount: 0 },
   services: [],
   slug: "synthetic-hospital",
   summary: null,

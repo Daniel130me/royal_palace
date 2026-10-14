@@ -104,6 +104,40 @@ paths:
         "400": { $ref: "#/components/responses/InvalidRequest" }
         "403": { $ref: "#/components/responses/AccessDenied" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /v1/patient/laboratory-reviews:
+    get:
+      operationId: listPatientLaboratoryReviews
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Completed laboratory services and patient-owned review state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaboratoryReviewList" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/patient/laboratory-bookings/{bookingId}/reviews:
+    post:
+      operationId: submitLaboratoryReview
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/LaboratoryBookingId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitLaboratoryReviewInput" }
+      responses:
+        "201":
+          description: Verified service-completion-bound rating submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaboratoryReview" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /v1/laboratory-requests/{requestId}:
     get:
       operationId: getLaboratoryRequest
@@ -633,6 +667,8 @@ components:
     PatientId: { in: query, name: patientId, schema: { type: string, format: uuid } }
     LaboratoryRequestId:
       { in: path, name: requestId, required: true, schema: { type: string, format: uuid } }
+    LaboratoryBookingId:
+      { in: path, name: bookingId, required: true, schema: { type: string, format: uuid } }
     ResultId: { in: path, name: resultId, required: true, schema: { type: string, format: uuid } }
     CriticalResultId:
       { in: path, name: criticalResultId, required: true, schema: { type: string, format: uuid } }
@@ -703,7 +739,7 @@ components:
     LaboratoryWorkspace:
       type: object
       additionalProperties: false
-      required: [organization, primaryLocation, registration, services]
+      required: [organization, primaryLocation, rating, registration, services]
       properties:
         organization:
           type: object
@@ -724,6 +760,7 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/LaboratoryWorkspaceRegistration" }
             - { type: "null" }
+        rating: { $ref: "#/components/schemas/OrganizationRatingSummary" }
         services:
           type: array
           items: { $ref: "#/components/schemas/LaboratoryWorkspaceService" }
@@ -741,6 +778,53 @@ components:
       properties:
         displayName: { type: string }
         id: { type: string, format: uuid }
+    OrganizationRatingSummary:
+      type: object
+      additionalProperties: false
+      required: [averageScore, reviewCount]
+      properties:
+        averageScore: { type: [number, "null"], minimum: 1, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
+    ReviewCommentStatus: { type: string, enum: [NOT_PROVIDED, PENDING, PUBLISHED, HIDDEN] }
+    LaboratoryReview:
+      type: object
+      additionalProperties: false
+      required: [bookingId, comment, commentStatus, id, score, submittedAt]
+      properties:
+        bookingId: { type: string, format: uuid }
+        comment: { type: [string, "null"] }
+        commentStatus: { $ref: "#/components/schemas/ReviewCommentStatus" }
+        id: { type: string, format: uuid }
+        score: { type: integer, minimum: 1, maximum: 5 }
+        submittedAt: { type: string, format: date-time }
+    LaboratoryReviewTask:
+      type: object
+      additionalProperties: false
+      required: [bookingId, completedAt, laboratory, review, service]
+      properties:
+        bookingId: { type: string, format: uuid }
+        completedAt: { type: string, format: date-time }
+        laboratory: { $ref: "#/components/schemas/NamedResource" }
+        review:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryReview" }
+            - { type: "null" }
+        service: { $ref: "#/components/schemas/ServiceResource" }
+    LaboratoryReviewList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/LaboratoryReviewTask" }
+    SubmitLaboratoryReviewInput:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        comment: { type: string, minLength: 1, maxLength: 2000 }
+        score: { type: integer, minimum: 1, maximum: 5 }
     ServiceResource:
       type: object
       additionalProperties: false

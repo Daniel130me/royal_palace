@@ -62,6 +62,7 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
           },
         },
         publicProfile: { select: { publicPhone: true, websiteUrl: true } },
+        ratingSummary: { select: { ratingCount: true, ratingSum: true } },
         registrations: {
           orderBy: [{ verifiedAt: "desc" }, { createdAt: "asc" }, { id: "asc" }],
           select: {
@@ -96,6 +97,7 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
               ...registration,
               verifiedAt: registration.verifiedAt?.toISOString() ?? null,
             },
+      rating: ratingSummary(organization.ratingSummary),
       services: organization.organizationServices.map((offering) => {
         const price = offering.service.servicePrices[0] ?? null;
         return {
@@ -118,4 +120,14 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
       }),
     };
   }
+}
+
+function ratingSummary(summary: { ratingCount: number; ratingSum: number } | null) {
+  return {
+    averageScore:
+      summary === null || summary.ratingCount === 0
+        ? null
+        : summary.ratingSum / summary.ratingCount,
+    reviewCount: summary?.ratingCount ?? 0,
+  };
 }

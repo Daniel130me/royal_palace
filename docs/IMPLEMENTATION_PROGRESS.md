@@ -348,6 +348,11 @@ that completes an increment.
       Commercial parity, migration/load evidence, and qualification remain open. Every approved
       laboratory, patient, and practitioner prototype capability remains in the release
       register.
+    - `[x]` 11D4E adds one immutable verified rating per patient-owned completed laboratory
+      booking, private-by-default moderated comments, database-maintained organization rating
+      aggregates, protected patient submission/list routes, and connected patient, discovery,
+      and laboratory-profile presentation surfaces. Comment-moderation administration, billing,
+      team administration, query-plan/load evidence, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

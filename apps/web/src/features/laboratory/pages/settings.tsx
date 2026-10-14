@@ -109,7 +109,10 @@ export function LabSettings() {
                   : ""}
               </span>
               <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 text-amber-500" /> No ratings yet
+                <Star className="h-3 w-3 text-amber-500" />
+                {workspace.rating.reviewCount === 0
+                  ? "No ratings yet"
+                  : `${workspace.rating.averageScore?.toFixed(1)} from ${workspace.rating.reviewCount} verified service${workspace.rating.reviewCount === 1 ? "" : "s"}`}
               </span>
             </div>
           </div>

@@ -38,6 +38,7 @@ const publicRecord = {
     summary: "Synthetic profile",
     websiteUrl: "https://synthetic.invalid",
   },
+  ratingSummary: { ratingCount: 2, ratingSum: 9 },
   type: "HOSPITAL",
 };
 

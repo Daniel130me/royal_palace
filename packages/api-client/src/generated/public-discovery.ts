@@ -226,9 +226,14 @@ export interface components {
             locations: components["schemas"]["PublicFacilityLocation"][];
             openTwentyFourHours: boolean;
             organizationType: components["schemas"]["OrganizationType"];
+            rating: components["schemas"]["OrganizationRatingSummary"];
             services: components["schemas"]["PublicService"][];
             slug: string;
             summary: string | null;
+        };
+        OrganizationRatingSummary: {
+            averageScore: number | null;
+            reviewCount: number;
         };
         PublicOrganizationDetail: components["schemas"]["PublicOrganizationSummary"] & {
             websiteUrl: string | null;

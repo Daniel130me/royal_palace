@@ -291,6 +291,7 @@ components:
           locations,
           openTwentyFourHours,
           organizationType,
+          rating,
           services,
           slug,
           summary,
@@ -308,11 +309,19 @@ components:
           items: { $ref: "#/components/schemas/PublicFacilityLocation" }
         openTwentyFourHours: { type: boolean }
         organizationType: { $ref: "#/components/schemas/OrganizationType" }
+        rating: { $ref: "#/components/schemas/OrganizationRatingSummary" }
         services:
           type: array
           items: { $ref: "#/components/schemas/PublicService" }
         slug: { type: string }
         summary: { type: [string, "null"] }
+    OrganizationRatingSummary:
+      type: object
+      additionalProperties: false
+      required: [averageScore, reviewCount]
+      properties:
+        averageScore: { type: [number, "null"], minimum: 1, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
     PublicOrganizationDetail:
       allOf:
         - $ref: "#/components/schemas/PublicOrganizationSummary"

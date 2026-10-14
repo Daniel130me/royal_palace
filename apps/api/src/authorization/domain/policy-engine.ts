@@ -58,6 +58,7 @@ export class PolicyEngine {
           ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
           : this.deny(request.policy, "prescription_patient_required");
       case AUTHORIZATION_POLICY.ROUTE_LABORATORY_REQUEST:
+      case AUTHORIZATION_POLICY.SUBMIT_SERVICE_REVIEW:
         return request.actor.roles.includes("PATIENT") &&
           request.actor.principalId === request.context.patientPrincipalId
           ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)

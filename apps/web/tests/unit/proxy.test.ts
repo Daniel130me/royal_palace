@@ -192,6 +192,16 @@ describe("web request correlation", () => {
       isApiRouteEnabled("production", "/api/public/hospitals/0199a18e-a400-7000-8000-000000000201"),
     ).toBe(true);
     expect(isApiRouteEnabled("production", "/api/public/hospitals/not-a-uuid")).toBe(false);
+    expect(isApiRouteEnabled("production", "/api/patient/laboratory-reviews")).toBe(true);
+    expect(
+      isApiRouteEnabled(
+        "production",
+        "/api/patient/laboratory-bookings/0199a18e-a400-7000-8000-000000000701/reviews",
+      ),
+    ).toBe(true);
+    expect(
+      isApiRouteEnabled("production", "/api/patient/laboratory-bookings/not-a-uuid/reviews"),
+    ).toBe(false);
     expect(
       isApiRouteEnabled(
         "production",

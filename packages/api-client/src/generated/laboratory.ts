@@ -68,6 +68,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/patient/laboratory-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientLaboratoryReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/laboratory-bookings/{bookingId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitLaboratoryReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/laboratory-requests/{requestId}": {
         parameters: {
             query?: never;
@@ -471,6 +503,7 @@ export interface components {
             };
             primaryLocation: components["schemas"]["LaboratoryWorkspaceLocation"] | null;
             registration: components["schemas"]["LaboratoryWorkspaceRegistration"] | null;
+            rating: components["schemas"]["OrganizationRatingSummary"];
             services: components["schemas"]["LaboratoryWorkspaceService"][];
         };
         CursorPageInfo: {
@@ -481,6 +514,39 @@ export interface components {
             displayName: string;
             /** Format: uuid */
             id: string;
+        };
+        OrganizationRatingSummary: {
+            averageScore: number | null;
+            reviewCount: number;
+        };
+        /** @enum {string} */
+        ReviewCommentStatus: "NOT_PROVIDED" | "PENDING" | "PUBLISHED" | "HIDDEN";
+        LaboratoryReview: {
+            /** Format: uuid */
+            bookingId: string;
+            comment: string | null;
+            commentStatus: components["schemas"]["ReviewCommentStatus"];
+            /** Format: uuid */
+            id: string;
+            score: number;
+            /** Format: date-time */
+            submittedAt: string;
+        };
+        LaboratoryReviewTask: {
+            /** Format: uuid */
+            bookingId: string;
+            /** Format: date-time */
+            completedAt: string;
+            laboratory: components["schemas"]["NamedResource"];
+            review: components["schemas"]["LaboratoryReview"] | null;
+            service: components["schemas"]["ServiceResource"];
+        };
+        LaboratoryReviewList: {
+            data: components["schemas"]["LaboratoryReviewTask"][];
+        };
+        SubmitLaboratoryReviewInput: {
+            comment?: string;
+            score: number;
         };
         ServiceResource: {
             code: string;
@@ -817,6 +883,7 @@ export interface components {
         Limit: number;
         PatientId: string;
         LaboratoryRequestId: string;
+        LaboratoryBookingId: string;
         ResultId: string;
         CriticalResultId: string;
         AttachmentId: string;
@@ -963,6 +1030,63 @@ export interface operations {
             };
             400: components["responses"]["InvalidRequest"];
             403: components["responses"]["AccessDenied"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listPatientLaboratoryReviews: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Completed laboratory services and patient-owned review state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryReviewList"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    submitLaboratoryReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                bookingId: components["parameters"]["LaboratoryBookingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitLaboratoryReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Verified service-completion-bound rating submitted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryReview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
         };
     };

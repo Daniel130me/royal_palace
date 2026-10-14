@@ -6,7 +6,7 @@ import type {
   PublicService,
 } from "@royal-palace/contracts";
 import type { LucideIcon } from "lucide-react";
-import { MapPin, Search, ShieldCheck, Stethoscope } from "lucide-react";
+import { MapPin, Search, ShieldCheck, Star, Stethoscope } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { CompactListItem } from "@/components/healthcare/compact-list";
@@ -206,6 +206,12 @@ export function OrganizationDiscoveryList(props: OrganizationDiscoveryListProps)
                       <ShieldCheck className="mr-1 h-3 w-3" />
                       Verified
                     </Badge>
+                    {item.rating.reviewCount > 0 ? (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700">
+                        <Star className="mr-1 h-3 w-3 fill-current" />
+                        {item.rating.averageScore?.toFixed(1)} ({item.rating.reviewCount})
+                      </Badge>
+                    ) : null}
                     {item.services.slice(0, 2).map((offering) => (
                       <Badge key={offering.id} variant="secondary">
                         <Stethoscope className="mr-1 h-3 w-3" />
