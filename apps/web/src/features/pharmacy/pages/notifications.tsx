@@ -32,6 +32,14 @@ const TEMPLATE_COPY: Record<InboxItem["templateKey"], { description: string; tit
     description: "A payment status has changed.",
     title: "Payment updated",
   },
+  LABORATORY_RESULT_ACTION_REQUIRED: {
+    description: "A laboratory result requires prompt attention.",
+    title: "Laboratory result action required",
+  },
+  LABORATORY_RESULT_PUBLISHED: {
+    description: "A laboratory result has been published.",
+    title: "Laboratory result published",
+  },
   PHARMACY_ORDER_ACTION_REQUIRED: {
     description: "A pharmacy order requires attention.",
     title: "Order action required",

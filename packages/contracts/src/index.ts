@@ -120,6 +120,51 @@ export interface PublicService {
   name: string;
 }
 
+export interface LaboratoryWorkspacePriceResponse {
+  currency: string;
+  laboratoryPayoutMinor: string;
+  patientPriceMinor: string;
+}
+
+export interface LaboratoryWorkspaceServiceResponse {
+  category: string;
+  code: string;
+  description: string | null;
+  id: string;
+  name: string;
+  pricing: LaboratoryWorkspacePriceResponse | null;
+  status: "ACTIVE" | "INACTIVE";
+  supportsHomeCollection: boolean;
+}
+
+export interface LaboratoryWorkspaceResponse {
+  organization: {
+    displayName: string;
+    id: string;
+    legalName: string;
+    publicPhone: string | null;
+    verificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+    websiteUrl: string | null;
+  };
+  primaryLocation: {
+    addressLine1: string | null;
+    addressLine2: string | null;
+    administrativeArea: string | null;
+    countryCode: string;
+    label: string;
+    locality: string | null;
+    postalCode: string | null;
+    publicPhone: string | null;
+  } | null;
+  registration: {
+    authorityName: string;
+    jurisdictionCode: string;
+    registrationNumber: string;
+    verifiedAt: string | null;
+  } | null;
+  services: readonly LaboratoryWorkspaceServiceResponse[];
+}
+
 export interface PublicFacilityLocation {
   addressLine1: string | null;
   addressLine2: string | null;

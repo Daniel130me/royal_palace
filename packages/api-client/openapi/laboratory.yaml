@@ -6,6 +6,23 @@ info:
     Synthetic-only laboratory request, patient routing, and laboratory operations contract.
     Browser clients use authenticated same-origin backend-for-frontend routes.
 paths:
+  /v1/laboratory/workspace:
+    get:
+      operationId: getLaboratoryWorkspace
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/OrganizationId" }
+      responses:
+        "200":
+          {
+            description: Exact-organization laboratory profile and service catalogue,
+            content:
+              {
+                application/json: { schema: { $ref: "#/components/schemas/LaboratoryWorkspace" } },
+              },
+          }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /v1/provider/laboratory-requests:
     get:
       operationId: listPractitionerLaboratoryRequests
@@ -627,6 +644,89 @@ components:
     Conflict: { description: Concurrent or invariant conflict }
     NotFound: { description: Resource not found }
   schemas:
+    LaboratoryWorkspacePrice:
+      type: object
+      additionalProperties: false
+      required: [currency, laboratoryPayoutMinor, patientPriceMinor]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        laboratoryPayoutMinor: { type: string, pattern: "^[0-9]+$" }
+        patientPriceMinor: { type: string, pattern: "^[0-9]+$" }
+    LaboratoryWorkspaceService:
+      type: object
+      additionalProperties: false
+      required: [category, code, description, id, name, pricing, status, supportsHomeCollection]
+      properties:
+        category: { type: string }
+        code: { type: string }
+        description: { type: [string, "null"] }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        pricing:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryWorkspacePrice" }
+            - { type: "null" }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        supportsHomeCollection: { type: boolean }
+    LaboratoryWorkspaceLocation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          addressLine1,
+          addressLine2,
+          administrativeArea,
+          countryCode,
+          label,
+          locality,
+          postalCode,
+          publicPhone,
+        ]
+      properties:
+        addressLine1: { type: [string, "null"] }
+        addressLine2: { type: [string, "null"] }
+        administrativeArea: { type: [string, "null"] }
+        countryCode: { type: string, minLength: 2, maxLength: 2 }
+        label: { type: string }
+        locality: { type: [string, "null"] }
+        postalCode: { type: [string, "null"] }
+        publicPhone: { type: [string, "null"] }
+    LaboratoryWorkspaceRegistration:
+      type: object
+      additionalProperties: false
+      required: [authorityName, jurisdictionCode, registrationNumber, verifiedAt]
+      properties:
+        authorityName: { type: string }
+        jurisdictionCode: { type: string }
+        registrationNumber: { type: string }
+        verifiedAt: { type: [string, "null"], format: date-time }
+    LaboratoryWorkspace:
+      type: object
+      additionalProperties: false
+      required: [organization, primaryLocation, registration, services]
+      properties:
+        organization:
+          type: object
+          additionalProperties: false
+          required: [displayName, id, legalName, publicPhone, verificationStatus, websiteUrl]
+          properties:
+            displayName: { type: string }
+            id: { type: string, format: uuid }
+            legalName: { type: string }
+            publicPhone: { type: [string, "null"] }
+            verificationStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
+            websiteUrl: { type: [string, "null"] }
+        primaryLocation:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryWorkspaceLocation" }
+            - { type: "null" }
+        registration:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryWorkspaceRegistration" }
+            - { type: "null" }
+        services:
+          type: array
+          items: { $ref: "#/components/schemas/LaboratoryWorkspaceService" }
     CursorPageInfo:
       type: object
       additionalProperties: false

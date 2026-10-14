@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/v1/laboratory/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getLaboratoryWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/provider/laboratory-requests": {
         parameters: {
             query?: never;
@@ -408,6 +424,55 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        LaboratoryWorkspacePrice: {
+            currency: string;
+            laboratoryPayoutMinor: string;
+            patientPriceMinor: string;
+        };
+        LaboratoryWorkspaceService: {
+            category: string;
+            code: string;
+            description: string | null;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            pricing: components["schemas"]["LaboratoryWorkspacePrice"] | null;
+            /** @enum {string} */
+            status: "ACTIVE" | "INACTIVE";
+            supportsHomeCollection: boolean;
+        };
+        LaboratoryWorkspaceLocation: {
+            addressLine1: string | null;
+            addressLine2: string | null;
+            administrativeArea: string | null;
+            countryCode: string;
+            label: string;
+            locality: string | null;
+            postalCode: string | null;
+            publicPhone: string | null;
+        };
+        LaboratoryWorkspaceRegistration: {
+            authorityName: string;
+            jurisdictionCode: string;
+            registrationNumber: string;
+            /** Format: date-time */
+            verifiedAt: string | null;
+        };
+        LaboratoryWorkspace: {
+            organization: {
+                displayName: string;
+                /** Format: uuid */
+                id: string;
+                legalName: string;
+                publicPhone: string | null;
+                /** @enum {string} */
+                verificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+                websiteUrl: string | null;
+            };
+            primaryLocation: components["schemas"]["LaboratoryWorkspaceLocation"] | null;
+            registration: components["schemas"]["LaboratoryWorkspaceRegistration"] | null;
+            services: components["schemas"]["LaboratoryWorkspaceService"][];
+        };
         CursorPageInfo: {
             endCursor: string | null;
             hasNextPage: boolean;
@@ -756,6 +821,31 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getLaboratoryWorkspace: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+                "x-organization-id": components["parameters"]["OrganizationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact-organization laboratory profile and service catalogue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryWorkspace"];
+                };
+            };
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listPractitionerLaboratoryRequests: {
         parameters: {
             query?: {

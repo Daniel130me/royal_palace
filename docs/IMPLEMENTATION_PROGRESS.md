@@ -341,8 +341,11 @@ that completes an increment.
       practitioner-patient, and encounter result widgets with bounded published-result
       projections. Durable home collection now uses an immutable structured address snapshot,
       exact-service capability gating, patient/exact-laboratory disclosure, and practitioner
-      address redaction. Services/notifications/settings cutover, commercial parity,
-      migration/load evidence, and qualification remain open. Every approved
+      address redaction. The Services, Notifications, and Settings screens now use an
+      exact-organization workspace projection and the shared production notification inbox;
+      their approved visual surface remains intact, while unavailable commercial pricing,
+      verified ratings, billing, and team administration are explicitly shown as unconfigured.
+      Commercial parity, migration/load evidence, and qualification remain open. Every approved
       laboratory, patient, and practitioner prototype capability remains in the release
       register.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and

@@ -17,9 +17,10 @@ Checkpoint 11D3D connects secure result entry, laboratory/patient/practitioner r
 clean-attachment downloads, controlled draft/review publication, critical acknowledgement,
 and the laboratory critical-results/dashboard surfaces. Checkpoint 11D4A restores durable
 home collection through an immutable structured address snapshot, an explicit per-service
-laboratory capability, and role-specific privacy projections. Commercial, settings, and
-remaining supporting-screen cutover work remain
-tracked below and must be completed before parity can be claimed.
+laboratory capability, and role-specific privacy projections. Checkpoint 11D4B connects
+the approved service catalogue, notification inbox, and laboratory profile/settings
+screens to exact-organization production contracts. Commercial and remaining
+supporting-screen work remains tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -76,8 +77,12 @@ tracked below and must be completed before parity can be claimed.
       exposing unassigned requests or full patient records.
 - [x] Retire the replaced ungated prototype create, booking, and status mutation routes
       after confirming that no production or prototype screen still consumes them.
-- [ ] Connect the approved services, notifications, and settings screens; preserve their
-      current prototype surfaces until their production contracts are available.
+- [x] 11D4B connects the approved services, notifications, and settings screens. A single
+      exact-organization query returns identity, primary location, registration, and controlled
+      service offerings; notification reads remain session-derived, bounded, and receipt-based.
+      The shared portal context prevents duplicate workspace queries. Centrally governed pricing,
+      billing, team administration, and verified review aggregates remain visibly unconfigured
+      rather than being simulated or removed.
 - [x] Add durable home-collection instructions to the booking fulfilment aggregate. The
       patient chooses facility or home collection; home collection requires an explicitly
       enabled capability for the exact laboratory service and stores an immutable structured
@@ -171,7 +176,9 @@ migration is forbidden.
   laboratory receive a home-address snapshot. The ordering practitioner sees the collection
   mode but not the address, and no manager/support shortcut exists.
 - **Performance:** patient, practitioner, laboratory queue, request, and status paths
-  have bounded composite indexes; completion checks stop after the first matching row.
+  have bounded composite indexes; completion checks stop after the first matching row. The
+  laboratory workspace uses one relational join and one portal-level cache instead of a profile
+  request per screen, while notifications retain bounded cursor pagination.
 - **Maintainability:** status names and transition maps are centralized; opaque UUIDs,
   UTC timestamps, and optimistic versions follow platform conventions.
 - **Extensibility:** the request references controlled service taxonomy; home addresses use
@@ -180,8 +187,9 @@ migration is forbidden.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the primary laboratory, patient, and practitioner result
-  workflows and embedded result widgets now use the production boundary. Commercial,
-  services/notifications/settings cutover, query-plan/load, and qualification work remains
+  workflows, embedded result widgets, service catalogue, notification inbox, and profile/settings
+  screens now use production boundaries. Commercial, verified rating/review, billing and team
+  administration, query-plan/load, and qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
   privacy, and jurisdictional procedures are qualified. No approved screen or navigation

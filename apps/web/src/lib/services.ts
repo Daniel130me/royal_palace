@@ -267,6 +267,14 @@ export const productionLaboratoryService = {
         .then(unwrapGeneratedResponse),
   },
   laboratory: {
+    workspace: (organizationId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/workspace", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
     list: (
       organizationId: string,
       status?: LaboratoryComponents["schemas"]["LaboratoryBookingStatus"],

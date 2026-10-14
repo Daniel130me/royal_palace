@@ -14,21 +14,23 @@ export function GET(request: NextRequest, context: { params: Promise<{ segments?
     const resultId = segments[0] === "results" ? exactLaboratoryUuid(segments[1]) : null;
     const attachmentId = exactLaboratoryUuid(segments[3]);
     const path =
-      segments.length === 1 && segments[0] === "bookings"
-        ? laboratoryQueuePath(request.nextUrl)
-        : segments[0] === "bookings" && bookingId !== null
-          ? `/v1/laboratory/bookings/${bookingId}`
-          : segments.length === 1 && segments[0] === "results"
-            ? laboratoryResultListPath("/v1/laboratory/results", request.nextUrl, "result")
-            : segments[0] === "results" && bookingId !== null
-              ? `/v1/laboratory/results/${bookingId}`
-              : resultId !== null &&
-                  segments[2] === "attachments" &&
-                  attachmentId !== null &&
-                  segments[4] === "download" &&
-                  segments.length === 5
-                ? `/v1/laboratory/results/${resultId}/attachments/${attachmentId}/download`
-                : null;
+      segments.length === 1 && segments[0] === "workspace"
+        ? "/v1/laboratory/workspace"
+        : segments.length === 1 && segments[0] === "bookings"
+          ? laboratoryQueuePath(request.nextUrl)
+          : segments[0] === "bookings" && bookingId !== null
+            ? `/v1/laboratory/bookings/${bookingId}`
+            : segments.length === 1 && segments[0] === "results"
+              ? laboratoryResultListPath("/v1/laboratory/results", request.nextUrl, "result")
+              : segments[0] === "results" && bookingId !== null
+                ? `/v1/laboratory/results/${bookingId}`
+                : resultId !== null &&
+                    segments[2] === "attachments" &&
+                    attachmentId !== null &&
+                    segments[4] === "download" &&
+                    segments.length === 5
+                  ? `/v1/laboratory/results/${resultId}/attachments/${attachmentId}/download`
+                  : null;
     return path === null
       ? laboratoryBffNotFound()
       : proxyAuthenticatedOrganizationApi(request, path, "GET");
