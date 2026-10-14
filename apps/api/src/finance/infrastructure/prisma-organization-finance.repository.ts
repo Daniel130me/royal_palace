@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
 
-import type { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
 import type {
@@ -29,53 +29,85 @@ export class PrismaOrganizationFinanceRepository implements OrganizationFinanceR
     organizationId?: string;
     to: Date;
   }) {
-    const rows = await this.database.organizationEarning.findMany({
-      orderBy: [{ earnedAt: "desc" }, { id: "desc" }],
-      select: {
-        currency: true,
-        earnedAt: true,
-        grossAmountMinor: true,
-        id: true,
-        organization: { select: { displayName: true, id: true, type: true } },
-        payableAmountMinor: true,
-        payoutAllocations: {
-          select: { amountMinor: true, payoutRequest: { select: { status: true } } },
-        },
-        status: true,
-      },
-      where: {
-        earnedAt: { gte: input.from, lt: input.to },
-        ...(input.organizationId === undefined ? {} : { organizationId: input.organizationId }),
-      },
-    });
-    const grouped = new Map<string, ReturnType<typeof emptyPeriod>>();
-    for (const row of rows) {
-      const period = periodBounds(row.earnedAt, input.granularity, input.from, input.to);
-      const key = `${row.organization.id}:${row.currency}:${period.start.toISOString()}`;
-      const current = grouped.get(key) ?? emptyPeriod(row, period);
-      current.grossAmountMinor += row.grossAmountMinor;
-      current.payableAmountMinor += row.payableAmountMinor;
-      let paidAmountMinor = 0n;
-      let reservedAmountMinor = 0n;
-      for (const allocation of row.payoutAllocations) {
-        if (allocation.payoutRequest.status === "PAID") paidAmountMinor += allocation.amountMinor;
-        else if (ACTIVE_RESERVATION_STATUSES.includes(allocation.payoutRequest.status as never)) {
-          reservedAmountMinor += allocation.amountMinor;
-        }
-      }
-      current.paidAmountMinor += paidAmountMinor;
-      current.reservedAmountMinor += reservedAmountMinor;
-      if (row.status !== "AVAILABLE") {
-        current.heldAmountMinor += maximum(
-          row.payableAmountMinor - paidAmountMinor - reservedAmountMinor,
-          0n,
-        );
-      }
-      current.earningCount += 1;
-      grouped.set(key, current);
-    }
+    const periodStart = reportPeriodStart(input.granularity, input.from);
+    const periodEnd = reportPeriodEnd(input.granularity, input.to);
+    const organizationFilter =
+      input.organizationId === undefined
+        ? Prisma.empty
+        : Prisma.sql`AND e."organization_id" = ${input.organizationId}::uuid`;
+    const rows = await this.database.$queryRaw<SettlementAggregateRow[]>(Prisma.sql`
+      WITH allocation_totals AS (
+        SELECT
+          a."earning_id",
+          COALESCE(SUM(a."amount_minor") FILTER (WHERE p."status" = 'PAID'), 0)::bigint AS "paidAmountMinor",
+          COALESCE(SUM(a."amount_minor") FILTER (
+            WHERE p."status" IN ('REQUESTED', 'REVIEW_REQUIRED', 'APPROVED', 'PROCESSING')
+          ), 0)::bigint AS "reservedAmountMinor"
+        FROM "organization_payout_allocations" a
+        JOIN "organization_payout_requests" p ON p."id" = a."payout_request_id"
+        GROUP BY a."earning_id"
+      ),
+      earning_projection AS (
+        SELECT
+          o."id" AS "organizationId",
+          o."display_name" AS "organizationDisplayName",
+          o."type"::text AS "organizationType",
+          e."currency",
+          ${periodStart} AS "periodStart",
+          ${periodEnd} AS "periodEnd",
+          e."gross_amount_minor" AS "grossAmountMinor",
+          e."payable_amount_minor" AS "payableAmountMinor",
+          e."status",
+          COALESCE(a."paidAmountMinor", 0)::bigint AS "paidAmountMinor",
+          COALESCE(a."reservedAmountMinor", 0)::bigint AS "reservedAmountMinor"
+        FROM "organization_earnings" e
+        JOIN "organizations" o ON o."id" = e."organization_id"
+        LEFT JOIN allocation_totals a ON a."earning_id" = e."id"
+        WHERE e."earned_at" >= ${input.from}
+          AND e."earned_at" < ${input.to}
+          ${organizationFilter}
+      )
+      SELECT
+        "organizationId",
+        "organizationDisplayName",
+        "organizationType",
+        "currency",
+        "periodStart",
+        "periodEnd",
+        COUNT(*)::bigint AS "earningCount",
+        SUM("grossAmountMinor")::bigint AS "grossAmountMinor",
+        SUM("payableAmountMinor")::bigint AS "payableAmountMinor",
+        SUM("paidAmountMinor")::bigint AS "paidAmountMinor",
+        SUM("reservedAmountMinor")::bigint AS "reservedAmountMinor",
+        SUM(
+          CASE WHEN "status" = 'AVAILABLE' THEN 0
+          ELSE GREATEST(
+            "payableAmountMinor" - "paidAmountMinor" - "reservedAmountMinor",
+            0
+          ) END
+        )::bigint AS "heldAmountMinor",
+        SUM(
+          CASE WHEN "status" = 'AVAILABLE' THEN GREATEST(
+            "payableAmountMinor" - "paidAmountMinor" - "reservedAmountMinor",
+            0
+          ) ELSE 0 END
+        )::bigint AS "availableAmountMinor"
+      FROM earning_projection
+      GROUP BY
+        "organizationId",
+        "organizationDisplayName",
+        "organizationType",
+        "currency",
+        "periodStart",
+        "periodEnd"
+      ORDER BY
+        "periodStart" DESC,
+        "organizationDisplayName" ASC,
+        "organizationId" ASC,
+        "currency" ASC
+    `);
     return {
-      data: [...grouped.values()].map(serializePeriod),
+      data: rows.map(mapSettlementAggregate),
       from: input.from.toISOString(),
       granularity: input.granularity,
       to: input.to.toISOString(),
@@ -338,60 +370,57 @@ export async function projectOrganizationEarning(
   }
 }
 
-function periodBounds(value: Date, granularity: ReportGranularity, from: Date, to: Date) {
-  if (granularity === "TOTAL") return { end: to, start: from };
-  const start =
-    granularity === "DAY"
-      ? new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
-      : new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
-  const end =
-    granularity === "DAY"
-      ? new Date(start.getTime() + 86_400_000)
-      : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
-  return { end, start };
+function reportPeriodStart(granularity: ReportGranularity, from: Date) {
+  if (granularity === "DAY") return Prisma.sql`date_trunc('day', e."earned_at")`;
+  if (granularity === "MONTH") return Prisma.sql`date_trunc('month', e."earned_at")`;
+  return Prisma.sql`${from}::timestamptz`;
 }
 
-function emptyPeriod(
-  row: {
-    currency: string;
-    organization: { displayName: string; id: string; type: string };
-  },
-  period: { end: Date; start: Date },
-) {
+function reportPeriodEnd(granularity: ReportGranularity, to: Date) {
+  if (granularity === "DAY") return Prisma.sql`date_trunc('day', e."earned_at") + interval '1 day'`;
+  if (granularity === "MONTH")
+    return Prisma.sql`date_trunc('month', e."earned_at") + interval '1 month'`;
+  return Prisma.sql`${to}::timestamptz`;
+}
+
+interface SettlementAggregateRow {
+  availableAmountMinor: bigint;
+  currency: string;
+  earningCount: bigint;
+  grossAmountMinor: bigint;
+  heldAmountMinor: bigint;
+  organizationDisplayName: string;
+  organizationId: string;
+  organizationType: string;
+  paidAmountMinor: bigint;
+  payableAmountMinor: bigint;
+  periodEnd: Date;
+  periodStart: Date;
+  reservedAmountMinor: bigint;
+}
+
+function mapSettlementAggregate(row: SettlementAggregateRow) {
+  const earningCount = Number(row.earningCount);
+  if (!Number.isSafeInteger(earningCount)) {
+    throw new Error("Settlement report earning count exceeds the supported safe integer range.");
+  }
   return {
+    availableAmountMinor: row.availableAmountMinor.toString(),
     currency: row.currency,
-    earningCount: 0,
-    grossAmountMinor: 0n,
-    heldAmountMinor: 0n,
-    organization: row.organization,
-    paidAmountMinor: 0n,
-    payableAmountMinor: 0n,
-    periodEnd: period.end,
-    periodStart: period.start,
-    reservedAmountMinor: 0n,
-  };
-}
-
-function serializePeriod(row: ReturnType<typeof emptyPeriod>) {
-  const available = maximum(
-    row.payableAmountMinor - row.heldAmountMinor - row.paidAmountMinor - row.reservedAmountMinor,
-    0n,
-  );
-  return {
-    ...row,
-    availableAmountMinor: available.toString(),
+    earningCount,
     grossAmountMinor: row.grossAmountMinor.toString(),
     heldAmountMinor: row.heldAmountMinor.toString(),
+    organization: {
+      displayName: row.organizationDisplayName,
+      id: row.organizationId,
+      type: row.organizationType,
+    },
     paidAmountMinor: row.paidAmountMinor.toString(),
     payableAmountMinor: row.payableAmountMinor.toString(),
     periodEnd: row.periodEnd.toISOString(),
     periodStart: row.periodStart.toISOString(),
     reservedAmountMinor: row.reservedAmountMinor.toString(),
   };
-}
-
-function maximum(left: bigint, right: bigint) {
-  return left > right ? left : right;
 }
 
 function mapPayout(row: {

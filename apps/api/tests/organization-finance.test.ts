@@ -1,7 +1,10 @@
 import type { Prisma } from "../src/generated/prisma/client.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { projectOrganizationEarning } from "../src/finance/infrastructure/prisma-organization-finance.repository.js";
+import {
+  PrismaOrganizationFinanceRepository,
+  projectOrganizationEarning,
+} from "../src/finance/infrastructure/prisma-organization-finance.repository.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
 
 function payment() {
@@ -89,5 +92,50 @@ describe("organization earning projection", () => {
       },
     );
     expect(upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("organization settlement reports", () => {
+  it("maps database aggregates without loading individual earnings", async () => {
+    const queryRaw = vi.fn().mockResolvedValue([
+      {
+        availableAmountMinor: 7_000n,
+        currency: "NGN",
+        earningCount: 2n,
+        grossAmountMinor: 12_500n,
+        heldAmountMinor: 1_000n,
+        organizationDisplayName: "Synthetic Diagnostics",
+        organizationId: createOpaqueId(),
+        organizationType: "LABORATORY",
+        paidAmountMinor: 1_000n,
+        payableAmountMinor: 10_000n,
+        periodEnd: new Date("2026-10-15T00:00:00.000Z"),
+        periodStart: new Date("2026-10-14T00:00:00.000Z"),
+        reservedAmountMinor: 1_000n,
+      },
+    ]);
+    const repository = new PrismaOrganizationFinanceRepository({ $queryRaw: queryRaw } as never);
+
+    const report = await repository.listSettlementReport({
+      from: new Date("2026-10-14T00:00:00.000Z"),
+      granularity: "DAY",
+      to: new Date("2026-10-15T00:00:00.000Z"),
+    });
+
+    expect(queryRaw).toHaveBeenCalledOnce();
+    expect(report.data).toEqual([
+      expect.objectContaining({
+        availableAmountMinor: "7000",
+        currency: "NGN",
+        earningCount: 2,
+        grossAmountMinor: "12500",
+        heldAmountMinor: "1000",
+        paidAmountMinor: "1000",
+        payableAmountMinor: "10000",
+        periodEnd: "2026-10-15T00:00:00.000Z",
+        periodStart: "2026-10-14T00:00:00.000Z",
+        reservedAmountMinor: "1000",
+      }),
+    ]);
   });
 });
