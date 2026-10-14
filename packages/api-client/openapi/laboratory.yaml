@@ -664,6 +664,7 @@ components:
             CANCELLED,
           ],
       }
+    LaboratoryCollectionMode: { type: string, enum: [FACILITY, HOME] }
     LaboratoryResultStatus: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, SUPERSEDED] }
     LaboratoryResultFlag: { type: string, enum: [NORMAL, LOW, HIGH, ABNORMAL, CRITICAL] }
     LaboratoryCriticalResultStatus:
@@ -699,7 +700,9 @@ components:
           acceptedAt,
           bookingNumber,
           cancelledAt,
+          collectionMode,
           completedAt,
+          homeCollection,
           id,
           laboratory,
           processingStartedAt,
@@ -715,7 +718,12 @@ components:
         acceptedAt: { type: string, format: date-time }
         bookingNumber: { type: string }
         cancelledAt: { type: [string, "null"], format: date-time }
+        collectionMode: { $ref: "#/components/schemas/LaboratoryCollectionMode" }
         completedAt: { type: [string, "null"], format: date-time }
+        homeCollection:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryHomeCollection" }
+            - { type: "null" }
         id: { type: string, format: uuid }
         laboratory: { $ref: "#/components/schemas/NamedResource" }
         processingStartedAt: { type: [string, "null"], format: date-time }
@@ -805,11 +813,46 @@ components:
     BookLaboratoryRequestInput:
       type: object
       additionalProperties: false
-      required: [expectedVersion, laboratoryOrganizationId]
+      required: [collectionMode, expectedVersion, laboratoryOrganizationId]
       properties:
+        collectionMode: { $ref: "#/components/schemas/LaboratoryCollectionMode" }
         expectedVersion: { type: integer, minimum: 1 }
+        homeCollection: { $ref: "#/components/schemas/LaboratoryHomeCollectionInput" }
         laboratoryOrganizationId: { type: string, format: uuid }
         scheduledAt: { type: string, format: date-time }
+    LaboratoryHomeCollection:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          addressLine1,
+          addressLine2,
+          administrativeArea,
+          collectionInstructions,
+          countryCode,
+          locality,
+          postalCode,
+        ]
+      properties:
+        addressLine1: { type: string }
+        addressLine2: { type: [string, "null"] }
+        administrativeArea: { type: [string, "null"] }
+        collectionInstructions: { type: [string, "null"] }
+        countryCode: { type: string, minLength: 2, maxLength: 2 }
+        locality: { type: string }
+        postalCode: { type: [string, "null"] }
+    LaboratoryHomeCollectionInput:
+      type: object
+      additionalProperties: false
+      required: [addressLine1, countryCode, locality]
+      properties:
+        addressLine1: { type: string, minLength: 1, maxLength: 200 }
+        addressLine2: { type: string, minLength: 1, maxLength: 200 }
+        administrativeArea: { type: string, minLength: 1, maxLength: 100 }
+        collectionInstructions: { type: string, minLength: 1, maxLength: 1000 }
+        countryCode: { type: string, pattern: "^[A-Za-z]{2}$" }
+        locality: { type: string, minLength: 1, maxLength: 100 }
+        postalCode: { type: string, minLength: 1, maxLength: 32 }
     TransitionLaboratoryBookingInput:
       type: object
       additionalProperties: false

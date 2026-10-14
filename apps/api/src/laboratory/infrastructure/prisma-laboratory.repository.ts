@@ -2,7 +2,6 @@ import { Inject, Injectable } from "@nestjs/common";
 import type {
   LaboratoryBookingListResponse,
   LaboratoryBookingStatus,
-  LaboratoryRequestListResponse,
 } from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
@@ -11,6 +10,8 @@ import { createOpaqueId } from "../../platform/identifiers.js";
 import { canTransitionLaboratoryBooking } from "../domain/laboratory-state-machine.js";
 import {
   LaboratoryConflictError,
+  type LaboratoryBookingDraft,
+  type LaboratoryRequestAccessList,
   type LaboratoryRequestAccessRecord,
   type LaboratoryRequestDraft,
   type LaboratoryRepository,
@@ -23,6 +24,7 @@ const requestInclude = {
   bookings: {
     include: {
       laboratoryOrganization: { select: { displayName: true, id: true } },
+      homeCollection: true,
       statusHistory: true,
     },
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
@@ -132,14 +134,13 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
 
   async book(input: {
     actorPrincipalId: string;
+    draft: LaboratoryBookingDraft;
     expectedVersion: number;
     idempotencyKey: string;
-    laboratoryOrganizationId: string;
     patientPrincipalId: string;
     requestHash: string;
     requestId: string;
     traceRequestId: string;
-    scheduledAt?: Date;
   }): Promise<LaboratoryRequestAccessRecord | null> {
     try {
       const requestId = await this.database.$transaction(async (transaction) => {
@@ -185,8 +186,9 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
         }
         await assertLaboratoryService(
           transaction,
-          input.laboratoryOrganizationId,
+          input.draft.laboratoryOrganizationId,
           current.service_id,
+          input.draft.collectionMode === "HOME",
         );
         const active = await transaction.laboratoryBooking.findFirst({
           select: { id: true },
@@ -200,10 +202,21 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
           data: {
             acceptedAt: now,
             bookingNumber: `LABBOOK-${createOpaqueId()}`,
+            collectionMode: input.draft.collectionMode,
+            ...(input.draft.homeCollection === undefined
+              ? {}
+              : {
+                  homeCollection: {
+                    create: {
+                      ...input.draft.homeCollection,
+                      id: createOpaqueId(),
+                    },
+                  },
+                }),
             id: bookingId,
-            laboratoryOrganizationId: input.laboratoryOrganizationId,
+            laboratoryOrganizationId: input.draft.laboratoryOrganizationId,
             requestId: input.requestId,
-            scheduledAt: input.scheduledAt,
+            scheduledAt: input.draft.scheduledAt,
             statusHistory: {
               create: {
                 actorPrincipalId: input.actorPrincipalId,
@@ -221,7 +234,7 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
             action: "laboratory.booking.created",
             actorPrincipalId: input.actorPrincipalId,
             id: createOpaqueId(),
-            organizationId: input.laboratoryOrganizationId,
+            organizationId: input.draft.laboratoryOrganizationId,
             patientScopeId: current.patient_id,
             requestId: input.traceRequestId,
             resourceId: bookingId,
@@ -323,7 +336,7 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
     cursor?: { createdAt: Date; id: string };
     limit: number;
     patientPrincipalId: string;
-  }): Promise<LaboratoryRequestListResponse> {
+  }): Promise<LaboratoryRequestAccessList> {
     return this.listOwned({
       cursor: input.cursor,
       limit: input.limit,
@@ -336,7 +349,7 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
     limit: number;
     patientId?: string;
     practitionerPrincipalId: string;
-  }): Promise<LaboratoryRequestListResponse> {
+  }): Promise<LaboratoryRequestAccessList> {
     return this.listOwned({
       cursor: input.cursor,
       limit: input.limit,
@@ -404,7 +417,7 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
     cursor?: { createdAt: Date; id: string };
     limit: number;
     where: Prisma.LaboratoryRequestWhereInput;
-  }): Promise<LaboratoryRequestListResponse> {
+  }) {
     const rows = await this.database.laboratoryRequest.findMany({
       include: requestInclude,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -426,7 +439,7 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
     const visible = rows.slice(0, input.limit);
     const last = visible.at(-1);
     return {
-      data: visible.map((row) => publicRequest(mapRequest(row))),
+      data: visible.map(mapRequest),
       pageInfo: {
         endCursor:
           last === undefined
@@ -470,12 +483,19 @@ async function assertLaboratoryService(
   transaction: Prisma.TransactionClient,
   organizationId: string,
   serviceId: string,
+  requiresHomeCollection: boolean,
 ) {
   const organization = await transaction.organization.findFirst({
     select: { id: true },
     where: {
       id: organizationId,
-      organizationServices: { some: { serviceId, status: "ACTIVE" } },
+      organizationServices: {
+        some: {
+          serviceId,
+          status: "ACTIVE",
+          ...(requiresHomeCollection ? { supportsHomeCollection: true } : {}),
+        },
+      },
       status: "ACTIVE",
       type: "LABORATORY",
       verificationStatus: "VERIFIED",
@@ -516,7 +536,20 @@ function mapRequest(row: RequestRow): LaboratoryRequestAccessRecord {
       acceptedAt: booking.acceptedAt.toISOString(),
       bookingNumber: booking.bookingNumber,
       cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+      collectionMode: booking.collectionMode,
       completedAt: booking.completedAt?.toISOString() ?? null,
+      homeCollection:
+        booking.homeCollection === null
+          ? null
+          : {
+              addressLine1: booking.homeCollection.addressLine1,
+              addressLine2: booking.homeCollection.addressLine2,
+              administrativeArea: booking.homeCollection.administrativeArea,
+              collectionInstructions: booking.homeCollection.collectionInstructions,
+              countryCode: booking.homeCollection.countryCode,
+              locality: booking.homeCollection.locality,
+              postalCode: booking.homeCollection.postalCode,
+            },
       id: booking.id,
       laboratory: {
         displayName: booking.laboratoryOrganization.displayName,

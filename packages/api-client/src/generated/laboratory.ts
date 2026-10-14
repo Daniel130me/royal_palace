@@ -428,6 +428,8 @@ export interface components {
         /** @enum {string} */
         LaboratoryBookingStatus: "CONFIRMED" | "SAMPLE_COLLECTION_PENDING" | "SAMPLE_COLLECTED" | "PROCESSING" | "RESULT_READY" | "COMPLETED" | "CANCELLED";
         /** @enum {string} */
+        LaboratoryCollectionMode: "FACILITY" | "HOME";
+        /** @enum {string} */
         LaboratoryResultStatus: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
         /** @enum {string} */
         LaboratoryResultFlag: "NORMAL" | "LOW" | "HIGH" | "ABNORMAL" | "CRITICAL";
@@ -459,8 +461,10 @@ export interface components {
             bookingNumber: string;
             /** Format: date-time */
             cancelledAt: string | null;
+            collectionMode: components["schemas"]["LaboratoryCollectionMode"];
             /** Format: date-time */
             completedAt: string | null;
+            homeCollection: components["schemas"]["LaboratoryHomeCollection"] | null;
             /** Format: uuid */
             id: string;
             laboratory: components["schemas"]["NamedResource"];
@@ -529,11 +533,31 @@ export interface components {
             specimenInstructions?: string;
         };
         BookLaboratoryRequestInput: {
+            collectionMode: components["schemas"]["LaboratoryCollectionMode"];
             expectedVersion: number;
+            homeCollection?: components["schemas"]["LaboratoryHomeCollectionInput"];
             /** Format: uuid */
             laboratoryOrganizationId: string;
             /** Format: date-time */
             scheduledAt?: string;
+        };
+        LaboratoryHomeCollection: {
+            addressLine1: string;
+            addressLine2: string | null;
+            administrativeArea: string | null;
+            collectionInstructions: string | null;
+            countryCode: string;
+            locality: string;
+            postalCode: string | null;
+        };
+        LaboratoryHomeCollectionInput: {
+            addressLine1: string;
+            addressLine2?: string;
+            administrativeArea?: string;
+            collectionInstructions?: string;
+            countryCode: string;
+            locality: string;
+            postalCode?: string;
         };
         TransitionLaboratoryBookingInput: {
             expectedVersion: number;

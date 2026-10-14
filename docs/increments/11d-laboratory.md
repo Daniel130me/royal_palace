@@ -15,8 +15,10 @@ exact browser allowlists. Checkpoint 11D3C extends the shared quarantine-first d
 pipeline to result attachments and adds bounded, concurrency-safe critical-result escalation.
 Checkpoint 11D3D connects secure result entry, laboratory/patient/practitioner result views,
 clean-attachment downloads, controlled draft/review publication, critical acknowledgement,
-and the laboratory critical-results/dashboard surfaces. Commercial, settings, embedded
-supporting-screen result widgets, and remaining supporting-screen cutover work remain
+and the laboratory critical-results/dashboard surfaces. Checkpoint 11D4A restores durable
+home collection through an immutable structured address snapshot, an explicit per-service
+laboratory capability, and role-specific privacy projections. Commercial, settings, and
+remaining supporting-screen cutover work remain
 tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
@@ -76,9 +78,11 @@ tracked below and must be completed before parity can be claimed.
       after confirming that no production or prototype screen still consumes them.
 - [ ] Connect the approved services, notifications, and settings screens; preserve their
       current prototype surfaces until their production contracts are available.
-- [ ] Add durable home-collection instructions and laboratory commercial pricing/payment
-      to their owning fulfilment and commercial aggregates. These approved controls are
-      tracked rather than encoded into clinical request text or temporary browser state.
+- [x] Add durable home-collection instructions to the booking fulfilment aggregate. The
+      patient chooses facility or home collection; home collection requires an explicitly
+      enabled capability for the exact laboratory service and stores an immutable structured
+      address snapshot rather than clinical request text or temporary browser state.
+- [ ] Add laboratory commercial pricing/payment to its owning commercial aggregate.
 
 ### 11D3 — result and critical-result workflow
 
@@ -113,6 +117,10 @@ tracked below and must be completed before parity can be claimed.
       result widgets with bounded published-result projections. Practitioner patient views
       use an indexed server-side patient filter while retaining practitioner ownership, and
       published pagination follows `publishedAt` so the existing owner indexes are usable.
+- [x] Restore the approved facility/home collection choice in the patient booking flow,
+      expose only capable laboratories for the requested service, and provide the exact
+      selected laboratory with the collection address and instructions. Ordering
+      practitioners see the mode but not the home address.
 - [ ] Connect laboratory charging to the shared payment-subject boundary without
       coupling clinical completion to settlement.
 - [ ] Implement laboratory settlements/payouts and reporting only in their planned
@@ -148,27 +156,36 @@ review, and append-only history. Rollback retains these clinical records; destru
 migration is forbidden. The API must continue ignoring the new tables if its binary is rolled
 back.
 
+Migration `20261014100000_laboratory_home_collection` is additive. Existing bookings are
+backfilled as facility collection. It adds an opt-in per-service home-collection capability,
+an immutable one-to-one home-address snapshot, deferred cross-table shape enforcement, and
+database enforcement that the selected laboratory explicitly offers home collection for the
+requested service. Application rollback may retain these columns and rows; destructive down
+migration is forbidden.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
   application/presentation responsibilities are explicit and separated.
-- **Security and privacy:** access defaults to deny; only record owners and exact
-  selected-laboratory members receive access. No manager/support shortcut exists.
+- **Security and privacy:** access defaults to deny; only the patient and exact selected
+  laboratory receive a home-address snapshot. The ordering practitioner sees the collection
+  mode but not the address, and no manager/support shortcut exists.
 - **Performance:** patient, practitioner, laboratory queue, request, and status paths
   have bounded composite indexes; completion checks stop after the first matching row.
 - **Maintainability:** status names and transition maps are centralized; opaque UUIDs,
   UTC timestamps, and optimistic versions follow platform conventions.
-- **Extensibility:** the request references controlled service taxonomy and remains
+- **Extensibility:** the request references controlled service taxonomy; home addresses use
+  ISO two-letter country codes and optional region/postal fields. The aggregate remains
   independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the primary laboratory, patient, and practitioner result
-  workflows now use the production boundary. Some approved dashboard, patient-record, and
-  encounter widgets still read results embedded in the legacy prototype request projection;
-  they remain tracked supporting-screen work and must be replaced before launch. Home
-  collection, commercial, supporting-screen,
-  query-plan/load, and qualification work remains explicitly release-blocking. No approved
-  screen or navigation destination has been removed. Laboratory publication currently permits
+  workflows and embedded result widgets now use the production boundary. Commercial,
+  services/notifications/settings cutover, query-plan/load, and qualification work remains
+  explicitly release-blocking. Home collection is implemented for synthetic review, but real
+  operations remain disabled until collection coverage, workforce, transport, consent,
+  privacy, and jurisdictional procedures are qualified. No approved screen or navigation
+  destination has been removed. Laboratory publication currently permits
   one authorized laboratory member to review and publish; whether Nigerian qualification
   requires independent second-person
   verification is an explicit clinical-governance decision and must not be silently assumed.

@@ -220,6 +220,7 @@ export interface components {
             acceptingPatients: boolean;
             displayName: string;
             emergencyAvailable: boolean;
+            homeCollectionServiceCodes: string[];
             /** Format: uuid */
             id: string;
             locations: components["schemas"]["PublicFacilityLocation"][];

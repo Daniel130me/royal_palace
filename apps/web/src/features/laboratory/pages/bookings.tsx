@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Circle,
   FlaskConical,
+  Home,
+  MapPin,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -206,10 +208,21 @@ export function LabBookings() {
                   </div>
                 }
                 title={`${item.booking.bookingNumber} · ${item.request.service.name}`}
-                subtitle={`${item.request.patient.displayName} · ${item.booking.scheduledAt ? formatDate(item.booking.scheduledAt) : "Schedule pending"}`}
+                subtitle={`${item.request.patient.displayName} · ${item.booking.collectionMode === "HOME" ? "Home collection" : "Laboratory collection"} · ${item.booking.scheduledAt ? formatDate(item.booking.scheduledAt) : "Schedule pending"}`}
                 trailing={<StatusBadge status={item.booking.status.toLowerCase()} size="sm" />}
               >
                 <div className="space-y-3">
+                  {item.booking.homeCollection && (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+                      <p className="flex items-center gap-1 font-medium">
+                        <Home className="h-3.5 w-3.5" /> Home collection
+                      </p>
+                      <p className="mt-1 flex items-start gap-1">
+                        <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                        {formatHomeCollectionAddress(item.booking.homeCollection)}
+                      </p>
+                    </div>
+                  )}
                   <ol className="flex items-center gap-1.5 overflow-x-auto pb-1">
                     {WORKFLOW_STEPS.map((step, index) => {
                       const done = index < stepIndex;
@@ -270,4 +283,19 @@ export function LabBookings() {
       )}
     </div>
   );
+}
+
+function formatHomeCollectionAddress(
+  collection: NonNullable<LaboratoryBookingResponse["homeCollection"]>,
+) {
+  return [
+    collection.addressLine1,
+    collection.addressLine2,
+    collection.locality,
+    collection.administrativeArea,
+    collection.postalCode,
+    collection.countryCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }

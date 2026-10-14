@@ -42,13 +42,35 @@ const listSchema = z
   })
   .strict();
 const providerListSchema = listSchema.extend({ patientId: idSchema.optional() }).strict();
-const bookingSchema = z
-  .object({
-    expectedVersion: z.number().int().positive(),
-    laboratoryOrganizationId: idSchema,
-    scheduledAt: z.iso.datetime({ offset: true }).optional(),
-  })
-  .strict();
+const bookingBaseSchema = {
+  expectedVersion: z.number().int().positive(),
+  laboratoryOrganizationId: idSchema,
+  scheduledAt: z.iso.datetime({ offset: true }).optional(),
+};
+const bookingSchema = z.discriminatedUnion("collectionMode", [
+  z.object({ ...bookingBaseSchema, collectionMode: z.literal("FACILITY") }).strict(),
+  z
+    .object({
+      ...bookingBaseSchema,
+      collectionMode: z.literal("HOME"),
+      homeCollection: z
+        .object({
+          addressLine1: z.string().trim().min(1).max(200),
+          addressLine2: optionalText(200),
+          administrativeArea: optionalText(100),
+          collectionInstructions: optionalText(1000),
+          countryCode: z
+            .string()
+            .trim()
+            .regex(/^[A-Za-z]{2}$/)
+            .transform((value) => value.toUpperCase()),
+          locality: z.string().trim().min(1).max(100),
+          postalCode: optionalText(32),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
 const bookingStatusSchema = z.enum([
   "CONFIRMED",
   "SAMPLE_COLLECTION_PENDING",

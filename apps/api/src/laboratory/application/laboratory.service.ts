@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
-import type { CurrentSession, LaboratoryBookingStatus } from "@royal-palace/contracts";
+import type {
+  CurrentSession,
+  LaboratoryBookingStatus,
+  LaboratoryCollectionMode,
+  LaboratoryHomeCollectionInput,
+} from "@royal-palace/contracts";
 
 import { AuthorizationService } from "../../authorization/application/authorization.service.js";
 import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
@@ -68,7 +73,9 @@ export class LaboratoryService {
     await this.authorizeView(context, request);
     return isAssignedLaboratory(context.actor, request)
       ? laboratoryProjection(request)
-      : publicRequest(request);
+      : context.actor.principalId === request.patientPrincipalId
+        ? publicRequest(request)
+        : practitionerProjection(request);
   }
 
   async listForPatient(
@@ -86,11 +93,12 @@ export class LaboratoryService {
       policy: AUTHORIZATION_POLICY.ROUTE_LABORATORY_REQUEST,
       requestId: context.requestId,
     });
-    return this.repository.listByPatient({
+    const page = await this.repository.listByPatient({
       ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
       limit: input.limit,
       patientPrincipalId: context.actor.principalId,
     });
+    return { ...page, data: page.data.map(publicRequest) };
   }
 
   async listForPractitioner(
@@ -108,12 +116,13 @@ export class LaboratoryService {
       policy: AUTHORIZATION_POLICY.MANAGE_OWN_LABORATORY_REQUEST,
       requestId: context.requestId,
     });
-    return this.repository.listByPractitioner({
+    const page = await this.repository.listByPractitioner({
       ...(input.cursor === undefined ? {} : { cursor: decodeCreatedCursor(input.cursor) }),
       limit: input.limit,
       ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
       practitionerPrincipalId: context.actor.principalId,
     });
+    return { ...page, data: page.data.map(practitionerProjection) };
   }
 
   async book(
@@ -121,12 +130,24 @@ export class LaboratoryService {
     requestId: string,
     idempotencyKey: string,
     input: {
+      collectionMode: LaboratoryCollectionMode;
       expectedVersion: number;
+      homeCollection?: LaboratoryHomeCollectionInput;
       laboratoryOrganizationId: string;
       scheduledAt?: string;
     },
   ) {
     this.assertSyntheticClinicalWorkflow();
+    if (
+      (input.collectionMode === "HOME" && input.homeCollection === undefined) ||
+      (input.collectionMode === "FACILITY" && input.homeCollection !== undefined)
+    ) {
+      throw new LaboratoryFlowError(
+        "invalid_collection_details",
+        400,
+        "Collection details do not match the selected collection method",
+      );
+    }
     const request = await this.requireRequest(requestId);
     await this.authorization.authorize({
       actor: context.actor,
@@ -150,6 +171,8 @@ export class LaboratoryService {
       .update(
         JSON.stringify({
           expectedVersion: input.expectedVersion,
+          collectionMode: input.collectionMode,
+          homeCollection: input.homeCollection ?? null,
           laboratoryOrganizationId: input.laboratoryOrganizationId,
           requestId,
           scheduledAt: scheduledAt?.toISOString() ?? null,
@@ -160,14 +183,18 @@ export class LaboratoryService {
       this.requireMutation(
         await this.repository.book({
           actorPrincipalId: context.actor.principalId,
+          draft: {
+            collectionMode: input.collectionMode,
+            ...(input.homeCollection === undefined ? {} : { homeCollection: input.homeCollection }),
+            laboratoryOrganizationId: input.laboratoryOrganizationId,
+            ...(scheduledAt === undefined ? {} : { scheduledAt }),
+          },
           expectedVersion: input.expectedVersion,
           idempotencyKey,
-          laboratoryOrganizationId: input.laboratoryOrganizationId,
           patientPrincipalId: context.actor.principalId,
           requestHash,
           requestId,
           traceRequestId: context.requestId,
-          ...(scheduledAt === undefined ? {} : { scheduledAt }),
         }),
         "laboratory_booking_conflict",
       ),
@@ -338,6 +365,14 @@ function publicRequest(request: LaboratoryRequestAccessRecord) {
     ...response
   } = request;
   return response;
+}
+
+function practitionerProjection(request: LaboratoryRequestAccessRecord) {
+  const response = publicRequest(request);
+  return {
+    ...response,
+    bookings: response.bookings.map((booking) => ({ ...booking, homeCollection: null })),
+  };
 }
 
 function laboratoryProjection(request: LaboratoryRequestAccessRecord) {

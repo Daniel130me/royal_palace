@@ -227,6 +227,11 @@ enum LaboratoryBookingStatus {
   CANCELLED
 }
 
+enum LaboratoryCollectionMode {
+  FACILITY
+  HOME
+}
+
 enum LaboratoryResultStatus {
   DRAFT
   IN_REVIEW
@@ -830,6 +835,7 @@ model OrganizationService {
   serviceId        String            @map("service_id") @db.Uuid
   status           CatalogueStatus   @default(ACTIVE)
   description      String?           @db.VarChar(500)
+  supportsHomeCollection Boolean     @default(false) @map("supports_home_collection")
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   version          Int               @default(1)
@@ -1907,6 +1913,7 @@ model LaboratoryBooking {
   requestId                String                           @map("request_id") @db.Uuid
   laboratoryOrganizationId String                           @map("laboratory_organization_id") @db.Uuid
   status                   LaboratoryBookingStatus          @default(CONFIRMED)
+  collectionMode           LaboratoryCollectionMode         @default(FACILITY) @map("collection_mode")
   scheduledAt              DateTime?                        @map("scheduled_at") @db.Timestamptz(6)
   acceptedAt               DateTime                         @map("accepted_at") @db.Timestamptz(6)
   sampleCollectedAt        DateTime?                        @map("sample_collected_at") @db.Timestamptz(6)
@@ -1920,11 +1927,28 @@ model LaboratoryBooking {
   request                  LaboratoryRequest                @relation(fields: [requestId], references: [id], onDelete: Restrict)
   laboratoryOrganization   Organization                     @relation(fields: [laboratoryOrganizationId], references: [id], onDelete: Restrict)
   statusHistory            LaboratoryBookingStatusHistory[]
+  homeCollection           LaboratoryHomeCollection?
   results                  LaboratoryResult[]
 
   @@index([laboratoryOrganizationId, status, acceptedAt(sort: Desc), id(sort: Desc)], map: "laboratory_bookings_org_status_accepted_idx")
   @@index([requestId, createdAt, id], map: "laboratory_bookings_request_created_idx")
   @@map("laboratory_bookings")
+}
+
+model LaboratoryHomeCollection {
+  id                     String            @id @db.Uuid
+  bookingId              String            @unique @map("booking_id") @db.Uuid
+  addressLine1           String            @map("address_line_1") @db.VarChar(200)
+  addressLine2           String?           @map("address_line_2") @db.VarChar(200)
+  locality               String            @db.VarChar(100)
+  administrativeArea     String?           @map("administrative_area") @db.VarChar(100)
+  postalCode             String?           @map("postal_code") @db.VarChar(32)
+  countryCode            String            @map("country_code") @db.Char(2)
+  collectionInstructions String?           @map("collection_instructions") @db.VarChar(1000)
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  booking                LaboratoryBooking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@map("laboratory_home_collections")
 }
 
 model LaboratoryBookingStatusHistory {

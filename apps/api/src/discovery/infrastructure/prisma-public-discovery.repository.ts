@@ -36,7 +36,10 @@ const publicOrganizationSelect = {
   },
   organizationServices: {
     orderBy: [{ service: { name: "asc" as const } }, { id: "asc" as const }],
-    select: { service: { select: { category: true, code: true, id: true, name: true } } },
+    select: {
+      service: { select: { category: true, code: true, id: true, name: true } },
+      supportsHomeCollection: true,
+    },
     where: {
       ...availableAtPublicFacilityWhere(),
       status: "ACTIVE" as const,
@@ -237,6 +240,9 @@ function mapOrganizationSummary(record: PublicOrganizationRecord): PublicOrganiz
     acceptingPatients: record.publicProfile.acceptingPatients,
     displayName: record.displayName,
     emergencyAvailable: record.publicProfile.emergencyAvailable,
+    homeCollectionServiceCodes: record.organizationServices
+      .filter((offering) => offering.supportsHomeCollection)
+      .map((offering) => offering.service.code),
     id: record.id,
     locations: record.facilityLocations as PublicFacilityLocation[],
     openTwentyFourHours: record.publicProfile.openTwentyFourHours,

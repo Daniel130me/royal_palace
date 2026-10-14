@@ -12,6 +12,7 @@ const hospital: PublicHospitalSummary = {
   acceptingPatients: true,
   displayName: "Synthetic Hospital",
   emergencyAvailable: true,
+  homeCollectionServiceCodes: [],
   id: "0199a18e-a400-7000-8000-000000000201",
   locations: [],
   openTwentyFourHours: true,

@@ -286,6 +286,7 @@ components:
           acceptingPatients,
           displayName,
           emergencyAvailable,
+          homeCollectionServiceCodes,
           id,
           locations,
           openTwentyFourHours,
@@ -298,6 +299,9 @@ components:
         acceptingPatients: { type: boolean }
         displayName: { type: string }
         emergencyAvailable: { type: boolean }
+        homeCollectionServiceCodes:
+          type: array
+          items: { type: string }
         id: { type: string, format: uuid }
         locations:
           type: array

@@ -21,6 +21,7 @@ const publicRecord = {
   id: "0199a18e-a400-7000-8000-000000000201",
   organizationServices: [
     {
+      supportsHomeCollection: false,
       service: {
         category: "Urgent Care",
         code: "emergency-care",

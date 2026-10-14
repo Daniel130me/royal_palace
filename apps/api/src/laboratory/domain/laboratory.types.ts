@@ -1,7 +1,9 @@
 import type {
+  CursorPageInfo,
   LaboratoryBookingListResponse,
+  LaboratoryCollectionMode,
+  LaboratoryHomeCollectionInput,
   LaboratoryBookingStatus,
-  LaboratoryRequestListResponse,
   LaboratoryRequestPriority,
   LaboratoryRequestResponse,
 } from "@royal-palace/contracts";
@@ -15,10 +17,22 @@ export interface LaboratoryRequestDraft {
   specimenInstructions?: string;
 }
 
+export interface LaboratoryBookingDraft {
+  collectionMode: LaboratoryCollectionMode;
+  homeCollection?: LaboratoryHomeCollectionInput;
+  laboratoryOrganizationId: string;
+  scheduledAt?: Date;
+}
+
 export interface LaboratoryRequestAccessRecord extends LaboratoryRequestResponse {
   laboratoryOrganizationId?: string;
   patientPrincipalId: string;
   practitionerPrincipalId: string;
+}
+
+export interface LaboratoryRequestAccessList {
+  data: readonly LaboratoryRequestAccessRecord[];
+  pageInfo: CursorPageInfo;
 }
 
 export interface LaboratoryPractitionerIdentity {
@@ -46,12 +60,11 @@ export interface LaboratoryRepository {
     actorPrincipalId: string;
     expectedVersion: number;
     idempotencyKey: string;
-    laboratoryOrganizationId: string;
+    draft: LaboratoryBookingDraft;
     patientPrincipalId: string;
     requestHash: string;
     requestId: string;
     traceRequestId: string;
-    scheduledAt?: Date;
   }): Promise<LaboratoryRequestAccessRecord | null>;
   createRequest(input: {
     actorPrincipalId: string;
@@ -69,13 +82,13 @@ export interface LaboratoryRepository {
     cursor?: { createdAt: Date; id: string };
     limit: number;
     patientPrincipalId: string;
-  }): Promise<LaboratoryRequestListResponse>;
+  }): Promise<LaboratoryRequestAccessList>;
   listByPractitioner(input: {
     cursor?: { createdAt: Date; id: string };
     limit: number;
     patientId?: string;
     practitionerPrincipalId: string;
-  }): Promise<LaboratoryRequestListResponse>;
+  }): Promise<LaboratoryRequestAccessList>;
   listLaboratoryQueue(input: {
     cursor?: { acceptedAt: Date; id: string };
     limit: number;

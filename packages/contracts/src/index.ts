@@ -138,6 +138,7 @@ export interface PublicOrganizationSummary {
   acceptingPatients: boolean;
   displayName: string;
   emergencyAvailable: boolean;
+  homeCollectionServiceCodes: readonly string[];
   id: string;
   locations: readonly PublicFacilityLocation[];
   openTwentyFourHours: boolean;
@@ -806,6 +807,7 @@ export interface PharmacyPrescriptionListResponse {
 
 export type LaboratoryRequestPriority = "ROUTINE" | "URGENT";
 export type LaboratoryRequestStatus = "ACTIVE" | "CANCELLED" | "COMPLETED";
+export type LaboratoryCollectionMode = "FACILITY" | "HOME";
 export type LaboratoryBookingStatus =
   | "CONFIRMED"
   | "SAMPLE_COLLECTION_PENDING"
@@ -827,7 +829,9 @@ export interface LaboratoryBookingResponse {
   acceptedAt: string;
   bookingNumber: string;
   cancelledAt: string | null;
+  collectionMode: LaboratoryCollectionMode;
   completedAt: string | null;
+  homeCollection: LaboratoryHomeCollectionResponse | null;
   id: string;
   laboratory: { displayName: string; id: string };
   processingStartedAt: string | null;
@@ -838,6 +842,26 @@ export interface LaboratoryBookingResponse {
   statusHistory: readonly LaboratoryStatusHistoryResponse<LaboratoryBookingStatus>[];
   updatedAt: string;
   version: number;
+}
+
+export interface LaboratoryHomeCollectionResponse {
+  addressLine1: string;
+  addressLine2: string | null;
+  administrativeArea: string | null;
+  collectionInstructions: string | null;
+  countryCode: string;
+  locality: string;
+  postalCode: string | null;
+}
+
+export interface LaboratoryHomeCollectionInput {
+  addressLine1: string;
+  addressLine2?: string;
+  administrativeArea?: string;
+  collectionInstructions?: string;
+  countryCode: string;
+  locality: string;
+  postalCode?: string;
 }
 
 export interface LaboratoryRequestResponse {

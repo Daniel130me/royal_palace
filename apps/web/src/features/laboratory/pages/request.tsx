@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
+  LaboratoryBookingResponse,
   LaboratoryBookingStatus,
   LaboratoryQueueRequestResponse,
 } from "@royal-palace/contracts";
@@ -12,6 +13,8 @@ import {
   ClipboardList,
   FileCheck2,
   FlaskConical,
+  Home,
+  MapPin,
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
@@ -208,11 +211,31 @@ export function LabRequestDetail() {
             <dl className="space-y-3 text-sm">
               <Detail label="Booking number" value={booking.bookingNumber} />
               <Detail
+                label="Collection method"
+                value={booking.collectionMode === "HOME" ? "Home collection" : "At laboratory"}
+              />
+              <Detail
                 label="Scheduled"
                 value={booking.scheduledAt ? formatDate(booking.scheduledAt) : "Not scheduled"}
               />
               <Detail label="Accepted" value={formatDate(booking.acceptedAt)} />
             </dl>
+            {booking.homeCollection && (
+              <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <Home className="h-4 w-4" /> Collection address
+                </p>
+                <p className="mt-2 flex items-start gap-1.5 text-xs">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {formatHomeCollectionAddress(booking.homeCollection)}
+                </p>
+                {booking.homeCollection.collectionInstructions && (
+                  <p className="mt-2 whitespace-pre-line text-xs">
+                    {booking.homeCollection.collectionInstructions}
+                  </p>
+                )}
+              </div>
+            )}
           </SectionCard>
 
           {transitions.length > 0 && (
@@ -278,4 +301,19 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dd className="font-medium">{value}</dd>
     </div>
   );
+}
+
+function formatHomeCollectionAddress(
+  collection: NonNullable<LaboratoryBookingResponse["homeCollection"]>,
+) {
+  return [
+    collection.addressLine1,
+    collection.addressLine2,
+    collection.locality,
+    collection.administrativeArea,
+    collection.postalCode,
+    collection.countryCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }

@@ -131,6 +131,7 @@ describe("LaboratoryService", () => {
 
     await service.listForPatient({ actor, requestId: "request-list" }, { limit: 25 });
     await service.book({ actor, requestId: "request-book" }, current.id, "laboratory-booking-001", {
+      collectionMode: "FACILITY",
       expectedVersion: 1,
       laboratoryOrganizationId: createOpaqueId(),
       scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
@@ -143,6 +144,76 @@ describe("LaboratoryService", () => {
         requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     );
+  });
+
+  it("persists a structured home-collection snapshot and redacts it from practitioners", async () => {
+    const patientPrincipalId = createOpaqueId();
+    const practitionerPrincipalId = createOpaqueId();
+    const organizationId = createOpaqueId();
+    const homeCollection = {
+      addressLine1: "12 Synthetic Collection Road",
+      administrativeArea: "Lagos",
+      collectionInstructions: "Call on arrival",
+      countryCode: "NG",
+      locality: "Ikeja",
+      postalCode: "100001",
+    };
+    const current = laboratoryRequest({
+      bookings: [
+        {
+          acceptedAt: new Date().toISOString(),
+          bookingNumber: `LABBOOK-${createOpaqueId()}`,
+          cancelledAt: null,
+          collectionMode: "HOME",
+          completedAt: null,
+          homeCollection: { ...homeCollection, addressLine2: null },
+          id: createOpaqueId(),
+          laboratory: { displayName: "Synthetic Laboratory", id: organizationId },
+          processingStartedAt: null,
+          resultReadyAt: null,
+          sampleCollectedAt: null,
+          scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+          status: "CONFIRMED",
+          statusHistory: [],
+          updatedAt: new Date().toISOString(),
+          version: 1,
+        },
+      ],
+      laboratoryOrganizationId: organizationId,
+      patientPrincipalId,
+      practitionerPrincipalId,
+    });
+    const book = vi.fn<LaboratoryRepository["book"]>(async () => current);
+    const service = createService({ book, findById: vi.fn(async () => current) });
+
+    const patientResult = await service.book(
+      { actor: session("PATIENT", { principalId: patientPrincipalId }), requestId: "request-home" },
+      current.id,
+      "laboratory-home-booking-001",
+      {
+        collectionMode: "HOME",
+        expectedVersion: 1,
+        homeCollection,
+        laboratoryOrganizationId: organizationId,
+        scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    );
+    expect(book).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: expect.objectContaining({ collectionMode: "HOME", homeCollection }),
+      }),
+    );
+    expect(patientResult.bookings[0]?.homeCollection).toMatchObject(homeCollection);
+
+    const practitionerResult = await service.get(
+      {
+        actor: session("PROVIDER", { principalId: practitionerPrincipalId }),
+        requestId: "request-practitioner",
+      },
+      current.id,
+    );
+    expect(practitionerResult.bookings[0]?.collectionMode).toBe("HOME");
+    expect(practitionerResult.bookings[0]?.homeCollection).toBeNull();
   });
 
   it("requires exact laboratory membership and removes consultation linkage", async () => {
@@ -179,7 +250,9 @@ describe("LaboratoryService", () => {
           acceptedAt: new Date().toISOString(),
           bookingNumber: `LABBOOK-${createOpaqueId()}`,
           cancelledAt: new Date().toISOString(),
+          collectionMode: "FACILITY",
           completedAt: null,
+          homeCollection: null,
           id: bookingId,
           laboratory: { displayName: "Synthetic Laboratory", id: organizationId },
           processingStartedAt: null,
@@ -195,7 +268,9 @@ describe("LaboratoryService", () => {
           acceptedAt: new Date().toISOString(),
           bookingNumber: `LABBOOK-${createOpaqueId()}`,
           cancelledAt: null,
+          collectionMode: "FACILITY",
           completedAt: null,
+          homeCollection: null,
           id: createOpaqueId(),
           laboratory: { displayName: "Other Laboratory", id: otherOrganizationId },
           processingStartedAt: null,
@@ -234,7 +309,9 @@ describe("LaboratoryService", () => {
           acceptedAt: new Date().toISOString(),
           bookingNumber: `LABBOOK-${createOpaqueId()}`,
           cancelledAt: new Date().toISOString(),
+          collectionMode: "FACILITY",
           completedAt: null,
+          homeCollection: null,
           id: bookingId,
           laboratory: { displayName: "Synthetic Laboratory", id: organizationId },
           processingStartedAt: null,

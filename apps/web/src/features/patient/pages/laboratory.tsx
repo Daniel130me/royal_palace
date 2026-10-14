@@ -14,6 +14,7 @@ import {
   Clock,
   FileText,
   FlaskConical,
+  Home,
   Lock,
   MapPin,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatTime } from "@/lib/format";
 import { productionLaboratoryService, publicDiscoveryService } from "@/lib/services";
 import { usePatientContext } from "../use-patient-context";
@@ -293,6 +296,14 @@ function BookingRow({ request }: { request: LaboratoryRequestResponse }) {
             {booking.laboratory.displayName} ·{" "}
             {booking.scheduledAt ? formatDate(booking.scheduledAt) : "Schedule pending"}
           </p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            {booking.collectionMode === "HOME" ? (
+              <Home className="h-3 w-3" />
+            ) : (
+              <Building2 className="h-3 w-3" />
+            )}
+            {booking.collectionMode === "HOME" ? "Home collection" : "Laboratory collection"}
+          </p>
         </div>
         <StatusBadge status={booking.status.toLowerCase()} size="sm" />
       </div>
@@ -326,6 +337,14 @@ function LabBookingSheet({
 }) {
   const [laboratories, setLaboratories] = useState<readonly PublicOrganizationSummary[]>([]);
   const [laboratoryId, setLaboratoryId] = useState("");
+  const [collectionMode, setCollectionMode] = useState<"FACILITY" | "HOME">("FACILITY");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [locality, setLocality] = useState("");
+  const [administrativeArea, setAdministrativeArea] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [collectionInstructions, setCollectionInstructions] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
@@ -339,6 +358,14 @@ function LabBookingSheet({
     const controller = new AbortController();
     setLaboratories([]);
     setLaboratoryId("");
+    setCollectionMode("FACILITY");
+    setAddressLine1("");
+    setAddressLine2("");
+    setLocality("");
+    setAdministrativeArea("");
+    setPostalCode("");
+    setCountryCode("");
+    setCollectionInstructions("");
     setDate("");
     setTime("");
     setError(null);
@@ -361,17 +388,45 @@ function LabBookingSheet({
 
   async function confirm() {
     if (!request || !laboratoryId || !date || !time) return;
+    if (
+      collectionMode === "HOME" &&
+      (!addressLine1.trim() || !locality.trim() || !/^[A-Za-z]{2}$/.test(countryCode.trim()))
+    ) {
+      setError("Address line 1, city or locality, and a two-letter country code are required.");
+      return;
+    }
     const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
     setBusy(true);
     setError(null);
     try {
       await productionLaboratoryService.patient.book(
         request.id,
-        {
-          expectedVersion: request.version,
-          laboratoryOrganizationId: laboratoryId,
-          scheduledAt,
-        },
+        collectionMode === "HOME"
+          ? {
+              collectionMode,
+              expectedVersion: request.version,
+              homeCollection: {
+                addressLine1: addressLine1.trim(),
+                ...(addressLine2.trim() ? { addressLine2: addressLine2.trim() } : {}),
+                ...(administrativeArea.trim()
+                  ? { administrativeArea: administrativeArea.trim() }
+                  : {}),
+                ...(collectionInstructions.trim()
+                  ? { collectionInstructions: collectionInstructions.trim() }
+                  : {}),
+                countryCode: countryCode.trim().toUpperCase(),
+                locality: locality.trim(),
+                ...(postalCode.trim() ? { postalCode: postalCode.trim() } : {}),
+              },
+              laboratoryOrganizationId: laboratoryId,
+              scheduledAt,
+            }
+          : {
+              collectionMode,
+              expectedVersion: request.version,
+              laboratoryOrganizationId: laboratoryId,
+              scheduledAt,
+            },
         crypto.randomUUID(),
       );
       toast.success("Laboratory test booked.");
@@ -383,7 +438,13 @@ function LabBookingSheet({
     }
   }
 
-  const selected = laboratories.find((laboratory) => laboratory.id === laboratoryId);
+  const availableLaboratories =
+    collectionMode === "HOME" && request
+      ? laboratories.filter((laboratory) =>
+          laboratory.homeCollectionServiceCodes.includes(request.service.code),
+        )
+      : laboratories;
+  const selected = availableLaboratories.find((laboratory) => laboratory.id === laboratoryId);
   return (
     <Sheet open={request !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
@@ -398,6 +459,38 @@ function LabBookingSheet({
         </SheetHeader>
         <div className="max-h-[65vh] space-y-4 overflow-y-auto py-4">
           <div>
+            <Label>Collection method</Label>
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className={`rounded-xl border p-3 text-left ${collectionMode === "FACILITY" ? "border-primary bg-primary/5" : "border-border"}`}
+                onClick={() => {
+                  setCollectionMode("FACILITY");
+                  setLaboratoryId("");
+                }}
+              >
+                <Building2 className="mb-2 h-4 w-4" />
+                <span className="block text-sm font-medium">At the laboratory</span>
+                <span className="text-xs text-muted-foreground">Visit the selected facility</span>
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl border p-3 text-left ${collectionMode === "HOME" ? "border-primary bg-primary/5" : "border-border"}`}
+                onClick={() => {
+                  setCollectionMode("HOME");
+                  setLaboratoryId("");
+                }}
+              >
+                <Home className="mb-2 h-4 w-4" />
+                <span className="block text-sm font-medium">Home collection</span>
+                <span className="text-xs text-muted-foreground">
+                  A collector visits your address
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div>
             <Label>Verified laboratory offering this test</Label>
             <Select value={laboratoryId} onValueChange={setLaboratoryId} disabled={loading}>
               <SelectTrigger className="mt-1.5 w-full">
@@ -406,16 +499,18 @@ function LabBookingSheet({
                 />
               </SelectTrigger>
               <SelectContent>
-                {laboratories.map((laboratory) => (
+                {availableLaboratories.map((laboratory) => (
                   <SelectItem key={laboratory.id} value={laboratory.id}>
                     {laboratory.displayName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {!loading && laboratories.length === 0 && (
+            {!loading && availableLaboratories.length === 0 && (
               <p className="mt-2 text-xs text-amber-700">
-                No verified laboratory currently offers this exact service.
+                {collectionMode === "HOME"
+                  ? "No verified laboratory currently offers home collection for this exact service."
+                  : "No verified laboratory currently offers this exact service."}
               </p>
             )}
           </div>
@@ -429,6 +524,90 @@ function LabBookingSheet({
               <p className="mt-1 flex items-start gap-1">
                 <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
                 {selected.locations[0].label}
+              </p>
+            </div>
+          )}
+
+          {collectionMode === "HOME" && (
+            <div className="space-y-3 rounded-xl border border-border/60 p-3">
+              <div>
+                <Label htmlFor="home-address-line-1">Address line 1</Label>
+                <Input
+                  id="home-address-line-1"
+                  className="mt-1.5"
+                  maxLength={200}
+                  value={addressLine1}
+                  onChange={(event) => setAddressLine1(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="home-address-line-2">Address line 2 (optional)</Label>
+                <Input
+                  id="home-address-line-2"
+                  className="mt-1.5"
+                  maxLength={200}
+                  value={addressLine2}
+                  onChange={(event) => setAddressLine2(event.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="home-locality">City or locality</Label>
+                  <Input
+                    id="home-locality"
+                    className="mt-1.5"
+                    maxLength={100}
+                    value={locality}
+                    onChange={(event) => setLocality(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="home-administrative-area">State or region</Label>
+                  <Input
+                    id="home-administrative-area"
+                    className="mt-1.5"
+                    maxLength={100}
+                    value={administrativeArea}
+                    onChange={(event) => setAdministrativeArea(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="home-postal-code">Postal code</Label>
+                  <Input
+                    id="home-postal-code"
+                    className="mt-1.5"
+                    maxLength={32}
+                    value={postalCode}
+                    onChange={(event) => setPostalCode(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="home-country-code">Country code</Label>
+                  <Input
+                    id="home-country-code"
+                    className="mt-1.5 uppercase"
+                    maxLength={2}
+                    placeholder="NG"
+                    value={countryCode}
+                    onChange={(event) => setCountryCode(event.target.value.toUpperCase())}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="home-collection-instructions">Collection instructions</Label>
+                <Textarea
+                  id="home-collection-instructions"
+                  className="mt-1.5"
+                  maxLength={1000}
+                  placeholder="Access notes or directions for the collector (optional)"
+                  value={collectionInstructions}
+                  onChange={(event) => setCollectionInstructions(event.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This address is shared only with the selected laboratory for this booking.
               </p>
             </div>
           )}
@@ -481,7 +660,16 @@ function LabBookingSheet({
               Cancel
             </Button>
             <Button
-              disabled={busy || !laboratoryId || !date || !time}
+              disabled={
+                busy ||
+                !laboratoryId ||
+                !date ||
+                !time ||
+                (collectionMode === "HOME" &&
+                  (!addressLine1.trim() ||
+                    !locality.trim() ||
+                    !/^[A-Za-z]{2}$/.test(countryCode.trim())))
+              }
               onClick={confirm}
               className="flex-1"
             >

@@ -165,6 +165,7 @@ const SYNTHETIC_ORGANIZATIONS = [
         code: "diagnostic-testing",
         facilityServiceId: "0199a18e-a400-7000-8000-000000000441",
         offeringId: "0199a18e-a400-7000-8000-000000000341",
+        supportsHomeCollection: true,
       },
     ],
   },
@@ -710,8 +711,16 @@ async function seedPublicDiscovery(database: PrismaClient): Promise<void> {
           id: organizationService.offeringId,
           organizationId: organization.id,
           serviceId: service.id,
+          supportsHomeCollection:
+            "supportsHomeCollection" in organizationService &&
+            organizationService.supportsHomeCollection,
         },
-        update: { status: "ACTIVE" },
+        update: {
+          status: "ACTIVE",
+          supportsHomeCollection:
+            "supportsHomeCollection" in organizationService &&
+            organizationService.supportsHomeCollection,
+        },
         select: { id: true },
       });
       await database.facilityService.upsert({
