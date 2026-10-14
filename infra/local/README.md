@@ -4,7 +4,8 @@ This stack is for synthetic development data only. It provides PostgreSQL, Redis
 
 1. Copy `.env.example` to `.env.local` at the repository root.
 2. Fill every development setting except `AWS_REGION`; never reuse staging or production credentials.
-3. Run `pnpm local:up`.
+3. Run `pnpm local:up`. After the containers are healthy, this applies every committed
+   database migration before initializing local object storage.
 4. Start the processes with `pnpm dev`.
 5. Use `pnpm local:down` to stop containers. Named volumes are retained unless deliberately removed by an operator.
 
@@ -26,3 +27,7 @@ exercise the actual configured S3 service before any release.
 After `local:up`, the storage bootstrap creates separate private quarantine and
 clean buckets, enables versioning, and configures an explicit browser-origin CORS
 rule for direct uploads. Set `WEB_ORIGIN` to the exact local frontend origin.
+
+Database migrations are intentionally automatic only for this disposable local
+environment. Staging and production continue to run `db:migrate:deploy` as a
+separate, auditable release step before application rollout.

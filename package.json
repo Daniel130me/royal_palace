@@ -19,7 +19,7 @@
     "lint": "turbo run lint",
     "local:down": "docker compose --env-file .env.local -f infra/local/compose.yml down",
     "local:logs": "docker compose --env-file .env.local -f infra/local/compose.yml logs --follow",
-    "local:up": "docker compose --env-file .env.local -f infra/local/compose.yml up --build --detach --wait && pnpm --filter @royal-palace/api storage:local:init",
+    "local:up": "docker compose --env-file .env.local -f infra/local/compose.yml up --build --detach --wait && pnpm --filter @royal-palace/api db:migrate:deploy && pnpm --filter @royal-palace/api storage:local:init",
     "test": "pnpm test:prototype-parity && turbo run test",
     "test:prototype-parity": "node --test scripts/verify-prototype-parity.test.mjs",
     "verify:prototype-parity": "node scripts/verify-prototype-parity.mjs",
