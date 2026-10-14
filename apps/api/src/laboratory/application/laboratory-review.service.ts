@@ -1,5 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { CurrentSession } from "@royal-palace/contracts";
+import type {
+  ReviewCommentStatus,
+  ReviewModerationDecision,
+  ReviewModerationReasonCode,
+} from "@royal-palace/contracts";
 
 import { AuthorizationService } from "../../authorization/application/authorization.service.js";
 import { AUTHORIZATION_POLICY } from "../../authorization/domain/authorization.types.js";
@@ -38,6 +43,81 @@ export class LaboratoryReviewService {
       limit,
       patientPrincipalId: context.actor.principalId,
     });
+  }
+
+  async listForModeration(
+    context: ReviewContext,
+    input: {
+      cursor?: string;
+      limit: number;
+      status: Exclude<ReviewCommentStatus, "NOT_PROVIDED">;
+    },
+  ) {
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        resourceId: input.status,
+        resourceType: "laboratory_review_moderation_queue",
+      },
+      policy: AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION,
+      requestId: context.requestId,
+    });
+    return this.repository.listForModeration({
+      ...(input.cursor === undefined ? {} : { cursor: decodeModerationCursor(input.cursor) }),
+      limit: input.limit,
+      status: input.status,
+    });
+  }
+
+  async moderate(
+    context: ReviewContext,
+    reviewId: string,
+    input: {
+      decision: ReviewModerationDecision;
+      expectedVersion: number;
+      reasonCode?: ReviewModerationReasonCode;
+    },
+  ) {
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: { resourceId: reviewId, resourceType: "laboratory_review_comment" },
+      policy: AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION,
+      requestId: context.requestId,
+    });
+    if (
+      (input.decision === "HIDE" && input.reasonCode === undefined) ||
+      (input.decision === "PUBLISH" && input.reasonCode !== undefined)
+    ) {
+      throw new LaboratoryFlowError(
+        "invalid_moderation_reason",
+        400,
+        "A hide decision requires one controlled reason; publish decisions cannot include one",
+      );
+    }
+    try {
+      return await this.repository.moderate({
+        actorPrincipalId: context.actor.principalId,
+        decision: input.decision,
+        expectedVersion: input.expectedVersion,
+        ...(input.reasonCode === undefined ? {} : { reasonCode: input.reasonCode }),
+        requestId: context.requestId,
+        reviewId,
+      });
+    } catch (error) {
+      if (!(error instanceof LaboratoryReviewConflictError)) throw error;
+      if (error.reason === "NOT_FOUND") {
+        throw new LaboratoryFlowError("laboratory_review_not_found", 404, "Review not found");
+      }
+      throw new LaboratoryFlowError(
+        error.reason === "VERSION_CONFLICT"
+          ? "laboratory_review_version_conflict"
+          : "laboratory_review_already_moderated",
+        409,
+        error.reason === "VERSION_CONFLICT"
+          ? "The review changed; refresh before deciding"
+          : "This review comment is no longer pending moderation",
+      );
+    }
   }
 
   async submit(
@@ -90,5 +170,27 @@ export class LaboratoryReviewService {
       }
       throw error;
     }
+  }
+}
+
+function decodeModerationCursor(value: string): { id: string; submittedAt: Date } {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      id?: unknown;
+      submittedAt?: unknown;
+    };
+    const submittedAt = new Date(String(parsed.submittedAt));
+    if (
+      typeof parsed.id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        parsed.id,
+      ) ||
+      Number.isNaN(submittedAt.getTime())
+    ) {
+      throw new Error("invalid cursor");
+    }
+    return { id: parsed.id, submittedAt };
+  } catch {
+    throw new LaboratoryFlowError("invalid_cursor", 400, "The moderation cursor is invalid");
   }
 }

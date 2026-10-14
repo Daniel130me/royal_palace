@@ -19,6 +19,7 @@ import {
   Settings,
   UserCog,
   Package,
+  MessageSquareText,
 } from "lucide-react";
 import { AdminDashboard } from "./pages/dashboard";
 import { AdminManagers } from "./pages/managers";
@@ -42,6 +43,7 @@ import { AdminSettings } from "./pages/settings";
 import { AdminClinicalCatalogue } from "./pages/clinical-catalogue";
 import { AdminPharmacyOrders } from "./pages/pharmacy-orders";
 import { AdminPharmacyOrderDetail } from "./pages/pharmacy-order";
+import { AdminReviewModeration } from "./pages/review-moderation";
 import { ApplicationReviewPage } from "@/features/shared/application-review-page";
 
 export function AdminPortal() {
@@ -61,6 +63,7 @@ export function AdminPortal() {
     { label: "Settlements", page: "settlements", icon: Wallet },
     { label: "Audit Trail", page: "audit", icon: ScrollText },
     { label: "Complaints", page: "complaints", icon: MessageSquareWarning },
+    { label: "Review Moderation", page: "review-moderation", icon: MessageSquareText },
     { label: "Appointments", page: "appointments", icon: CalendarDays },
     { label: "Deliveries", page: "deliveries", icon: Truck },
     { label: "Users", page: "users", icon: Users },
@@ -106,6 +109,8 @@ export function AdminPortal() {
         <AdminAudit />
       ) : page === "complaints" ? (
         <AdminComplaints />
+      ) : page === "review-moderation" ? (
+        <AdminReviewModeration />
       ) : page === "appointments" ? (
         <AdminAppointments />
       ) : page === "deliveries" ? (

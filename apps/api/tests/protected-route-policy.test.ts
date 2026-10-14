@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AUTHORIZATION_POLICY } from "../src/authorization/domain/authorization.types.js";
 import { AUTHORIZATION_POLICY_METADATA } from "../src/authorization/presentation/policy-protected.decorator.js";
 import { InternalIdentityController } from "../src/identity/presentation/internal-identity.controller.js";
+import { AdminLaboratoryReviewController } from "../src/laboratory/presentation/laboratory-review.controller.js";
 import { PharmacyCommercialController } from "../src/pharmacy/presentation/pharmacy-commercial.controller.js";
 import {
   PatientScannedPrescriptionController,
@@ -45,4 +46,14 @@ describe("protected route policy inventory", () => {
       AUTHORIZATION_POLICY.MANAGE_PHARMACY_QUOTE,
     );
   });
+
+  it.each(["list", "moderate"] as const)(
+    "maps laboratory review moderation %s to its administrator-only policy",
+    (handlerName) => {
+      const handler = AdminLaboratoryReviewController.prototype[handlerName];
+      expect(Reflect.getMetadata(AUTHORIZATION_POLICY_METADATA, handler)).toBe(
+        AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION,
+      );
+    },
+  );
 });

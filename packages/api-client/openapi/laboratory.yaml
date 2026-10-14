@@ -138,6 +138,48 @@ paths:
         "403": { $ref: "#/components/responses/AccessDenied" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /v1/admin/review-comments:
+    get:
+      operationId: listLaboratoryReviewCommentsForModeration
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, PUBLISHED, HIDDEN], default: PENDING }
+      responses:
+        "200":
+          description: Privacy-minimized administrator comment-moderation queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaboratoryReviewModerationList" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+  /v1/admin/review-comments/{reviewId}/decision:
+    post:
+      operationId: moderateLaboratoryReviewComment
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+        - in: path
+          name: reviewId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModerateLaboratoryReviewCommentInput" }
+      responses:
+        "200":
+          description: Moderated laboratory review comment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaboratoryReviewModerationItem" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/AccessDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /v1/laboratory-requests/{requestId}:
     get:
       operationId: getLaboratoryRequest
@@ -825,6 +867,61 @@ components:
       properties:
         comment: { type: string, minLength: 1, maxLength: 2000 }
         score: { type: integer, minimum: 1, maximum: 5 }
+    ReviewModerationReasonCode:
+      type: string
+      enum: [ABUSIVE_OR_HARASSING, CLINICAL_DETAILS, IRRELEVANT, PERSONAL_DATA, SPAM_OR_FRAUD]
+    LaboratoryReviewModerationItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          comment,
+          commentStatus,
+          id,
+          laboratory,
+          moderatedAt,
+          moderationReasonCode,
+          score,
+          submittedAt,
+          version,
+        ]
+      properties:
+        comment: { type: string, minLength: 1, maxLength: 2000 }
+        commentStatus: { type: string, enum: [PENDING, PUBLISHED, HIDDEN] }
+        id: { type: string, format: uuid }
+        laboratory: { $ref: "#/components/schemas/NamedResource" }
+        moderatedAt: { type: [string, "null"], format: date-time }
+        moderationReasonCode:
+          oneOf:
+            - { $ref: "#/components/schemas/ReviewModerationReasonCode" }
+            - { type: "null" }
+        score: { type: integer, minimum: 1, maximum: 5 }
+        submittedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    LaboratoryReviewModerationList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/LaboratoryReviewModerationItem" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    ModerateLaboratoryReviewCommentInput:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [decision, expectedVersion]
+          properties:
+            decision: { type: string, const: PUBLISH }
+            expectedVersion: { type: integer, minimum: 1 }
+        - type: object
+          additionalProperties: false
+          required: [decision, expectedVersion, reasonCode]
+          properties:
+            decision: { type: string, const: HIDE }
+            expectedVersion: { type: integer, minimum: 1 }
+            reasonCode: { $ref: "#/components/schemas/ReviewModerationReasonCode" }
     ServiceResource:
       type: object
       additionalProperties: false

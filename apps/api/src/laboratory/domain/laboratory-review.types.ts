@@ -1,6 +1,11 @@
 import type {
   LaboratoryReviewListResponse,
+  LaboratoryReviewModerationItemResponse,
+  LaboratoryReviewModerationListResponse,
   LaboratoryReviewResponse,
+  ReviewCommentStatus,
+  ReviewModerationDecision,
+  ReviewModerationReasonCode,
 } from "@royal-palace/contracts";
 
 export interface LaboratoryReviewEligibility {
@@ -17,6 +22,19 @@ export interface LaboratoryReviewRepository {
     limit: number;
     patientPrincipalId: string;
   }): Promise<LaboratoryReviewListResponse>;
+  listForModeration(input: {
+    cursor?: { id: string; submittedAt: Date };
+    limit: number;
+    status: Exclude<ReviewCommentStatus, "NOT_PROVIDED">;
+  }): Promise<LaboratoryReviewModerationListResponse>;
+  moderate(input: {
+    actorPrincipalId: string;
+    decision: ReviewModerationDecision;
+    expectedVersion: number;
+    reasonCode?: ReviewModerationReasonCode;
+    requestId: string;
+    reviewId: string;
+  }): Promise<LaboratoryReviewModerationItemResponse>;
   submit(input: {
     actorPrincipalId: string;
     bookingId: string;
@@ -29,7 +47,10 @@ export interface LaboratoryReviewRepository {
 }
 
 export class LaboratoryReviewConflictError extends Error {
-  constructor(readonly reason: "ALREADY_REVIEWED" | "INVALID_STATE") {
+  constructor(
+    readonly reason:
+      "ALREADY_MODERATED" | "ALREADY_REVIEWED" | "INVALID_STATE" | "NOT_FOUND" | "VERSION_CONFLICT",
+  ) {
     super(reason);
     this.name = "LaboratoryReviewConflictError";
   }

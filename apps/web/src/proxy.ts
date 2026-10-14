@@ -67,6 +67,8 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
   ),
   /^\/api\/patient\/laboratory-reviews$/i,
   new RegExp(`^/api/patient/laboratory-bookings/${UUID_PATH_SEGMENT}/reviews$`, "i"),
+  /^\/api\/admin\/review-comments$/i,
+  new RegExp(`^/api/admin/review-comments/${UUID_PATH_SEGMENT}/decision$`, "i"),
   new RegExp(
     `^/api/provider/prescriptions(?:/${UUID_PATH_SEGMENT}/(?:draft|sign|cancel|substitutions/${UUID_PATH_SEGMENT}/decision))?$`,
     "i",

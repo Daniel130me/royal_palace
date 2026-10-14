@@ -351,8 +351,12 @@ that completes an increment.
     - `[x]` 11D4E adds one immutable verified rating per patient-owned completed laboratory
       booking, private-by-default moderated comments, database-maintained organization rating
       aggregates, protected patient submission/list routes, and connected patient, discovery,
-      and laboratory-profile presentation surfaces. Comment-moderation administration, billing,
-      team administration, query-plan/load evidence, and qualification remain open.
+      and laboratory-profile presentation surfaces.
+    - `[x]` 11D4F adds an administrator-only, privacy-minimized comment-moderation queue,
+      controlled publish/hide decisions, actor-attributed database evidence, optimistic
+      concurrency, immutable score/comment protection, audit events, exact BFF routes, and a
+      dedicated administrator screen. Billing, team administration, representative moderation
+      load evidence, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

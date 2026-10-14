@@ -117,4 +117,94 @@ describe("LaboratoryReviewService", () => {
 
     expect(listForPatient).toHaveBeenCalledWith({ limit: 25, patientPrincipalId });
   });
+
+  it("allows only administrators to read the privacy-minimized moderation queue", async () => {
+    const listForModeration = vi.fn(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    }));
+    const reviews = service({ listForModeration });
+
+    await reviews.listForModeration(
+      { actor: session("ADMINISTRATOR"), requestId: "request-review-005" },
+      { limit: 25, status: "PENDING" },
+    );
+    await expect(
+      reviews.listForModeration(
+        { actor: session("SUPPORT"), requestId: "request-review-006" },
+        { limit: 25, status: "PENDING" },
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+
+    expect(listForModeration).toHaveBeenCalledOnce();
+    expect(listForModeration).toHaveBeenCalledWith({ limit: 25, status: "PENDING" });
+  });
+
+  it("records an administrator moderation decision with actor and expected version", async () => {
+    const administrator = session("ADMINISTRATOR");
+    const reviewId = createOpaqueId();
+    const moderate = vi.fn(async () => ({
+      comment: "Helpful staff.",
+      commentStatus: "PUBLISHED" as const,
+      id: reviewId,
+      laboratory: { displayName: "Synthetic Laboratory", id: createOpaqueId() },
+      moderatedAt: new Date().toISOString(),
+      moderationReasonCode: null,
+      score: 5,
+      submittedAt: new Date().toISOString(),
+      version: 2,
+    }));
+    const reviews = service({ moderate });
+
+    await reviews.moderate({ actor: administrator, requestId: "request-review-007" }, reviewId, {
+      decision: "PUBLISH",
+      expectedVersion: 1,
+    });
+
+    expect(moderate).toHaveBeenCalledWith({
+      actorPrincipalId: administrator.principalId,
+      decision: "PUBLISH",
+      expectedVersion: 1,
+      requestId: "request-review-007",
+      reviewId,
+    });
+  });
+
+  it("denies non-administrators before executing or validating a moderation decision", async () => {
+    const moderate = vi.fn();
+    const reviews = service({ moderate });
+
+    await expect(
+      reviews.moderate(
+        { actor: session("SUPPORT"), requestId: "request-review-008" },
+        createOpaqueId(),
+        { decision: "HIDE", expectedVersion: 1 },
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+
+    expect(moderate).not.toHaveBeenCalled();
+  });
+
+  it("requires one controlled reason for hiding and forbids reasons when publishing", async () => {
+    const moderate = vi.fn();
+    const reviews = service({ moderate });
+    const administrator = session("ADMINISTRATOR");
+    const reviewId = createOpaqueId();
+
+    await expect(
+      reviews.moderate({ actor: administrator, requestId: "request-review-009" }, reviewId, {
+        decision: "HIDE",
+        expectedVersion: 1,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_moderation_reason", status: 400 });
+    await expect(
+      reviews.moderate({ actor: administrator, requestId: "request-review-010" }, reviewId, {
+        decision: "PUBLISH",
+        expectedVersion: 1,
+        reasonCode: "SPAM_OR_FRAUD",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_moderation_reason", status: 400 });
+
+    expect(moderate).not.toHaveBeenCalled();
+  });
 });

@@ -100,6 +100,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/review-comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listLaboratoryReviewCommentsForModeration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/review-comments/{reviewId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["moderateLaboratoryReviewComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/laboratory-requests/{requestId}": {
         parameters: {
             query?: never;
@@ -547,6 +579,37 @@ export interface components {
         SubmitLaboratoryReviewInput: {
             comment?: string;
             score: number;
+        };
+        /** @enum {string} */
+        ReviewModerationReasonCode: "ABUSIVE_OR_HARASSING" | "CLINICAL_DETAILS" | "IRRELEVANT" | "PERSONAL_DATA" | "SPAM_OR_FRAUD";
+        LaboratoryReviewModerationItem: {
+            comment: string;
+            /** @enum {string} */
+            commentStatus: "PENDING" | "PUBLISHED" | "HIDDEN";
+            /** Format: uuid */
+            id: string;
+            laboratory: components["schemas"]["NamedResource"];
+            /** Format: date-time */
+            moderatedAt: string | null;
+            moderationReasonCode: components["schemas"]["ReviewModerationReasonCode"] | null;
+            score: number;
+            /** Format: date-time */
+            submittedAt: string;
+            version: number;
+        };
+        LaboratoryReviewModerationList: {
+            data: components["schemas"]["LaboratoryReviewModerationItem"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        ModerateLaboratoryReviewCommentInput: {
+            /** @constant */
+            decision: "PUBLISH";
+            expectedVersion: number;
+        } | {
+            /** @constant */
+            decision: "HIDE";
+            expectedVersion: number;
+            reasonCode: components["schemas"]["ReviewModerationReasonCode"];
         };
         ServiceResource: {
             code: string;
@@ -1082,6 +1145,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LaboratoryReview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listLaboratoryReviewCommentsForModeration: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                status?: "PENDING" | "PUBLISHED" | "HIDDEN";
+            };
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Privacy-minimized administrator comment-moderation queue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryReviewModerationList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["AccessDenied"];
+        };
+    };
+    moderateLaboratoryReviewComment: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-request-id": components["parameters"]["RequestId"];
+            };
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerateLaboratoryReviewCommentInput"];
+            };
+        };
+        responses: {
+            /** @description Moderated laboratory review comment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaboratoryReviewModerationItem"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

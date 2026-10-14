@@ -41,6 +41,12 @@ Increment 11D4E adds `GET /v1/patient/laboratory-reviews` and
 only the matching patient principal; the BFF allowlist accepts an exact UUID path and no broader
 laboratory-booking mutation prefix.
 
+Increment 11D4F adds `GET /v1/admin/review-comments` and
+`POST /v1/admin/review-comments/{reviewId}/decision` under
+`ADMINISTER_REVIEW_MODERATION`. Only a platform administrator can access these routes. The queue
+omits patient and clinical context, decisions use optimistic concurrency, and the exact-UUID BFF
+allowlist exposes no broader administrator or review mutation prefix.
+
 ## Default-deny rules
 
 - Missing actor, unknown policy, wrong organization, unrelated patient, absent consent

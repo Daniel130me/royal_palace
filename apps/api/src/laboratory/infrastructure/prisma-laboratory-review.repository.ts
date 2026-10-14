@@ -1,7 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type {
   LaboratoryReviewListResponse,
+  LaboratoryReviewModerationItemResponse,
+  LaboratoryReviewModerationListResponse,
   LaboratoryReviewResponse,
+  ReviewCommentStatus as ContractReviewCommentStatus,
+  ReviewModerationDecision,
+  ReviewModerationReasonCode,
 } from "@royal-palace/contracts";
 
 import { Prisma, type ReviewCommentStatus } from "../../generated/prisma/client.js";
@@ -20,6 +25,18 @@ const reviewSelect = {
   id: true,
   score: true,
   submittedAt: true,
+} satisfies Prisma.LaboratoryBookingReviewSelect;
+
+const moderationSelect = {
+  comment: true,
+  commentStatus: true,
+  id: true,
+  laboratoryOrganization: { select: { displayName: true, id: true } },
+  moderatedAt: true,
+  moderationReasonCode: true,
+  score: true,
+  submittedAt: true,
+  version: true,
 } satisfies Prisma.LaboratoryBookingReviewSelect;
 
 @Injectable()
@@ -79,6 +96,116 @@ export class PrismaLaboratoryReviewRepository implements LaboratoryReviewReposit
         service: row.request.service,
       })),
     };
+  }
+
+  async listForModeration(input: {
+    cursor?: { id: string; submittedAt: Date };
+    limit: number;
+    status: Exclude<ContractReviewCommentStatus, "NOT_PROVIDED">;
+  }): Promise<LaboratoryReviewModerationListResponse> {
+    const rows = await this.database.laboratoryBookingReview.findMany({
+      orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
+      select: moderationSelect,
+      take: input.limit + 1,
+      where: {
+        commentStatus: input.status as ReviewCommentStatus,
+        ...(input.cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { submittedAt: { gt: input.cursor.submittedAt } },
+                { id: { gt: input.cursor.id }, submittedAt: input.cursor.submittedAt },
+              ],
+            }),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const page = hasNextPage ? rows.slice(0, input.limit) : rows;
+    const last = page.at(-1);
+    return {
+      data: page.map(mapModerationItem),
+      pageInfo: {
+        endCursor:
+          hasNextPage && last !== undefined
+            ? Buffer.from(
+                JSON.stringify({ id: last.id, submittedAt: last.submittedAt.toISOString() }),
+              ).toString("base64url")
+            : null,
+        hasNextPage,
+      },
+    };
+  }
+
+  async moderate(input: {
+    actorPrincipalId: string;
+    decision: ReviewModerationDecision;
+    expectedVersion: number;
+    reasonCode?: ReviewModerationReasonCode;
+    requestId: string;
+    reviewId: string;
+  }): Promise<LaboratoryReviewModerationItemResponse> {
+    try {
+      return await this.database.$transaction(
+        async (transaction) => {
+          const existing = await transaction.laboratoryBookingReview.findUnique({
+            select: {
+              comment: true,
+              commentStatus: true,
+              laboratoryOrganizationId: true,
+              patientId: true,
+              version: true,
+            },
+            where: { id: input.reviewId },
+          });
+          if (existing === null) throw new LaboratoryReviewConflictError("NOT_FOUND");
+          if (existing.comment === null || existing.commentStatus !== "PENDING") {
+            throw new LaboratoryReviewConflictError("ALREADY_MODERATED");
+          }
+          if (existing.version !== input.expectedVersion) {
+            throw new LaboratoryReviewConflictError("VERSION_CONFLICT");
+          }
+          const now = new Date();
+          const updated = await transaction.laboratoryBookingReview.updateMany({
+            data: {
+              commentStatus: input.decision === "PUBLISH" ? "PUBLISHED" : "HIDDEN",
+              moderatedAt: now,
+              moderatedByPrincipalId: input.actorPrincipalId,
+              moderationReasonCode: input.decision === "HIDE" ? input.reasonCode : null,
+              version: { increment: 1 },
+            },
+            where: { id: input.reviewId, commentStatus: "PENDING", version: input.expectedVersion },
+          });
+          if (updated.count !== 1) throw new LaboratoryReviewConflictError("VERSION_CONFLICT");
+          await transaction.auditEvent.create({
+            data: {
+              action:
+                input.decision === "PUBLISH"
+                  ? "laboratory.review_comment.published"
+                  : "laboratory.review_comment.hidden",
+              actorPrincipalId: input.actorPrincipalId,
+              id: createOpaqueId(),
+              organizationId: existing.laboratoryOrganizationId,
+              patientScopeId: existing.patientId,
+              requestId: input.requestId,
+              resourceId: input.reviewId,
+              resourceType: "laboratory_booking_review",
+              result: "SUCCEEDED",
+            },
+          });
+          const review = await transaction.laboratoryBookingReview.findUniqueOrThrow({
+            select: moderationSelect,
+            where: { id: input.reviewId },
+          });
+          return mapModerationItem(review);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+        throw new LaboratoryReviewConflictError("VERSION_CONFLICT");
+      }
+      throw error;
+    }
   }
 
   async submit(input: {
@@ -165,6 +292,33 @@ function mapReview(row: {
     id: row.id,
     score: row.score,
     submittedAt: row.submittedAt.toISOString(),
+  };
+}
+
+function mapModerationItem(row: {
+  comment: string | null;
+  commentStatus: ReviewCommentStatus;
+  id: string;
+  laboratoryOrganization: { displayName: string; id: string };
+  moderatedAt: Date | null;
+  moderationReasonCode: string | null;
+  score: number;
+  submittedAt: Date;
+  version: number;
+}): LaboratoryReviewModerationItemResponse {
+  if (row.comment === null || row.commentStatus === "NOT_PROVIDED") {
+    throw new LaboratoryReviewConflictError("INVALID_STATE");
+  }
+  return {
+    comment: row.comment,
+    commentStatus: row.commentStatus,
+    id: row.id,
+    laboratory: row.laboratoryOrganization,
+    moderatedAt: row.moderatedAt?.toISOString() ?? null,
+    moderationReasonCode: row.moderationReasonCode as ReviewModerationReasonCode | null,
+    score: row.score,
+    submittedAt: row.submittedAt.toISOString(),
+    version: row.version,
   };
 }
 

@@ -253,6 +253,28 @@ export const productionNotificationService = {
 };
 
 export const productionLaboratoryService = {
+  admin: {
+    reviewComments: (
+      status: "PENDING" | "PUBLISHED" | "HIDDEN" = "PENDING",
+      cursor?: string,
+      limit = 25,
+    ) =>
+      generatedLaboratoryClient
+        .GET("/v1/admin/review-comments", {
+          params: { header: requestHeader(), query: { cursor, limit, status } },
+        })
+        .then(unwrapGeneratedResponse),
+    moderateReviewComment: (
+      reviewId: string,
+      body: LaboratoryComponents["schemas"]["ModerateLaboratoryReviewCommentInput"],
+    ) =>
+      generatedLaboratoryClient
+        .POST("/v1/admin/review-comments/{reviewId}/decision", {
+          body,
+          params: { header: requestHeader(), path: { reviewId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
   provider: {
     list: (patientId?: string, cursor?: string, limit = 25) =>
       generatedLaboratoryClient

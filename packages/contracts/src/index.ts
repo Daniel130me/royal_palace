@@ -1048,6 +1048,35 @@ export interface LaboratoryReviewListResponse {
   data: readonly LaboratoryReviewTaskResponse[];
 }
 
+export type ReviewModerationDecision = "PUBLISH" | "HIDE";
+export type ReviewModerationReasonCode =
+  "ABUSIVE_OR_HARASSING" | "CLINICAL_DETAILS" | "IRRELEVANT" | "PERSONAL_DATA" | "SPAM_OR_FRAUD";
+
+export interface LaboratoryReviewModerationItemResponse {
+  comment: string;
+  commentStatus: Exclude<ReviewCommentStatus, "NOT_PROVIDED">;
+  id: string;
+  laboratory: { displayName: string; id: string };
+  moderatedAt: string | null;
+  moderationReasonCode: ReviewModerationReasonCode | null;
+  score: number;
+  submittedAt: string;
+  version: number;
+}
+
+export interface LaboratoryReviewModerationListResponse {
+  data: readonly LaboratoryReviewModerationItemResponse[];
+  pageInfo: CursorPageInfo;
+}
+
+export type ModerateLaboratoryReviewCommentInput =
+  | { decision: "PUBLISH"; expectedVersion: number; reasonCode?: never }
+  | {
+      decision: "HIDE";
+      expectedVersion: number;
+      reasonCode: ReviewModerationReasonCode;
+    };
+
 /** Laboratory queues omit consultation linkage and practitioner-only clinical context. */
 export type LaboratoryQueueRequestResponse = Omit<
   LaboratoryRequestResponse,

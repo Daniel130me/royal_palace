@@ -30,7 +30,10 @@ import {
   ProviderLaboratoryResultController,
 } from "./presentation/laboratory-result.controller.js";
 import { LaboratoryWorkspaceController } from "./presentation/laboratory-workspace.controller.js";
-import { PatientLaboratoryReviewController } from "./presentation/laboratory-review.controller.js";
+import {
+  AdminLaboratoryReviewController,
+  PatientLaboratoryReviewController,
+} from "./presentation/laboratory-review.controller.js";
 import { AdminServicePricingController } from "./presentation/service-pricing.controller.js";
 
 @Module({
@@ -46,6 +49,7 @@ import { AdminServicePricingController } from "./presentation/service-pricing.co
     LaboratoryWorkspaceController,
     AdminServicePricingController,
     PatientLaboratoryReviewController,
+    AdminLaboratoryReviewController,
   ],
   providers: [
     LaboratoryService,

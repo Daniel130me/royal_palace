@@ -16,6 +16,29 @@ const reviewSchema = z
     score: z.number().int().min(1).max(5),
   })
   .strict();
+const moderationListSchema = z
+  .object({
+    cursor: z.string().min(1).max(1024).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+    status: z.enum(["PENDING", "PUBLISHED", "HIDDEN"]).default("PENDING"),
+  })
+  .strict();
+const moderationDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("PUBLISH"), expectedVersion: z.number().int().min(1) }).strict(),
+  z
+    .object({
+      decision: z.literal("HIDE"),
+      expectedVersion: z.number().int().min(1),
+      reasonCode: z.enum([
+        "ABUSIVE_OR_HARASSING",
+        "CLINICAL_DETAILS",
+        "IRRELEVANT",
+        "PERSONAL_DATA",
+        "SPAM_OR_FRAUD",
+      ]),
+    })
+    .strict(),
+]);
 
 @Controller("v1/patient")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -38,6 +61,36 @@ export class PatientLaboratoryReviewController {
   ) {
     return execute(() =>
       this.reviews.submit(context(request), parse(idSchema, bookingId), parse(reviewSchema, body)),
+    );
+  }
+}
+
+@Controller("v1/admin/review-comments")
+@UseGuards(AuthenticatedInternalRequestGuard)
+export class AdminLaboratoryReviewController {
+  constructor(@Inject(LaboratoryReviewService) private readonly reviews: LaboratoryReviewService) {}
+
+  @Get()
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION)
+  list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.reviews.listForModeration(context(request), parse(moderationListSchema, query)),
+    );
+  }
+
+  @Post(":reviewId/decision")
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION)
+  moderate(
+    @Param("reviewId") reviewId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.reviews.moderate(
+        context(request),
+        parse(idSchema, reviewId),
+        parse(moderationDecisionSchema, body),
+      ),
     );
   }
 }

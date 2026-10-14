@@ -104,6 +104,19 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "laboratory review moderation queue",
+        `SELECT review."id", review."comment", review."score", review."submitted_at"
+           FROM "laboratory_booking_reviews" AS review
+          WHERE review."comment_status" = 'PENDING'
+            AND (review."submitted_at", review."id") > ($1, $2)
+          ORDER BY review."submitted_at", review."id"
+          LIMIT 50`,
+        ["1970-01-01T00:00:00.000Z", "00000000-0000-0000-0000-000000000000"],
+        "laboratory_booking_reviews_moderation_queue_idx",
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
+      await reviewPlan(
+        client,
         "hospital name search",
         `SELECT organization."id", organization."display_name"
            FROM "organizations" AS organization
@@ -850,16 +863,19 @@ async function reviewPlan(
   sql: string,
   values: readonly unknown[],
   requiredIndex: string | readonly string[],
-  options: { forceIndexEligibility?: boolean } = {},
+  options: { forceIndexEligibility?: boolean; preserveOrderedIndexScans?: boolean } = {},
 ): Promise<Record<string, unknown>> {
   if (options.forceIndexEligibility === true) {
     // Small fixtures can legitimately make a sequential scan cheaper. Disabling it
-    // and ordered B-tree scans for this statement proves the ILIKE operator can use
-    // the intended trigram index; it is not presented as the planner's natural
-    // production choice.
+    // proves that the intended index is eligible. Trigram predicates additionally
+    // disable ordered scans so PostgreSQL must demonstrate their bitmap path; an
+    // ordered B-tree queue keeps ordered scans enabled so the proof matches its
+    // production access pattern.
     await client.query("SET LOCAL enable_seqscan = off");
-    await client.query("SET LOCAL enable_indexscan = off");
-    await client.query("SET LOCAL enable_indexonlyscan = off");
+    if (options.preserveOrderedIndexScans !== true) {
+      await client.query("SET LOCAL enable_indexscan = off");
+      await client.query("SET LOCAL enable_indexonlyscan = off");
+    }
   }
   const result = await client
     .query<{ "QUERY PLAN": ExplainDocument[] }>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`, [
@@ -868,8 +884,10 @@ async function reviewPlan(
     .finally(async () => {
       if (options.forceIndexEligibility === true) {
         await client.query("SET LOCAL enable_seqscan TO DEFAULT");
-        await client.query("SET LOCAL enable_indexscan TO DEFAULT");
-        await client.query("SET LOCAL enable_indexonlyscan TO DEFAULT");
+        if (options.preserveOrderedIndexScans !== true) {
+          await client.query("SET LOCAL enable_indexscan TO DEFAULT");
+          await client.query("SET LOCAL enable_indexonlyscan TO DEFAULT");
+        }
       }
     });
   const document = result.rows[0]?.["QUERY PLAN"]?.[0];

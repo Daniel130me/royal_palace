@@ -255,6 +255,22 @@ migration is forbidden.
 - Prototype screens covered by this checkpoint are available at `#/patient/laboratory`,
   `#/patient/laboratories`, and `#/laboratory/settings`.
 
+## Checkpoint 11D4F completion report
+
+- Only a platform administrator can list or decide review comments. Support, managers,
+  laboratories, practitioners, patients, and finance users are denied by the named policy.
+- The moderation projection excludes patient identity, booking details, service details, and
+  clinical records. It returns only the comment, verified score, laboratory identity, state,
+  timestamps, and optimistic version needed to make a decision.
+- Publish and hide are terminal transitions from `PENDING`. Hiding requires one controlled reason;
+  publishing cannot attach a reason. PostgreSQL records the moderator principal and independently
+  rejects invalid moderation shapes.
+- Moderation cannot change the immutable score, comment, booking, patient, organization, or
+  submission evidence. Every decision creates a patient-scoped, organization-scoped audit event.
+- The bounded oldest-first queue uses the composite moderation index and stable cursor pagination.
+  The administrator UI is available at `#/admin/review-moderation`; the existing approved
+  Complaints screen remains unchanged at `#/admin/complaints`.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -284,8 +300,9 @@ migration is forbidden.
   screens now use production boundaries. Laboratory charging now uses the production payment
   boundary. Laboratory settlement reporting and internal payout review now use the production
   organization-finance boundary. Verified completion-bound laboratory ratings now use the
-  production review boundary. Automated payout execution, comment-moderation administration,
-  billing and team administration, query-plan/load, and qualification work remains
+  production review boundary, including administrator comment moderation. Automated payout
+  execution, billing and team administration, representative moderation load evidence, and
+  qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
   privacy, and jurisdictional procedures are qualified. No approved screen or navigation
