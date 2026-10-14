@@ -10,8 +10,13 @@ import {
   createPublicDiscoveryClient,
   createPrescriptionClient,
   createSchedulingPaymentClient,
+  createOrganizationFinanceClient,
 } from "@royal-palace/api-client";
-import type { LaboratoryComponents, PrescriptionComponents } from "@royal-palace/api-client";
+import type {
+  LaboratoryComponents,
+  OrganizationFinanceComponents,
+  PrescriptionComponents,
+} from "@royal-palace/api-client";
 import type {
   OnboardingApplicationDetail,
   OnboardingApplicationListResponse,
@@ -150,6 +155,73 @@ const generatedPrescriptionClient = createPrescriptionClient({ fetch: versionedB
 const generatedNotificationClient = createNotificationClient({
   fetch: authenticatedGeneratedFetch,
 });
+const generatedOrganizationFinanceClient = createOrganizationFinanceClient({
+  fetch: versionedBffFetch,
+});
+
+export const productionOrganizationFinanceService = {
+  organization: {
+    report: (
+      organizationId: string,
+      from: string,
+      to: string,
+      granularity: "DAY" | "MONTH" | "TOTAL" = "MONTH",
+    ) =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/organization/finance/settlements", {
+          params: {
+            header: { ...financeRequestHeader(), "X-Organization-Id": organizationId },
+            query: { from, to, granularity },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    payouts: (organizationId: string) =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/organization/finance/payouts", {
+          params: { header: { ...financeRequestHeader(), "X-Organization-Id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
+    requestPayout: (
+      organizationId: string,
+      body: OrganizationFinanceComponents["schemas"]["RequestPayoutInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedOrganizationFinanceClient
+        .POST("/v1/organization/finance/payouts", {
+          body,
+          params: {
+            header: {
+              ...financeRequestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "X-Organization-Id": organizationId,
+            },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  admin: {
+    report: (from: string, to: string, granularity: "DAY" | "MONTH" | "TOTAL" = "MONTH") =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/admin/finance/settlements", {
+          params: { header: financeRequestHeader(), query: { from, to, granularity } },
+        })
+        .then(unwrapGeneratedResponse),
+    payouts: () =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/admin/finance/payouts", { params: { header: financeRequestHeader() } })
+        .then(unwrapGeneratedResponse),
+    review: (
+      payoutId: string,
+      body: OrganizationFinanceComponents["schemas"]["ReviewPayoutInput"],
+    ) =>
+      generatedOrganizationFinanceClient
+        .POST("/v1/admin/finance/payouts/{payoutId}/review", {
+          body,
+          params: { header: financeRequestHeader(), path: { payoutId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+};
 
 export const productionNotificationService = {
   list: (input: { cursor?: string; limit?: number; unreadOnly?: boolean } = {}) =>
@@ -1145,6 +1217,10 @@ function csrfHeader() {
 
 function requestHeader() {
   return { ...csrfHeader(), "x-request-id": crypto.randomUUID() };
+}
+
+function financeRequestHeader() {
+  return { ...csrfHeader(), "X-Request-Id": crypto.randomUUID() };
 }
 
 function versionedBffFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

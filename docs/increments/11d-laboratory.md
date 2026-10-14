@@ -22,8 +22,10 @@ the approved service catalogue, notification inbox, and laboratory profile/setti
 screens to exact-organization production contracts. Checkpoint 11D4C adds administrator-
 governed, effective-dated service prices, immutable booking price snapshots, and hosted
 checkout through the shared payment-subject boundary while keeping clinical state independent
-from settlement. Settlement, payout, reporting, and remaining
-supporting-screen work remains tracked below and must be completed before parity can be claimed.
+from settlement. Checkpoint 11D4D adds immutable organization earnings, currency-separated
+daily/monthly/custom-range reporting, concurrency-safe payout reservation, finance review,
+and conservative refund/dispute holds. Real payout execution and the remaining supporting-screen
+work remain tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
 
@@ -90,7 +92,7 @@ supporting-screen work remains tracked below and must be completed before parity
       patient chooses facility or home collection; home collection requires an explicitly
       enabled capability for the exact laboratory service and stores an immutable structured
       address snapshot rather than clinical request text or temporary browser state.
-- [ ] Add laboratory commercial pricing/payment to its owning commercial aggregate.
+- [x] Add laboratory commercial pricing/payment to its owning commercial aggregate.
 
 ### 11D3 — result and critical-result workflow
 
@@ -131,8 +133,10 @@ supporting-screen work remains tracked below and must be completed before parity
       practitioners see the mode but not the home address.
 - [x] Connect laboratory charging to the shared payment-subject boundary without
       coupling clinical completion to settlement.
-- [ ] Implement laboratory settlements/payouts and reporting only in their planned
-      shared financial slices; retain the approved navigation until connected.
+- [x] Implement laboratory settlements/payouts and reporting in a shared organization-finance
+      slice. Successful verified payments create earnings exactly once; payout requests reserve
+      only available same-currency earnings under serializable isolation; finance review enforces
+      separation of duties; refunds, reversals, and disputes fail safe to a reconciliation hold.
 - [ ] Complete clean/upgrade migration tests, failure/concurrency tests, load/query-plan
       evidence, prototype parity verification, and Nigerian qualification/UAT.
 - [ ] Keep all real laboratory processing disabled until the approval evidence is
@@ -181,6 +185,12 @@ facts even if application validation is bypassed. Existing historical bookings r
 nullable until a separately reviewed data migration can prove their commercial facts; every
 new booking must contain an exact active price snapshot and matching payment.
 
+Migration `20261014160000_organization_financial_boundary` is additive. It creates immutable
+payment-linked organization earnings, payout requests, and exact earning allocations with
+positive-amount, currency-shape, uniqueness, and referential constraints. Application rollback
+retains all financial records. Payout approval is deliberately distinct from provider execution;
+no bank-transfer provider reference or paid status is fabricated by this checkpoint.
+
 ## Checkpoint 11D4C completion report
 
 - Administrators can review all controlled hospital, pharmacy, and laboratory services on
@@ -196,6 +206,23 @@ new booking must contain an exact active price snapshot and matching payment.
   price without granting the laboratory authority to change it.
 - Prototype screens covered by this checkpoint are available at `#/admin/pricing`,
   `#/patient/laboratory`, and `#/laboratory/services`.
+
+## Checkpoint 11D4D completion report
+
+- A successful laboratory booking payment creates one organization earning from the immutable
+  booking price snapshots. Duplicate provider events cannot duplicate the earning.
+- Laboratory staff can review currency-separated daily, monthly, or bounded custom-range
+  settlement reports and request a payout only from currently available earnings.
+- Each payout request reserves exact earning allocations under serializable isolation and an
+  idempotency key, preventing duplicate submission and over-allocation during concurrent requests.
+- Finance or administrator roles can review payout requests, but the requester cannot approve
+  their own request. Approval records an internal decision only; real provider execution remains
+  disabled until the provider and Nigerian operating profile are qualified.
+- Refunds, reversals, and disputes hold affected unpaid earnings, flag reserved payout requests
+  for review, and require reconciliation after any completed payout rather than silently applying
+  an unapproved loss-allocation rule.
+- Prototype screens covered by this checkpoint are available at `#/laboratory/settlements`,
+  `#/laboratory/payouts`, and `#/admin/settlements`.
 
 ## Standards walkthrough
 
@@ -213,14 +240,17 @@ new booking must contain an exact active price snapshot and matching payment.
   UTC timestamps, and optimistic versions follow platform conventions.
 - **Extensibility:** the request references controlled service taxonomy; home addresses use
   ISO two-letter country codes and optional region/postal fields. Prices use supplied ISO 4217
-  currency codes and effective dates, and checkout continues through provider adapters. The
+  currency codes and effective dates, and checkout continues through provider adapters. Financial
+  reports are bounded to 366 days, use composite organization/currency/status/time indexes, and
+  separate currencies rather than performing invalid cross-currency totals. The
   aggregate remains independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the primary laboratory, patient, and practitioner result
   workflows, embedded result widgets, service catalogue, notification inbox, and profile/settings
   screens now use production boundaries. Laboratory charging now uses the production payment
-  boundary. Settlement/payout/reporting, verified rating/review, billing and team administration,
+  boundary. Laboratory settlement reporting and internal payout review now use the production
+  organization-finance boundary. Automated payout execution, verified rating/review, billing and team administration,
   query-plan/load, and qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,

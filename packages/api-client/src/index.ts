@@ -7,6 +7,7 @@ import type { paths as SchedulingPaymentPaths } from "./generated/scheduling-pay
 import type { paths as NotificationPaths } from "./generated/notifications.js";
 import type { paths as PrescriptionPaths } from "./generated/prescriptions.js";
 import type { paths as LaboratoryPaths } from "./generated/laboratory.js";
+import type { paths as OrganizationFinancePaths } from "./generated/organization-finance.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
 export type {
@@ -33,6 +34,10 @@ export type {
   components as LaboratoryComponents,
   paths as LaboratoryPaths,
 } from "./generated/laboratory.js";
+export type {
+  components as OrganizationFinanceComponents,
+  paths as OrganizationFinancePaths,
+} from "./generated/organization-finance.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
@@ -105,6 +110,17 @@ export function createLaboratoryClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<LaboratoryPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createOrganizationFinanceClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<OrganizationFinancePaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

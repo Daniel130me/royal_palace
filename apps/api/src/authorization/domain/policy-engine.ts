@@ -81,11 +81,26 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
+      case AUTHORIZATION_POLICY.REQUEST_ORGANIZATION_PAYOUT:
         return this.canManageOrganizationResource(
           request.actor,
           request.context.organizationId,
           request.policy,
         );
+      case AUTHORIZATION_POLICY.VIEW_ORGANIZATION_FINANCIALS:
+        if (request.context.organizationId === undefined) {
+          return this.allowPlatformRole(request.actor, request.policy, [
+            "FINANCE",
+            "ADMINISTRATOR",
+          ]);
+        }
+        return this.canManageOrganizationResource(
+          request.actor,
+          request.context.organizationId,
+          request.policy,
+        );
+      case AUTHORIZATION_POLICY.REVIEW_ORGANIZATION_PAYOUT:
+        return this.allowPlatformRole(request.actor, request.policy, ["FINANCE", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.MANAGE_OWN_SCANNED_PRESCRIPTION:

@@ -1,0 +1,215 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Organization Finance API
+  version: 1.0.0
+paths:
+  /v1/organization/finance/settlements:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Granularity"
+      responses:
+        "200":
+          description: Organization settlement report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettlementReport" }
+  /v1/organization/finance/payouts:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Payout requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutList" }
+    post:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestPayoutInput" }
+      responses:
+        "201":
+          description: Payout requested
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payout" }
+  /v1/admin/finance/settlements:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Granularity"
+      responses:
+        "200":
+          description: Platform settlement report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettlementReport" }
+  /v1/admin/finance/payouts:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Platform payout requests
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutList" }
+  /v1/admin/finance/payouts/{payoutId}/review:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - name: payoutId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewPayoutInput" }
+      responses:
+        "200":
+          description: Reviewed payout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payout" }
+components:
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      schema: { type: string }
+    OrganizationId:
+      name: X-Organization-Id
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+    From:
+      name: from
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
+    To:
+      name: to
+      in: query
+      required: true
+      schema: { type: string, format: date-time }
+    Granularity:
+      name: granularity
+      in: query
+      required: false
+      schema: { type: string, enum: [DAY, MONTH, TOTAL], default: MONTH }
+  schemas:
+    OrganizationSummary:
+      type: object
+      required: [id, displayName, type]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        type: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY] }
+    SettlementPeriod:
+      type: object
+      required:
+        [
+          organization,
+          currency,
+          periodStart,
+          periodEnd,
+          earningCount,
+          grossAmountMinor,
+          payableAmountMinor,
+          heldAmountMinor,
+          reservedAmountMinor,
+          paidAmountMinor,
+          availableAmountMinor,
+        ]
+      properties:
+        organization: { $ref: "#/components/schemas/OrganizationSummary" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        earningCount: { type: integer, minimum: 0 }
+        grossAmountMinor: { type: string, pattern: '^\d+$' }
+        payableAmountMinor: { type: string, pattern: '^\d+$' }
+        heldAmountMinor: { type: string, pattern: '^\d+$' }
+        reservedAmountMinor: { type: string, pattern: '^\d+$' }
+        paidAmountMinor: { type: string, pattern: '^\d+$' }
+        availableAmountMinor: { type: string, pattern: '^\d+$' }
+    SettlementReport:
+      type: object
+      required: [data, from, to, granularity]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/SettlementPeriod" } }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        granularity: { type: string, enum: [DAY, MONTH, TOTAL] }
+    Payout:
+      type: object
+      required:
+        [
+          id,
+          payoutNumber,
+          organization,
+          currency,
+          requestedAmountMinor,
+          status,
+          requestedAt,
+          reviewedAt,
+          reviewReasonCode,
+          paidAt,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        payoutNumber: { type: string }
+        organization: { $ref: "#/components/schemas/OrganizationSummary" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        requestedAmountMinor: { type: string, pattern: '^\d+$' }
+        status:
+          {
+            type: string,
+            enum:
+              [REQUESTED, REVIEW_REQUIRED, APPROVED, REJECTED, CANCELLED, PROCESSING, PAID, FAILED],
+          }
+        requestedAt: { type: string, format: date-time }
+        reviewedAt: { type: [string, "null"], format: date-time }
+        reviewReasonCode: { type: [string, "null"] }
+        paidAt: { type: [string, "null"], format: date-time }
+        version: { type: integer, minimum: 1 }
+    PayoutList:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Payout" } }
+    RequestPayoutInput:
+      type: object
+      additionalProperties: false
+      required: [currency, requestedAmountMinor]
+      properties:
+        currency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        requestedAmountMinor: { type: string, pattern: '^\d{1,19}$' }
+    ReviewPayoutInput:
+      type: object
+      additionalProperties: false
+      required: [decision, expectedVersion, reasonCode]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        expectedVersion: { type: integer, minimum: 1 }
+        reasonCode: { type: string, minLength: 3, maxLength: 100 }

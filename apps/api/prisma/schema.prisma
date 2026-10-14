@@ -330,6 +330,27 @@ enum LedgerDirection {
   CREDIT
 }
 
+enum OrganizationEarningCategory {
+  LABORATORY_SERVICE
+}
+
+enum OrganizationEarningStatus {
+  AVAILABLE
+  ON_HOLD
+  RECONCILIATION_REQUIRED
+}
+
+enum OrganizationPayoutStatus {
+  REQUESTED
+  REVIEW_REQUIRED
+  APPROVED
+  REJECTED
+  CANCELLED
+  PROCESSING
+  PAID
+  FAILED
+}
+
 enum RoleScope {
   PLATFORM
   ORGANIZATION
@@ -607,6 +628,8 @@ model IdentityPrincipal {
   criticalResultsAcknowledged    LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultAcknowledger")
   criticalResultsResolved        LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultResolver")
   criticalResultNotifications    LaboratoryCriticalNotification[]   @relation("LaboratoryCriticalNotificationRecipient")
+  organizationPayoutRequests     OrganizationPayoutRequest[]         @relation("OrganizationPayoutRequester")
+  organizationPayoutReviews      OrganizationPayoutRequest[]         @relation("OrganizationPayoutReviewer")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -744,6 +767,8 @@ model Organization {
   pharmacyOperationalSettings       PharmacyOperationalSettings?
   laboratoryBookings                LaboratoryBooking[]
   laboratoryResults                 LaboratoryResult[]
+  earnings                          OrganizationEarning[]
+  payoutRequests                    OrganizationPayoutRequest[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -2766,6 +2791,7 @@ model Payment {
   statusHistory            PaymentStatusHistory[]
   ledgerTransactions       LedgerTransaction[]
   reconciliations          PaymentReconciliation[]
+  organizationEarning      OrganizationEarning?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "payments_patient_created_idx")
   @@index([purpose, status, payableUntil, id], map: "payments_purpose_payable_idx")
@@ -2880,4 +2906,69 @@ model PaymentReconciliation {
   @@index([paymentId, createdAt(sort: Desc), id(sort: Desc)], map: "payment_reconciliations_payment_created_idx")
   @@index([resultCode, createdAt(sort: Desc), id(sort: Desc)], map: "payment_reconciliations_result_created_idx")
   @@map("payment_reconciliations")
+}
+
+model OrganizationEarning {
+  id                  String                      @id @db.Uuid
+  organizationId      String                      @map("organization_id") @db.Uuid
+  paymentId           String                      @unique @map("payment_id") @db.Uuid
+  category            OrganizationEarningCategory
+  grossAmountMinor    BigInt                      @map("gross_amount_minor")
+  payableAmountMinor  BigInt                      @map("payable_amount_minor")
+  currency            String                      @db.Char(3)
+  status              OrganizationEarningStatus  @default(AVAILABLE)
+  earnedAt            DateTime                    @map("earned_at") @db.Timestamptz(6)
+  holdReasonCode      String?                     @map("hold_reason_code") @db.VarChar(100)
+  createdAt           DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                         @default(1)
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  payment             Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payoutAllocations   OrganizationPayoutAllocation[]
+
+  @@index([organizationId, currency, status, earnedAt(sort: Desc), id(sort: Desc)], map: "organization_earnings_org_currency_status_earned_idx")
+  @@index([status, earnedAt, id], map: "organization_earnings_status_earned_idx")
+  @@map("organization_earnings")
+}
+
+model OrganizationPayoutRequest {
+  id                     String                     @id @db.Uuid
+  payoutNumber           String                     @unique @map("payout_number") @db.VarChar(64)
+  organizationId         String                     @map("organization_id") @db.Uuid
+  currency               String                     @db.Char(3)
+  requestedAmountMinor   BigInt                     @map("requested_amount_minor")
+  status                 OrganizationPayoutStatus   @default(REQUESTED)
+  requestedByPrincipalId String                     @map("requested_by_principal_id") @db.Uuid
+  reviewedByPrincipalId  String?                    @map("reviewed_by_principal_id") @db.Uuid
+  reviewReasonCode       String?                    @map("review_reason_code") @db.VarChar(100)
+  providerCode           String?                    @map("provider_code") @db.VarChar(64)
+  providerReference      String?                    @unique @map("provider_reference") @db.VarChar(255)
+  requestedAt            DateTime                   @map("requested_at") @db.Timestamptz(6)
+  reviewedAt             DateTime?                  @map("reviewed_at") @db.Timestamptz(6)
+  paidAt                 DateTime?                  @map("paid_at") @db.Timestamptz(6)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                        @default(1)
+  organization           Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requestedByPrincipal   IdentityPrincipal          @relation("OrganizationPayoutRequester", fields: [requestedByPrincipalId], references: [id], onDelete: Restrict)
+  reviewedByPrincipal    IdentityPrincipal?         @relation("OrganizationPayoutReviewer", fields: [reviewedByPrincipalId], references: [id], onDelete: Restrict)
+  allocations            OrganizationPayoutAllocation[]
+
+  @@index([organizationId, currency, status, requestedAt(sort: Desc), id(sort: Desc)], map: "organization_payouts_org_currency_status_requested_idx")
+  @@index([status, requestedAt, id], map: "organization_payouts_status_requested_idx")
+  @@map("organization_payout_requests")
+}
+
+model OrganizationPayoutAllocation {
+  id              String                    @id @db.Uuid
+  payoutRequestId String                    @map("payout_request_id") @db.Uuid
+  earningId       String                    @map("earning_id") @db.Uuid
+  amountMinor     BigInt                    @map("amount_minor")
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  payoutRequest   OrganizationPayoutRequest @relation(fields: [payoutRequestId], references: [id], onDelete: Restrict)
+  earning         OrganizationEarning       @relation(fields: [earningId], references: [id], onDelete: Restrict)
+
+  @@unique([payoutRequestId, earningId], map: "organization_payout_allocations_request_earning_key")
+  @@index([earningId, payoutRequestId], map: "organization_payout_allocations_earning_request_idx")
+  @@map("organization_payout_allocations")
 }

@@ -14,6 +14,7 @@ import type {
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { projectOrganizationEarning } from "../../finance/infrastructure/prisma-organization-finance.repository.js";
 import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
 import { releasePlatformInventory } from "../../pharmacy/infrastructure/platform-inventory-transactions.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
@@ -612,7 +613,14 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
     const payment = await transaction.payment.findUnique({
       include: {
         appointment: true,
-        laboratoryBooking: { select: { id: true, status: true } },
+        laboratoryBooking: {
+          select: {
+            id: true,
+            laboratoryOrganizationId: true,
+            laboratoryPayoutMinor: true,
+            status: true,
+          },
+        },
         patient: { select: { principalId: true } },
         pharmacyOrder: {
           include: {
@@ -740,6 +748,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       },
     });
     await this.postLedgerEffects(transaction, payment, input.event);
+    await projectOrganizationEarning(transaction, payment, input.event);
     const now = new Date();
     const refundIncrement = ["PARTIALLY_REFUNDED", "REFUNDED"].includes(transition.target)
       ? (input.event.amountMinor ?? 0n)

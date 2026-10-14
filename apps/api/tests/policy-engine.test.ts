@@ -69,6 +69,18 @@ function baselineRequest(
         policy,
         context: { organizationId, resourceId, resourceType: "organization" },
       };
+    case AUTHORIZATION_POLICY.VIEW_ORGANIZATION_FINANCIALS:
+      return {
+        ...base,
+        policy,
+        context: { resourceId, resourceType: "organization_finance" },
+      };
+    case AUTHORIZATION_POLICY.REQUEST_ORGANIZATION_PAYOUT:
+      return {
+        ...base,
+        policy,
+        context: { organizationId, resourceId, resourceType: "organization_payout" },
+      };
     case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
     case AUTHORIZATION_POLICY.DECIDE_APPLICATION:
     case AUTHORIZATION_POLICY.MANAGE_OWN_APPLICATION:
@@ -255,6 +267,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.EXPIRE_PRESCRIPTIONS:
     case AUTHORIZATION_POLICY.RECONCILE_PAYMENT:
     case AUTHORIZATION_POLICY.REVIEW_MANAGER_TICKET:
+    case AUTHORIZATION_POLICY.REVIEW_ORGANIZATION_PAYOUT:
       return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
     case AUTHORIZATION_POLICY.REVOKE_PRINCIPAL_SESSIONS:
       return { ...base, policy, context: { resourceId, resourceType: "identity_principal" } };
@@ -310,6 +323,9 @@ describe("PolicyEngine", () => {
     VIEW_ORGANIZATION: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PATIENT_PAYMENT_AMOUNT: ["FINANCE", "ADMINISTRATOR"],
+    VIEW_ORGANIZATION_FINANCIALS: ["FINANCE", "ADMINISTRATOR"],
+    REQUEST_ORGANIZATION_PAYOUT: [],
+    REVIEW_ORGANIZATION_PAYOUT: ["FINANCE", "ADMINISTRATOR"],
     VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
     ROUTE_PRESCRIPTION: [],
     ROUTE_LABORATORY_REQUEST: [],

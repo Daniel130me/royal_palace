@@ -49,6 +49,9 @@ export const AUTHORIZATION_POLICY = {
   VIEW_ORGANIZATION: "VIEW_ORGANIZATION",
   VIEW_PATIENT: "VIEW_PATIENT",
   VIEW_PATIENT_PAYMENT_AMOUNT: "VIEW_PATIENT_PAYMENT_AMOUNT",
+  VIEW_ORGANIZATION_FINANCIALS: "VIEW_ORGANIZATION_FINANCIALS",
+  REQUEST_ORGANIZATION_PAYOUT: "REQUEST_ORGANIZATION_PAYOUT",
+  REVIEW_ORGANIZATION_PAYOUT: "REVIEW_ORGANIZATION_PAYOUT",
   VIEW_APPOINTMENT: "VIEW_APPOINTMENT",
   ROUTE_PRESCRIPTION: "ROUTE_PRESCRIPTION",
   VIEW_PRESCRIPTION: "VIEW_PRESCRIPTION",
@@ -58,7 +61,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 19;
+export const AUTHORIZATION_POLICY_VERSION = 20;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -148,6 +151,9 @@ export interface AuthorizationPolicyContexts {
     viewLevel: "CARE" | "OPERATIONAL";
   };
   VIEW_PATIENT_PAYMENT_AMOUNT: ResourceReference & { patientPrincipalId: string };
+  VIEW_ORGANIZATION_FINANCIALS: ResourceReference & { organizationId?: string };
+  REQUEST_ORGANIZATION_PAYOUT: ResourceReference & { organizationId: string };
+  REVIEW_ORGANIZATION_PAYOUT: ResourceReference;
   VIEW_APPOINTMENT: ResourceReference & {
     patientPrincipalId: string;
     practitionerPrincipalId: string | null;
