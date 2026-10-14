@@ -42,7 +42,6 @@ const MODELS = [
   "diagnosis",
   "laboratoryRequest",
   "laboratoryBooking",
-  "laboratoryResult",
   "delivery",
   "referral",
   "recordAccessGrant",
@@ -63,11 +62,18 @@ type ModelName = (typeof MODELS)[number];
 
 const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   appointment: { patient: true, provider: true, encounter: true, payment: true },
-  clinicalEncounter: { appointment: true, patient: true, provider: true, prescriptions: true, labRequests: true, referrals: true, diagnoses: true },
+  clinicalEncounter: {
+    appointment: true,
+    patient: true,
+    provider: true,
+    prescriptions: true,
+    labRequests: true,
+    referrals: true,
+    diagnoses: true,
+  },
   laboratoryRequest: { patient: true, provider: true, booking: true, result: true },
   laboratoryBooking: { laboratory: true, patient: true, request: true },
   hospital: { services: true },
-  laboratoryResult: { laboratory: true, patient: true },
   pharmacyProduct: { pharmacy: true },
   delivery: { logisticsProvider: true, order: true },
   referral: { patient: true, sender: true, recipient: true },
@@ -83,7 +89,7 @@ function isModel(name: string): name is ModelName {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ collection: string }> }
+  { params }: { params: Promise<{ collection: string }> },
 ) {
   const { collection } = await params;
   if (!isModel(collection)) {
@@ -147,14 +153,17 @@ function serializeMany(collection: string, rows: unknown[]): unknown[] {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ collection: string }> }
+  { params }: { params: Promise<{ collection: string }> },
 ) {
   const { collection } = await params;
   if (!isModel(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }
   if (collection === "hospital" || collection === "hospitalService") {
-    return NextResponse.json({ error: "Hospitals are created only through Admin-approved onboarding." }, { status: 403 });
+    return NextResponse.json(
+      { error: "Hospitals are created only through Admin-approved onboarding." },
+      { status: 403 },
+    );
   }
   const body = await req.json();
   const include = INCLUDES[collection] ?? undefined;

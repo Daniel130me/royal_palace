@@ -1,214 +1,213 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { navigate, useNav } from "@/lib/nav";
-import { useProviderContext } from "../use-provider-context";
-import { labRequestService } from "@/lib/services";
-import { normalizeLabRequest } from "../normalize";
-import type { LaboratoryRequest, LaboratoryResult } from "@/types";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
+import { AlertTriangle, ArrowRight, CheckCircle2, FlaskConical, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { PageHeader, EmptyState, SkeletonGrid, ErrorState } from "@/components/healthcare/page-header";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { ExpandableCard } from "@/components/healthcare/compact-list";
-import { formatDate, relativeDay, fullName } from "@/lib/format";
-import { resource } from "@/lib/api-client";
-import { toast } from "sonner";
-import { FlaskConical, ArrowRight, CheckCircle2, AlertTriangle, Search } from "lucide-react";
+import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
+import { navigate, useNav } from "@/lib/nav";
+import { productionLaboratoryService } from "@/lib/services";
 
-type Tab = "pending" | "reviewed";
+type Tab = "action" | "all";
+
+function actionableCritical(result: LaboratoryResultResponse) {
+  return result.criticalResults.find(
+    (critical) => critical.status === "OPEN" || critical.status === "ESCALATED",
+  );
+}
 
 export function ProviderResults() {
   const { view } = useNav();
-  const { providerId, profile } = useProviderContext();
   const highlightId = view.params.id;
-  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [markingId, setMarkingId] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-  const [tab, setTab] = useState<Tab>("pending");
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<Tab>("action");
 
-  const load = useCallback(async () => {
-    if (!providerId) return;
-    setLoading(true);
+  const load = useCallback(async (cursor?: string) => {
+    if (cursor === undefined) setLoading(true);
+    else setLoadingMore(true);
     setError(null);
     try {
-      const labs = await labRequestService.list({ requestingProviderId: providerId });
-      setLabRequests(labs.map(normalizeLabRequest));
-    } catch (e) {
-      setError((e as Error).message ?? "Failed to load results.");
+      const response = await productionLaboratoryService.provider.results(cursor);
+      setResults((current) =>
+        cursor === undefined ? response.data : [...current, ...response.data],
+      );
+      setEndCursor(response.pageInfo.endCursor);
+      setHasNextPage(response.pageInfo.hasNextPage);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Laboratory results could not be loaded.");
     } finally {
-      setLoading(false);
+      if (cursor === undefined) setLoading(false);
+      else setLoadingMore(false);
     }
-  }, [providerId]);
+  }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const results = useMemo(
-    () => labRequests.filter((l) => l.result).map((l) => ({ request: l, result: l.result! })),
-    [labRequests]
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return results.filter((result) => {
+      if (tab === "action" && actionableCritical(result) === undefined) return false;
+      if (!term) return true;
+      return `${result.service.name} ${result.patient.displayName} ${result.resultNumber} ${result.components
+        .map((component) => `${component.name} ${component.value}`)
+        .join(" ")}`
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [query, results, tab]);
+
+  const actionCount = useMemo(
+    () => results.filter((result) => actionableCritical(result) !== undefined).length,
+    [results],
   );
 
-  const filtered = useMemo(() => {
-    const sorted = [...results].sort((a, b) => (b.result.resultDate ?? "").localeCompare(a.result.resultDate ?? ""));
-    const term = q.trim().toLowerCase();
-    if (!term) return sorted;
-    return sorted.filter(({ request, result }) =>
-      `${result.test} ${result.value} ${result.unit} ${request.patient ? fullName(request.patient) : ""} ${request.requestNumber}`.toLowerCase().includes(term)
-    );
-  }, [results, q]);
-
-  const pending = filtered.filter(({ result }) => !result.reviewer);
-  const reviewed = filtered.filter(({ result }) => result.reviewer);
-
-  const current = tab === "pending" ? pending : reviewed;
-
-  async function markReviewed(resultId: string, patientName: string) {
-    setMarkingId(resultId);
+  async function acknowledge(result: LaboratoryResultResponse) {
+    const critical = actionableCritical(result);
+    if (!critical) return;
+    setAcknowledgingId(critical.id);
     try {
-      const reviewerName = profile ? `${profile.title} ${profile.lastName} (reviewed)` : "Provider (reviewed)";
-      await resource.update<LaboratoryResult>("laboratoryResult", resultId, {
-        reviewer: reviewerName,
-      });
-      toast.success("Marked as reviewed.", { description: `${patientName}'s result has been acknowledged.` });
+      await productionLaboratoryService.provider.acknowledgeCriticalResult(
+        critical.id,
+        critical.version,
+      );
+      toast.success("Critical result acknowledged with an auditable timestamp.");
       await load();
-    } catch (e) {
-      toast.error("Could not mark reviewed: " + (e as Error).message);
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error ? cause.message : "The critical result could not be acknowledged.",
+      );
+      await load();
     } finally {
-      setMarkingId(null);
+      setAcknowledgingId(null);
     }
   }
 
   if (loading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Lab results" description="Results for the tests you have ordered." />
+        <PageHeader description="Published results for tests you ordered." title="Lab results" />
         <SkeletonGrid count={3} />
       </div>
     );
   }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error) return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div>
       <PageHeader
-        title="Lab results"
-        description="Results for the tests you have ordered."
         actions={
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input className="pl-9" placeholder="Search test, patient, value…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search test, patient, value…"
+              value={query}
+            />
           </div>
         }
+        description="Published results for tests you ordered."
+        title="Lab results"
       />
 
-      <div className="sticky top-14 lg:top-16 z-20 bg-background/95 backdrop-blur-md pb-3 mb-3">
+      <div className="sticky top-14 z-20 mb-3 bg-background/95 pb-3 backdrop-blur-md lg:top-16">
         <SegmentedControl
-          value={tab}
-          onChange={(v) => setTab(v as Tab)}
+          onChange={(value) => setTab(value as Tab)}
           options={[
-            { value: "pending", label: "Pending review", icon: AlertTriangle, badge: pending.length || undefined },
-            { value: "reviewed", label: "Reviewed", icon: CheckCircle2, badge: reviewed.length || undefined },
+            {
+              value: "action",
+              label: "Action required",
+              icon: AlertTriangle,
+              badge: actionCount || undefined,
+            },
+            { value: "all", label: "All results", icon: CheckCircle2, badge: results.length },
           ]}
+          value={tab}
         />
       </div>
 
-      {current.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState
-          icon={tab === "pending" ? CheckCircle2 : FlaskConical}
-          title={tab === "pending" ? "All caught up" : "No reviewed results"}
-          description={
-            tab === "pending"
-              ? "No results pending your review."
-              : "Reviewed results will appear here once acknowledged."
-          }
           compact
+          description={
+            tab === "action"
+              ? "No critical results are awaiting your acknowledgement."
+              : "Published laboratory results will appear here."
+          }
+          icon={tab === "action" ? CheckCircle2 : FlaskConical}
+          title={tab === "action" ? "All caught up" : "No laboratory results"}
         />
       ) : (
         <div className="space-y-2.5">
-          {current.map(({ request, result }) => {
-            const abnormalFlag = result.abnormalIndicator && result.abnormalIndicator !== "normal";
-            const isReviewed = !!result.reviewer;
-            const highlight = result.id === highlightId;
+          {filtered.map((result) => {
+            const critical = actionableCritical(result);
             return (
-              <ExpandableCard
-                key={result.id}
-                className={highlight ? "ring-2 ring-emerald-400" : ""}
-                title={result.test}
-                subtitle={`${request.patient ? fullName(request.patient) : "Patient"} · ${request.requestNumber} · ${formatDate(result.resultDate)} · ${relativeDay(result.resultDate)}`}
-                leading={
-                  <div className={`rounded-xl p-2 ${abnormalFlag ? "bg-rose-50" : "bg-muted"}`}>
-                    {abnormalFlag
-                      ? <AlertTriangle className="h-4 w-4 text-rose-600" />
-                      : <FlaskConical className="h-4 w-4 text-violet-600" />}
-                  </div>
-                }
-                trailing={
-                  <div className="flex flex-col items-end gap-1">
-                    {abnormalFlag ? (
-                      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{result.abnormalIndicator}</Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]">normal</Badge>
-                    )}
-                    {isReviewed && (
-                      <Badge variant="outline" className="h-5 text-[10px]">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> reviewed
-                      </Badge>
-                    )}
-                  </div>
-                }
-                defaultOpen={highlight}
-              >
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Value</p>
-                      <p className="font-semibold mt-0.5">{result.value} {result.unit}</p>
-                    </div>
-                    <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Reference</p>
-                      <p className="font-semibold mt-0.5">{result.referenceRange ?? "—"}</p>
-                    </div>
-                  </div>
-
-                  {result.interpretation && (
-                    <p className="text-xs text-muted-foreground border-t border-border/60 pt-2 leading-relaxed">
-                      <span className="font-medium text-foreground">Interpretation:</span> {result.interpretation}
-                    </p>
-                  )}
-
-                  {result.reviewer && (
-                    <p className="text-xs text-muted-foreground">Reviewed by: {result.reviewer}</p>
-                  )}
-
-                  <div className="flex gap-2">
-                    {!isReviewed ? (
-                      <Button size="sm" disabled={markingId === result.id} onClick={() => markReviewed(result.id, request.patient ? fullName(request.patient) : "patient")}>
-                        {markingId === result.id ? "Marking…" : (<><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark reviewed</>)}
+              <LaboratoryResultCard
+                actions={
+                  <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                    {critical && (
+                      <Button
+                        disabled={acknowledgingId === critical.id}
+                        onClick={() => void acknowledge(result)}
+                        size="sm"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {acknowledgingId === critical.id
+                          ? "Acknowledging…"
+                          : "Acknowledge critical result"}
                       </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Acknowledged
-                      </Badge>
                     )}
-                    <Button size="sm" variant="outline" onClick={() => navigate("provider", "patient", { id: request.patientId })}>
-                      Open patient <ArrowRight className="h-3 w-3 ml-1" />
+                    <Button
+                      onClick={() => navigate("provider", "patient", { id: result.patient.id })}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Open patient <ArrowRight className="h-3 w-3" />
                     </Button>
                   </div>
-                </div>
-              </ExpandableCard>
+                }
+                defaultOpen={result.id === highlightId || critical !== undefined}
+                downloadAttachment={(resultId, attachmentId) =>
+                  productionLaboratoryService.provider.resultAttachmentDownload(
+                    resultId,
+                    attachmentId,
+                  )
+                }
+                key={result.id}
+                result={result}
+                showPatient
+              />
             );
           })}
         </div>
       )}
 
-      <div className="mt-4">
-        <p className="text-xs text-muted-foreground">{current.length} result(s)</p>
-      </div>
+      {hasNextPage && endCursor && (
+        <div className="mt-4 flex justify-center">
+          <Button disabled={loadingMore} onClick={() => void load(endCursor)} variant="outline">
+            {loadingMore ? "Loading…" : "Load more results"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

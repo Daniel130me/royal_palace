@@ -1,160 +1,162 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { useLabContext } from "../use-lab-context";
-import { laboratoryService } from "@/lib/services";
-import type { LaboratoryResult } from "@/types";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
+import { AlertTriangle, ShieldCheck, Stethoscope } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
 import {
-  PageHeader, EmptyState, ErrorState, SkeletonGrid,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
-import { ExpandableCard } from "@/components/healthcare/compact-list";
-import { toast } from "sonner";
-import { formatDate, formatDateTime, fullName } from "@/lib/format";
-import { AlertTriangle, Phone, Stethoscope, ShieldCheck } from "lucide-react";
+import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
+import { formatDateTime } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { productionLaboratoryService } from "@/lib/services";
+import { useLabContext } from "../use-lab-context";
 
 export function LabCriticalResults() {
-  const { labId, reload } = useLabContext();
-  const [results, setResults] = useState<LaboratoryResult[]>([]);
+  const { labId } = useLabContext();
+  const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notifying, setNotifying] = useState<string | null>(null);
+  const [endCursor, setEndCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
 
-  const load = () => {
-    if (!labId) return;
-    setLoading(true);
-    laboratoryService
-      .results(labId)
-      .then((r) =>
-        setResults(
-          r
-            .filter((x) => x.abnormalIndicator === "critical")
-            .sort((a, b) => b.resultDate.localeCompare(a.resultDate))
-        )
-      )
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load results."))
-      .finally(() => setLoading(false));
-  };
+  const load = useCallback(
+    async (cursor?: string) => {
+      if (!labId) return;
+      if (cursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const response = await productionLaboratoryService.laboratory.results(
+          labId,
+          "PUBLISHED",
+          cursor,
+          25,
+        );
+        const critical = response.data.filter((result) => result.summaryFlag === "CRITICAL");
+        setResults((current) => (cursor === undefined ? critical : [...current, ...critical]));
+        setEndCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Critical results could not be loaded.");
+      } finally {
+        if (cursor === undefined) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [labId],
+  );
 
-  useEffect(load, [labId]);
-
-  const notifyProvider = (r: LaboratoryResult) => {
-    setNotifying(r.id);
-    setTimeout(() => {
-      toast.success(
-        `Referring provider and patient notified about critical ${r.test} result for ${r.patient ? fullName(r.patient) : "patient"}.`,
-        { description: `Result ${r.resultNumber} · flagged for immediate review.` }
-      );
-      setNotifying(null);
-    }, 600);
-  };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
         <SkeletonGrid count={3} />
       </div>
     );
   }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error) return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Critical results"
-        description="Results requiring immediate provider attention."
         actions={
-          <Button variant="outline" size="sm" onClick={() => navigate("laboratory", "results")} className="hidden lg:inline-flex">
+          <Button
+            className="hidden lg:inline-flex"
+            onClick={() => navigate("laboratory", "results")}
+            size="sm"
+            variant="outline"
+          >
             View all results
           </Button>
         }
+        description="Published critical results and their practitioner acknowledgement state."
+        title="Critical results"
       />
 
-      {/* Protocol notice */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2.5">
-        <div className="rounded-lg bg-amber-100 p-1.5 shrink-0">
+      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <div className="shrink-0 rounded-lg bg-amber-100 p-1.5">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-amber-800">Royal Palace protocol</p>
-          <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-            Critical results must be communicated to the referring provider within 1 hour.
+          <p className="text-sm font-semibold text-amber-800">Controlled escalation protocol</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
+            Publication automatically creates the configured acknowledgement deadline and a
+            privacy-safe practitioner alert. Overdue records are escalated by the worker; laboratory
+            staff cannot fabricate a notification event from this screen.
           </p>
         </div>
       </div>
 
       {results.length === 0 ? (
         <EmptyState
+          compact
+          description="Published results flagged as critical will appear here for follow-up."
           icon={ShieldCheck}
           title="No critical results"
-          description="Results with an abnormal indicator of 'critical' will appear here for follow-up."
-          compact
         />
       ) : (
         <div className="space-y-2">
-          {results.map((r) => (
-            <ExpandableCard
-              key={r.id}
-              className="border-rose-200 bg-rose-50/30"
-              leading={
-                <div className="rounded-lg bg-rose-100 p-2 ring-1 ring-rose-200">
-                  <AlertTriangle className="h-4 w-4 text-rose-600" />
-                </div>
-              }
-              title={r.test}
-              subtitle={`${r.patient ? fullName(r.patient) : "Patient"} · ${r.resultNumber} · ${formatDate(r.resultDate)}`}
-              trailing={
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-rose-700 tabular-nums">{r.value} <span className="text-xs font-normal">{r.unit}</span></span>
-                  <StatusBadge status="critical" size="sm" />
-                </div>
-              }
-            >
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <Field label="Reference range" value={r.referenceRange ?? "—"} />
-                  <Field label="Reviewer" value={r.reviewer ?? "—"} />
-                </div>
-                {r.interpretation && (
-                  <div>
-                    <p className="text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Interpretation</p>
-                    <p className="text-sm bg-rose-50 border border-rose-200 rounded-lg p-3 leading-relaxed">{r.interpretation}</p>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Auto-notified patient + referring provider at {formatDateTime(r.resultDate)}.
-                </p>
-                <div className="flex gap-2 pt-1">
+          {results.map((result) => (
+            <LaboratoryResultCard
+              actions={
+                <div className="space-y-2 border-t border-border/60 pt-3">
+                  {result.criticalResults.map((critical) => (
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/30 p-2.5 text-xs"
+                      key={critical.id}
+                    >
+                      <div>
+                        <p className="font-medium">Practitioner acknowledgement</p>
+                        <p className="text-muted-foreground">
+                          Due {formatDateTime(critical.acknowledgementDueAt)}
+                        </p>
+                      </div>
+                      <StatusBadge size="sm" status={critical.status.toLowerCase()} />
+                    </div>
+                  ))}
                   <Button
-                    variant="destructive"
+                    onClick={() => navigate("laboratory", "results")}
                     size="sm"
-                    disabled={notifying === r.id}
-                    onClick={() => notifyProvider(r)}
+                    variant="outline"
                   >
-                    <Phone className="h-3.5 w-3.5" />
-                    {notifying === r.id ? "Notifying…" : "Notify provider"}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => navigate("laboratory", "results")}>
                     <Stethoscope className="h-3.5 w-3.5" /> View result
                   </Button>
                 </div>
-              </div>
-            </ExpandableCard>
+              }
+              downloadAttachment={(resultId, attachmentId) =>
+                productionLaboratoryService.laboratory.resultAttachmentDownload(
+                  labId!,
+                  resultId,
+                  attachmentId,
+                )
+              }
+              key={result.id}
+              result={result}
+              showPatient
+            />
           ))}
         </div>
       )}
-    </div>
-  );
-}
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-medium mt-0.5">{value}</p>
+      {hasNextPage && endCursor && (
+        <div className="flex justify-center">
+          <Button disabled={loadingMore} onClick={() => void load(endCursor)} variant="outline">
+            {loadingMore ? "Loading…" : "Load more critical results"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

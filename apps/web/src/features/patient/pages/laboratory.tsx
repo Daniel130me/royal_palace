@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   LaboratoryBookingStatus,
   LaboratoryRequestResponse,
+  LaboratoryResultResponse,
   PublicOrganizationSummary,
 } from "@royal-palace/contracts";
 import {
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { CompactListItem, ExpandableCard } from "@/components/healthcare/compact-list";
+import { CompactListItem } from "@/components/healthcare/compact-list";
 import {
   EmptyState,
   ErrorState,
@@ -29,6 +30,7 @@ import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -39,12 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { formatDate, formatTime } from "@/lib/format";
-import {
-  labRequestService,
-  productionLaboratoryService,
-  publicDiscoveryService,
-} from "@/lib/services";
-import type { LaboratoryRequest as PrototypeLaboratoryRequest } from "@/types";
+import { productionLaboratoryService, publicDiscoveryService } from "@/lib/services";
 import { usePatientContext } from "../use-patient-context";
 
 const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
@@ -80,13 +77,16 @@ function activeBooking(request: LaboratoryRequestResponse) {
 export function PatientLaboratory() {
   const { profile } = usePatientContext();
   const [requests, setRequests] = useState<readonly LaboratoryRequestResponse[]>([]);
-  const [prototypeResults, setPrototypeResults] = useState<PrototypeLaboratoryRequest[]>([]);
+  const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [bookingFor, setBookingFor] = useState<LaboratoryRequestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [endCursor, setEndCursor] = useState<string | null>(null);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [resultEndCursor, setResultEndCursor] = useState<string | null>(null);
+  const [hasNextResultPage, setHasNextResultPage] = useState(false);
+  const [loadingMoreResults, setLoadingMoreResults] = useState(false);
   const [tab, setTab] = useState<LabTab>("pending");
 
   const load = useCallback(
@@ -102,13 +102,6 @@ export function PatientLaboratory() {
         );
         setEndCursor(production.pageInfo.endCursor);
         setHasNextPage(production.pageInfo.hasNextPage);
-        if (cursor === undefined) {
-          // Result publication is cut over in 11D3; keep the approved result surface populated until then.
-          const legacy = await labRequestService.list({ patientId: profile.id }).catch(() => []);
-          setPrototypeResults(
-            legacy.filter((request) => request.status === "completed" && request.result),
-          );
-        }
       } catch (cause) {
         setError(
           cause instanceof Error ? cause.message : "Laboratory requests could not be loaded.",
@@ -121,9 +114,26 @@ export function PatientLaboratory() {
     [profile],
   );
 
+  const loadResults = useCallback(async (cursor?: string) => {
+    if (cursor !== undefined) setLoadingMoreResults(true);
+    try {
+      const response = await productionLaboratoryService.patient.results(cursor);
+      setResults((current) =>
+        cursor === undefined ? response.data : [...current, ...response.data],
+      );
+      setResultEndCursor(response.pageInfo.endCursor);
+      setHasNextResultPage(response.pageInfo.hasNextPage);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Laboratory results could not be loaded.");
+    } finally {
+      setLoadingMoreResults(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load(undefined);
-  }, [load]);
+    void loadResults(undefined);
+  }, [load, loadResults]);
 
   const sections = useMemo(() => {
     const ordered = [...requests].sort((left, right) =>
@@ -151,7 +161,7 @@ export function PatientLaboratory() {
         options={[
           { value: "pending", label: "Pending", badge: sections.pending.length || undefined },
           { value: "bookings", label: "Bookings", badge: sections.bookings.length || undefined },
-          { value: "results", label: "Results", badge: prototypeResults.length || undefined },
+          { value: "results", label: "Results", badge: results.length || undefined },
         ]}
       />
 
@@ -211,7 +221,7 @@ export function PatientLaboratory() {
         ))}
 
       {tab === "results" &&
-        (prototypeResults.length === 0 ? (
+        (results.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No results yet"
@@ -220,35 +230,32 @@ export function PatientLaboratory() {
           />
         ) : (
           <div className="space-y-2">
-            {prototypeResults.map((request) => (
-              <ExpandableCard
-                key={request.id}
-                leading={
-                  <div className="rounded-lg bg-sky-50 p-2">
-                    <FlaskConical className="h-4 w-4 text-sky-700" />
-                  </div>
+            {results.map((result) => (
+              <LaboratoryResultCard
+                downloadAttachment={(resultId, attachmentId) =>
+                  productionLaboratoryService.patient.resultAttachmentDownload(
+                    resultId,
+                    attachmentId,
+                  )
                 }
-                title={request.result?.test ?? request.tests[0]}
-                subtitle={`${request.result?.laboratory?.name ?? "Laboratory"} · ${formatDate(request.result?.resultDate)}`}
-                trailing={
-                  <StatusBadge status={request.result?.abnormalIndicator ?? "normal"} size="sm" />
-                }
-              >
-                <div className="space-y-2 text-xs">
-                  <ResultRow
-                    label="Value"
-                    value={`${request.result?.value ?? "—"} ${request.result?.unit ?? ""}`}
-                  />
-                  <ResultRow
-                    label="Reference range"
-                    value={request.result?.referenceRange ?? "—"}
-                  />
-                  <ResultRow label="Reviewer" value={request.result?.reviewer ?? "—"} />
-                </div>
-              </ExpandableCard>
+                key={result.id}
+                result={result}
+              />
             ))}
           </div>
         ))}
+
+      {tab === "results" && hasNextResultPage && resultEndCursor && (
+        <div className="flex justify-center">
+          <Button
+            disabled={loadingMoreResults}
+            onClick={() => void loadResults(resultEndCursor)}
+            variant="outline"
+          >
+            {loadingMoreResults ? "Loading…" : "Load more results"}
+          </Button>
+        </div>
+      )}
 
       {hasNextPage && endCursor && tab !== "results" && (
         <div className="flex justify-center">
@@ -304,15 +311,6 @@ function Milestone({ done, label }: { done: boolean; label: string }) {
       className={`flex items-center justify-center gap-1 rounded-full px-2 py-1 ${done ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}
     >
       {done ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />} {label}
-    </div>
-  );
-}
-
-function ResultRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
     </div>
   );
 }

@@ -51,7 +51,6 @@ import type {
   Diagnosis,
   LaboratoryBooking,
   LaboratoryRequest,
-  LaboratoryResult,
   Manager,
   ManagerBankAccount,
   ManagerDashboardSummary,
@@ -122,8 +121,6 @@ export const laboratoryService = {
     resource.list<LaboratoryRequest>("laboratoryRequest", laboratoryId ? { laboratoryId } : {}),
   bookings: (laboratoryId: string) =>
     resource.list<LaboratoryBooking>("laboratoryBooking", { laboratoryId }),
-  results: (laboratoryId: string) =>
-    resource.list<LaboratoryResult>("laboratoryResult", { laboratoryId }),
 };
 
 export const enrollmentService = {
@@ -318,6 +315,15 @@ export const productionLaboratoryService = {
           params: {
             header: { ...requestHeader(), "x-organization-id": organizationId },
             query: { cursor, limit, status },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    result: (organizationId: string, resultId: string) =>
+      generatedLaboratoryClient
+        .GET("/v1/laboratory/results/{resultId}", {
+          params: {
+            header: { ...requestHeader(), "x-organization-id": organizationId },
+            path: { resultId },
           },
         })
         .then(unwrapGeneratedResponse),
@@ -1343,8 +1349,6 @@ export const labRequestService = {
   list: (params?: Record<string, string>) =>
     resource.list<LaboratoryRequest>("laboratoryRequest", params),
   get: (id: string) => resource.get<LaboratoryRequest>("laboratoryRequest", id),
-  publishResult: (body: Record<string, unknown>) =>
-    action("publish-lab-result", body).then((r) => r.data as LaboratoryResult),
 };
 
 export const deliveryService = {

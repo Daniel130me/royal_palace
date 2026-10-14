@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { LaboratoryQueueRequestResponse } from "@royal-palace/contracts";
+import type {
+  LaboratoryQueueRequestResponse,
+  LaboratoryResultResponse,
+} from "@royal-palace/contracts";
 import { navigate } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
-import { laboratoryService, productionLaboratoryService, settlementService } from "@/lib/services";
-import type { LaboratoryResult, Settlement } from "@/types";
+import { productionLaboratoryService, settlementService } from "@/lib/services";
+import type { Settlement } from "@/types";
 import {
   PageHeader,
   EmptyState,
@@ -15,7 +18,7 @@ import {
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, fullName } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import {
   FlaskConical,
   CalendarClock,
@@ -29,12 +32,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const COMPLETED_BOOKING_STATUSES = ["completed", "result_published"];
-
 export function LabDashboard() {
   const { lab, labId, loading, error, reload } = useLabContext();
   const [requests, setRequests] = useState<readonly LaboratoryQueueRequestResponse[]>([]);
-  const [results, setResults] = useState<LaboratoryResult[]>([]);
+  const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -44,14 +45,14 @@ export function LabDashboard() {
     setDataLoading(true);
     Promise.all([
       productionLaboratoryService.laboratory.list(labId, undefined, undefined, 50),
-      laboratoryService.results(labId),
+      productionLaboratoryService.laboratory.results(labId, undefined, undefined, 50),
       settlementService
         .list({ entityType: "laboratory", entityId: labId })
         .catch(() => [] as Settlement[]),
     ])
       .then(([queue, res, stl]) => {
         setRequests(queue.data);
-        setResults(res);
+        setResults(res.data);
         setSettlements(stl);
         setDataError(null);
       })
@@ -86,20 +87,25 @@ export function LabDashboard() {
     [labBookings],
   );
   const inProgress = useMemo(
-    () => labBookings.filter(({ booking }) => booking.status === "PROCESSING"),
-    [labBookings],
+    () =>
+      labBookings.filter(
+        ({ booking }) =>
+          booking.status === "PROCESSING" &&
+          results.some((result) => result.bookingId === booking.id),
+      ),
+    [labBookings, results],
   );
   const awaitingUpload = useMemo(
     () =>
       labBookings.filter(
         ({ booking }) =>
-          booking.status === "RESULT_READY" &&
+          booking.status === "PROCESSING" &&
           !results.some((result) => result.bookingId === booking.id),
       ),
     [labBookings, results],
   );
   const criticalResults = useMemo(
-    () => results.filter((r) => r.abnormalIndicator === "critical"),
+    () => results.filter((result) => result.summaryFlag === "CRITICAL"),
     [results],
   );
   const pendingSettlements = useMemo(
@@ -359,7 +365,7 @@ export function LabDashboard() {
           <SectionLabel>Recent results</SectionLabel>
           <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
             {[...results]
-              .sort((a, b) => b.resultDate.localeCompare(a.resultDate))
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
               .slice(0, 3)
               .map((r) => (
                 <CompactListItem
@@ -368,9 +374,9 @@ export function LabDashboard() {
                     <div
                       className={cn(
                         "rounded-lg p-2 ring-1",
-                        r.abnormalIndicator === "critical"
+                        r.summaryFlag === "CRITICAL"
                           ? "bg-rose-50 ring-rose-100"
-                          : r.abnormalIndicator && r.abnormalIndicator !== "normal"
+                          : r.summaryFlag !== "NORMAL"
                             ? "bg-amber-50 ring-amber-100"
                             : "bg-emerald-50 ring-emerald-100",
                       )}
@@ -378,20 +384,20 @@ export function LabDashboard() {
                       <CheckCircle2
                         className={cn(
                           "h-4 w-4",
-                          r.abnormalIndicator === "critical"
+                          r.summaryFlag === "CRITICAL"
                             ? "text-rose-600"
-                            : r.abnormalIndicator && r.abnormalIndicator !== "normal"
+                            : r.summaryFlag !== "NORMAL"
                               ? "text-amber-600"
                               : "text-emerald-600",
                         )}
                       />
                     </div>
                   }
-                  title={r.test}
-                  subtitle={`${r.patient ? fullName(r.patient) : "Patient"} · ${r.value} ${r.unit ?? ""}`}
+                  title={r.service.name}
+                  subtitle={`${r.patient.displayName} · ${r.components[0]?.value ?? "—"} ${r.components[0]?.unit ?? ""}`}
                   trailing={
-                    r.abnormalIndicator && r.abnormalIndicator !== "normal" ? (
-                      <StatusBadge status={r.abnormalIndicator} size="sm" />
+                    r.summaryFlag !== "NORMAL" ? (
+                      <StatusBadge status={r.summaryFlag.toLowerCase()} size="sm" />
                     ) : (
                       <StatusBadge status="normal" size="sm" />
                     )

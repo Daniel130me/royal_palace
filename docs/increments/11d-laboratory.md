@@ -13,9 +13,10 @@ approved request, booking, and operational dashboard surfaces to that boundary. 
 model. Checkpoint 11D3B adds the secured structured-result application/API boundary and
 exact browser allowlists. Checkpoint 11D3C extends the shared quarantine-first document
 pipeline to result attachments and adds bounded, concurrency-safe critical-result escalation.
-Checkpoint 11D3D has started by connecting the laboratory result list, clean-attachment
-downloads, and controlled draft/review publication actions. Patient, practitioner, result-entry,
-commercial, settings, and remaining supporting-screen cutover work remain
+Checkpoint 11D3D connects secure result entry, laboratory/patient/practitioner result views,
+clean-attachment downloads, controlled draft/review publication, critical acknowledgement,
+and the laboratory critical-results/dashboard surfaces. Commercial, settings, embedded
+supporting-screen result widgets, and remaining supporting-screen cutover work remain
 tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
@@ -98,12 +99,13 @@ tracked below and must be completed before parity can be claimed.
       before clean-scan evidence exists.
 - [x] 11D3C adds the bounded critical-result escalation worker and privacy-safe inbox/email
       notifications. External messages must contain no clinical values or diagnoses.
-- [ ] Connect patient/practitioner result views and laboratory result creation/results
+- [x] Connect patient/practitioner result views and laboratory result creation/results
       screens using generated contracts.
   - [x] Connect the laboratory result list, clean attachment downloads, and controlled
         draft/review publication actions without retaining the legacy result mutation route.
-  - [ ] Connect secure result entry plus patient and practitioner result views, then retire
-        their replaced legacy readers atomically.
+  - [x] Connect secure result entry plus patient and practitioner result views, replace the
+        laboratory critical-results/dashboard readers, and retire the unauthenticated legacy
+        result publication action and direct generic result collection.
 
 ### 11D4 — commercial parity and qualification
 
@@ -156,11 +158,10 @@ back.
   independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
-- **Non-standard/open work:** the patient results tab temporarily retains its
-  patient-filtered prototype result reader until 11D3 replaces it atomically; it is not
-  a production clinical-result boundary. The durable result API and exact BFF boundaries
-  are available, and the laboratory result list now uses them; patient, practitioner, and
-  result-entry screens have not yet been cut over. Remaining result screen cutover, home
+- **Non-standard/open work:** the primary laboratory, patient, and practitioner result
+  workflows now use the production boundary. Some approved dashboard, patient-record, and
+  encounter widgets still read results embedded in the legacy prototype request projection;
+  they remain tracked supporting-screen work and must be replaced before launch. Home
   collection, commercial, supporting-screen,
   query-plan/load, and qualification work remains explicitly release-blocking. No approved
   screen or navigation destination has been removed. Laboratory publication currently permits
@@ -170,3 +171,7 @@ back.
   The overdue critical-result worker currently escalates status and repeats the action-required
   alert to the ordering practitioner; selection of any additional qualified on-call escalation
   destination remains a clinical-governance and operational qualification decision.
+  The old practitioner screen overwrote the laboratory reviewer field to simulate a general
+  "reviewed" receipt. That data-corrupting behavior was not carried forward: critical results
+  use the durable acknowledgement aggregate, while ordinary result access remains visible
+  and authorization-audited without inventing a clinical acknowledgement record.
