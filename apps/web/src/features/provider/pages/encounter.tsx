@@ -7,15 +7,15 @@ import {
   patientService,
   appointmentService,
   productionPrescriptionService,
-  labRequestService,
+  productionLaboratoryService,
 } from "@/lib/services";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
-import { normalizeEncounter, normalizePatient, normalizeLabRequest } from "../normalize";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
+import { normalizeEncounter, normalizePatient } from "../normalize";
 import type {
   ClinicalEncounter,
   Patient,
   Appointment,
-  LaboratoryRequest,
   EncounterDocumentation,
   FileMeta,
 } from "@/types";
@@ -163,7 +163,7 @@ export function ProviderEncounter() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [history, setHistory] = useState<Appointment[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [doc, setDoc] = useState<EncounterDocumentation>({});
@@ -202,18 +202,18 @@ export function ProviderEncounter() {
       lastSavedRef.current = JSON.stringify(initialDoc);
 
       if (norm.patientId) {
-        const [p, appts, rxs, labs] = await Promise.all([
+        const [p, appts, rxs, resultPage] = await Promise.all([
           patientService.get(norm.patientId),
           appointmentService.list({ patientId: norm.patientId }),
           productionPrescriptionService.provider
             .list(norm.patientId, undefined, 50)
             .then((page) => [...page.data]),
-          labRequestService.list({ patientId: norm.patientId }),
+          productionLaboratoryService.provider.results(undefined, 5, norm.patientId),
         ]);
         setPatient(normalizePatient(p));
         setHistory(appts);
         setPrescriptions(rxs);
-        setLabRequests(labs.map(normalizeLabRequest));
+        setLabResults(resultPage.data);
       }
     } catch (e) {
       setError((e as Error).message ?? "Failed to load encounter.");
@@ -307,7 +307,7 @@ export function ProviderEncounter() {
     () => history.filter((a) => a.encounter && a.encounter.id !== id).slice(0, 5),
     [history, id],
   );
-  const recentLabs = useMemo(() => labRequests.filter((l) => l.result).slice(0, 5), [labRequests]);
+  const recentLabs = useMemo(() => labResults.slice(0, 5), [labResults]);
   const activeRx = useMemo(
     () =>
       prescriptions
@@ -549,7 +549,7 @@ export function ProviderEncounter() {
 interface NotesPanelProps {
   patient: Patient;
   recentEncounters: Appointment[];
-  recentLabs: LaboratoryRequest[];
+  recentLabs: readonly LaboratoryResultResponse[];
   activeRx: Prescription[];
   doc: EncounterDocumentation;
   update: <K extends keyof EncounterDocumentation>(
@@ -1323,7 +1323,7 @@ function PatientSummaryBody({
 }: {
   patient: Patient;
   recentEncounters: Appointment[];
-  recentLabs: LaboratoryRequest[];
+  recentLabs: readonly LaboratoryResultResponse[];
   activeRx: Prescription[];
 }) {
   const activeAllergies = patient.allergies.filter((a) => a.status === "active");
@@ -1478,22 +1478,27 @@ function PatientSummaryBody({
             <p className="text-xs text-muted-foreground">No results yet.</p>
           ) : (
             <ul className="space-y-1.5">
-              {recentLabs.map((l) => (
-                <li key={l.id} className="text-xs">
-                  <span className="font-medium">{l.result?.test}</span>
-                  <span className="text-muted-foreground ml-1">
-                    {l.result?.value} {l.result?.unit}
-                  </span>
-                  {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" && (
-                    <Badge
-                      variant="outline"
-                      className="ml-1 text-[10px] border-rose-200 text-rose-700 h-5"
-                    >
-                      {l.result.abnormalIndicator}
-                    </Badge>
-                  )}
-                </li>
-              ))}
+              {recentLabs.map((result) => {
+                const primaryComponent = result.components[0];
+                return (
+                  <li key={result.id} className="text-xs">
+                    <span className="font-medium">{result.service.name}</span>
+                    {primaryComponent && (
+                      <span className="text-muted-foreground ml-1">
+                        {primaryComponent.value} {primaryComponent.unit ?? ""}
+                      </span>
+                    )}
+                    {result.summaryFlag !== "NORMAL" && (
+                      <Badge
+                        variant="outline"
+                        className="ml-1 text-[10px] border-rose-200 text-rose-700 h-5"
+                      >
+                        {result.summaryFlag.toLowerCase()}
+                      </Badge>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </ExpandableCard>

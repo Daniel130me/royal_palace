@@ -14,6 +14,7 @@ const practitionerPrincipalId = "0199a18e-a400-7000-8000-000000000102";
 const organizationId = "0199a18e-a400-7000-8000-000000000103";
 const resultId = "0199a18e-a400-7000-8000-000000000104";
 const attachmentId = "0199a18e-a400-7000-8000-000000000108";
+const patientId = "0199a18e-a400-7000-8000-000000000109";
 
 function session(role: "PATIENT" | "PROVIDER" | "ORGANIZATION_STAFF"): CurrentSession {
   return {
@@ -122,6 +123,25 @@ describe("LaboratoryResultService", () => {
     expect(response).not.toHaveProperty("patientPrincipalId");
     expect(response).not.toHaveProperty("practitionerPrincipalId");
     expect(response).not.toHaveProperty("laboratoryOrganizationId");
+  });
+
+  it("narrows a practitioner result list by patient without weakening practitioner ownership", async () => {
+    repository.listResults.mockResolvedValue({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+    });
+
+    await service.listForPractitioner(
+      { actor: session("PROVIDER"), requestId: "request-practitioner-patient-results" },
+      { limit: 5, patientId },
+    );
+
+    expect(repository.listResults).toHaveBeenCalledWith({
+      limit: 5,
+      patientId,
+      practitionerPrincipalId,
+      status: "PUBLISHED",
+    });
   });
 
   it("verifies quarantine evidence before scheduling an attachment scan", async () => {

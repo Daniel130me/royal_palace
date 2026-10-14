@@ -720,6 +720,7 @@ export interface components {
         IdempotencyKey: string;
         Cursor: string;
         Limit: number;
+        PatientId: string;
         LaboratoryRequestId: string;
         ResultId: string;
         CriticalResultId: string;
@@ -1340,6 +1341,7 @@ export interface operations {
             query?: {
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
+                patientId?: components["parameters"]["PatientId"];
             };
             header: {
                 "x-request-id": components["parameters"]["RequestId"];

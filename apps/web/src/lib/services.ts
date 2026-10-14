@@ -194,10 +194,10 @@ export const productionLaboratoryService = {
           params: { header: requestHeader() },
         })
         .then(unwrapGeneratedResponse),
-    results: (cursor?: string, limit = 25) =>
+    results: (cursor?: string, limit = 25, patientId?: string) =>
       generatedLaboratoryClient
         .GET("/v1/provider/laboratory-results", {
-          params: { header: requestHeader(), query: { cursor, limit } },
+          params: { header: requestHeader(), query: { cursor, limit, patientId } },
         })
         .then(unwrapGeneratedResponse),
     result: (resultId: string) =>

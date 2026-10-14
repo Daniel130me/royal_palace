@@ -106,9 +106,10 @@ export interface LaboratoryResultRepository {
     pageInfo: LaboratoryResultListResponse["pageInfo"];
   }>;
   listResults(input: {
-    cursor?: { createdAt: Date; id: string };
+    cursor?: { createdAt?: Date; id: string; publishedAt?: Date };
     limit: number;
     organizationId?: string;
+    patientId?: string;
     patientPrincipalId?: string;
     practitionerPrincipalId?: string;
     status?: LaboratoryResultStatus;

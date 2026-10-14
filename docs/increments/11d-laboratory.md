@@ -109,6 +109,10 @@ tracked below and must be completed before parity can be claimed.
 
 ### 11D4 — commercial parity and qualification
 
+- [x] Replace patient-record, practitioner-dashboard, practitioner-patient, and encounter
+      result widgets with bounded published-result projections. Practitioner patient views
+      use an indexed server-side patient filter while retaining practitioner ownership, and
+      published pagination follows `publishedAt` so the existing owner indexes are usable.
 - [ ] Connect laboratory charging to the shared payment-subject boundary without
       coupling clinical completion to settlement.
 - [ ] Implement laboratory settlements/payouts and reporting only in their planned

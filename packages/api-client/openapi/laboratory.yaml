@@ -463,6 +463,7 @@ paths:
           { $ref: "#/components/parameters/RequestId" },
           { $ref: "#/components/parameters/Cursor" },
           { $ref: "#/components/parameters/Limit" },
+          { $ref: "#/components/parameters/PatientId" },
         ]
       responses:
         "200":
@@ -612,6 +613,7 @@ components:
     Cursor: { in: query, name: cursor, schema: { type: string, minLength: 1, maxLength: 1024 } }
     Limit:
       { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50, default: 25 } }
+    PatientId: { in: query, name: patientId, schema: { type: string, format: uuid } }
     LaboratoryRequestId:
       { in: path, name: requestId, required: true, schema: { type: string, format: uuid } }
     ResultId: { in: path, name: resultId, required: true, schema: { type: string, format: uuid } }

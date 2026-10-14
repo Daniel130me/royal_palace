@@ -78,6 +78,7 @@ const listSchema = z
     limit: z.coerce.number().int().min(1).max(50).default(25),
   })
   .strict();
+const practitionerResultListSchema = listSchema.extend({ patientId: idSchema.optional() }).strict();
 const laboratoryListSchema = listSchema
   .extend({ status: z.enum(["DRAFT", "IN_REVIEW", "PUBLISHED", "SUPERSEDED"]).optional() })
   .strict();
@@ -320,7 +321,10 @@ export class ProviderLaboratoryResultController {
   @PolicyProtected(AUTHORIZATION_POLICY.VIEW_LABORATORY_RESULT)
   list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     return execute(() =>
-      this.results.listForPractitioner(context(request), parse(listSchema, query)),
+      this.results.listForPractitioner(
+        context(request),
+        parse(practitionerResultListSchema, query),
+      ),
     );
   }
 

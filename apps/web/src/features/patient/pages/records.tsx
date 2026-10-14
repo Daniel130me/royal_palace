@@ -10,6 +10,7 @@ import {
   carePlanService,
   encounterService,
   diagnosisService,
+  productionLaboratoryService,
 } from "@/lib/services";
 import type {
   Appointment,
@@ -21,6 +22,7 @@ import type {
   HealthRecordItem,
 } from "@/types";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
 type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 type PharmacyOrder = PrescriptionComponents["schemas"]["PharmacyOrder"];
 import { PageHeader, EmptyState, LoadingState } from "@/components/healthcare/page-header";
@@ -93,6 +95,7 @@ export function PatientRecords() {
   const [encounters, setEncounters] = useState<ClinicalEncounter[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [orders, setOrders] = useState<PharmacyOrder[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [carePlans, setCarePlans] = useState<CarePlan[]>([]);
@@ -110,8 +113,9 @@ export function PatientRecords() {
       referralService.list({ patientId: profile.id }),
       carePlanService.list(profile.id),
       diagnosisService.list(profile.id),
+      productionLaboratoryService.patient.results(undefined, 50),
     ])
-      .then(async ([appts, rx, labs, ords, refs, plans, dx]) => {
+      .then(async ([appts, rx, labs, ords, refs, plans, dx, resultPage]) => {
         if (cancelled) return;
         setAppointments(appts);
         setPrescriptions(rx);
@@ -120,6 +124,7 @@ export function PatientRecords() {
         setReferrals(refs);
         setCarePlans(plans);
         setDiagnoses(dx);
+        setLabResults(resultPage.data);
         const completed = appts.filter((a) => a.status === "completed");
         const encs: ClinicalEncounter[] = [];
         for (const a of completed) {
@@ -193,32 +198,47 @@ export function PatientRecords() {
       });
     });
     labRequests.forEach((l) => {
-      const hasResult = !!l.result;
       items.push({
         id: `lab-${l.id}`,
         kind: "laboratory",
-        date: l.result?.resultDate ?? createdAt(l) ?? l.requestNumber,
+        date: createdAt(l) ?? l.requestNumber,
         title: l.tests.join(", "),
-        subtitle: hasResult
-          ? `Result: ${l.result!.value}${l.result!.unit ? " " + l.result!.unit : ""}`
-          : `Request ${l.requestNumber} · ${l.status}`,
+        subtitle: `Request ${l.requestNumber} · ${l.status}`,
         status: l.status,
         ref: l.requestNumber,
-        detail: hasResult ? (
-          <div className="space-y-2">
-            <Row
-              label="Value"
-              value={`${l.result!.value}${l.result!.unit ? ` ${l.result!.unit}` : ""}`}
-            />
-            <Row label="Reference range" value={l.result!.referenceRange ?? "—"} />
-            <Row
-              label="Indicator"
-              value={<span className="capitalize">{l.result!.abnormalIndicator ?? "normal"}</span>}
-            />
-            <Row label="Lab" value={l.result!.laboratory?.name ?? "—"} />
-          </div>
-        ) : undefined,
         onClick: () => navigate("patient", "laboratory"),
+      });
+    });
+    labResults.forEach((result) => {
+      const summary = result.components
+        .slice(0, 3)
+        .map(
+          (component) =>
+            `${component.name}: ${component.value}${component.unit ? ` ${component.unit}` : ""}`,
+        )
+        .join(" · ");
+      items.push({
+        id: `lab-result-${result.id}`,
+        kind: "laboratory",
+        date: result.publishedAt ?? result.updatedAt,
+        title: result.service.name,
+        subtitle: summary || `Result ${result.resultNumber}`,
+        status: result.summaryFlag.toLowerCase(),
+        ref: result.resultNumber,
+        detail: (
+          <div className="space-y-2">
+            {result.components.map((component) => (
+              <Row
+                key={component.id}
+                label={component.name}
+                value={`${component.value}${component.unit ? ` ${component.unit}` : ""} · ${component.flag.toLowerCase()}`}
+              />
+            ))}
+            <Row label="Laboratory" value={result.laboratory.displayName} />
+            {result.interpretation && <Row label="Interpretation" value={result.interpretation} />}
+          </div>
+        ),
+        onClick: () => navigate("patient", "laboratory", { id: result.id }),
       });
     });
     referrals.forEach((r) => {
@@ -246,7 +266,7 @@ export function PatientRecords() {
       });
     });
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [encounters, diagnoses, prescriptions, labRequests, referrals, orders]);
+  }, [encounters, diagnoses, prescriptions, labRequests, labResults, referrals, orders]);
 
   if (loading) return <LoadingState label="Loading your records…" />;
   if (!profile) return <EmptyState title="No patient profile" />;

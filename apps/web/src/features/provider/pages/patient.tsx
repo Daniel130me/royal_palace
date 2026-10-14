@@ -7,20 +7,20 @@ import {
   patientService,
   appointmentService,
   productionPrescriptionService,
-  labRequestService,
   referralService,
   encounterService,
+  productionLaboratoryService,
 } from "@/lib/services";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
 import { resource } from "@/lib/api-client";
 import {
   normalizePatient,
   normalizeEncounter,
-  normalizeLabRequest,
   normalizeReferral,
   WithTimestamps,
 } from "../normalize";
-import type { Patient, Appointment, LaboratoryRequest, Referral, ClinicalEncounter } from "@/types";
+import type { Patient, Appointment, Referral, ClinicalEncounter } from "@/types";
 type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { formatDate, formatTime, relativeDay, fullName, age, initials } from "@/lib/format";
 import { toast } from "sonner";
+import { LaboratoryResultCard } from "@/features/shared/laboratory-result-card";
 
 type Tab = "overview" | "records" | "activity";
 
@@ -66,7 +67,7 @@ export function ProviderPatientDetail() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [encounters, setEncounters] = useState<ClinicalEncounter[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,20 +78,20 @@ export function ProviderPatientDetail() {
     setLoading(true);
     setError(null);
     try {
-      const [p, appts, rxs, labs, refs, encs] = await Promise.all([
+      const [p, appts, rxs, resultPage, refs, encs] = await Promise.all([
         patientService.get(id),
         appointmentService.list({ patientId: id }),
         productionPrescriptionService.provider
           .list(id, undefined, 50)
           .then((page) => [...page.data]),
-        labRequestService.list({ patientId: id }),
+        productionLaboratoryService.provider.results(undefined, 50, id),
         referralService.list({ patientId: id }),
         resource.list<ClinicalEncounter>("clinicalEncounter", { patientId: id }),
       ]);
       setPatient(normalizePatient(p));
       setAppointments(appts);
       setPrescriptions(rxs);
-      setLabRequests(labs.map(normalizeLabRequest));
+      setLabResults(resultPage.data);
       setReferrals(refs.map(normalizeReferral));
       setEncounters(encs.map(normalizeEncounter));
     } catch (e) {
@@ -131,8 +132,6 @@ export function ProviderPatientDetail() {
   const pastAppts = appointments
     .filter((a) => a.date < todayStr || ["completed", "no_show", "cancelled"].includes(a.status))
     .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
-  const labResults = labRequests.filter((l) => l.result);
-
   return (
     <div>
       <PageHeader
@@ -523,44 +522,14 @@ export function ProviderPatientDetail() {
               />
             ) : (
               <div className="space-y-2">
-                {labResults.map((l) => (
-                  <div key={l.id} className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">{l.result?.test}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {l.result?.resultDate ? formatDate(l.result.resultDate) : "—"}
-                        </p>
-                        <p className="text-sm mt-1.5">
-                          <span className="font-semibold">{l.result?.value}</span>{" "}
-                          <span className="text-muted-foreground">{l.result?.unit}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            (ref {l.result?.referenceRange})
-                          </span>
-                        </p>
-                      </div>
-                      {l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal" ? (
-                        <Badge
-                          variant="outline"
-                          className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]"
-                        >
-                          {l.result.abnormalIndicator}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-emerald-200 bg-emerald-50 text-emerald-700 h-5 text-[10px]"
-                        >
-                          normal
-                        </Badge>
-                      )}
-                    </div>
-                    {l.result?.interpretation && (
-                      <p className="text-xs text-muted-foreground mt-2 border-t border-border/60 pt-2 leading-relaxed">
-                        {l.result.interpretation}
-                      </p>
-                    )}
-                  </div>
+                {labResults.map((result) => (
+                  <LaboratoryResultCard
+                    downloadAttachment={
+                      productionLaboratoryService.provider.resultAttachmentDownload
+                    }
+                    key={result.id}
+                    result={result}
+                  />
                 ))}
               </div>
             )}

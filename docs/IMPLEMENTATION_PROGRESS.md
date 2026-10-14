@@ -337,10 +337,12 @@ that completes an increment.
       views, clean-attachment downloads, controlled publication, critical acknowledgement,
       and the laboratory dashboard/critical-results readers. The unauthenticated legacy
       publication action and direct generic result collection are retired.
-    - `[ ]` 11D4 plus embedded supporting-screen result widgets, home collection,
-      services/notifications/settings cutover, commercial parity, migration/load evidence,
-      and qualification remain open. Every approved laboratory, patient, and practitioner
-      prototype capability remains in the release register.
+    - `[~]` 11D4 has replaced the embedded patient-record, practitioner-dashboard,
+      practitioner-patient, and encounter result widgets with bounded published-result
+      projections. Home collection, services/notifications/settings cutover, commercial
+      parity, migration/load evidence, and qualification remain open. Every approved
+      laboratory, patient, and practitioner prototype capability remains in the release
+      register.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

@@ -578,22 +578,27 @@ export class PrismaLaboratoryResultRepository implements LaboratoryResultReposit
   }
 
   async listResults(input: {
-    cursor?: { createdAt: Date; id: string };
+    cursor?: { createdAt?: Date; id: string; publishedAt?: Date };
     limit: number;
     organizationId?: string;
+    patientId?: string;
     patientPrincipalId?: string;
     practitionerPrincipalId?: string;
     status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
   }) {
+    const publishedOrder = input.organizationId === undefined && input.status === "PUBLISHED";
     const rows = await this.database.laboratoryResult.findMany({
       include: resultInclude,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: publishedOrder
+        ? [{ publishedAt: "desc" }, { id: "desc" }]
+        : [{ createdAt: "desc" }, { id: "desc" }],
       relationLoadStrategy: "join",
       take: input.limit + 1,
       where: {
         ...(input.organizationId === undefined
           ? {}
           : { laboratoryOrganizationId: input.organizationId }),
+        ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
         ...(input.patientPrincipalId === undefined
           ? {}
           : { patient: { principalId: input.patientPrincipalId } }),
@@ -601,14 +606,26 @@ export class PrismaLaboratoryResultRepository implements LaboratoryResultReposit
           ? {}
           : { practitioner: { principalId: input.practitionerPrincipalId } }),
         ...(input.status === undefined ? {} : { status: input.status }),
-        ...(input.cursor === undefined
+        ...(input.cursor === undefined || publishedOrder
           ? {}
-          : {
-              OR: [
-                { createdAt: { lt: input.cursor.createdAt } },
-                { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
-              ],
-            }),
+          : input.cursor.createdAt === undefined
+            ? {}
+            : {
+                OR: [
+                  { createdAt: { lt: input.cursor.createdAt } },
+                  { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
+                ],
+              }),
+        ...(input.cursor === undefined || !publishedOrder
+          ? {}
+          : input.cursor.publishedAt === undefined
+            ? {}
+            : {
+                OR: [
+                  { publishedAt: { lt: input.cursor.publishedAt } },
+                  { publishedAt: input.cursor.publishedAt, id: { lt: input.cursor.id } },
+                ],
+              }),
       },
     });
     const visible = rows.slice(0, input.limit);
@@ -617,7 +634,11 @@ export class PrismaLaboratoryResultRepository implements LaboratoryResultReposit
       data: visible.map((row) => publicResult(mapResult(row))),
       pageInfo: {
         endCursor:
-          last === undefined ? null : encodeCursor({ createdAt: last.createdAt, id: last.id }),
+          last === undefined
+            ? null
+            : publishedOrder
+              ? encodeCursor({ publishedAt: requirePublishedAt(last.publishedAt), id: last.id })
+              : encodeCursor({ createdAt: last.createdAt, id: last.id }),
         hasNextPage: rows.length > input.limit,
       },
     };
@@ -999,4 +1020,11 @@ function encodeCursor(value: Record<string, Date | string>) {
     ),
     "utf8",
   ).toString("base64url");
+}
+
+function requirePublishedAt(value: Date | null): Date {
+  if (value === null) {
+    throw new Error("Published laboratory result is missing its publication timestamp");
+  }
+  return value;
 }

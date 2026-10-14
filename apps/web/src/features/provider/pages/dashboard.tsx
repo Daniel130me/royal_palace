@@ -6,23 +6,14 @@ import { useProviderContext } from "../use-provider-context";
 import {
   appointmentService,
   encounterService,
-  labRequestService,
   referralService,
   settlementService,
+  productionLaboratoryService,
 } from "@/lib/services";
 import { resource } from "@/lib/api-client";
-import {
-  normalizeEncounter,
-  normalizeLabRequest,
-  normalizeReferral,
-} from "../normalize";
-import type {
-  Appointment,
-  ClinicalEncounter,
-  LaboratoryRequest,
-  Referral,
-  Settlement,
-} from "@/types";
+import { normalizeEncounter, normalizeReferral } from "../normalize";
+import type { Appointment, ClinicalEncounter, Referral, Settlement } from "@/types";
+import type { LaboratoryResultResponse } from "@royal-palace/contracts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,12 +27,34 @@ import {
   ErrorState,
 } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
-import { formatCurrency, formatDate, relativeDay, formatTime, fullName, initials } from "@/lib/format";
+import {
+  formatCurrency,
+  formatDate,
+  relativeDay,
+  formatTime,
+  fullName,
+  initials,
+} from "@/lib/format";
 import { toast } from "sonner";
 import {
-  CalendarDays, Users, FileText, FlaskConical, Share2, Wallet,
-  Stethoscope, AlertTriangle, ArrowRight, CheckCircle2, BadgeCheck,
-  Video, Phone, MessageSquare, User, ChevronRight, PlayCircle, Clock,
+  CalendarDays,
+  Users,
+  FileText,
+  FlaskConical,
+  Share2,
+  Wallet,
+  Stethoscope,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  BadgeCheck,
+  Video,
+  Phone,
+  MessageSquare,
+  User,
+  ChevronRight,
+  PlayCircle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -78,10 +91,30 @@ export function channelIcon(channel: string) {
 }
 
 const QUICK_ACTIONS = [
-  { label: "Appointments", icon: CalendarDays, page: "appointments", tone: "bg-sky-50 text-sky-700 ring-sky-100" },
-  { label: "Patients", icon: Users, page: "patients", tone: "bg-emerald-50 text-emerald-700 ring-emerald-100" },
-  { label: "Lab results", icon: FlaskConical, page: "results", tone: "bg-violet-50 text-violet-700 ring-violet-100" },
-  { label: "Referrals", icon: Share2, page: "referrals", tone: "bg-amber-50 text-amber-700 ring-amber-100" },
+  {
+    label: "Appointments",
+    icon: CalendarDays,
+    page: "appointments",
+    tone: "bg-sky-50 text-sky-700 ring-sky-100",
+  },
+  {
+    label: "Patients",
+    icon: Users,
+    page: "patients",
+    tone: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  },
+  {
+    label: "Lab results",
+    icon: FlaskConical,
+    page: "results",
+    tone: "bg-violet-50 text-violet-700 ring-violet-100",
+  },
+  {
+    label: "Referrals",
+    icon: Share2,
+    page: "referrals",
+    tone: "bg-amber-50 text-amber-700 ring-amber-100",
+  },
 ];
 
 export function ProviderDashboard() {
@@ -89,7 +122,7 @@ export function ProviderDashboard() {
   const { profile, providerId, loading: profileLoading } = useProviderContext();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [encounters, setEncounters] = useState<ClinicalEncounter[]>([]);
-  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,16 +134,16 @@ export function ProviderDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [appts, encs, labs, refs, stls] = await Promise.all([
+      const [appts, encs, resultPage, refs, stls] = await Promise.all([
         appointmentService.list({ providerId }),
         resource.list<ClinicalEncounter>("clinicalEncounter", { providerId }),
-        labRequestService.list({ requestingProviderId: providerId }),
+        productionLaboratoryService.provider.results(undefined, 50),
         referralService.list({ recipientProviderId: providerId }),
         settlementService.list({ entityType: "provider", entityId: providerId }),
       ]);
       setAppointments(appts);
       setEncounters(encs.map(normalizeEncounter));
-      setLabRequests(labs.map(normalizeLabRequest));
+      setLabResults(resultPage.data);
       setReferrals(refs.map(normalizeReferral));
       setSettlements(stls);
     } catch (e) {
@@ -127,31 +160,35 @@ export function ProviderDashboard() {
   const today = new Date().toISOString().slice(0, 10);
 
   const todaysAppointments = useMemo(
-    () =>
-      appointments
-        .filter((a) => a.date === today)
-        .sort((a, b) => a.time.localeCompare(b.time)),
-    [appointments, today]
+    () => appointments.filter((a) => a.date === today).sort((a, b) => a.time.localeCompare(b.time)),
+    [appointments, today],
   );
 
   const waitingPatients = useMemo(
-    () => appointments.filter((a) => a.status === "waiting_for_provider" || a.status === "checked_in"),
-    [appointments]
+    () =>
+      appointments.filter((a) => a.status === "waiting_for_provider" || a.status === "checked_in"),
+    [appointments],
   );
 
   const pendingDocumentation = useMemo(
     () => encounters.filter((e) => e.status === "open"),
-    [encounters]
+    [encounters],
   );
 
   const labResultsToReview = useMemo(
-    () => labRequests.filter((l) => l.status === "completed" && l.result && !l.result.reviewer),
-    [labRequests]
+    () =>
+      labResults.filter((result) =>
+        result.criticalResults.some(
+          (critical) => critical.status === "OPEN" || critical.status === "ESCALATED",
+        ),
+      ),
+    [labResults],
   );
 
   const openReferrals = useMemo(
-    () => referrals.filter((r) => ["sent", "received", "requires_clarification"].includes(r.status)),
-    [referrals]
+    () =>
+      referrals.filter((r) => ["sent", "received", "requires_clarification"].includes(r.status)),
+    [referrals],
   );
 
   const followUps = useMemo(
@@ -160,19 +197,19 @@ export function ProviderDashboard() {
         .filter((a) => a.status === "scheduled" && a.date > today)
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 3),
-    [appointments, today]
+    [appointments, today],
   );
 
   const todayEarnings = useMemo(() => {
     const todaysCompleted = appointments.filter(
-      (a) => a.date === today && a.status === "completed" && a.paymentStatus === "paid"
+      (a) => a.date === today && a.status === "completed" && a.paymentStatus === "paid",
     );
     return todaysCompleted.reduce((sum, a) => sum + Math.round(a.price * 0.73), 0);
   }, [appointments, today]);
 
   const settlementTotal = useMemo(
     () => settlements.reduce((s, x) => s + (x.status === "paid" ? x.netAmount : 0), 0),
-    [settlements]
+    [settlements],
   );
 
   const licenceDays = profile ? daysUntil(profile.licenceExpiry) : null;
@@ -210,7 +247,11 @@ export function ProviderDashboard() {
   const actionNeeded = [
     ...waitingPatients.slice(0, 2).map((a) => ({
       id: a.id,
-      icon: <div className="rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100"><Users className="h-4 w-4 text-amber-600" /></div>,
+      icon: (
+        <div className="rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100">
+          <Users className="h-4 w-4 text-amber-600" />
+        </div>
+      ),
       title: `${a.patient ? fullName(a.patient) : "Patient"} is waiting`,
       subtitle: `${formatTime(a.time)} · ${intakeReason(a)}`,
       badge: <StatusBadge status={a.status} size="sm" />,
@@ -218,21 +259,41 @@ export function ProviderDashboard() {
     })),
     ...pendingDocumentation.slice(0, 2).map((e) => ({
       id: e.id,
-      icon: <div className="rounded-lg bg-violet-50 p-2 ring-1 ring-violet-100"><FileText className="h-4 w-4 text-violet-600" /></div>,
+      icon: (
+        <div className="rounded-lg bg-violet-50 p-2 ring-1 ring-violet-100">
+          <FileText className="h-4 w-4 text-violet-600" />
+        </div>
+      ),
       title: `${e.patient ? fullName(e.patient) : "Patient"} · ${e.encounterNumber}`,
       subtitle: `Open encounter · started ${formatDate(e.createdAt)}`,
-      badge: <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 h-5 text-[10px]">open</Badge>,
+      badge: (
+        <Badge
+          variant="outline"
+          className="border-amber-200 bg-amber-50 text-amber-700 h-5 text-[10px]"
+        >
+          open
+        </Badge>
+      ),
       onClick: () => navigate("provider", "encounter", { id: e.id }),
     })),
-    ...labResultsToReview.slice(0, 2).map((l) => ({
-      id: l.id,
-      icon: <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100"><FlaskConical className="h-4 w-4 text-rose-600" /></div>,
-      title: `${l.result?.test ?? l.tests.join(", ")}`,
-      subtitle: `${l.patient ? fullName(l.patient) : "Patient"} · ${l.result?.value} ${l.result?.unit}`,
-      badge: l.result?.abnormalIndicator && l.result.abnormalIndicator !== "normal"
-        ? <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 capitalize h-5 text-[10px]">{l.result.abnormalIndicator}</Badge>
-        : <Badge variant="outline" className="h-5 text-[10px]">unreviewed</Badge>,
-      onClick: () => navigate("provider", "results", { id: l.result?.id ?? "" }),
+    ...labResultsToReview.slice(0, 2).map((result) => ({
+      id: result.id,
+      icon: (
+        <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
+          <FlaskConical className="h-4 w-4 text-rose-600" />
+        </div>
+      ),
+      title: result.service.name,
+      subtitle: `${result.patient.displayName} · ${result.resultNumber}`,
+      badge: (
+        <Badge
+          variant="outline"
+          className="border-rose-200 bg-rose-50 text-rose-700 h-5 text-[10px]"
+        >
+          action required
+        </Badge>
+      ),
+      onClick: () => navigate("provider", "results", { id: result.id }),
     })),
   ].slice(0, 4);
 
@@ -242,8 +303,12 @@ export function ProviderDashboard() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground leading-tight">Welcome back,</p>
-          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">{profile.title} {firstName} 👋</h1>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">{profile.specialty} · {profile.city}, {profile.state}</p>
+          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
+            {profile.title} {firstName} 👋
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {profile.specialty} · {profile.city}, {profile.state}
+          </p>
         </div>
         {profile.verificationStatus === "approved" ? (
           <button
@@ -259,7 +324,9 @@ export function ProviderDashboard() {
             className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 tap-highlight-none active:scale-[0.98]"
           >
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-            <span className="text-xs font-medium text-amber-700 capitalize">{profile.verificationStatus.replace(/_/g, " ")}</span>
+            <span className="text-xs font-medium text-amber-700 capitalize">
+              {profile.verificationStatus.replace(/_/g, " ")}
+            </span>
           </button>
         )}
       </div>
@@ -292,7 +359,9 @@ export function ProviderDashboard() {
           return (
             <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-soft">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Next consultation · {relativeDay(heroAppt.date)}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                  Next consultation · {relativeDay(heroAppt.date)}
+                </span>
                 <StatusBadge status={heroAppt.status} size="sm" />
               </div>
               <div className="flex items-center gap-3">
@@ -303,26 +372,45 @@ export function ProviderDashboard() {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-sm truncate">
-                    {formatTime(heroAppt.time)} · {heroAppt.patient ? fullName(heroAppt.patient) : "Patient"}
+                    {formatTime(heroAppt.time)} ·{" "}
+                    {heroAppt.patient ? fullName(heroAppt.patient) : "Patient"}
                   </p>
                   <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                     <ChannelIcon className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{intakeReason(heroAppt)} · {heroAppt.consultationChannel.replace(/_/g, " ")}</span>
+                    <span className="truncate">
+                      {intakeReason(heroAppt)} · {heroAppt.consultationChannel.replace(/_/g, " ")}
+                    </span>
                   </p>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
                 {["scheduled", "checked_in", "waiting_for_provider"].includes(heroAppt.status) && (
-                  <Button size="sm" className="flex-1" disabled={startingId === heroAppt.id} onClick={() => startConsultation(heroAppt)}>
-                    <PlayCircle className="h-4 w-4 mr-1" /> {startingId === heroAppt.id ? "Starting…" : "Start consultation"}
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    disabled={startingId === heroAppt.id}
+                    onClick={() => startConsultation(heroAppt)}
+                  >
+                    <PlayCircle className="h-4 w-4 mr-1" />{" "}
+                    {startingId === heroAppt.id ? "Starting…" : "Start consultation"}
                   </Button>
                 )}
                 {heroAppt.status === "in_progress" && heroAppt.encounter && (
-                  <Button size="sm" className="flex-1" onClick={() => navigate("provider", "encounter", { id: heroAppt.encounter!.id })}>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={() =>
+                      navigate("provider", "encounter", { id: heroAppt.encounter!.id })
+                    }
+                  >
                     <Stethoscope className="h-4 w-4 mr-1" /> Continue documentation
                   </Button>
                 )}
-                <Button size="sm" variant="outline" onClick={() => navigate("provider", "appointment", { id: heroAppt.id })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate("provider", "appointment", { id: heroAppt.id })}
+                >
                   Details
                 </Button>
               </div>
@@ -338,7 +426,9 @@ export function ProviderDashboard() {
             <div>
               <p className="text-sm text-emerald-50/90">No consultations today</p>
               <p className="text-xl font-bold mt-1">View schedule</p>
-              <p className="text-xs text-emerald-100/80 mt-1">Check upcoming appointments & follow-ups</p>
+              <p className="text-xs text-emerald-100/80 mt-1">
+                Check upcoming appointments & follow-ups
+              </p>
             </div>
             <div className="rounded-full bg-white/20 p-3">
               <ArrowRight className="h-5 w-5" />
@@ -368,10 +458,34 @@ export function ProviderDashboard() {
 
       {/* Stat tiles row — tappable */}
       <div className="grid grid-cols-4 gap-2.5">
-        <StatTile label="Today" value={todaysAppointments.length} icon={CalendarDays} tone="info" onClick={() => navigate("provider", "appointments")} />
-        <StatTile label="Pending docs" value={pendingDocumentation.length} icon={FileText} tone={pendingDocumentation.length > 0 ? "warning" : "success"} onClick={() => navigate("provider", "appointments")} />
-        <StatTile label="Lab review" value={labResultsToReview.length} icon={FlaskConical} tone={labResultsToReview.length > 0 ? "danger" : "success"} onClick={() => navigate("provider", "results")} />
-        <StatTile label="Referrals" value={openReferrals.length} icon={Share2} tone="info" onClick={() => navigate("provider", "referrals")} />
+        <StatTile
+          label="Today"
+          value={todaysAppointments.length}
+          icon={CalendarDays}
+          tone="info"
+          onClick={() => navigate("provider", "appointments")}
+        />
+        <StatTile
+          label="Pending docs"
+          value={pendingDocumentation.length}
+          icon={FileText}
+          tone={pendingDocumentation.length > 0 ? "warning" : "success"}
+          onClick={() => navigate("provider", "appointments")}
+        />
+        <StatTile
+          label="Lab review"
+          value={labResultsToReview.length}
+          icon={FlaskConical}
+          tone={labResultsToReview.length > 0 ? "danger" : "success"}
+          onClick={() => navigate("provider", "results")}
+        />
+        <StatTile
+          label="Referrals"
+          value={openReferrals.length}
+          icon={Share2}
+          tone="info"
+          onClick={() => navigate("provider", "referrals")}
+        />
       </div>
 
       {/* MiniMetrics — earnings summary */}
@@ -407,16 +521,26 @@ export function ProviderDashboard() {
         <SectionCard
           title="Upcoming follow-ups"
           icon={Clock}
-          action={<Button variant="ghost" size="sm" onClick={() => navigate("provider", "appointments")}>View all <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>}
+          action={
+            <Button variant="ghost" size="sm" onClick={() => navigate("provider", "appointments")}>
+              View all <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          }
         >
           {followUps.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No upcoming follow-ups.</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No upcoming follow-ups.
+            </p>
           ) : (
             <div className="divide-y divide-border/40">
               {followUps.map((a) => (
                 <CompactListItem
                   key={a.id}
-                  leading={<div className="rounded-lg bg-primary/10 p-1.5"><Clock className="h-4 w-4 text-primary" /></div>}
+                  leading={
+                    <div className="rounded-lg bg-primary/10 p-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                    </div>
+                  }
                   title={a.patient ? fullName(a.patient) : "Patient"}
                   subtitle={`${relativeDay(a.date)} · ${formatTime(a.time)}`}
                   trailing={<StatusBadge status={a.status} size="sm" />}
@@ -432,7 +556,16 @@ export function ProviderDashboard() {
         <SectionCard
           title="Incoming referrals"
           icon={Share2}
-          action={openReferrals.length > 0 ? <Badge variant="secondary" className="h-6 bg-amber-100 text-amber-700 border-amber-200">{openReferrals.length}</Badge> : undefined}
+          action={
+            openReferrals.length > 0 ? (
+              <Badge
+                variant="secondary"
+                className="h-6 bg-amber-100 text-amber-700 border-amber-200"
+              >
+                {openReferrals.length}
+              </Badge>
+            ) : undefined
+          }
         >
           {openReferrals.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No incoming referrals.</p>
@@ -441,7 +574,11 @@ export function ProviderDashboard() {
               {openReferrals.slice(0, 3).map((r) => (
                 <CompactListItem
                   key={r.id}
-                  leading={<div className="rounded-lg bg-amber-50 p-1.5"><Share2 className="h-4 w-4 text-amber-600" /></div>}
+                  leading={
+                    <div className="rounded-lg bg-amber-50 p-1.5">
+                      <Share2 className="h-4 w-4 text-amber-600" />
+                    </div>
+                  }
                   title={r.reason}
                   subtitle={`From ${r.sender ? `${r.sender.title} ${r.sender.lastName}` : "Provider"} · ${r.patient ? fullName(r.patient) : ""}`}
                   trailing={<StatusBadge status={r.status} size="sm" />}
@@ -461,21 +598,28 @@ export function ProviderDashboard() {
           "w-full rounded-2xl border p-4 text-left shadow-soft transition-all hover:shadow-soft-md tap-highlight-none active:scale-[0.99]",
           profile.verificationStatus === "approved"
             ? "border-emerald-200 bg-emerald-50/40"
-            : "border-amber-200 bg-amber-50/40"
+            : "border-amber-200 bg-amber-50/40",
         )}
       >
         <div className="flex items-center gap-3">
           {profile.verificationStatus === "approved" ? (
-            <div className="rounded-xl bg-emerald-100 p-2 shrink-0"><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div>
+            <div className="rounded-xl bg-emerald-100 p-2 shrink-0">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </div>
           ) : (
-            <div className="rounded-xl bg-amber-100 p-2 shrink-0"><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
+            <div className="rounded-xl bg-amber-100 p-2 shrink-0">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+            </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold capitalize">{profile.verificationStatus.replace(/_/g, " ")}</p>
+            <p className="text-sm font-semibold capitalize">
+              {profile.verificationStatus.replace(/_/g, " ")}
+            </p>
             <p className="text-xs text-muted-foreground">Provider No. {profile.providerNumber}</p>
           </div>
           <Badge variant="outline" className="shrink-0">
-            <BadgeCheck className="h-3.5 w-3.5 mr-1" /> View record <ChevronRight className="h-3 w-3 ml-1" />
+            <BadgeCheck className="h-3.5 w-3.5 mr-1" /> View record{" "}
+            <ChevronRight className="h-3 w-3 ml-1" />
           </Badge>
         </div>
       </button>
@@ -484,5 +628,9 @@ export function ProviderDashboard() {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">{children}</p>;
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+      {children}
+    </p>
+  );
 }

@@ -327,7 +327,7 @@ export class LaboratoryResultService {
       requestId: context.requestId,
     });
     return this.repository.listResults({
-      ...(input.cursor === undefined ? {} : { cursor: decodeResultCursor(input.cursor) }),
+      ...(input.cursor === undefined ? {} : { cursor: decodePublishedResultCursor(input.cursor) }),
       limit: input.limit,
       patientPrincipalId: context.actor.principalId,
       status: "PUBLISHED",
@@ -336,7 +336,7 @@ export class LaboratoryResultService {
 
   async listForPractitioner(
     context: LaboratoryRequestContext,
-    input: { cursor?: string; limit: number },
+    input: { cursor?: string; limit: number; patientId?: string },
   ) {
     this.assertSyntheticClinicalWorkflow();
     await this.authorization.authorize({
@@ -352,8 +352,9 @@ export class LaboratoryResultService {
       requestId: context.requestId,
     });
     return this.repository.listResults({
-      ...(input.cursor === undefined ? {} : { cursor: decodeResultCursor(input.cursor) }),
+      ...(input.cursor === undefined ? {} : { cursor: decodePublishedResultCursor(input.cursor) }),
       limit: input.limit,
+      ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
       practitionerPrincipalId: context.actor.principalId,
       status: "PUBLISHED",
     });
@@ -524,11 +525,18 @@ function decodeResultCursor(value: string): { createdAt: Date; id: string } {
   return decodeCursor(value, "createdAt") as { createdAt: Date; id: string };
 }
 
+function decodePublishedResultCursor(value: string): { id: string; publishedAt: Date } {
+  return decodeCursor(value, "publishedAt") as { id: string; publishedAt: Date };
+}
+
 function decodeCriticalCursor(value: string): { acknowledgementDueAt: Date; id: string } {
   return decodeCursor(value, "acknowledgementDueAt") as { acknowledgementDueAt: Date; id: string };
 }
 
-function decodeCursor(value: string, dateKey: "acknowledgementDueAt" | "createdAt") {
+function decodeCursor(
+  value: string,
+  dateKey: "acknowledgementDueAt" | "createdAt" | "publishedAt",
+) {
   try {
     const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<
       string,
