@@ -19,7 +19,10 @@ and the laboratory critical-results/dashboard surfaces. Checkpoint 11D4A restore
 home collection through an immutable structured address snapshot, an explicit per-service
 laboratory capability, and role-specific privacy projections. Checkpoint 11D4B connects
 the approved service catalogue, notification inbox, and laboratory profile/settings
-screens to exact-organization production contracts. Commercial and remaining
+screens to exact-organization production contracts. Checkpoint 11D4C adds administrator-
+governed, effective-dated service prices, immutable booking price snapshots, and hosted
+checkout through the shared payment-subject boundary while keeping clinical state independent
+from settlement. Settlement, payout, reporting, and remaining
 supporting-screen work remains tracked below and must be completed before parity can be claimed.
 
 ## Controlling rules
@@ -126,7 +129,7 @@ supporting-screen work remains tracked below and must be completed before parity
       expose only capable laboratories for the requested service, and provide the exact
       selected laboratory with the collection address and instructions. Ordering
       practitioners see the mode but not the home address.
-- [ ] Connect laboratory charging to the shared payment-subject boundary without
+- [x] Connect laboratory charging to the shared payment-subject boundary without
       coupling clinical completion to settlement.
 - [ ] Implement laboratory settlements/payouts and reporting only in their planned
       shared financial slices; retain the approved navigation until connected.
@@ -168,6 +171,32 @@ database enforcement that the selected laboratory explicitly offers home collect
 requested service. Application rollback may retain these columns and rows; destructive down
 migration is forbidden.
 
+Migration `20261014130000_add_laboratory_payment_purpose` adds the laboratory booking
+payment purpose in its own transaction because PostgreSQL requires a newly added enum value
+to be committed before it is referenced. Migration
+`20261014131000_laboratory_commercial_pricing` then adds effective-dated governed prices,
+immutable laboratory booking commercial snapshots, and the exact-one payment-subject
+relationship. Database triggers reject missing, stale, mismatched, or mutable commercial
+facts even if application validation is bypassed. Existing historical bookings remain
+nullable until a separately reviewed data migration can prove their commercial facts; every
+new booking must contain an exact active price snapshot and matching payment.
+
+## Checkpoint 11D4C completion report
+
+- Administrators can review all controlled hospital, pharmacy, and laboratory services on
+  the approved Pricing screen, create an immutable draft, and activate it after fresh
+  step-up authentication. Activating a price retires the prior active version atomically.
+- A patient laboratory booking now snapshots the patient charge, laboratory payout, and
+  ISO 4217 currency and creates the matching payment in one serializable transaction.
+- Hosted checkout uses the existing vendor-neutral payment adapter. Payment webhooks update
+  financial state only; they cannot advance, complete, or rewrite the clinical laboratory
+  workflow.
+- The patient Laboratory screen shows the captured price and offers checkout only while the
+  payment is payable. The laboratory Services screen shows the current centrally governed
+  price without granting the laboratory authority to change it.
+- Prototype screens covered by this checkpoint are available at `#/admin/pricing`,
+  `#/patient/laboratory`, and `#/laboratory/services`.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -178,18 +207,21 @@ migration is forbidden.
 - **Performance:** patient, practitioner, laboratory queue, request, and status paths
   have bounded composite indexes; completion checks stop after the first matching row. The
   laboratory workspace uses one relational join and one portal-level cache instead of a profile
-  request per screen, while notifications retain bounded cursor pagination.
+  request per screen, while notifications retain bounded cursor pagination. Price history uses
+  bounded indexed reads, and booking/payment creation is one transaction without per-row lookups.
 - **Maintainability:** status names and transition maps are centralized; opaque UUIDs,
   UTC timestamps, and optimistic versions follow platform conventions.
 - **Extensibility:** the request references controlled service taxonomy; home addresses use
-  ISO two-letter country codes and optional region/postal fields. The aggregate remains
-  independent of country, currency, payment vendor, or cloud provider.
+  ISO two-letter country codes and optional region/postal fields. Prices use supplied ISO 4217
+  currency codes and effective dates, and checkout continues through provider adapters. The
+  aggregate remains independent of country, currency, payment vendor, or cloud provider.
 - **No short-term patching:** invariants are enforced in PostgreSQL as well as domain
   code, history is append-only, and terminal records cannot be silently reopened.
 - **Non-standard/open work:** the primary laboratory, patient, and practitioner result
   workflows, embedded result widgets, service catalogue, notification inbox, and profile/settings
-  screens now use production boundaries. Commercial, verified rating/review, billing and team
-  administration, query-plan/load, and qualification work remains
+  screens now use production boundaries. Laboratory charging now uses the production payment
+  boundary. Settlement/payout/reporting, verified rating/review, billing and team administration,
+  query-plan/load, and qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
   privacy, and jurisdictional procedures are qualified. No approved screen or navigation

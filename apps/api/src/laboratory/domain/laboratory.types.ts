@@ -48,6 +48,7 @@ export class LaboratoryConflictError extends Error {
       | "IDEMPOTENCY_CONFLICT"
       | "INVALID_STATE"
       | "INVARIANT_VIOLATION"
+      | "PRICE_UNAVAILABLE"
       | "VERSION_CONFLICT",
   ) {
     super(reason);

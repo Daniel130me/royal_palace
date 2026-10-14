@@ -126,6 +126,22 @@ export interface LaboratoryWorkspacePriceResponse {
   patientPriceMinor: string;
 }
 
+export interface ServicePriceResponse {
+  currency: string;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  id: string;
+  patientPriceMinor: string;
+  providerPayoutMinor: string;
+  service: PublicService;
+  status: "DRAFT" | "ACTIVE" | "RETIRED";
+  version: number;
+}
+
+export interface ServicePriceListResponse {
+  data: readonly ServicePriceResponse[];
+}
+
 export interface LaboratoryWorkspaceServiceResponse {
   category: string;
   code: string;
@@ -628,7 +644,7 @@ export type PaymentStatus =
   | "REFUNDED"
   | "DISPUTED";
 
-export type PaymentPurpose = "CONSULTATION" | "PHARMACY_ORDER";
+export type PaymentPurpose = "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
 
 export interface PractitionerAvailabilityResponse {
   amountMinor: string;
@@ -665,6 +681,7 @@ export interface PaymentStatusResponse {
   appointmentId: string | null;
   currency: string;
   id: string;
+  laboratoryBookingId: string | null;
   payableUntil: string;
   pharmacyOrderId: string | null;
   purpose: PaymentPurpose;
@@ -879,6 +896,9 @@ export interface LaboratoryBookingResponse {
   homeCollection: LaboratoryHomeCollectionResponse | null;
   id: string;
   laboratory: { displayName: string; id: string };
+  paymentId: string | null;
+  paymentStatus: PaymentStatus | null;
+  pricing: LaboratoryWorkspacePriceResponse | null;
   processingStartedAt: string | null;
   resultReadyAt: string | null;
   sampleCollectedAt: string | null;

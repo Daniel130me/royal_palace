@@ -6,12 +6,15 @@ import { DocumentStorageModule } from "../platform/documents/document-storage.mo
 import { LaboratoryService } from "./application/laboratory.service.js";
 import { LaboratoryResultService } from "./application/laboratory-result.service.js";
 import { LaboratoryWorkspaceService } from "./application/laboratory-workspace.service.js";
+import { ServicePricingService } from "./application/service-pricing.service.js";
 import { LABORATORY_WORKSPACE_REPOSITORY } from "./domain/laboratory-workspace.types.js";
 import { LABORATORY_RESULT_REPOSITORY } from "./domain/laboratory-result.types.js";
 import { LABORATORY_REPOSITORY } from "./domain/laboratory.types.js";
 import { PrismaLaboratoryResultRepository } from "./infrastructure/prisma-laboratory-result.repository.js";
 import { PrismaLaboratoryWorkspaceRepository } from "./infrastructure/prisma-laboratory-workspace.repository.js";
 import { PrismaLaboratoryRepository } from "./infrastructure/prisma-laboratory.repository.js";
+import { PrismaServicePricingRepository } from "./infrastructure/prisma-service-pricing.repository.js";
+import { SERVICE_PRICING_REPOSITORY } from "./domain/service-pricing.types.js";
 import {
   LaboratoryOperationsController,
   LaboratoryRequestReadController,
@@ -24,6 +27,7 @@ import {
   ProviderLaboratoryResultController,
 } from "./presentation/laboratory-result.controller.js";
 import { LaboratoryWorkspaceController } from "./presentation/laboratory-workspace.controller.js";
+import { AdminServicePricingController } from "./presentation/service-pricing.controller.js";
 
 @Module({
   imports: [AuthorizationModule, DocumentStorageModule, IdentityModule],
@@ -36,14 +40,17 @@ import { LaboratoryWorkspaceController } from "./presentation/laboratory-workspa
     PatientLaboratoryResultController,
     ProviderLaboratoryResultController,
     LaboratoryWorkspaceController,
+    AdminServicePricingController,
   ],
   providers: [
     LaboratoryService,
     LaboratoryResultService,
     LaboratoryWorkspaceService,
+    ServicePricingService,
     { provide: LABORATORY_REPOSITORY, useClass: PrismaLaboratoryRepository },
     { provide: LABORATORY_RESULT_REPOSITORY, useClass: PrismaLaboratoryResultRepository },
     { provide: LABORATORY_WORKSPACE_REPOSITORY, useClass: PrismaLaboratoryWorkspaceRepository },
+    { provide: SERVICE_PRICING_REPOSITORY, useClass: PrismaServicePricingRepository },
   ],
 })
 export class LaboratoryModule {}

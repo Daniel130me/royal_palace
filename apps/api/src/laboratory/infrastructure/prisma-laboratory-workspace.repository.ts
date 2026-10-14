@@ -9,6 +9,7 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
   constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
 
   async find(organizationId: string): Promise<LaboratoryWorkspaceResponse | null> {
+    const now = new Date();
     const organization = await this.database.organization.findFirst({
       relationLoadStrategy: "join",
       select: {
@@ -35,7 +36,27 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
           select: {
             description: true,
             id: true,
-            service: { select: { category: true, code: true, name: true } },
+            service: {
+              select: {
+                category: true,
+                code: true,
+                name: true,
+                servicePrices: {
+                  orderBy: [{ effectiveFrom: "desc" }, { id: "desc" }],
+                  select: {
+                    currency: true,
+                    patientPriceMinor: true,
+                    providerPayoutMinor: true,
+                  },
+                  take: 1,
+                  where: {
+                    effectiveFrom: { lte: now },
+                    OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }],
+                    status: "ACTIVE",
+                  },
+                },
+              },
+            },
             status: true,
             supportsHomeCollection: true,
           },
@@ -75,17 +96,26 @@ export class PrismaLaboratoryWorkspaceRepository implements LaboratoryWorkspaceR
               ...registration,
               verifiedAt: registration.verifiedAt?.toISOString() ?? null,
             },
-      services: organization.organizationServices.map((offering) => ({
-        category: offering.service.category,
-        code: offering.service.code,
-        description: offering.description,
-        id: offering.id,
-        name: offering.service.name,
-        // Commercial pricing is introduced by the next governed laboratory slice.
-        pricing: null,
-        status: offering.status,
-        supportsHomeCollection: offering.supportsHomeCollection,
-      })),
+      services: organization.organizationServices.map((offering) => {
+        const price = offering.service.servicePrices[0] ?? null;
+        return {
+          category: offering.service.category,
+          code: offering.service.code,
+          description: offering.description,
+          id: offering.id,
+          name: offering.service.name,
+          pricing:
+            price === null
+              ? null
+              : {
+                  currency: price.currency,
+                  laboratoryPayoutMinor: price.providerPayoutMinor.toString(),
+                  patientPriceMinor: price.patientPriceMinor.toString(),
+                },
+          status: offering.status,
+          supportsHomeCollection: offering.supportsHomeCollection,
+        };
+      }),
     };
   }
 }

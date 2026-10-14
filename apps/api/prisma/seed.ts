@@ -73,6 +73,7 @@ const SYNTHETIC_SERVICES = [
     category: "Laboratory Services",
   },
 ] as const;
+const SYNTHETIC_DIAGNOSTIC_PRICE_ID = "0199a18e-a400-7000-8000-000000000451";
 const SYNTHETIC_ORGANIZATIONS = [
   {
     id: "0199a18e-a400-7000-8000-000000000201",
@@ -262,12 +263,43 @@ async function main(): Promise<void> {
   try {
     const reviewerPrincipals = await seedReviewerIdentities(database, syntheticIssuer);
     await seedPublicDiscovery(database);
+    await seedSyntheticServicePrices(database, reviewerPrincipals);
     await seedPractitionerDiscovery(database);
     await seedReviewerPortals(database, reviewerPrincipals);
     await seedOnboardingApplications(database);
   } finally {
     await database.$disconnect();
   }
+}
+
+async function seedSyntheticServicePrices(
+  database: PrismaClient,
+  reviewerPrincipals: ReviewerPrincipalMap,
+): Promise<void> {
+  const administratorPrincipalId = reviewerPrincipals.get("administrator-reviewer");
+  const diagnosticService = SYNTHETIC_SERVICES.find(
+    (service) => service.code === "diagnostic-testing",
+  );
+  if (administratorPrincipalId === undefined || diagnosticService === undefined) {
+    throw new Error("Synthetic service pricing requires the administrator and diagnostic service");
+  }
+  await database.servicePrice.upsert({
+    where: { id: SYNTHETIC_DIAGNOSTIC_PRICE_ID },
+    create: {
+      approvedByPrincipalId: administratorPrincipalId,
+      createdByPrincipalId: administratorPrincipalId,
+      currency: "SGD",
+      effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+      id: SYNTHETIC_DIAGNOSTIC_PRICE_ID,
+      patientPriceMinor: 12_500n,
+      providerPayoutMinor: 10_000n,
+      serviceId: diagnosticService.id,
+      status: "ACTIVE",
+      updatedAt: new Date(),
+    },
+    update: {},
+    select: { id: true },
+  });
 }
 
 type ReviewerPrincipalMap = ReadonlyMap<string, string>;

@@ -495,6 +495,8 @@ export interface components {
         /** @enum {string} */
         LaboratoryCollectionMode: "FACILITY" | "HOME";
         /** @enum {string} */
+        PaymentStatus: "CREATED" | "PENDING" | "SUCCEEDED" | "FAILED" | "EXPIRED" | "CANCELLED" | "REVERSED" | "PARTIALLY_REFUNDED" | "REFUNDED" | "DISPUTED";
+        /** @enum {string} */
         LaboratoryResultStatus: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
         /** @enum {string} */
         LaboratoryResultFlag: "NORMAL" | "LOW" | "HIGH" | "ABNORMAL" | "CRITICAL";
@@ -533,6 +535,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             laboratory: components["schemas"]["NamedResource"];
+            /** Format: uuid */
+            paymentId: string | null;
+            paymentStatus: components["schemas"]["PaymentStatus"] | null;
+            pricing: components["schemas"]["LaboratoryWorkspacePrice"] | null;
             /** Format: date-time */
             processingStartedAt: string | null;
             /** Format: date-time */

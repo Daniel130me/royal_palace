@@ -765,6 +765,21 @@ components:
           ],
       }
     LaboratoryCollectionMode: { type: string, enum: [FACILITY, HOME] }
+    PaymentStatus:
+      type: string
+      enum:
+        [
+          CREATED,
+          PENDING,
+          SUCCEEDED,
+          FAILED,
+          EXPIRED,
+          CANCELLED,
+          REVERSED,
+          PARTIALLY_REFUNDED,
+          REFUNDED,
+          DISPUTED,
+        ]
     LaboratoryResultStatus: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, SUPERSEDED] }
     LaboratoryResultFlag: { type: string, enum: [NORMAL, LOW, HIGH, ABNORMAL, CRITICAL] }
     LaboratoryCriticalResultStatus:
@@ -805,6 +820,9 @@ components:
           homeCollection,
           id,
           laboratory,
+          paymentId,
+          paymentStatus,
+          pricing,
           processingStartedAt,
           resultReadyAt,
           sampleCollectedAt,
@@ -826,6 +844,15 @@ components:
             - { type: "null" }
         id: { type: string, format: uuid }
         laboratory: { $ref: "#/components/schemas/NamedResource" }
+        paymentId: { type: [string, "null"], format: uuid }
+        paymentStatus:
+          oneOf:
+            - { $ref: "#/components/schemas/PaymentStatus" }
+            - { type: "null" }
+        pricing:
+          oneOf:
+            - { $ref: "#/components/schemas/LaboratoryWorkspacePrice" }
+            - { type: "null" }
         processingStartedAt: { type: [string, "null"], format: date-time }
         resultReadyAt: { type: [string, "null"], format: date-time }
         sampleCollectedAt: { type: [string, "null"], format: date-time }

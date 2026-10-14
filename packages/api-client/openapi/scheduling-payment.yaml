@@ -144,6 +144,59 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ConsultationFee" }
+  /api/admin/service-prices:
+    get:
+      operationId: listServicePrices
+      responses:
+        "200":
+          description: Governed service price catalogue
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ServicePrice" }
+    post:
+      operationId: createServicePrice
+      parameters:
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServicePriceInput" }
+      responses:
+        "201":
+          description: Draft service price created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServicePrice" }
+  /api/admin/service-prices/{priceId}/activate:
+    post:
+      operationId: activateServicePrice
+      parameters:
+        - { in: path, name: priceId, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "201":
+          description: Service price activated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServicePrice" }
   /api/admin/payments/{paymentId}/reconcile:
     post:
       operationId: reconcilePayment
@@ -259,6 +312,7 @@ components:
           appointmentId,
           currency,
           id,
+          laboratoryBookingId,
           payableUntil,
           pharmacyOrderId,
           purpose,
@@ -270,9 +324,10 @@ components:
         appointmentId: { type: [string, "null"], format: uuid }
         currency: { type: string, pattern: "^[A-Z]{3}$" }
         id: { type: string, format: uuid }
+        laboratoryBookingId: { type: [string, "null"], format: uuid }
         payableUntil: { type: string, format: date-time }
         pharmacyOrderId: { type: [string, "null"], format: uuid }
-        purpose: { type: string, enum: [CONSULTATION, PHARMACY_ORDER] }
+        purpose: { type: string, enum: [CONSULTATION, PHARMACY_ORDER, LABORATORY_BOOKING] }
         status: { $ref: "#/components/schemas/PaymentStatus" }
         updatedAt: { type: string, format: date-time }
     ConsultationFeeInput:
@@ -308,6 +363,50 @@ components:
         id: { type: string, format: uuid }
         mode: { $ref: "#/components/schemas/Mode" }
         practitionerId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, ACTIVE, RETIRED] }
+        version: { type: integer, minimum: 1 }
+    ServicePriceInput:
+      type: object
+      additionalProperties: false
+      required: [currency, effectiveFrom, patientPriceMinor, providerPayoutMinor, serviceId]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: string, format: date-time }
+        patientPriceMinor: { type: string, pattern: "^[0-9]+$" }
+        providerPayoutMinor: { type: string, pattern: "^[0-9]+$" }
+        serviceId: { type: string, format: uuid }
+    ServicePrice:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          currency,
+          effectiveFrom,
+          effectiveUntil,
+          id,
+          patientPriceMinor,
+          providerPayoutMinor,
+          service,
+          status,
+          version,
+        ]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: [string, "null"], format: date-time }
+        id: { type: string, format: uuid }
+        patientPriceMinor: { type: string, pattern: "^[0-9]+$" }
+        providerPayoutMinor: { type: string, pattern: "^[0-9]+$" }
+        service:
+          type: object
+          additionalProperties: false
+          required: [category, code, id, name]
+          properties:
+            category: { type: string }
+            code: { type: string }
+            id: { type: string, format: uuid }
+            name: { type: string }
         status: { type: string, enum: [DRAFT, ACTIVE, RETIRED] }
         version: { type: integer, minimum: 1 }
     Reconciliation:

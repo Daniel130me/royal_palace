@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import type {
   LaboratoryBookingListResponse,
   LaboratoryBookingStatus,
@@ -7,6 +8,7 @@ import type {
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { SERVICE_CONFIG } from "../../tokens.js";
 import { canTransitionLaboratoryBooking } from "../domain/laboratory-state-machine.js";
 import {
   LaboratoryConflictError,
@@ -25,6 +27,7 @@ const requestInclude = {
     include: {
       laboratoryOrganization: { select: { displayName: true, id: true } },
       homeCollection: true,
+      payment: { select: { id: true, status: true } },
       statusHistory: true,
     },
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
@@ -39,7 +42,10 @@ type RequestRow = Prisma.LaboratoryRequestGetPayload<{ include: typeof requestIn
 
 @Injectable()
 export class PrismaLaboratoryRepository implements LaboratoryRepository {
-  constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly database: PrismaService,
+    @Inject(SERVICE_CONFIG) private readonly config: ApiServiceConfig,
+  ) {}
 
   async findPractitionerByPrincipal(principalId: string) {
     const practitioner = await this.database.practitioner.findUnique({
@@ -197,12 +203,33 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
         if (active !== null) throw new LaboratoryConflictError("ACTIVE_BOOKING_EXISTS");
 
         const now = new Date();
+        const servicePrice = await transaction.servicePrice.findFirst({
+          orderBy: [{ effectiveFrom: "desc" }, { id: "desc" }],
+          select: {
+            currency: true,
+            id: true,
+            patientPriceMinor: true,
+            providerPayoutMinor: true,
+          },
+          where: {
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }],
+            serviceId: current.service_id,
+            status: "ACTIVE",
+          },
+        });
+        if (servicePrice === null) throw new LaboratoryConflictError("PRICE_UNAVAILABLE");
         const bookingId = createOpaqueId();
+        const paymentId = createOpaqueId();
+        const payableUntil = new Date(
+          now.getTime() + this.config.paymentGateway.reservationTtlSeconds * 1000,
+        );
         await transaction.laboratoryBooking.create({
           data: {
             acceptedAt: now,
             bookingNumber: `LABBOOK-${createOpaqueId()}`,
             collectionMode: input.draft.collectionMode,
+            currency: servicePrice.currency,
             ...(input.draft.homeCollection === undefined
               ? {}
               : {
@@ -214,9 +241,12 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
                   },
                 }),
             id: bookingId,
+            laboratoryPayoutMinor: servicePrice.providerPayoutMinor,
             laboratoryOrganizationId: input.draft.laboratoryOrganizationId,
+            patientPriceMinor: servicePrice.patientPriceMinor,
             requestId: input.requestId,
             scheduledAt: input.draft.scheduledAt,
+            servicePriceId: servicePrice.id,
             statusHistory: {
               create: {
                 actorPrincipalId: input.actorPrincipalId,
@@ -227,6 +257,29 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
               },
             },
             updatedAt: now,
+          },
+        });
+        await transaction.payment.create({
+          data: {
+            amountMinor: servicePrice.patientPriceMinor,
+            currency: servicePrice.currency,
+            id: paymentId,
+            laboratoryBookingId: bookingId,
+            payableUntil,
+            patientId: current.patient_id,
+            purpose: "LABORATORY_BOOKING",
+            providerCode: "UNASSIGNED",
+            reference: `payment_${paymentId}`,
+            updatedAt: now,
+          },
+        });
+        await transaction.paymentStatusHistory.create({
+          data: {
+            id: createOpaqueId(),
+            occurredAt: now,
+            paymentId,
+            reasonCode: "LABORATORY_BOOKING_CREATED",
+            toStatus: "CREATED",
           },
         });
         await transaction.auditEvent.create({
@@ -555,6 +608,18 @@ function mapRequest(row: RequestRow): LaboratoryRequestAccessRecord {
         displayName: booking.laboratoryOrganization.displayName,
         id: booking.laboratoryOrganization.id,
       },
+      paymentId: booking.payment?.id ?? null,
+      paymentStatus: booking.payment?.status ?? null,
+      pricing:
+        booking.patientPriceMinor === null ||
+        booking.laboratoryPayoutMinor === null ||
+        booking.currency === null
+          ? null
+          : {
+              currency: booking.currency,
+              laboratoryPayoutMinor: booking.laboratoryPayoutMinor.toString(),
+              patientPriceMinor: booking.patientPriceMinor.toString(),
+            },
       processingStartedAt: booking.processingStartedAt?.toISOString() ?? null,
       resultReadyAt: booking.resultReadyAt?.toISOString() ?? null,
       sampleCollectedAt: booking.sampleCollectedAt?.toISOString() ?? null,

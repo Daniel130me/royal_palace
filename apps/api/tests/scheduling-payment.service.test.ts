@@ -72,6 +72,7 @@ describe("SchedulingPaymentService", () => {
         appointmentId: createOpaqueId(),
         currency: "USD",
         id: createOpaqueId(),
+        laboratoryBookingId: null,
         payableUntil: new Date(Date.now() + 60_000).toISOString(),
         patientId: createOpaqueId(),
         patientPrincipalId,

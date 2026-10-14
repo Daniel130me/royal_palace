@@ -320,6 +320,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
         appointmentId: true,
         currency: true,
         id: true,
+        laboratoryBookingId: true,
         payableUntil: true,
         patient: { select: { principalId: true } },
         patientId: true,
@@ -611,6 +612,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
     const payment = await transaction.payment.findUnique({
       include: {
         appointment: true,
+        laboratoryBooking: { select: { id: true, status: true } },
         patient: { select: { principalId: true } },
         pharmacyOrder: {
           include: {
@@ -936,11 +938,12 @@ function mapPayment(row: {
   appointmentId: string | null;
   currency: string;
   id: string;
+  laboratoryBookingId: string | null;
   payableUntil: Date;
   patient: { principalId: string };
   patientId: string;
   pharmacyOrderId: string | null;
-  purpose: "CONSULTATION" | "PHARMACY_ORDER";
+  purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
   providerCode: string;
   providerPaymentReference: string | null;
   reference: string;
@@ -952,6 +955,7 @@ function mapPayment(row: {
     appointmentId: row.appointmentId,
     currency: row.currency,
     id: row.id,
+    laboratoryBookingId: row.laboratoryBookingId,
     payableUntil: row.payableUntil.toISOString(),
     patientId: row.patientId,
     patientPrincipalId: row.patient.principalId,
@@ -1149,6 +1153,7 @@ async function applyPaymentSubjectTransition(
   transaction: Prisma.TransactionClient,
   payment: {
     appointment: { availabilitySlotId: string; id: string; status: string } | null;
+    laboratoryBooking: { id: string; status: string } | null;
     payableUntil: Date;
     pharmacyOrder: {
       id: string;
@@ -1169,7 +1174,7 @@ async function applyPaymentSubjectTransition(
         | "DISPUTE_PENDING"
         | "DISPUTED";
     } | null;
-    purpose: "CONSULTATION" | "PHARMACY_ORDER";
+    purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
   },
   paymentStatus: PaymentStatus,
   occurredAt: Date,
@@ -1187,12 +1192,16 @@ async function applyPaymentSubjectTransition(
     );
     return;
   }
+  // Laboratory clinical progression is deliberately independent of settlement.
+  // The payment aggregate records the financial fact without mutating the booking.
+  if (payment.purpose === "LABORATORY_BOOKING" && payment.laboratoryBooking !== null) return;
   throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
 }
 
 function validatePaymentSubjectEvent(
   payment: {
     appointment: { id: string } | null;
+    laboratoryBooking: { id: string; status: string } | null;
     payableUntil: Date;
     pharmacyOrder: {
       quote: {
@@ -1211,12 +1220,22 @@ function validatePaymentSubjectEvent(
         | "DISPUTE_PENDING"
         | "DISPUTED";
     } | null;
-    purpose: "CONSULTATION" | "PHARMACY_ORDER";
+    purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
   },
   event: VerifiedPaymentEvent,
 ): string | null {
   if (payment.purpose === "CONSULTATION") {
     return payment.appointment === null ? "PAYMENT_SUBJECT_INVARIANT_VIOLATION" : null;
+  }
+  if (payment.purpose === "LABORATORY_BOOKING") {
+    if (payment.laboratoryBooking === null) return "PAYMENT_SUBJECT_INVARIANT_VIOLATION";
+    if (event.eventType === "SUCCEEDED") {
+      return payment.laboratoryBooking.status !== "CANCELLED" &&
+        event.occurredAt <= payment.payableUntil
+        ? null
+        : "LABORATORY_BOOKING_NOT_PAYABLE";
+    }
+    return null;
   }
   const order = payment.pharmacyOrder;
   if (order === null || order.quote.inventoryReservation === null) {
@@ -1412,9 +1431,10 @@ async function cancelReadyHandoff(
 }
 
 function activityTypeForPaymentPurpose(
-  purpose: "CONSULTATION" | "PHARMACY_ORDER",
-): "CONSULTATION" | "PHARMACY_PURCHASE" {
-  return purpose === "CONSULTATION" ? "CONSULTATION" : "PHARMACY_PURCHASE";
+  purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING",
+): "CONSULTATION" | "PHARMACY" | "LABORATORY" {
+  if (purpose === "CONSULTATION") return "CONSULTATION";
+  return purpose === "PHARMACY_ORDER" ? "PHARMACY" : "LABORATORY";
 }
 
 function checkoutStatusForPayment(

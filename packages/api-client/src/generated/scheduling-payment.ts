@@ -132,6 +132,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/service-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listServicePrices"];
+        put?: never;
+        post: operations["createServicePrice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/service-prices/{priceId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["activateServicePrice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/payments/{paymentId}/reconcile": {
         parameters: {
             query?: never;
@@ -206,12 +238,14 @@ export interface components {
             currency: string;
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            laboratoryBookingId: string | null;
             /** Format: date-time */
             payableUntil: string;
             /** Format: uuid */
             pharmacyOrderId: string | null;
             /** @enum {string} */
-            purpose: "CONSULTATION" | "PHARMACY_ORDER";
+            purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
             status: components["schemas"]["PaymentStatus"];
             /** Format: date-time */
             updatedAt: string;
@@ -237,6 +271,38 @@ export interface components {
             mode: components["schemas"]["Mode"];
             /** Format: uuid */
             practitionerId: string;
+            /** @enum {string} */
+            status: "DRAFT" | "ACTIVE" | "RETIRED";
+            version: number;
+        };
+        ServicePriceInput: {
+            currency: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveUntil?: string;
+            patientPriceMinor: string;
+            providerPayoutMinor: string;
+            /** Format: uuid */
+            serviceId: string;
+        };
+        ServicePrice: {
+            currency: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveUntil: string | null;
+            /** Format: uuid */
+            id: string;
+            patientPriceMinor: string;
+            providerPayoutMinor: string;
+            service: {
+                category: string;
+                code: string;
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
             /** @enum {string} */
             status: "DRAFT" | "ACTIVE" | "RETIRED";
             version: number;
@@ -481,6 +547,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsultationFee"];
+                };
+            };
+        };
+    };
+    listServicePrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Governed service price catalogue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ServicePrice"][];
+                    };
+                };
+            };
+        };
+    };
+    createServicePrice: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["Csrf"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServicePriceInput"];
+            };
+        };
+        responses: {
+            /** @description Draft service price created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServicePrice"];
+                };
+            };
+        };
+    };
+    activateServicePrice: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["Csrf"];
+            };
+            path: {
+                priceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedVersion: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Service price activated */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServicePrice"];
                 };
             };
         };

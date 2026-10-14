@@ -197,6 +197,12 @@ enum ConsultationFeeStatus {
   RETIRED
 }
 
+enum ServicePriceStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
 enum AppointmentStatus {
   PENDING_PAYMENT
   CONFIRMED
@@ -284,6 +290,7 @@ enum PaymentStatus {
 enum PaymentPurpose {
   CONSULTATION
   PHARMACY_ORDER
+  LABORATORY_BOOKING
 }
 
 enum CheckoutSessionStatus {
@@ -568,6 +575,8 @@ model IdentityPrincipal {
   createdAvailabilitySlots       AvailabilitySlot[]                 @relation("AvailabilitySlotCreator")
   createdConsultationFees        ConsultationFee[]                  @relation("ConsultationFeeCreator")
   approvedConsultationFees       ConsultationFee[]                  @relation("ConsultationFeeApprover")
+  createdServicePrices           ServicePrice[]                     @relation("ServicePriceCreator")
+  approvedServicePrices          ServicePrice[]                     @relation("ServicePriceApprover")
   requestedReconciliations       PaymentReconciliation[]            @relation("PaymentReconciliationRequester")
   notificationDeliveries         NotificationDelivery[]             @relation("NotificationRecipient")
   notificationReplays            NotificationDelivery[]             @relation("NotificationReplayActor")
@@ -823,6 +832,7 @@ model ServiceTaxonomy {
   organizationServices OrganizationService[]
   applicationRequests  OrganizationApplicationService[]
   laboratoryRequests   LaboratoryRequest[]
+  servicePrices        ServicePrice[]
 
   @@index([status, category, name, id], map: "service_taxonomies_status_category_name_idx")
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "service_taxonomies_name_trgm_idx")
@@ -830,24 +840,47 @@ model ServiceTaxonomy {
 }
 
 model OrganizationService {
-  id               String            @id @db.Uuid
-  organizationId   String            @map("organization_id") @db.Uuid
-  serviceId        String            @map("service_id") @db.Uuid
-  status           CatalogueStatus   @default(ACTIVE)
-  description      String?           @db.VarChar(500)
-  supportsHomeCollection Boolean     @default(false) @map("supports_home_collection")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version          Int               @default(1)
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  service          ServiceTaxonomy   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  facilityServices FacilityService[]
+  id                     String            @id @db.Uuid
+  organizationId         String            @map("organization_id") @db.Uuid
+  serviceId              String            @map("service_id") @db.Uuid
+  status                 CatalogueStatus   @default(ACTIVE)
+  description            String?           @db.VarChar(500)
+  supportsHomeCollection Boolean           @default(false) @map("supports_home_collection")
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int               @default(1)
+  organization           Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  service                ServiceTaxonomy   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  facilityServices       FacilityService[]
 
   @@unique([organizationId, serviceId], map: "organization_services_org_service_key")
   @@unique([organizationId, id], map: "organization_services_org_id_key")
   @@index([serviceId, status, organizationId, id], map: "organization_services_service_status_org_idx")
   @@index([organizationId, status, serviceId, id], map: "organization_services_org_status_service_idx")
   @@map("organization_services")
+}
+
+model ServicePrice {
+  id                    String              @id @db.Uuid
+  serviceId             String              @map("service_id") @db.Uuid
+  patientPriceMinor     BigInt              @map("patient_price_minor")
+  providerPayoutMinor   BigInt              @map("provider_payout_minor")
+  currency              String              @db.Char(3)
+  effectiveFrom         DateTime            @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil        DateTime?           @map("effective_until") @db.Timestamptz(6)
+  status                ServicePriceStatus  @default(DRAFT)
+  createdByPrincipalId  String              @map("created_by_principal_id") @db.Uuid
+  approvedByPrincipalId String?             @map("approved_by_principal_id") @db.Uuid
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                 @default(1)
+  service               ServiceTaxonomy     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdByPrincipal    IdentityPrincipal   @relation("ServicePriceCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  approvedByPrincipal   IdentityPrincipal?  @relation("ServicePriceApprover", fields: [approvedByPrincipalId], references: [id], onDelete: Restrict)
+  laboratoryBookings    LaboratoryBooking[]
+
+  @@index([serviceId, status, effectiveFrom, id], map: "service_prices_active_lookup_idx")
+  @@map("service_prices")
 }
 
 model FacilityService {
@@ -1912,6 +1945,10 @@ model LaboratoryBooking {
   bookingNumber            String                           @unique @map("booking_number") @db.VarChar(64)
   requestId                String                           @map("request_id") @db.Uuid
   laboratoryOrganizationId String                           @map("laboratory_organization_id") @db.Uuid
+  servicePriceId           String?                          @map("service_price_id") @db.Uuid
+  patientPriceMinor        BigInt?                          @map("patient_price_minor")
+  laboratoryPayoutMinor    BigInt?                          @map("laboratory_payout_minor")
+  currency                 String?                          @db.Char(3)
   status                   LaboratoryBookingStatus          @default(CONFIRMED)
   collectionMode           LaboratoryCollectionMode         @default(FACILITY) @map("collection_mode")
   scheduledAt              DateTime?                        @map("scheduled_at") @db.Timestamptz(6)
@@ -1926,6 +1963,8 @@ model LaboratoryBooking {
   version                  Int                              @default(1)
   request                  LaboratoryRequest                @relation(fields: [requestId], references: [id], onDelete: Restrict)
   laboratoryOrganization   Organization                     @relation(fields: [laboratoryOrganizationId], references: [id], onDelete: Restrict)
+  servicePrice             ServicePrice?                    @relation(fields: [servicePriceId], references: [id], onDelete: Restrict)
+  payment                  Payment?
   statusHistory            LaboratoryBookingStatusHistory[]
   homeCollection           LaboratoryHomeCollection?
   results                  LaboratoryResult[]
@@ -2701,6 +2740,7 @@ model Payment {
   id                       String                   @id @db.Uuid
   appointmentId            String?                  @unique @map("appointment_id") @db.Uuid
   pharmacyOrderId          String?                  @unique @map("pharmacy_order_id") @db.Uuid
+  laboratoryBookingId      String?                  @unique @map("laboratory_booking_id") @db.Uuid
   purpose                  PaymentPurpose           @default(CONSULTATION)
   patientId                String                   @map("patient_id") @db.Uuid
   reference                String                   @unique @db.VarChar(64)
@@ -2719,6 +2759,7 @@ model Payment {
   version                  Int                      @default(1)
   appointment              Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
   pharmacyOrder            PharmacyOrder?           @relation(fields: [pharmacyOrderId], references: [id], onDelete: Restrict)
+  laboratoryBooking        LaboratoryBooking?       @relation(fields: [laboratoryBookingId], references: [id], onDelete: Restrict)
   patient                  Patient                  @relation(fields: [patientId], references: [id], onDelete: Restrict)
   checkoutSessions         PaymentCheckoutSession[]
   webhookEvents            PaymentWebhookEvent[]

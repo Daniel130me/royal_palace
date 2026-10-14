@@ -43,8 +43,12 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatTime } from "@/lib/format";
-import { productionLaboratoryService, publicDiscoveryService } from "@/lib/services";
+import { formatDate, formatMinorCurrency, formatTime } from "@/lib/format";
+import {
+  productionLaboratoryService,
+  publicDiscoveryService,
+  schedulingPaymentService,
+} from "@/lib/services";
 import { usePatientContext } from "../use-patient-context";
 
 const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
@@ -55,6 +59,7 @@ const ACTIVE_BOOKING_STATUSES: ReadonlySet<LaboratoryBookingStatus> = new Set([
   "PROCESSING",
   "RESULT_READY",
 ]);
+const CHECKOUT_PAYMENT_STATUSES = new Set(["CREATED", "PENDING", "FAILED"]);
 
 type LabTab = "pending" | "bookings" | "results";
 
@@ -282,6 +287,7 @@ export function PatientLaboratory() {
 
 function BookingRow({ request }: { request: LaboratoryRequestResponse }) {
   const booking = activeBooking(request);
+  const [openingCheckout, setOpeningCheckout] = useState(false);
   if (!booking) return null;
   const sampleDone = ["SAMPLE_COLLECTED", "PROCESSING", "RESULT_READY", "COMPLETED"].includes(
     booking.status,
@@ -304,8 +310,41 @@ function BookingRow({ request }: { request: LaboratoryRequestResponse }) {
             )}
             {booking.collectionMode === "HOME" ? "Home collection" : "Laboratory collection"}
           </p>
+          {booking.pricing && (
+            <p className="mt-1 text-xs font-medium">
+              {formatMinorCurrency(booking.pricing.patientPriceMinor, booking.pricing.currency)}
+            </p>
+          )}
         </div>
-        <StatusBadge status={booking.status.toLowerCase()} size="sm" />
+        <div className="flex flex-col items-end gap-2">
+          <StatusBadge status={booking.status.toLowerCase()} size="sm" />
+          {booking.paymentId &&
+            booking.paymentStatus !== null &&
+            CHECKOUT_PAYMENT_STATUSES.has(booking.paymentStatus) && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={openingCheckout}
+                onClick={async () => {
+                  const paymentId = booking.paymentId;
+                  if (paymentId === null) return;
+                  setOpeningCheckout(true);
+                  try {
+                    const checkout = await schedulingPaymentService.createCheckout(
+                      paymentId,
+                      crypto.randomUUID(),
+                    );
+                    window.location.assign(checkout.checkoutUrl);
+                  } catch (cause) {
+                    toast.error(cause instanceof Error ? cause.message : "Checkout is unavailable");
+                    setOpeningCheckout(false);
+                  }
+                }}
+              >
+                {openingCheckout ? "Opening…" : "Pay"}
+              </Button>
+            )}
+        </div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
         <Milestone label="Booked" done />
@@ -399,7 +438,7 @@ function LabBookingSheet({
     setBusy(true);
     setError(null);
     try {
-      await productionLaboratoryService.patient.book(
+      const bookedRequest = await productionLaboratoryService.patient.book(
         request.id,
         collectionMode === "HOME"
           ? {
@@ -429,8 +468,24 @@ function LabBookingSheet({
             },
         crypto.randomUUID(),
       );
-      toast.success("Laboratory test booked.");
+      const booking = activeBooking(bookedRequest);
+      toast.success("Laboratory test booked. Clinical processing is independent of settlement.");
       onBooked();
+      if (booking?.paymentId) {
+        try {
+          const checkout = await schedulingPaymentService.createCheckout(
+            booking.paymentId,
+            crypto.randomUUID(),
+          );
+          window.location.assign(checkout.checkoutUrl);
+        } catch (checkoutError) {
+          toast.error(
+            checkoutError instanceof Error
+              ? `Booking saved. ${checkoutError.message}`
+              : "Booking saved, but checkout is currently unavailable.",
+          );
+        }
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The booking could not be completed.");
     } finally {
@@ -649,8 +704,9 @@ function LabBookingSheet({
 
           <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-800">
             <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            This reserves the laboratory and collection time. Pricing and payment remain in the
-            approved commercial workflow and are not simulated here.
+            The approved price is copied into this booking and cannot be changed later. After
+            booking, you will continue to the secure payment provider. Payment does not alter the
+            laboratory's clinical result workflow.
           </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>

@@ -33,6 +33,7 @@ import type {
   HostedCheckoutResponse,
   PaymentStatusResponse,
   PractitionerAvailabilityResponse,
+  ServicePriceResponse,
 } from "@royal-palace/contracts";
 import {
   api,
@@ -1320,6 +1321,32 @@ export const serviceService = {
 
 export const pricingService = {
   list: () => resource.list<ServicePrice>("servicePrice"),
+};
+
+export const productionServicePricingService = {
+  list: () =>
+    generatedSchedulingPaymentClient.GET("/api/admin/service-prices").then(unwrapGeneratedResponse),
+  create: (input: {
+    currency: string;
+    effectiveFrom: string;
+    effectiveUntil?: string;
+    patientPriceMinor: string;
+    providerPayoutMinor: string;
+    serviceId: string;
+  }): Promise<ServicePriceResponse> =>
+    generatedSchedulingPaymentClient
+      .POST("/api/admin/service-prices", {
+        body: input,
+        params: { header: csrfHeader() },
+      })
+      .then(unwrapGeneratedResponse),
+  activate: (priceId: string, expectedVersion: number): Promise<ServicePriceResponse> =>
+    generatedSchedulingPaymentClient
+      .POST("/api/admin/service-prices/{priceId}/activate", {
+        body: { expectedVersion },
+        params: { header: csrfHeader(), path: { priceId } },
+      })
+      .then(unwrapGeneratedResponse),
 };
 
 export const appointmentService = {
