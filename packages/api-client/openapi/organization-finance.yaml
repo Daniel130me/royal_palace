@@ -123,7 +123,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         displayName: { type: string }
-        type: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY] }
+        type: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY, LOGISTICS] }
     SettlementPeriod:
       type: object
       required:

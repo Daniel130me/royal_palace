@@ -72,13 +72,13 @@ routes or expose prescription, medication, clinical-record, or patient-payment d
 
 ### 11E4 — signed prototype connection
 
-- [ ] Connect logistics Dashboard at `#/logistics/dashboard`.
-- [ ] Connect assignments and history at `#/logistics/assignments` and `#/logistics/history`.
-- [ ] Connect delivery detail/progress at `#/logistics/delivery?id=<delivery-id>`.
-- [ ] Connect logistics earnings and payout at `#/logistics/earnings` and `#/logistics/payout` using
+- [x] Connect logistics Dashboard at `#/logistics/dashboard`.
+- [x] Connect assignments and history at `#/logistics/assignments` and `#/logistics/history`.
+- [x] Connect delivery detail/progress at `#/logistics/delivery?id=<delivery-id>`.
+- [x] Connect logistics earnings and payout at `#/logistics/earnings` and `#/logistics/payouts` using
       immutable organization-finance facts; never infer earnings from browser status.
-- [ ] Connect administrator delivery oversight and patient/pharmacy tracking projections.
-- [ ] Retire the legacy unauthenticated delivery/progress and logistics payout routes only after
+- [x] Connect administrator delivery oversight and patient/pharmacy tracking projections.
+- [x] Retire the legacy unauthenticated delivery/progress and logistics payout routes only after
       every approved screen consumes the production boundary.
 - [ ] Complete visual/functional comparison against the signed prototype and stakeholder UAT.
 
@@ -190,3 +190,54 @@ gates, Prisma validation, and disposable-PostgreSQL clean-install, upgrade, back
 immutability, and constraint evidence. Migration
 `20261015220000_logistics_recipient_code_attempt_policy` is also applied to the local development
 database.
+
+## Checkpoint 11E4 implementation report
+
+Every signed logistics screen now consumes the authenticated production boundary. Dashboard,
+assignments, history, and delivery detail use exact-organization, cursor-bounded delivery
+projections. Delivery progress sends the server-owned expected version and a unique idempotency key;
+recipient proof accepts exactly eight digits and never displays, stores, or reconstructs the
+plaintext code in the browser. The misleading prototype-only four-hour ETA and browser-calculated
+per-delivery payout fields have been removed without removing their approved outcomes: the workflow
+timeline remains, while earnings and payouts now come exclusively from organization-finance facts.
+
+Earnings supports daily, monthly, and custom-range reports with a maximum 366-day query window and
+keeps currencies separate. Payout requests reserve only server-confirmed available balances and
+remain internal finance decisions until a transfer provider and launch region are qualified. The
+finance OpenAPI contract now includes logistics organizations instead of coercing them into a care
+facility type.
+
+Administrator delivery oversight uses the minimized administrator projection and never receives
+recipient identity, phone, full address, verification code, or patient payment data. Pharmacy
+delivery screens join their existing handoff view to the minimized pharmacy tracking projection by
+handoff reference. A patient order displays its own minimized tracking projection only when its
+delivery handoff reference matches. The legacy generic delivery collection, unauthenticated
+delivery-progress action, and logistics branch of the legacy payout action are no longer exposed.
+
+Synthetic development seeding now creates a verified logistics organization plus an exact
+organization membership for the synthetic logistics reviewer. It is still guarded by the existing
+non-production and loopback-issuer checks; no real provider, courier, patient, or delivery data is
+enabled.
+
+Validation at this checkpoint includes generated-client drift checking, web lint and type checking,
+43 passing web tests, the optimized production web build, and the executable parity register: 139
+approved capabilities across 11 portals, 16 visual references, and 138 historical artifacts. The
+browser-control surface rejected local-loopback inspection in this session, so visual comparison
+and stakeholder UAT intentionally remain open rather than being claimed without evidence.
+
+### 11E4 standards walkthrough
+
+- **Readable and maintainable:** generated logistics contracts feed a dedicated service boundary,
+  shared domain types, and small screen adapters; browser components do not construct raw API calls.
+- **Security first:** exact organization headers, CSRF, idempotency, optimistic versions, bounded
+  projections, and one-way recipient proof replace the unauthenticated legacy workflow.
+- **Performance conscious:** delivery reads are capped at 50 records per cursor page, history is
+  bounded, screens expose deliberate load-more controls, and patient/pharmacy joins are in-memory
+  joins over two bounded calls rather than N+1 requests.
+- **Extendable:** status, address, currency, finance, organization, and payout contracts remain
+  vendor-neutral and contain no Nigeria-only, provider-specific, vehicle, SLA, or currency default.
+- **No magic assumptions:** the browser no longer invents ETA or payout values; date-range limits
+  mirror the server contract and currencies come from finance facts.
+- **Non-standard conditions flagged:** stakeholder visual/UAT approval, representative logistics
+  query-plan evidence, deeper API negative-path coverage, and real logistics/payment provider
+  qualification remain open. Real logistics activation remains prohibited.

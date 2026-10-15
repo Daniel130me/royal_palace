@@ -1,91 +1,146 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { useNav } from "@/lib/nav";
-import { logisticsService, notificationService } from "@/lib/services";
-import type { LogisticsProvider, Notification, Delivery } from "@/types";
+import { productionLogisticsService, productionNotificationService } from "@/lib/services";
 
-// Resolves the logistics provider profile for the logged-in logistics user,
-// their deliveries and unread notifications.
-//
-// IMPORTANT: This context never exposes patient clinical, diagnosis, or
-// laboratory information. Only delivery-relevant fields are surfaced to UI.
-export function useLogisticsContext() {
-  const { session } = useNav();
+import type { LogisticsDelivery, MutableLogisticsDeliveryStatus } from "./logistics-types";
+
+const DELIVERY_PAGE_SIZE = 50;
+
+export function useLogisticsContext(options: { loadUnread?: boolean } = {}) {
+  const { session, sessionName } = useNav();
   const logisticsId = session?.profileId ?? null;
-
-  const [profile, setProfile] = useState<LogisticsProvider | null>(null);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [deliveries, setDeliveries] = useState<LogisticsDelivery[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!logisticsId) {
+      setDeliveries([]);
+      setNextCursor(null);
       setLoading(false);
+      setError("No logistics organization is associated with this session.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const [p, delivs, notifs] = await Promise.all([
-        logisticsService.get(logisticsId),
-        logisticsService.deliveries(logisticsId),
-        notificationService.list(logisticsId, "logistics").catch(() => [] as Notification[]),
+      const [page, notifications] = await Promise.all([
+        productionLogisticsService.organization.list(logisticsId, {
+          limit: DELIVERY_PAGE_SIZE,
+        }),
+        options.loadUnread === true
+          ? productionNotificationService
+              .list({ limit: 50, unreadOnly: true })
+              .catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] }),
       ]);
-      setProfile(p);
-      setDeliveries(delivs);
-      setNotifications(notifs);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load logistics data.");
+      setDeliveries(page.data);
+      setNextCursor(page.nextCursor);
+      setUnread(notifications.data.length);
+    } catch (reason) {
+      setDeliveries([]);
+      setNextCursor(null);
+      setError(reason instanceof Error ? reason.message : "Logistics data could not be loaded.");
     } finally {
       setLoading(false);
     }
-  }, [logisticsId]);
+  }, [logisticsId, options.loadUnread]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
-  const unread = notifications.filter((n) => !n.read).length;
+  const loadMore = useCallback(async () => {
+    if (!logisticsId || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await productionLogisticsService.organization.list(logisticsId, {
+        cursor: nextCursor,
+        limit: DELIVERY_PAGE_SIZE,
+      });
+      setDeliveries((current) => {
+        const byId = new Map(current.map((delivery) => [delivery.id, delivery]));
+        page.data.forEach((delivery) => byId.set(delivery.id, delivery));
+        return [...byId.values()];
+      });
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, logisticsId, nextCursor]);
 
-  // Categorise deliveries by workflow stage. Only delivery-level fields
-  // are exposed here — UI must never pull patient/order clinical info.
-  const available = deliveries.filter((d) => d.status === "assigned");
-  const pickupPhase = deliveries.filter((d) =>
-    ["accepted", "heading_to_pickup", "arrived_at_pickup", "pickup_verified"].includes(d.status)
+  const transition = useCallback(
+    async (
+      delivery: LogisticsDelivery,
+      toStatus: MutableLogisticsDeliveryStatus,
+      reasonCode?: string,
+    ) => {
+      if (!logisticsId)
+        throw new Error("No logistics organization is associated with this session.");
+      const updated = await productionLogisticsService.organization.transition(
+        logisticsId,
+        delivery.id,
+        { expectedVersion: delivery.version, reasonCode, toStatus },
+        crypto.randomUUID(),
+      );
+      setDeliveries((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      return updated;
+    },
+    [logisticsId],
   );
-  const inTransit = deliveries.filter((d) =>
-    ["picked_up", "in_transit", "arrived_at_destination"].includes(d.status)
+
+  const verifyRecipientCode = useCallback(
+    async (delivery: LogisticsDelivery, recipientCode: string) => {
+      if (!logisticsId)
+        throw new Error("No logistics organization is associated with this session.");
+      const updated = await productionLogisticsService.organization.verifyRecipientCode(
+        logisticsId,
+        delivery.id,
+        { expectedVersion: delivery.version, recipientCode },
+        crypto.randomUUID(),
+      );
+      setDeliveries((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      return updated;
+    },
+    [logisticsId],
   );
-  const active = deliveries.filter((d) =>
-    [
-      "accepted",
-      "heading_to_pickup",
-      "arrived_at_pickup",
-      "pickup_verified",
-      "picked_up",
-      "in_transit",
-      "arrived_at_destination",
-    ].includes(d.status)
-  );
-  const completed = deliveries.filter((d) =>
-    ["delivered", "failed", "returned", "cancelled"].includes(d.status)
-  );
+
+  const groups = useMemo(() => {
+    const available = deliveries.filter((delivery) => delivery.status === "ASSIGNED");
+    const pickupPhase = deliveries.filter((delivery) =>
+      ["ACCEPTED", "HEADING_TO_PICKUP", "ARRIVED_AT_PICKUP", "PICKUP_VERIFIED"].includes(
+        delivery.status,
+      ),
+    );
+    const inTransit = deliveries.filter((delivery) =>
+      ["PICKED_UP", "IN_TRANSIT", "ARRIVED_AT_DESTINATION"].includes(delivery.status),
+    );
+    const active = [...pickupPhase, ...inTransit];
+    const completed = deliveries.filter((delivery) =>
+      ["DELIVERED", "FAILED", "RETURNED", "CANCELLED"].includes(delivery.status),
+    );
+    return { active, available, completed, inTransit, pickupPhase };
+  }, [deliveries]);
 
   return {
-    logisticsId,
-    profile,
+    ...groups,
     deliveries,
-    available,
-    pickupPhase,
-    inTransit,
-    active,
-    completed,
-    notifications,
-    unread,
-    loading,
     error,
+    hasMore: nextCursor !== null,
+    loading,
+    loadingMore,
+    loadMore,
+    logisticsId,
+    organizationName: sessionName,
     refresh,
+    transition,
+    unread,
+    verifyRecipientCode,
   };
 }

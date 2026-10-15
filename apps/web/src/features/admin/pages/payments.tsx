@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { OrganizationFinanceComponents } from "@royal-palace/api-client";
 import { navigate } from "@/lib/nav";
 import { resource } from "@/lib/api-client";
-import type { Payment, Settlement, Delivery, LaboratoryBooking } from "@/types";
+import type { Payment, Settlement, LaboratoryBooking } from "@/types";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import {
@@ -15,7 +16,8 @@ import {
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
 import { CompactListItem } from "@/components/healthcare/compact-list";
 import { StatTile } from "@/components/healthcare/compact-list";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatMinorCurrency } from "@/lib/format";
+import { productionOrganizationFinanceService } from "@/lib/services";
 import {
   CreditCard,
   Search,
@@ -28,10 +30,11 @@ import {
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "successful" | "pending" | "refunded" | "all";
+type FinancePeriod = OrganizationFinanceComponents["schemas"]["SettlementPeriod"];
 
 export function AdminPayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [financePeriods, setFinancePeriods] = useState<FinancePeriod[]>([]);
   const [labBookings, setLabBookings] = useState<LaboratoryBooking[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,15 +45,23 @@ export function AdminPayments() {
   const load = () => {
     setLoading(true);
     setError(null);
+    const to = new Date();
+    to.setUTCDate(to.getUTCDate() + 1);
+    const from = new Date(to);
+    from.setUTCFullYear(from.getUTCFullYear() - 1);
     Promise.all([
       resource.list<Payment>("payment"),
-      resource.list<Delivery>("delivery"),
+      productionOrganizationFinanceService.admin.report(
+        from.toISOString(),
+        to.toISOString(),
+        "TOTAL",
+      ),
       resource.list<LaboratoryBooking>("laboratoryBooking"),
       resource.list<Settlement>("settlement"),
     ])
-      .then(([pay, del, lab, stl]) => {
+      .then(([pay, finance, lab, stl]) => {
         setPayments(pay);
-        setDeliveries(del);
+        setFinancePeriods([...finance.data]);
         setLabBookings(lab);
         setSettlements(stl);
       })
@@ -71,7 +82,20 @@ export function AdminPayments() {
     [payments],
   );
   const labPayout = useMemo(() => labBookings.reduce((s, b) => s + b.price, 0), [labBookings]);
-  const logisticsPayout = useMemo(() => deliveries.reduce((s, d) => s + d.payout, 0), [deliveries]);
+  const logisticsPayout = useMemo(() => {
+    const totals = new Map<string, bigint>();
+    for (const period of financePeriods) {
+      if (period.organization.type !== "LOGISTICS") continue;
+      totals.set(
+        period.currency,
+        (totals.get(period.currency) ?? BigInt(0)) + BigInt(period.payableAmountMinor),
+      );
+    }
+    if (totals.size === 0) return "No verified facts";
+    if (totals.size > 1) return `${totals.size} currencies`;
+    const [currency, amount] = [...totals.entries()][0];
+    return formatMinorCurrency(amount.toString(), currency);
+  }, [financePeriods]);
   const providerPayout = useMemo(
     () =>
       settlements.filter((s) => s.entityType === "provider").reduce((s, x) => s + x.netAmount, 0),
@@ -154,12 +178,7 @@ export function AdminPayments() {
           icon={FlaskConical}
           tone="violet"
         />
-        <StatTile
-          label="Logistics"
-          value={formatCurrency(logisticsPayout)}
-          icon={Truck}
-          tone="info"
-        />
+        <StatTile label="Logistics" value={logisticsPayout} icon={Truck} tone="info" />
         <StatTile
           label="Refunds"
           value={formatCurrency(refundsTotal)}

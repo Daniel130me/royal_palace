@@ -241,7 +241,7 @@ export interface components {
             id: string;
             displayName: string;
             /** @enum {string} */
-            type: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+            type: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
         };
         SettlementPeriod: {
             organization: components["schemas"]["OrganizationSummary"];

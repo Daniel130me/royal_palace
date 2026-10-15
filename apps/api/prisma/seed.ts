@@ -74,6 +74,12 @@ const SYNTHETIC_SERVICES = [
   },
 ] as const;
 const SYNTHETIC_DIAGNOSTIC_PRICE_ID = "0199a18e-a400-7000-8000-000000000451";
+const SYNTHETIC_LOGISTICS_ORGANIZATION_ID = "0199a18e-a400-7000-8000-000000000205";
+const SYNTHETIC_LOGISTICS_MEMBERSHIP_ID = "0199a18e-a400-7000-8000-000000000024";
+const SYNTHETIC_LOGISTICS_ROLE_ASSIGNMENTS = {
+  courier: "0199a18e-a400-7000-8000-000000000025",
+  staff: "0199a18e-a400-7000-8000-000000000026",
+} as const;
 const SYNTHETIC_ORGANIZATIONS = [
   {
     id: "0199a18e-a400-7000-8000-000000000201",
@@ -384,6 +390,59 @@ async function seedReviewerPortals(
     update: { displayName: "Synthetic Manager Reviewer", status: "ACTIVE" },
     select: { id: true },
   });
+
+  const logisticsPrincipalId = requiredReviewerPrincipal(principals, "logistics-reviewer");
+  await database.organization.upsert({
+    where: { id: SYNTHETIC_LOGISTICS_ORGANIZATION_ID },
+    create: {
+      displayName: "Synthetic Logistics Organization",
+      id: SYNTHETIC_LOGISTICS_ORGANIZATION_ID,
+      legalName: "Synthetic Logistics Organization Limited",
+      type: "LOGISTICS",
+      verificationStatus: "VERIFIED",
+      verifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+    },
+    update: {
+      displayName: "Synthetic Logistics Organization",
+      status: "ACTIVE",
+      verificationStatus: "VERIFIED",
+      verifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  await database.membership.upsert({
+    where: { id: SYNTHETIC_LOGISTICS_MEMBERSHIP_ID },
+    create: {
+      id: SYNTHETIC_LOGISTICS_MEMBERSHIP_ID,
+      organizationId: SYNTHETIC_LOGISTICS_ORGANIZATION_ID,
+      principalId: logisticsPrincipalId,
+    },
+    update: {
+      organizationId: SYNTHETIC_LOGISTICS_ORGANIZATION_ID,
+      principalId: logisticsPrincipalId,
+    },
+    select: { id: true },
+  });
+  for (const [role, id] of [
+    ["LOGISTICS", SYNTHETIC_LOGISTICS_ROLE_ASSIGNMENTS.courier],
+    ["ORGANIZATION_STAFF", SYNTHETIC_LOGISTICS_ROLE_ASSIGNMENTS.staff],
+  ] as const) {
+    await database.roleAssignment.upsert({
+      where: { id },
+      create: {
+        id,
+        membershipId: SYNTHETIC_LOGISTICS_MEMBERSHIP_ID,
+        role,
+        scope: "ORGANIZATION",
+      },
+      update: {
+        membershipId: SYNTHETIC_LOGISTICS_MEMBERSHIP_ID,
+        role,
+        scope: "ORGANIZATION",
+      },
+      select: { id: true },
+    });
+  }
 
   for (const fixture of SYNTHETIC_MEMBERSHIPS) {
     const principalId = requiredReviewerPrincipal(principals, fixture.subject);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PrescriptionComponents } from "@royal-palace/api-client";
+import type { LogisticsComponents, PrescriptionComponents } from "@royal-palace/api-client";
 import { CreditCard, Package, Receipt, Truck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -15,13 +15,19 @@ import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatMinorCurrency } from "@/lib/format";
 import { navigate, useNav } from "@/lib/nav";
-import { productionPrescriptionService, schedulingPaymentService } from "@/lib/services";
+import {
+  productionLogisticsService,
+  productionPrescriptionService,
+  schedulingPaymentService,
+} from "@/lib/services";
 
 type Order = PrescriptionComponents["schemas"]["PharmacyOrder"];
+type TrackingDelivery = LogisticsComponents["schemas"]["TrackingDelivery"];
 
 export function PatientOrderDetail() {
   const orderId = useNav().view.params.id;
   const [order, setOrder] = useState<Order | null>(null);
+  const [tracking, setTracking] = useState<TrackingDelivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +36,18 @@ export function PatientOrderDetail() {
     if (!orderId) return;
     setLoading(true);
     try {
-      setOrder(await productionPrescriptionService.patient.order(orderId));
+      const loadedOrder = await productionPrescriptionService.patient.order(orderId);
+      setOrder(loadedOrder);
+      if (loadedOrder.handoff?.method === "DELIVERY") {
+        const page = await productionLogisticsService.patient.list({ limit: 50 });
+        setTracking(
+          page.data.find(
+            (delivery) => delivery.handoffReference === loadedOrder.handoff?.handoffReference,
+          ) ?? null,
+        );
+      } else {
+        setTracking(null);
+      }
       setError(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Order could not be loaded");
@@ -139,6 +156,17 @@ export function PatientOrderDetail() {
               <Row label="Method" value={order.handoff.method} />
               <Row label="Reference" value={order.handoff.handoffReference} />
               <Row label="Status" value={order.handoff.status} />
+              {tracking !== null && (
+                <>
+                  <Row label="Delivery" value={tracking.deliveryNumber} />
+                  <Row label="Tracking status" value={tracking.status.replaceAll("_", " ")} />
+                  <Row
+                    label="Delivery area"
+                    value={`${tracking.deliveryArea.locality}, ${tracking.deliveryArea.administrativeArea}, ${tracking.deliveryArea.countryCode}`}
+                  />
+                  <Row label="Last update" value={formatDate(tracking.updatedAt)} />
+                </>
+              )}
             </dl>
           )}
         </SectionCard>

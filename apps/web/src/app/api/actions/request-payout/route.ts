@@ -1,5 +1,5 @@
 // POST /api/actions/request-payout
-// A provider, pharmacy, laboratory or logistics requests a payout of their
+// A provider, pharmacy, or laboratory requests a legacy payout of their
 // accrued earnings. Creates a PayoutRequest record (status "requested") for
 // admin to review. The commission removed by Royal Palace is NEVER shown to
 // the requesting entity — they only see their gross and net.
@@ -13,17 +13,20 @@ const ENTITY_LABELS: Record<string, string> = {
   provider: "Provider",
   pharmacy: "Pharmacy",
   laboratory: "Laboratory",
-  logistics: "Logistics",
 };
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { entityType, entityId, amountRequested, periodStart, periodEnd, notes, actorId } = body ?? {};
+  const { entityType, entityId, amountRequested, periodStart, periodEnd, notes, actorId } =
+    body ?? {};
 
   if (!entityType || !entityId || !amountRequested) {
-    return NextResponse.json({ error: "Entity type, entity id and amount are required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Entity type, entity id and amount are required." },
+      { status: 400 },
+    );
   }
-  if (!["provider", "pharmacy", "laboratory", "logistics"].includes(entityType)) {
+  if (!["provider", "pharmacy", "laboratory"].includes(entityType)) {
     return NextResponse.json({ error: "Invalid entity type." }, { status: 400 });
   }
 
@@ -40,10 +43,6 @@ export async function POST(req: NextRequest) {
   } else if (entityType === "laboratory") {
     const p = await db.laboratory.findUnique({ where: { id: entityId } });
     if (!p) return NextResponse.json({ error: "Laboratory not found." }, { status: 404 });
-    entityName = p.name;
-  } else if (entityType === "logistics") {
-    const p = await db.logisticsProvider.findUnique({ where: { id: entityId } });
-    if (!p) return NextResponse.json({ error: "Logistics provider not found." }, { status: 404 });
     entityName = p.name;
   }
 

@@ -25,12 +25,19 @@ export function LogisticsPortal() {
 
   return (
     <AppShell portal="logistics" brand="Royal Palace" navItems={navItems} notifications={0}>
-      {page === "assignments" ? <LogisticsAssignments /> :
-       page === "delivery" ? <LogisticsDeliveryDetail /> :
-       page === "history" ? <LogisticsHistory /> :
-       page === "earnings" ? <LogisticsEarnings /> :
-       page === "payouts" ? <LogisticsPayouts /> :
-       <LogisticsDashboard />}
+      {page === "assignments" ? (
+        <LogisticsAssignments />
+      ) : page === "delivery" ? (
+        <LogisticsDeliveryDetail />
+      ) : page === "history" ? (
+        <LogisticsHistory />
+      ) : page === "earnings" ? (
+        <LogisticsEarnings />
+      ) : page === "payouts" ? (
+        <LogisticsPayouts />
+      ) : (
+        <LogisticsDashboard />
+      )}
     </AppShell>
   );
 }

@@ -5,6 +5,7 @@
 import {
   createManagerClient,
   createLaboratoryClient,
+  createLogisticsClient,
   createNotificationClient,
   createOnboardingClient,
   createPublicDiscoveryClient,
@@ -15,6 +16,7 @@ import {
 } from "@royal-palace/api-client";
 import type {
   LaboratoryComponents,
+  LogisticsComponents,
   OrganizationFinanceComponents,
   OrganizationTeamComponents,
   PrescriptionComponents,
@@ -55,7 +57,6 @@ import type {
   Appointment,
   ClinicalEncounter,
   Consent,
-  Delivery,
   Diagnosis,
   LaboratoryBooking,
   LaboratoryRequest,
@@ -89,7 +90,6 @@ import type {
   Complaint,
   Laboratory,
   Hospital,
-  LogisticsProvider,
   ProviderVerificationStatus,
   EncounterDocumentation,
 } from "@/types";
@@ -150,6 +150,7 @@ const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
 const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
 const generatedManagerClient = createManagerClient({ fetch: authenticatedGeneratedFetch });
 const generatedLaboratoryClient = createLaboratoryClient({ fetch: versionedBffFetch });
+const generatedLogisticsClient = createLogisticsClient({ fetch: versionedBffFetch });
 const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
   fetch: authenticatedGeneratedFetch,
 });
@@ -161,6 +162,135 @@ const generatedOrganizationFinanceClient = createOrganizationFinanceClient({
   fetch: versionedBffFetch,
 });
 const generatedOrganizationTeamClient = createOrganizationTeamClient({ fetch: versionedBffFetch });
+
+type LogisticsListInput = {
+  cursor?: string;
+  limit?: number;
+  status?: LogisticsComponents["schemas"]["DeliveryStatus"];
+};
+
+export const productionLogisticsService = {
+  organization: {
+    list: (organizationId: string, input: LogisticsListInput = {}) =>
+      generatedLogisticsClient
+        .GET("/v1/logistics/deliveries", {
+          params: {
+            header: { ...requestHeader(), "X-Organization-Id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    get: (organizationId: string, deliveryId: string) =>
+      generatedLogisticsClient
+        .GET("/v1/logistics/deliveries/{deliveryId}", {
+          params: {
+            header: { ...requestHeader(), "X-Organization-Id": organizationId },
+            path: { deliveryId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    history: (organizationId: string, deliveryId: string, limit = 100) =>
+      generatedLogisticsClient
+        .GET("/v1/logistics/deliveries/{deliveryId}/history", {
+          params: {
+            header: { ...requestHeader(), "X-Organization-Id": organizationId },
+            path: { deliveryId },
+            query: { limit },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    transition: (
+      organizationId: string,
+      deliveryId: string,
+      body: LogisticsComponents["schemas"]["TransitionDeliveryInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedLogisticsClient
+        .POST("/v1/logistics/deliveries/{deliveryId}/transitions", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "X-Organization-Id": organizationId,
+            },
+            path: { deliveryId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    verifyRecipientCode: (
+      organizationId: string,
+      deliveryId: string,
+      body: LogisticsComponents["schemas"]["RecipientCodeProofInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedLogisticsClient
+        .POST("/v1/logistics/deliveries/{deliveryId}/proof", {
+          body,
+          params: {
+            header: {
+              ...requestHeader(),
+              "Idempotency-Key": idempotencyKey,
+              "X-Organization-Id": organizationId,
+            },
+            path: { deliveryId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  admin: {
+    list: (input: LogisticsListInput = {}) =>
+      generatedLogisticsClient
+        .GET("/v1/admin/logistics/deliveries", {
+          params: { query: input },
+        })
+        .then(unwrapGeneratedResponse),
+    get: (deliveryId: string) =>
+      generatedLogisticsClient
+        .GET("/v1/admin/logistics/deliveries/{deliveryId}", {
+          params: { path: { deliveryId } },
+        })
+        .then(unwrapGeneratedResponse),
+    history: (deliveryId: string, limit = 100) =>
+      generatedLogisticsClient
+        .GET("/v1/admin/logistics/deliveries/{deliveryId}/history", {
+          params: { path: { deliveryId }, query: { limit } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  patient: {
+    list: (input: LogisticsListInput = {}) =>
+      generatedLogisticsClient
+        .GET("/v1/patient/logistics/deliveries", { params: { query: input } })
+        .then(unwrapGeneratedResponse),
+    get: (deliveryId: string) =>
+      generatedLogisticsClient
+        .GET("/v1/patient/logistics/deliveries/{deliveryId}", {
+          params: { path: { deliveryId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  pharmacy: {
+    list: (organizationId: string, input: LogisticsListInput = {}) =>
+      generatedLogisticsClient
+        .GET("/v1/pharmacy/logistics-deliveries", {
+          params: {
+            header: { ...requestHeader(), "X-Organization-Id": organizationId },
+            query: input,
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    get: (organizationId: string, deliveryId: string) =>
+      generatedLogisticsClient
+        .GET("/v1/pharmacy/logistics-deliveries/{deliveryId}", {
+          params: {
+            header: { ...requestHeader(), "X-Organization-Id": organizationId },
+            path: { deliveryId },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+};
 
 export const productionOrganizationTeamService = {
   team: (organizationId: string) =>
@@ -1473,14 +1603,6 @@ function unwrapGeneratedResponse<T>(result: {
   );
 }
 
-export const logisticsService = {
-  list: () => resource.list<LogisticsProvider>("logisticsProvider"),
-  get: (id: string) => resource.get<LogisticsProvider>("logisticsProvider", id),
-  deliveries: (logisticsProviderId: string) =>
-    resource.list<Delivery>("delivery", { logisticsProviderId }),
-  delivery: (id: string) => resource.get<Delivery>("delivery", id),
-};
-
 export const serviceService = {
   list: () => resource.list<Service>("service"),
   byCategory: (category: string) => resource.list<Service>("service", { category }),
@@ -1551,15 +1673,6 @@ export const labRequestService = {
   list: (params?: Record<string, string>) =>
     resource.list<LaboratoryRequest>("laboratoryRequest", params),
   get: (id: string) => resource.get<LaboratoryRequest>("laboratoryRequest", id),
-};
-
-export const deliveryService = {
-  list: (params?: Record<string, string>) => resource.list<Delivery>("delivery", params),
-  get: (id: string) => resource.get<Delivery>("delivery", id),
-  progress: (deliveryId: string, status: string, verificationCode: string, actorId: string) =>
-    action("progress-delivery", { deliveryId, status, verificationCode, actorId }).then(
-      (r) => r.data as Delivery,
-    ),
 };
 
 export const referralService = {

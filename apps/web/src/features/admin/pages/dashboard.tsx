@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { LogisticsComponents } from "@royal-palace/api-client";
 import { navigate } from "@/lib/nav";
 import {
   patientService,
   providerService,
   applicationService,
   appointmentService,
-  deliveryService,
+  productionLogisticsService,
   settlementService,
   auditService,
   complaintService,
@@ -19,7 +20,6 @@ import type {
   Provider,
   ProviderApplication,
   Appointment,
-  Delivery,
   Settlement,
   AuditLog,
   Complaint,
@@ -56,6 +56,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type AdminDelivery = LogisticsComponents["schemas"]["AdminDelivery"];
+
 function startOfDayStr(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
@@ -65,7 +67,7 @@ export function AdminDashboard() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [applications, setApplications] = useState<ProviderApplication[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [deliveries, setDeliveries] = useState<AdminDelivery[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
@@ -80,7 +82,7 @@ export function AdminDashboard() {
       providerService.list(),
       applicationService.list(),
       appointmentService.list(),
-      deliveryService.list(),
+      productionLogisticsService.admin.list({ limit: 50 }),
       resource.list<Payment>("payment"),
       settlementService.list(),
       auditService.list(),
@@ -92,7 +94,7 @@ export function AdminDashboard() {
         setProviders(pr);
         setApplications(ap);
         setAppointments(apt);
-        setDeliveries(del);
+        setDeliveries([...del.data]);
         setPayments(pay);
         setSettlements(stl);
         setAudit(aud);

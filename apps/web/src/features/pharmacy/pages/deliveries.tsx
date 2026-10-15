@@ -1,55 +1,71 @@
 "use client";
 
-import type { PrescriptionComponents } from "@royal-palace/api-client";
+import type { LogisticsComponents, PrescriptionComponents } from "@royal-palace/api-client";
 import { Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { EmptyState, PageHeader, SkeletonGrid } from "@/components/healthcare/page-header";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { formatDateTime } from "@/lib/format";
 import { useNav } from "@/lib/nav";
-import { productionPrescriptionService } from "@/lib/services";
+import { productionLogisticsService, productionPrescriptionService } from "@/lib/services";
 
-type Delivery = PrescriptionComponents["schemas"]["PharmacyDelivery"];
+type Handoff = PrescriptionComponents["schemas"]["PharmacyDelivery"];
+type Tracking = LogisticsComponents["schemas"]["PharmacyDelivery"];
 
 export function PharmacyDeliveries() {
   const organizationId = useNav().session?.profileId;
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [handoffs, setHandoffs] = useState<Handoff[]>([]);
+  const [tracking, setTracking] = useState<Tracking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     if (!organizationId) {
-      setError("No pharmacy membership is available for this session");
+      setError("No pharmacy membership is available for this session.");
       setLoading(false);
       return;
     }
-    let active = true;
-    void productionPrescriptionService.pharmacy
-      .deliveries(organizationId)
-      .then((page) => active && setDeliveries([...page.data]))
-      .catch(
-        (reason: unknown) =>
-          active &&
-          setError(reason instanceof Error ? reason.message : "Deliveries could not be loaded"),
+    setLoading(true);
+    void Promise.all([
+      productionPrescriptionService.pharmacy.deliveries(organizationId),
+      productionLogisticsService.pharmacy.list(organizationId, { limit: 50 }),
+    ])
+      .then(([handoffPage, trackingPage]) => {
+        setHandoffs([...handoffPage.data]);
+        setTracking([...trackingPage.data]);
+        setError(null);
+      })
+      .catch((reason: unknown) =>
+        setError(
+          reason instanceof Error ? reason.message : "Delivery tracking could not be loaded.",
+        ),
       )
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [organizationId]);
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [organizationId]);
+  const byReference = new Map(tracking.map((item) => [item.handoffReference, item]));
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Deliveries"
-        description="Delivery handoffs prepared by this pharmacy. Carrier assignment, tracking and proof of delivery will appear when the logistics integration is enabled."
+        description="Prepared pharmacy handoffs with privacy-minimized carrier tracking and proof status."
       />
+      <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+        Pharmacy tracking shows the order, handoff, pickup location, delivery area, and status.
+        Recipient identity, phone, full address, and verification code remain hidden.
+      </div>
       {loading ? (
         <SkeletonGrid count={4} />
       ) : error !== null ? (
-        <EmptyState title="Could not load deliveries" description={error} />
-      ) : deliveries.length === 0 ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : handoffs.length === 0 ? (
         <EmptyState
           icon={Truck}
           title="No delivery handoffs"
@@ -57,17 +73,34 @@ export function PharmacyDeliveries() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card divide-y">
-          {deliveries.map((delivery) => (
-            <div key={delivery.handoffId} className="flex items-center justify-between gap-4 p-4">
-              <div>
-                <p className="font-medium">{delivery.orderNumber}</p>
-                <p className="text-sm text-muted-foreground">
-                  {delivery.handoffReference} · Prepared {formatDateTime(delivery.preparedAt)}
-                </p>
+          {handoffs.map((handoff) => {
+            const delivery = byReference.get(handoff.handoffReference);
+            return (
+              <div key={handoff.handoffId} className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p className="font-medium">{handoff.orderNumber}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {handoff.handoffReference} · Prepared {formatDateTime(handoff.preparedAt)}
+                  </p>
+                  {delivery && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {delivery.pickupLocationName} → {delivery.deliveryArea.locality},{" "}
+                      {delivery.deliveryArea.administrativeArea}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <StatusBadge
+                    status={(delivery?.status ?? handoff.status).toLowerCase()}
+                    size="sm"
+                  />
+                  {!delivery && handoff.status !== "CANCELLED" && (
+                    <span className="text-[10px] text-muted-foreground">Awaiting dispatch</span>
+                  )}
+                </div>
               </div>
-              <StatusBadge status={delivery.status.toLowerCase()} size="sm" />
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
