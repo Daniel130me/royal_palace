@@ -370,7 +370,9 @@ that completes an increment.
       consume one token as accepted and the redundant token as revoked while returning one active
       membership and role. A forward-only atomic migration also aligns deployed constraint metadata
       with Prisma without rewriting published migrations; the exact drift gate reports no difference.
-      Protected CI confirmation, billing, and qualification remain open.
+      Database CI now declares its loopback synthetic issuer explicitly so the security-checked seed
+      can prove idempotency without weakening its environment validation. Protected CI confirmation,
+      billing, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

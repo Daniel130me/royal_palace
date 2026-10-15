@@ -326,6 +326,9 @@ migration is forbidden.
   organization-team foreign-key names and removes the unintended database default from the
   Prisma-managed `updated_at` column. Published migration checksums remain untouched, and the
   exact Prisma drift gate now reports no difference.
+- The database CI job now supplies its synthetic loopback OIDC issuer explicitly. The seed keeps
+  rejecting absent, non-loopback, and HTTPS issuer assumptions, while the protected gate can run
+  the same seed twice to prove deterministic idempotency.
 - Local TypeScript, lint, Prisma-schema, prototype-history, and parity-verifier tests pass. A clean
   PostgreSQL 17.6 run now passes clean install, prior-schema upgrade, payment backfill, repair,
   database invariants, and concurrent organization-team acceptance. The representative load also
