@@ -213,6 +213,37 @@ enum AppointmentStatus {
   COMPLETED
 }
 
+enum ClinicalEncounterStatus {
+  OPEN
+  SIGNED
+}
+
+enum ClinicalNoteKind {
+  DRAFT
+  SIGNED
+  ADDENDUM
+}
+
+enum ClinicalDiagnosisType {
+  PRIMARY
+  SECONDARY
+  DIFFERENTIAL
+  PROVISIONAL
+}
+
+enum ClinicalDiagnosisStatus {
+  ACTIVE
+  RESOLVED
+  ENTERED_IN_ERROR
+}
+
+enum ClinicalObservationValueType {
+  QUANTITY
+  TEXT
+  CODED
+  BOOLEAN
+}
+
 enum LaboratoryRequestPriority {
   ROUTINE
   URGENT
@@ -676,6 +707,9 @@ model IdentityPrincipal {
   createdLogisticsAssignments    LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCreator")
   logisticsDeliveryStatusChanges LogisticsDeliveryStatusHistory[]   @relation("LogisticsDeliveryStatusActor")
   logisticsDeliveryProofs        LogisticsDeliveryProof[]           @relation("LogisticsDeliveryProofRecorder")
+  openedClinicalEncounters       ClinicalEncounter[]                 @relation("ClinicalEncounterOpener")
+  signedClinicalEncounters       ClinicalEncounter[]                 @relation("ClinicalEncounterSigner")
+  authoredClinicalNotes          ClinicalEncounterNote[]             @relation("ClinicalNoteAuthor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -706,6 +740,7 @@ model Patient {
   laboratoryRequests   LaboratoryRequest[]
   laboratoryResults    LaboratoryResult[]
   laboratoryReviews    LaboratoryBookingReview[]
+  clinicalEncounters   ClinicalEncounter[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@map("patients")
@@ -1052,6 +1087,7 @@ model Practitioner {
   prescriptions       Prescription[]
   laboratoryRequests  LaboratoryRequest[]
   laboratoryResults   LaboratoryResult[]
+  clinicalEncounters  ClinicalEncounter[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
@@ -1990,11 +2026,109 @@ model Appointment {
   payment            Payment?
   prescriptions      Prescription[]
   laboratoryRequests LaboratoryRequest[]
+  clinicalEncounter  ClinicalEncounter?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
   @@index([status, paymentDueAt, id], map: "appointments_payment_timeout_idx")
   @@map("appointments")
+}
+
+model ClinicalEncounter {
+  id                  String                  @id @db.Uuid
+  encounterNumber     String                  @unique @map("encounter_number") @db.VarChar(64)
+  appointmentId       String                  @unique @map("appointment_id") @db.Uuid
+  patientId           String                  @map("patient_id") @db.Uuid
+  practitionerId      String                  @map("practitioner_id") @db.Uuid
+  status              ClinicalEncounterStatus @default(OPEN)
+  openedByPrincipalId String                  @map("opened_by_principal_id") @db.Uuid
+  openedAt            DateTime                @map("opened_at") @db.Timestamptz(6)
+  signedByPrincipalId String?                 @map("signed_by_principal_id") @db.Uuid
+  signedAt            DateTime?               @map("signed_at") @db.Timestamptz(6)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                     @default(1)
+  appointment         Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient             Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner        Practitioner            @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  openedByPrincipal   IdentityPrincipal       @relation("ClinicalEncounterOpener", fields: [openedByPrincipalId], references: [id], onDelete: Restrict)
+  signedByPrincipal   IdentityPrincipal?      @relation("ClinicalEncounterSigner", fields: [signedByPrincipalId], references: [id], onDelete: Restrict)
+  notes               ClinicalEncounterNote[]
+  diagnoses           ClinicalDiagnosis[]
+  observations        ClinicalObservation[]
+
+  @@index([patientId, openedAt(sort: Desc), id(sort: Desc)], map: "clinical_encounters_patient_opened_idx")
+  @@index([practitionerId, openedAt(sort: Desc), id(sort: Desc)], map: "clinical_encounters_practitioner_opened_idx")
+  @@index([status, openedAt, id], map: "clinical_encounters_status_opened_idx")
+  @@map("clinical_encounters")
+}
+
+model ClinicalEncounterNote {
+  id                    String                  @id @db.Uuid
+  encounterId           String                  @map("encounter_id") @db.Uuid
+  revision              Int
+  kind                  ClinicalNoteKind
+  schemaVersion         Int                     @map("schema_version")
+  documentation         Json                    @db.JsonB
+  contentHash           String                  @map("content_hash") @db.Char(64)
+  authoredByPrincipalId String                  @map("authored_by_principal_id") @db.Uuid
+  authoredAt            DateTime                @map("authored_at") @db.Timestamptz(6)
+  signedAt              DateTime?               @map("signed_at") @db.Timestamptz(6)
+  supersedesNoteId      String?                 @map("supersedes_note_id") @db.Uuid
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  encounter             ClinicalEncounter       @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  authoredByPrincipal   IdentityPrincipal       @relation("ClinicalNoteAuthor", fields: [authoredByPrincipalId], references: [id], onDelete: Restrict)
+  supersedesNote        ClinicalEncounterNote?  @relation("ClinicalNoteSupersession", fields: [supersedesNoteId], references: [id], onDelete: Restrict)
+  supersededBy          ClinicalEncounterNote[] @relation("ClinicalNoteSupersession")
+  diagnoses             ClinicalDiagnosis[]
+  observations          ClinicalObservation[]
+
+  @@unique([encounterId, revision], map: "clinical_encounter_notes_encounter_revision_key")
+  @@index([encounterId, authoredAt(sort: Desc), id(sort: Desc)], map: "clinical_encounter_notes_encounter_authored_idx")
+  @@map("clinical_encounter_notes")
+}
+
+model ClinicalDiagnosis {
+  id          String                  @id @db.Uuid
+  encounterId String                  @map("encounter_id") @db.Uuid
+  noteId      String                  @map("note_id") @db.Uuid
+  type        ClinicalDiagnosisType
+  status      ClinicalDiagnosisStatus @default(ACTIVE)
+  codeSystem  String?                 @map("code_system") @db.VarChar(255)
+  code        String?                 @db.VarChar(100)
+  display     String                  @db.VarChar(500)
+  onsetAt     DateTime?               @map("onset_at") @db.Timestamptz(6)
+  recordedAt  DateTime                @map("recorded_at") @db.Timestamptz(6)
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  encounter   ClinicalEncounter       @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  note        ClinicalEncounterNote   @relation(fields: [noteId], references: [id], onDelete: Restrict)
+
+  @@index([encounterId, type, recordedAt, id], map: "clinical_diagnoses_encounter_type_idx")
+  @@index([codeSystem, code, id], map: "clinical_diagnoses_code_idx")
+  @@map("clinical_diagnoses")
+}
+
+model ClinicalObservation {
+  id           String                       @id @db.Uuid
+  encounterId  String                       @map("encounter_id") @db.Uuid
+  noteId       String                       @map("note_id") @db.Uuid
+  codeSystem   String?                      @map("code_system") @db.VarChar(255)
+  code         String                       @db.VarChar(100)
+  display      String                       @db.VarChar(200)
+  valueType    ClinicalObservationValueType @map("value_type")
+  numericValue Decimal?                     @map("numeric_value") @db.Decimal(18, 6)
+  textValue    String?                      @map("text_value") @db.VarChar(1000)
+  codedValue   String?                      @map("coded_value") @db.VarChar(255)
+  booleanValue Boolean?                     @map("boolean_value")
+  unitCode     String?                      @map("unit_code") @db.VarChar(100)
+  observedAt   DateTime                     @map("observed_at") @db.Timestamptz(6)
+  createdAt    DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  encounter    ClinicalEncounter            @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  note         ClinicalEncounterNote        @relation(fields: [noteId], references: [id], onDelete: Restrict)
+
+  @@index([encounterId, observedAt, id], map: "clinical_observations_encounter_observed_idx")
+  @@index([codeSystem, code, observedAt, id], map: "clinical_observations_code_observed_idx")
+  @@map("clinical_observations")
 }
 
 model LaboratoryRequest {

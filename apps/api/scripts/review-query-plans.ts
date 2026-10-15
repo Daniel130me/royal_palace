@@ -495,6 +495,36 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "patient clinical encounter cursor",
+        `SELECT "id", "appointment_id", "practitioner_id", "status", "opened_at"
+           FROM "clinical_encounters"
+          WHERE "patient_id" = $1
+            AND ("opened_at", "id") < ($2, $3)
+          ORDER BY "opened_at" DESC, "id" DESC
+          LIMIT 50`,
+        [patientId, new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        "clinical_encounters_patient_opened_idx",
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
+      await reviewPlan(
+        client,
+        "practitioner clinical encounter cursor",
+        `SELECT "id", "appointment_id", "patient_id", "status", "opened_at"
+           FROM "clinical_encounters"
+          WHERE "practitioner_id" = $1
+            AND ("opened_at", "id") < ($2, $3)
+          ORDER BY "opened_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetPractitionerId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "clinical_encounters_practitioner_opened_idx",
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
+      await reviewPlan(
+        client,
         "logistics organization status queue",
         `SELECT "id", "status", "assigned_at"
            FROM "logistics_deliveries"

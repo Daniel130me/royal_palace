@@ -385,6 +385,8 @@ that completes an increment.
     activation remain open; no real logistics use is enabled.
   - `[ ]` Clinical encounter/record, remaining settlement/payout, and advanced-reporting slices
     remain after logistics.
+    - `[~]` 11F clinical encounters and patient records is tracked in
+      [`increments/11f-clinical-encounters-and-records.md`](./increments/11f-clinical-encounters-and-records.md).
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open

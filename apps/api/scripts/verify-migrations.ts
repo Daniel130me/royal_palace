@@ -90,6 +90,10 @@ async function main(): Promise<void> {
     const logisticsFixture = await verifyPharmacyCommercialInvariants(
       databaseUrlWithName(baseUrl, databaseNames.clean),
     );
+    await verifyClinicalEncounterInvariants(
+      databaseUrlWithName(baseUrl, databaseNames.clean),
+      logisticsFixture,
+    );
     await verifyLogisticsDeliveryInvariants(
       databaseUrlWithName(baseUrl, databaseNames.clean),
       logisticsFixture,
@@ -101,7 +105,7 @@ async function main(): Promise<void> {
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
-      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial, logistics-delivery, and organization-team invariants, concurrency, transactional repair, and constraints.\n",
+      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial, clinical-encounter, logistics-delivery, and organization-team invariants, concurrency, transactional repair, and constraints.\n",
     );
   } finally {
     for (const databaseName of Object.values(databaseNames).reverse()) {
@@ -1033,8 +1037,12 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
 }
 
 interface LogisticsFixture {
+  appointmentId: string;
   handoffId: string;
   orderId: string;
+  patientId: string;
+  practitionerId: string;
+  practitionerPrincipalId: string;
 }
 
 async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<LogisticsFixture> {
@@ -1294,12 +1302,205 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
       [resolutionId],
       "P0001",
     );
-    return { handoffId, orderId };
+    return {
+      appointmentId,
+      handoffId,
+      orderId,
+      patientId,
+      practitionerId,
+      practitionerPrincipalId,
+    };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
   } finally {
     await client.end();
+  }
+}
+
+async function verifyClinicalEncounterInvariants(
+  databaseUrl: string,
+  fixture: LogisticsFixture,
+): Promise<void> {
+  const client = new Client({ connectionString: databaseUrl });
+  const firstWriter = new Client({ connectionString: databaseUrl });
+  const secondWriter = new Client({ connectionString: databaseUrl });
+  const encounterId = v7();
+  const signedNoteId = v7();
+  const primaryDiagnosisId = v7();
+  const observationId = v7();
+
+  await Promise.all([client.connect(), firstWriter.connect(), secondWriter.connect()]);
+  try {
+    await expectSqlState(
+      client,
+      `INSERT INTO "clinical_encounters"
+         ("id", "encounter_number", "appointment_id", "patient_id", "practitioner_id",
+          "opened_by_principal_id", "opened_at", "updated_at")
+       VALUES ($1, $2, $3, $4, $5, $6, now(), now())`,
+      [
+        v7(),
+        `ENC-${v7()}`,
+        fixture.appointmentId,
+        fixture.patientId,
+        fixture.practitionerId,
+        fixture.patientId,
+      ],
+      "P0001",
+    );
+    await client.query(
+      `INSERT INTO "clinical_encounters"
+         ("id", "encounter_number", "appointment_id", "patient_id", "practitioner_id",
+          "opened_by_principal_id", "opened_at", "updated_at")
+       VALUES ($1, $2, $3, $4, $5, $6, now(), now())`,
+      [
+        encounterId,
+        `ENC-${encounterId}`,
+        fixture.appointmentId,
+        fixture.patientId,
+        fixture.practitionerId,
+        fixture.practitionerPrincipalId,
+      ],
+    );
+    const firstDraftId = v7();
+    await client.query(
+      `INSERT INTO "clinical_encounter_notes"
+         ("id", "encounter_id", "revision", "kind", "schema_version", "documentation",
+          "content_hash", "authored_by_principal_id", "authored_at")
+       VALUES ($1, $2, 1, 'DRAFT', 1, $3::jsonb, $4, $5, now())`,
+      [
+        firstDraftId,
+        encounterId,
+        JSON.stringify({ assessment: "Synthetic draft" }),
+        "a".repeat(64),
+        fixture.practitionerPrincipalId,
+      ],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "clinical_encounter_notes" SET "documentation" = $1::jsonb WHERE "id" = $2',
+      [JSON.stringify({ assessment: "Mutated" }), firstDraftId],
+      "P0001",
+    );
+
+    await firstWriter.query("BEGIN");
+    await firstWriter.query(
+      `INSERT INTO "clinical_encounter_notes"
+         ("id", "encounter_id", "revision", "kind", "schema_version", "documentation",
+          "content_hash", "authored_by_principal_id", "authored_at")
+       VALUES ($1, $2, 2, 'DRAFT', 1, $3::jsonb, $4, $5, now())`,
+      [
+        v7(),
+        encounterId,
+        JSON.stringify({ assessment: "Concurrent winner" }),
+        "b".repeat(64),
+        fixture.practitionerPrincipalId,
+      ],
+    );
+    const losingWrite = secondWriter.query(
+      `INSERT INTO "clinical_encounter_notes"
+         ("id", "encounter_id", "revision", "kind", "schema_version", "documentation",
+          "content_hash", "authored_by_principal_id", "authored_at")
+       VALUES ($1, $2, 2, 'DRAFT', 1, $3::jsonb, $4, $5, now())`,
+      [
+        v7(),
+        encounterId,
+        JSON.stringify({ assessment: "Concurrent loser" }),
+        "c".repeat(64),
+        fixture.practitionerPrincipalId,
+      ],
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await firstWriter.query("COMMIT");
+    try {
+      await losingWrite;
+      throw new Error("Concurrent clinical note revisions were both accepted");
+    } catch (error) {
+      if (!isPostgresError(error) || error.code !== "P0001") throw error;
+    }
+
+    await client.query(
+      `INSERT INTO "clinical_encounter_notes"
+         ("id", "encounter_id", "revision", "kind", "schema_version", "documentation",
+          "content_hash", "authored_by_principal_id", "authored_at", "signed_at")
+       VALUES ($1, $2, 3, 'SIGNED', 1, $3::jsonb, $4, $5, now(), now())`,
+      [
+        signedNoteId,
+        encounterId,
+        JSON.stringify({ assessment: "Synthetic assessment", treatmentPlan: "Synthetic plan" }),
+        "d".repeat(64),
+        fixture.practitionerPrincipalId,
+      ],
+    );
+    await client.query(
+      `INSERT INTO "clinical_diagnoses"
+         ("id", "encounter_id", "note_id", "type", "display", "recorded_at")
+       VALUES ($1, $2, $3, 'PRIMARY', $4, now())`,
+      [primaryDiagnosisId, encounterId, signedNoteId, "Synthetic primary diagnosis"],
+    );
+    await client.query(
+      `INSERT INTO "clinical_observations"
+         ("id", "encounter_id", "note_id", "code_system", "code", "display", "value_type",
+          "numeric_value", "unit_code", "observed_at")
+       VALUES ($1, $2, $3, $4, $5, $6, 'QUANTITY', 36.8, $7, now())`,
+      [
+        observationId,
+        encounterId,
+        signedNoteId,
+        "http://loinc.org",
+        "8310-5",
+        "Body temperature",
+        "Cel",
+      ],
+    );
+    await client.query(
+      `UPDATE "clinical_encounters"
+          SET "status" = 'SIGNED', "signed_by_principal_id" = $1, "signed_at" = now(),
+              "updated_at" = now(), "version" = "version" + 1
+        WHERE "id" = $2`,
+      [fixture.practitionerPrincipalId, encounterId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "clinical_diagnoses" SET "status" = \'RESOLVED\' WHERE "id" = $1',
+      [primaryDiagnosisId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'DELETE FROM "clinical_observations" WHERE "id" = $1',
+      [observationId],
+      "P0001",
+    );
+    await client.query(
+      `INSERT INTO "clinical_encounter_notes"
+         ("id", "encounter_id", "revision", "kind", "schema_version", "documentation",
+          "content_hash", "authored_by_principal_id", "authored_at", "signed_at", "supersedes_note_id")
+       VALUES ($1, $2, 4, 'ADDENDUM', 1, $3::jsonb, $4, $5, now(), now(), $6)`,
+      [
+        v7(),
+        encounterId,
+        JSON.stringify({ correction: "Synthetic signed correction" }),
+        "e".repeat(64),
+        fixture.practitionerPrincipalId,
+        signedNoteId,
+      ],
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "clinical_encounters"
+          SET "status" = 'OPEN', "signed_by_principal_id" = NULL, "signed_at" = NULL,
+              "updated_at" = now(), "version" = "version" + 1
+        WHERE "id" = $1`,
+      [encounterId],
+      "P0001",
+    );
+  } finally {
+    await Promise.all([
+      firstWriter.query("ROLLBACK").catch(() => undefined),
+      secondWriter.query("ROLLBACK").catch(() => undefined),
+    ]);
+    await Promise.all([client.end(), firstWriter.end(), secondWriter.end()]);
   }
 }
 
