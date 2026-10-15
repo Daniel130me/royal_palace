@@ -47,6 +47,21 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminDelivery" }
         default: { $ref: "#/components/responses/Error" }
+  /v1/admin/logistics/deliveries/{deliveryId}/history:
+    get:
+      operationId: listAdminLogisticsDeliveryHistory
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Bounded immutable history for administrator exception oversight
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryHistoryPage" }
+        default: { $ref: "#/components/responses/Error" }
   /v1/admin/logistics/deliveries/{deliveryId}/reassign:
     post:
       operationId: reassignLogisticsDelivery
@@ -164,6 +179,28 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LogisticsDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries/{deliveryId}/proof:
+    post:
+      operationId: verifyLogisticsDeliveryRecipientCode
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecipientCodeProofInput" }
+      responses:
+        "200":
+          description: Recipient code verified and delivery completed atomically
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsDelivery" }
+        "410": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
   /v1/patient/logistics/deliveries:
     get:
@@ -479,6 +516,13 @@ components:
         expectedVersion: { type: integer, minimum: 1 }
         reasonCode: { type: string, minLength: 2, maxLength: 100 }
         toStatus: { $ref: "#/components/schemas/MutableDeliveryStatus" }
+    RecipientCodeProofInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, recipientCode]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        recipientCode: { type: string, pattern: "^[0-9]{8}$" }
     AdminDeliveryPage:
       type: object
       required: [data, nextCursor]

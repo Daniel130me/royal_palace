@@ -59,6 +59,18 @@ export interface AssignCourierInput {
   requestHash: string;
 }
 
+export interface VerifyRecipientCodeInput {
+  deliveryId: string;
+  expectedVersion: number;
+  idempotencyKey: string;
+  recipientCode: string;
+  requestHash: string;
+}
+
+export type VerifyRecipientCodeResult =
+  | { delivery: LogisticsDeliveryRecord; outcome: "DELIVERED" }
+  | { outcome: "CODE_EXPIRED" | "INVALID_CODE" | "RATE_LIMITED" };
+
 export interface LogisticsListInput {
   cursor?: { assignedAt: Date; id: string };
   limit: number;
@@ -151,6 +163,10 @@ export interface LogisticsDeliveryRepository {
     context: LogisticsRequestContext,
     input: TransitionLogisticsDeliveryInput,
   ): Promise<LogisticsDeliveryRecord | null>;
+  verifyRecipientCode(
+    context: LogisticsRequestContext,
+    input: VerifyRecipientCodeInput,
+  ): Promise<VerifyRecipientCodeResult>;
 }
 
 export class LogisticsConflictError extends Error {

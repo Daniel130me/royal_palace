@@ -100,6 +100,14 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
       title: "Delivery confirmation code",
     }),
   },
+  [NOTIFICATION_TEMPLATE.LOGISTICS_DELIVERY_STATUS_UPDATED]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Delivery ${reference} has an update. Sign in to view it securely.`,
+      subject: "Delivery updated",
+      title: "Delivery updated",
+    }),
+  },
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: {
     category: "TRANSACTIONAL",
     render: (reference) => ({

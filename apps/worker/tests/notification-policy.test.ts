@@ -89,6 +89,21 @@ describe("notification policy", () => {
     expect(notification.body).not.toMatch(/medicine|prescription|diagnos|payment|amount|address/i);
   });
 
+  it("renders delivery updates without clinical, payment, or address details", () => {
+    const notification = renderNotification({
+      category: "TRANSACTIONAL",
+      channel: "EMAIL",
+      locale: "en",
+      templateKey: NOTIFICATION_TEMPLATE.LOGISTICS_DELIVERY_STATUS_UPDATED,
+      templateVersion: 1,
+      variables: { reference: "DLV-0199A18E-A400-7000-8000-000000000203-DELIVERED" },
+    });
+    expect(notification.body).toContain("Sign in");
+    expect(notification.body).not.toMatch(
+      /medicine|prescription|diagnos|payment|amount|address|patient/i,
+    );
+  });
+
   it("requires a verified email and explicit marketing consent", () => {
     expect(
       requireEmailRecipient({

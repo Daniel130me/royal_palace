@@ -175,6 +175,38 @@ export class LogisticsDeliveryService {
     );
   }
 
+  async verifyRecipientCode(
+    context: LogisticsServiceContext,
+    organizationId: string,
+    deliveryId: string,
+    input: {
+      expectedVersion: number;
+      idempotencyKey: string;
+      recipientCode: string;
+    },
+  ) {
+    const delivery = await this.requireDelivery(deliveryId);
+    assertScope(delivery.logisticsOrganizationId === organizationId);
+    await this.authorizeOrganization(context, organizationId, deliveryId, "logistics_delivery");
+    const result = await this.repository.verifyRecipientCode(repositoryContext(context), {
+      ...input,
+      deliveryId,
+      requestHash: requestHash({ ...input, deliveryId }),
+    });
+    if (result.outcome === "DELIVERED") return logisticsProjection(result.delivery);
+    if (result.outcome === "CODE_EXPIRED") {
+      throw new LogisticsFlowError("recipient_code_expired", 410, "Confirmation code has expired");
+    }
+    if (result.outcome === "RATE_LIMITED") {
+      throw new LogisticsFlowError(
+        "recipient_code_rate_limited",
+        429,
+        "Confirmation attempts are temporarily limited",
+      );
+    }
+    throw new LogisticsFlowError("recipient_code_invalid", 422, "Confirmation code is invalid");
+  }
+
   async history(
     context: LogisticsServiceContext,
     organizationId: string,
@@ -184,16 +216,13 @@ export class LogisticsDeliveryService {
     const delivery = await this.requireDelivery(deliveryId);
     assertScope(delivery.logisticsOrganizationId === organizationId);
     await this.authorizeOrganization(context, organizationId, deliveryId, "logistics_delivery");
-    const rows = await this.repository.listHistory(deliveryId, limit);
-    return {
-      data: rows.map((row) => ({
-        fromStatus: row.fromStatus,
-        id: row.id,
-        occurredAt: row.occurredAt.toISOString(),
-        reasonCode: row.reasonCode,
-        toStatus: row.toStatus,
-      })),
-    };
+    return historyProjection(await this.repository.listHistory(deliveryId, limit));
+  }
+
+  async adminHistory(context: LogisticsServiceContext, deliveryId: string, limit: number) {
+    await this.authorizeAdmin(context, deliveryId, "logistics_delivery_history");
+    await this.requireDelivery(deliveryId);
+    return historyProjection(await this.repository.listHistory(deliveryId, limit));
   }
 
   async listPatient(context: LogisticsServiceContext, input: PublicListInput) {
@@ -465,4 +494,16 @@ function area(address: {
 
 function iso(value: Date | null): string | null {
   return value?.toISOString() ?? null;
+}
+
+function historyProjection(rows: Awaited<ReturnType<LogisticsDeliveryRepository["listHistory"]>>) {
+  return {
+    data: rows.map((row) => ({
+      fromStatus: row.fromStatus,
+      id: row.id,
+      occurredAt: row.occurredAt.toISOString(),
+      reasonCode: row.reasonCode,
+      toStatus: row.toStatus,
+    })),
+  };
 }

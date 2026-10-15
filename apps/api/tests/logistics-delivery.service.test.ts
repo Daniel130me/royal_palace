@@ -115,6 +115,49 @@ describe("LogisticsDeliveryService projections", () => {
       ),
     ).rejects.toMatchObject({ code: "delivery_not_found", status: 404 });
   });
+
+  it("completes recipient-code verification only inside the exact logistics organization", async () => {
+    const { service, repository } = createService();
+    repository.verifyRecipientCode.mockResolvedValue({ delivery, outcome: "DELIVERED" });
+
+    const result = await service.verifyRecipientCode(
+      context(session([], courierPrincipalId, ["LOGISTICS"])),
+      logisticsOrganizationId,
+      delivery.id,
+      { expectedVersion: 7, idempotencyKey: "proof-request-1", recipientCode: "12345678" },
+    );
+
+    expect(result).toMatchObject({ id: delivery.id });
+    expect(repository.verifyRecipientCode).toHaveBeenCalledWith(
+      expect.objectContaining({ actorPrincipalId: courierPrincipalId }),
+      expect.objectContaining({
+        deliveryId: delivery.id,
+        expectedVersion: 7,
+        recipientCode: "12345678",
+      }),
+    );
+  });
+
+  it.each([
+    ["INVALID_CODE", "recipient_code_invalid", 422],
+    ["CODE_EXPIRED", "recipient_code_expired", 410],
+    ["RATE_LIMITED", "recipient_code_rate_limited", 429],
+  ] as const)(
+    "maps %s proof outcomes without leaking stored code data",
+    async (outcome, code, status) => {
+      const { service, repository } = createService();
+      repository.verifyRecipientCode.mockResolvedValue({ outcome });
+
+      await expect(
+        service.verifyRecipientCode(
+          context(session([], courierPrincipalId, ["LOGISTICS"])),
+          logisticsOrganizationId,
+          delivery.id,
+          { expectedVersion: 7, idempotencyKey: "proof-request-2", recipientCode: "87654321" },
+        ),
+      ).rejects.toMatchObject({ code, status });
+    },
+  );
 });
 
 function createService() {
@@ -130,6 +173,7 @@ function createService() {
     listHistory: vi.fn().mockResolvedValue([]),
     reassign: vi.fn(),
     transition: vi.fn(),
+    verifyRecipientCode: vi.fn(),
   } satisfies LogisticsDeliveryRepository;
   const authorization = {
     authorize: vi.fn().mockResolvedValue({ allowed: true }),

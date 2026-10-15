@@ -176,7 +176,15 @@ const serviceEnvironmentSchema = z
       .max(86_400)
       .default(3_600),
     LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: z.string().trim().min(1).max(64),
+    LOGISTICS_RECIPIENT_CODE_ATTEMPT_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(3_600)
+      .default(900),
     LOGISTICS_RECIPIENT_CODE_KEYS: keyRingSchema,
+    LOGISTICS_RECIPIENT_CODE_LOCK_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+    LOGISTICS_RECIPIENT_CODE_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
     LOGISTICS_RECIPIENT_CODE_TTL_SECONDS: z.coerce.number().int().min(300).max(3_600).default(900),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
@@ -386,7 +394,10 @@ interface BaseServiceConfig {
   };
   logisticsRecipientCode: {
     activeKeyId: string;
+    attemptWindowSeconds: number;
     keys: Readonly<Record<string, string>>;
+    lockSeconds: number;
+    maxAttempts: number;
     ttlSeconds: number;
   };
   databaseUrl: string;
@@ -557,7 +568,10 @@ export function loadServiceConfig(
     }),
     logisticsRecipientCode: Object.freeze({
       activeKeyId: values.LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID,
+      attemptWindowSeconds: values.LOGISTICS_RECIPIENT_CODE_ATTEMPT_WINDOW_SECONDS,
       keys: Object.freeze(values.LOGISTICS_RECIPIENT_CODE_KEYS),
+      lockSeconds: values.LOGISTICS_RECIPIENT_CODE_LOCK_SECONDS,
+      maxAttempts: values.LOGISTICS_RECIPIENT_CODE_MAX_ATTEMPTS,
       ttlSeconds: values.LOGISTICS_RECIPIENT_CODE_TTL_SECONDS,
     }),
     databaseUrl: values.DATABASE_URL,

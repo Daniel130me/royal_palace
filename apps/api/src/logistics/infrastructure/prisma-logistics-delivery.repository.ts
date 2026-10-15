@@ -1,11 +1,14 @@
-import { createHash, createHmac, randomInt } from "node:crypto";
+import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import { NOTIFICATION_TEMPLATE } from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
-import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
+import {
+  enqueueEmailNotification,
+  enqueueOrganizationInboxNotification,
+} from "../../notification/infrastructure/enqueue-notification.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
@@ -21,6 +24,8 @@ import {
   type LogisticsRequestContext,
   type ReassignLogisticsDeliveryInput,
   type TransitionLogisticsDeliveryInput,
+  type VerifyRecipientCodeInput,
+  type VerifyRecipientCodeResult,
 } from "../domain/logistics-delivery.types.js";
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -29,6 +34,7 @@ const REASSIGN_OPERATION = "REASSIGN_LOGISTICS_DELIVERY";
 const ASSIGN_COURIER_OPERATION = "ASSIGN_LOGISTICS_COURIER";
 const TRANSITION_OPERATION = "TRANSITION_LOGISTICS_DELIVERY";
 const CANCEL_OPERATION = "CANCEL_LOGISTICS_DELIVERY";
+const VERIFY_RECIPIENT_CODE_OPERATION = "VERIFY_LOGISTICS_RECIPIENT_CODE";
 
 const deliveryInclude = {
   assignments: {
@@ -70,7 +76,7 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
         operation: DISPATCH_OPERATION,
         requestHash: input.requestHash,
       });
-      if (replay !== null) return replay;
+      if (replay !== null) return replay.resourceId;
 
       const handoff = await transaction.pharmacyOrderHandoff.findUnique({
         select: {
@@ -150,6 +156,9 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
           recipientPhoneE164: input.recipientPhoneE164,
         },
       });
+      await transaction.logisticsRecipientCodeChallenge.create({
+        data: { deliveryId: id },
+      });
       await transaction.logisticsDeliveryAssignment.create({
         data: {
           assignedAt: now,
@@ -208,7 +217,7 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
         operation: REASSIGN_OPERATION,
         requestHash: input.requestHash,
       });
-      if (replay !== null) return replay;
+      if (replay !== null) return replay.resourceId;
 
       const current = await lockDelivery(transaction, input.deliveryId);
       if (
@@ -276,7 +285,7 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
         operation: ASSIGN_COURIER_OPERATION,
         requestHash: input.requestHash,
       });
-      if (replay !== null) return replay;
+      if (replay !== null) return replay.resourceId;
       const current = await transaction.logisticsDeliveryAssignment.findFirst({
         select: {
           delivery: { select: { status: true } },
@@ -354,13 +363,20 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
         operation,
         requestHash: input.requestHash,
       });
-      if (replay !== null) return replay;
+      if (replay !== null) return replay.resourceId;
       const current = await transaction.logisticsDelivery.findUnique({
         select: {
           assignments: {
             select: { courierPrincipalId: true },
             take: 1,
             where: { status: "ACTIVE" },
+          },
+          deliveryNumber: true,
+          order: {
+            select: {
+              patient: { select: { principalId: true } },
+              pharmacyOrganizationId: true,
+            },
           },
           status: true,
           version: true,
@@ -410,6 +426,13 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
           toStatus: input.toStatus,
         },
       });
+      await enqueueStatusNotifications(transaction, this.config, {
+        deliveryId: input.deliveryId,
+        deliveryNumber: current.deliveryNumber,
+        patientPrincipalId: current.order.patient.principalId,
+        pharmacyOrganizationId: current.order.pharmacyOrganizationId,
+        status: input.toStatus,
+      });
       await appendAudit(
         transaction,
         context,
@@ -426,6 +449,159 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
       return input.deliveryId;
     });
     return this.findById(deliveryId);
+  }
+
+  async verifyRecipientCode(
+    context: LogisticsRequestContext,
+    input: VerifyRecipientCodeInput,
+  ): Promise<VerifyRecipientCodeResult> {
+    const result = await this.database.$transaction(async (transaction) => {
+      const replay = await claimIdempotency(transaction, {
+        actorPrincipalId: context.actorPrincipalId,
+        key: input.idempotencyKey,
+        operation: VERIFY_RECIPIENT_CODE_OPERATION,
+        requestHash: input.requestHash,
+      });
+      if (replay !== null) {
+        return { deliveryId: replay.resourceId, outcome: proofOutcome(replay.responseStatusCode) };
+      }
+
+      const current = await lockDeliveryForProof(transaction, input.deliveryId);
+      if (
+        current === null ||
+        current.status !== "ARRIVED_AT_DESTINATION" ||
+        current.version !== input.expectedVersion
+      ) {
+        throw new LogisticsConflictError("VERSION_OR_STATE_CONFLICT");
+      }
+      const assignment = await transaction.logisticsDeliveryAssignment.findFirst({
+        select: { courierPrincipalId: true },
+        where: { deliveryId: input.deliveryId, status: "ACTIVE" },
+      });
+      if (assignment?.courierPrincipalId !== context.actorPrincipalId) {
+        throw new LogisticsConflictError("ASSIGNED_COURIER_REQUIRED");
+      }
+      const challenge = await transaction.logisticsRecipientCodeChallenge.findUnique({
+        where: { deliveryId: input.deliveryId },
+      });
+      if (challenge === null || challenge.verifiedAt !== null) {
+        throw new LogisticsConflictError("RECIPIENT_CODE_CHALLENGE_UNAVAILABLE");
+      }
+
+      const now = new Date();
+      if (current.recipientCodeExpiresAt <= now) {
+        await recordRejectedProofAttempt(transaction, context, input, "CODE_EXPIRED", 410);
+        return { deliveryId: input.deliveryId, outcome: "CODE_EXPIRED" as const };
+      }
+      if (challenge.lockedUntil !== null && challenge.lockedUntil > now) {
+        await recordRejectedProofAttempt(transaction, context, input, "RATE_LIMITED", 429);
+        return { deliveryId: input.deliveryId, outcome: "RATE_LIMITED" as const };
+      }
+
+      const recipientCodeKey = this.config.logisticsRecipientCode.keys[current.recipientCodeKeyId];
+      if (recipientCodeKey === undefined) {
+        throw new LogisticsConflictError("RECIPIENT_CODE_KEY_UNAVAILABLE");
+      }
+      const suppliedDigest = createHmac("sha256", Buffer.from(recipientCodeKey, "base64"))
+        .update(`${input.deliveryId}:${input.recipientCode}`)
+        .digest();
+      const expectedDigest = Buffer.from(current.recipientCodeDigest, "hex");
+      const valid =
+        suppliedDigest.length === expectedDigest.length &&
+        timingSafeEqual(suppliedDigest, expectedDigest);
+      if (!valid) {
+        const windowExpired =
+          challenge.attemptWindowStartedAt === null ||
+          now.getTime() - challenge.attemptWindowStartedAt.getTime() >=
+            this.config.logisticsRecipientCode.attemptWindowSeconds * 1_000;
+        const failedAttempts = windowExpired ? 1 : challenge.failedAttempts + 1;
+        const limited = failedAttempts >= this.config.logisticsRecipientCode.maxAttempts;
+        const updated = await transaction.logisticsRecipientCodeChallenge.updateMany({
+          data: {
+            attemptWindowStartedAt: windowExpired ? now : challenge.attemptWindowStartedAt,
+            failedAttempts,
+            lockedUntil: limited
+              ? new Date(now.getTime() + this.config.logisticsRecipientCode.lockSeconds * 1_000)
+              : null,
+            updatedAt: now,
+            version: { increment: 1 },
+          },
+          where: { deliveryId: input.deliveryId, verifiedAt: null, version: challenge.version },
+        });
+        if (updated.count !== 1) throw new LogisticsConflictError("VERSION_OR_STATE_CONFLICT");
+        const outcome = limited ? "RATE_LIMITED" : "INVALID_CODE";
+        await recordRejectedProofAttempt(transaction, context, input, outcome, limited ? 429 : 422);
+        return { deliveryId: input.deliveryId, outcome } as const;
+      }
+
+      const challengeUpdated = await transaction.logisticsRecipientCodeChallenge.updateMany({
+        data: { lockedUntil: null, updatedAt: now, verifiedAt: now, version: { increment: 1 } },
+        where: { deliveryId: input.deliveryId, verifiedAt: null, version: challenge.version },
+      });
+      if (challengeUpdated.count !== 1) {
+        throw new LogisticsConflictError("VERSION_OR_STATE_CONFLICT");
+      }
+      await transaction.logisticsDeliveryProof.create({
+        data: {
+          deliveryId: input.deliveryId,
+          id: createOpaqueId(),
+          method: "RECIPIENT_CODE",
+          recordedByPrincipalId: context.actorPrincipalId,
+          verifiedAt: now,
+        },
+      });
+      const delivered = await transaction.logisticsDelivery.updateMany({
+        data: { deliveredAt: now, status: "DELIVERED", updatedAt: now, version: { increment: 1 } },
+        where: {
+          id: input.deliveryId,
+          status: "ARRIVED_AT_DESTINATION",
+          version: input.expectedVersion,
+        },
+      });
+      if (delivered.count !== 1) throw new LogisticsConflictError("VERSION_OR_STATE_CONFLICT");
+      await transaction.logisticsDeliveryStatusHistory.create({
+        data: {
+          actorPrincipalId: context.actorPrincipalId,
+          deliveryId: input.deliveryId,
+          fromStatus: "ARRIVED_AT_DESTINATION",
+          id: createOpaqueId(),
+          idempotencyKey: historyKey(
+            VERIFY_RECIPIENT_CODE_OPERATION,
+            context,
+            input.idempotencyKey,
+          ),
+          occurredAt: now,
+          reasonCode: "RECIPIENT_CODE_VERIFIED",
+          toStatus: "DELIVERED",
+        },
+      });
+      await enqueueStatusNotifications(transaction, this.config, {
+        deliveryId: input.deliveryId,
+        deliveryNumber: current.deliveryNumber,
+        patientPrincipalId: current.patientPrincipalId,
+        pharmacyOrganizationId: current.pharmacyOrganizationId,
+        status: "DELIVERED",
+      });
+      await appendAudit(
+        transaction,
+        context,
+        "logistics.delivery.proof_verified",
+        input.deliveryId,
+      );
+      await completeIdempotency(
+        transaction,
+        context.actorPrincipalId,
+        VERIFY_RECIPIENT_CODE_OPERATION,
+        input,
+        input.deliveryId,
+      );
+      return { deliveryId: input.deliveryId, outcome: "DELIVERED" as const };
+    });
+    if (result.outcome !== "DELIVERED") return { outcome: result.outcome };
+    return {
+      delivery: requireDelivery(await this.findById(result.deliveryId)),
+      outcome: "DELIVERED",
+    };
   }
 
   async findById(id: string): Promise<LogisticsDeliveryRecord | null> {
@@ -505,7 +681,7 @@ export class PrismaLogisticsDeliveryRepository implements LogisticsDeliveryRepos
 async function claimIdempotency(
   transaction: Transaction,
   input: { actorPrincipalId: string; key: string; operation: string; requestHash: string },
-): Promise<string | null> {
+): Promise<{ resourceId: string; responseStatusCode: number } | null> {
   const existing = await transaction.idempotencyKey.findUnique({
     where: {
       principalId_operation_key: {
@@ -523,7 +699,10 @@ async function claimIdempotency(
     ) {
       throw new LogisticsConflictError("IDEMPOTENCY_CONFLICT");
     }
-    return existing.resourceId;
+    return {
+      resourceId: existing.resourceId,
+      responseStatusCode: existing.responseStatusCode ?? 200,
+    };
   }
   await transaction.idempotencyKey.create({
     data: {
@@ -537,6 +716,37 @@ async function claimIdempotency(
     },
   });
   return null;
+}
+
+function proofOutcome(
+  responseStatusCode: number,
+): "CODE_EXPIRED" | "DELIVERED" | "INVALID_CODE" | "RATE_LIMITED" {
+  if (responseStatusCode === 200) return "DELIVERED";
+  if (responseStatusCode === 410) return "CODE_EXPIRED";
+  if (responseStatusCode === 429) return "RATE_LIMITED";
+  if (responseStatusCode === 422) return "INVALID_CODE";
+  throw new LogisticsConflictError("IDEMPOTENCY_CONFLICT");
+}
+
+async function recordRejectedProofAttempt(
+  transaction: Transaction,
+  context: LogisticsRequestContext,
+  input: VerifyRecipientCodeInput,
+  reasonCode: "CODE_EXPIRED" | "INVALID_CODE" | "RATE_LIMITED",
+  responseStatusCode: number,
+): Promise<void> {
+  await appendAudit(transaction, context, "logistics.delivery.proof_rejected", input.deliveryId, {
+    reasonCode,
+    result: "DENIED",
+  });
+  await completeIdempotency(
+    transaction,
+    context.actorPrincipalId,
+    VERIFY_RECIPIENT_CODE_OPERATION,
+    input,
+    input.deliveryId,
+    responseStatusCode,
+  );
 }
 
 async function completeIdempotency(
@@ -578,12 +788,50 @@ async function lockDelivery(
   return rows[0] ?? null;
 }
 
+interface LockedDeliveryForProof {
+  deliveryNumber: string;
+  patientPrincipalId: string;
+  pharmacyOrganizationId: string;
+  recipientCodeDigest: string;
+  recipientCodeExpiresAt: Date;
+  recipientCodeKeyId: string;
+  status: string;
+  version: number;
+}
+
+async function lockDeliveryForProof(
+  transaction: Transaction,
+  deliveryId: string,
+): Promise<LockedDeliveryForProof | null> {
+  const rows = await transaction.$queryRaw<LockedDeliveryForProof[]>(Prisma.sql`
+    SELECT
+      delivery.delivery_number AS "deliveryNumber",
+      patient.principal_id AS "patientPrincipalId",
+      orders.pharmacy_organization_id AS "pharmacyOrganizationId",
+      delivery.recipient_code_digest AS "recipientCodeDigest",
+      delivery.recipient_code_expires_at AS "recipientCodeExpiresAt",
+      delivery.recipient_code_key_id AS "recipientCodeKeyId",
+      delivery.status::text,
+      delivery.version
+    FROM logistics_deliveries delivery
+    INNER JOIN pharmacy_orders orders ON orders.id = delivery.order_id
+    INNER JOIN patients patient ON patient.id = orders.patient_id
+    WHERE delivery.id = ${deliveryId}::uuid
+    FOR UPDATE OF delivery
+  `);
+  return rows[0] ?? null;
+}
+
 async function appendAudit(
   transaction: Transaction,
   context: LogisticsRequestContext,
   action: string,
   resourceId: string,
-  scope: { organizationId?: string } = {},
+  scope: {
+    organizationId?: string;
+    reasonCode?: string;
+    result?: "DENIED" | "FAILED" | "SUCCEEDED";
+  } = {},
 ): Promise<void> {
   await transaction.auditEvent.create({
     data: {
@@ -591,11 +839,43 @@ async function appendAudit(
       actorPrincipalId: context.actorPrincipalId,
       id: createOpaqueId(),
       ...(scope.organizationId === undefined ? {} : { organizationId: scope.organizationId }),
+      ...(scope.reasonCode === undefined ? {} : { reasonCode: scope.reasonCode }),
       requestId: context.requestId,
       resourceId,
       resourceType: "logistics_delivery",
-      result: "SUCCEEDED",
+      result: scope.result ?? "SUCCEEDED",
     },
+  });
+}
+
+async function enqueueStatusNotifications(
+  transaction: Transaction,
+  config: ApiServiceConfig,
+  input: {
+    deliveryId: string;
+    deliveryNumber: string;
+    patientPrincipalId: string;
+    pharmacyOrganizationId: string;
+    status: string;
+  },
+): Promise<void> {
+  const reference = `${input.deliveryNumber}-${input.status}`;
+  const deduplicationKey = `logistics-delivery-status:${input.deliveryId}:${input.status}`;
+  await enqueueEmailNotification(transaction, config, {
+    deduplicationKey,
+    recipientPrincipalId: input.patientPrincipalId,
+    reference,
+    resourceId: input.deliveryId,
+    resourceType: "logistics_delivery",
+    templateKey: NOTIFICATION_TEMPLATE.LOGISTICS_DELIVERY_STATUS_UPDATED,
+  });
+  await enqueueOrganizationInboxNotification(transaction, {
+    deduplicationKey: `${deduplicationKey}:pharmacy`,
+    organizationId: input.pharmacyOrganizationId,
+    reference,
+    resourceId: input.deliveryId,
+    resourceType: "logistics_delivery",
+    templateKey: NOTIFICATION_TEMPLATE.LOGISTICS_DELIVERY_STATUS_UPDATED,
   });
 }
 

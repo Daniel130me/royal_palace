@@ -78,6 +78,12 @@ const cancelSchema = z
 const assignCourierSchema = z
   .object({ courierPrincipalId: idSchema, expectedAssignmentVersion: z.number().int().positive() })
   .strict();
+const recipientCodeProofSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    recipientCode: z.string().regex(/^\d{8}$/),
+  })
+  .strict();
 const transitionStatusSchema = z.enum([
   "ACCEPTED",
   "HEADING_TO_PICKUP",
@@ -144,6 +150,19 @@ export class AdminLogisticsDeliveryController {
   @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_ASSIGNMENT)
   get(@Param("deliveryId") deliveryId: string, @Req() request: AuthenticatedInternalRequest) {
     return execute(() => this.deliveries.getAdmin(context(request), parse(idSchema, deliveryId)));
+  }
+
+  @Get(":deliveryId/history")
+  @PolicyProtected(AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_ASSIGNMENT)
+  history(
+    @Param("deliveryId") deliveryId: string,
+    @Query() query: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(historySchema, query);
+    return execute(() =>
+      this.deliveries.adminHistory(context(request), parse(idSchema, deliveryId), input.limit),
+    );
   }
 
   @Post()
@@ -294,6 +313,29 @@ export class LogisticsDeliveryController {
         parse(idSchema, deliveryId),
         {
           ...parse(transitionSchema, body),
+          idempotencyKey: parse(idempotencyKeySchema, idempotencyKey),
+        },
+      ),
+    );
+  }
+
+  @Post(":deliveryId/proof")
+  @HttpCode(200)
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY)
+  verifyRecipientCode(
+    @Param("deliveryId") deliveryId: string,
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.deliveries.verifyRecipientCode(
+        context(request),
+        parse(idSchema, organizationId),
+        parse(idSchema, deliveryId),
+        {
+          ...parse(recipientCodeProofSchema, body),
           idempotencyKey: parse(idempotencyKeySchema, idempotencyKey),
         },
       ),

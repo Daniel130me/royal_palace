@@ -62,12 +62,12 @@ routes or expose prescription, medication, clinical-record, or patient-payment d
 
 ### 11E3 — proof and notification
 
-- [ ] Generate recipient codes with qualified entropy, hash with a server-held pepper, deliver only
+- [x] Generate recipient codes with qualified entropy, hash with a server-held pepper, deliver only
       through verified-recipient transactional notification, and enforce attempt/rate limits.
-- [ ] Complete proof-of-delivery atomically with the delivered transition and append audit evidence.
-- [ ] Add privacy-safe status notifications without medicine, prescription, diagnosis, payment,
+- [x] Complete proof-of-delivery atomically with the delivered transition and append audit evidence.
+- [x] Add privacy-safe status notifications without medicine, prescription, diagnosis, payment,
       or full-address content in external messages.
-- [ ] Add failed/returned exception handling and administrator oversight without bypassing the
+- [x] Add failed/returned exception handling and administrator oversight without bypassing the
       delivery state machine.
 
 ### 11E4 — signed prototype connection
@@ -154,6 +154,39 @@ The additive key-rotation migration was also applied successfully to the local d
 - **No magic assumptions:** no currency, country, fee, vehicle, cloud, or payment provider is baked
   into delivery state.
 - **Non-standard conditions flagged:** database qualification evidence, API/BFF integration, real
-  code verification/rate limiting, representative query-plan evidence, repository replay/concurrency
-  integration tests, proof completion, operations telemetry, commercial reporting, visual parity,
-  and UAT are still open. Real logistics use remains prohibited.
+  provider qualification, representative query-plan evidence, deeper repository replay/concurrency
+  integration tests, operations telemetry, commercial reporting, visual parity, and UAT are still
+  open. Real logistics use remains prohibited.
+
+## Checkpoint 11E3 implementation report
+
+Recipient-code verification is now an exact-organization, assigned-courier operation. The stored
+key identifier selects the correct server-held HMAC key, supplied codes are compared in constant
+time, and no plaintext code or digest is written to audit data. A bounded one-to-one challenge
+record tracks the configurable attempt window, maximum failures, temporary lock, and successful
+verification. Locking the delivery row serializes concurrent attempts without an unbounded attempt
+table or a process-local rate limiter.
+
+Successful verification atomically marks the challenge verified, inserts immutable proof, moves
+the delivery from `ARRIVED_AT_DESTINATION` to `DELIVERED`, appends status history, records audit
+evidence, and enqueues patient and pharmacy notifications. PostgreSQL independently requires the
+challenge verification timestamp to match the immutable proof. Failed, returned, and cancelled
+updates use the same state machine. Administrators can filter exception statuses and read bounded
+immutable history, including reason codes, without receiving full recipient or address data.
+
+External messages contain only a delivery reference and a sign-in instruction; they exclude
+medicine, prescription, diagnosis, payment, amount, patient identity, phone, and address details.
+The existing notification worker still permits external email only for verified recipients and
+keeps real adapters disabled until provider and regional qualification.
+
+No signed prototype screen is newly connected by 11E3. The approved logistics screens remain
+available for visual comparison at `#/logistics/dashboard`, `#/logistics/assignments`,
+`#/logistics/delivery?id=<delivery-id>`, `#/logistics/history`, `#/logistics/earnings`, and
+`#/logistics/payouts`; production UI wiring remains 11E4.
+
+Validation includes 139 approved prototype capabilities, 925 passing API tests, 43 passing web
+tests, 20 passing worker tests, generated-client drift checking, full formatting/lint/type/build
+gates, Prisma validation, and disposable-PostgreSQL clean-install, upgrade, backfill, concurrency,
+immutability, and constraint evidence. Migration
+`20261015220000_logistics_recipient_code_attempt_policy` is also applied to the local development
+database.

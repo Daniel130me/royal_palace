@@ -2783,11 +2783,27 @@ model LogisticsDelivery {
   assignments                LogisticsDeliveryAssignment[]
   statusHistory              LogisticsDeliveryStatusHistory[]
   proof                      LogisticsDeliveryProof?
+  recipientCodeChallenge     LogisticsRecipientCodeChallenge?
 
   @@index([logisticsOrganizationId, status, assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_deliveries_org_status_assigned_idx")
   @@index([status, assignedAt, id], map: "logistics_deliveries_status_assigned_idx")
   @@index([orderId, status, id], map: "logistics_deliveries_order_status_idx")
   @@map("logistics_deliveries")
+}
+
+model LogisticsRecipientCodeChallenge {
+  deliveryId            String            @id @map("delivery_id") @db.Uuid
+  failedAttempts        Int               @default(0) @map("failed_attempts")
+  attemptWindowStartedAt DateTime?         @map("attempt_window_started_at") @db.Timestamptz(6)
+  lockedUntil           DateTime?          @map("locked_until") @db.Timestamptz(6)
+  verifiedAt            DateTime?          @map("verified_at") @db.Timestamptz(6)
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                @default(1)
+  delivery              LogisticsDelivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@index([lockedUntil, deliveryId], map: "logistics_recipient_challenges_locked_idx")
+  @@map("logistics_recipient_code_challenges")
 }
 
 model LogisticsDeliveryAssignment {

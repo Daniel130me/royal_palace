@@ -151,7 +151,10 @@ describe("loadServiceConfig", () => {
   it("requires a bounded logistics code lifetime and an active key in the configured key ring", () => {
     expect(loadServiceConfig("api", validEnvironment).logisticsRecipientCode).toEqual({
       activeKeyId: "test-logistics-key-1",
+      attemptWindowSeconds: 900,
       keys: { "test-logistics-key-1": testKey },
+      lockSeconds: 900,
+      maxAttempts: 5,
       ttlSeconds: 900,
     });
     expect(() =>
@@ -166,6 +169,18 @@ describe("loadServiceConfig", () => {
         LOGISTICS_RECIPIENT_CODE_TTL_SECONDS: "60",
       }),
     ).toThrow(/LOGISTICS_RECIPIENT_CODE_TTL_SECONDS/);
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        LOGISTICS_RECIPIENT_CODE_MAX_ATTEMPTS: "2",
+      }),
+    ).toThrow(/LOGISTICS_RECIPIENT_CODE_MAX_ATTEMPTS/);
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        LOGISTICS_RECIPIENT_CODE_LOCK_SECONDS: "30",
+      }),
+    ).toThrow(/LOGISTICS_RECIPIENT_CODE_LOCK_SECONDS/);
   });
 
   it("allows the synthetic gateway only outside protected environments", () => {

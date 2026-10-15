@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: Context) {
     deliveryId === null ||
     segments.length !== 3 ||
     segments[0] !== "deliveries" ||
-    !["courier-assignment", "transitions"].includes(segments[2]!)
+    !["courier-assignment", "proof", "transitions"].includes(segments[2]!)
   ) {
     return logisticsBffNotFound();
   }

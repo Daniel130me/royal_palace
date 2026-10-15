@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/logistics/deliveries/{deliveryId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminLogisticsDeliveryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/logistics/deliveries/{deliveryId}/reassign": {
         parameters: {
             query?: never;
@@ -142,6 +158,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["transitionLogisticsDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/logistics/deliveries/{deliveryId}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyLogisticsDeliveryRecipientCode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -347,6 +379,10 @@ export interface components {
             reasonCode?: string;
             toStatus: components["schemas"]["MutableDeliveryStatus"];
         };
+        RecipientCodeProofInput: {
+            expectedVersion: number;
+            recipientCode: string;
+        };
         AdminDeliveryPage: {
             data: components["schemas"]["AdminDelivery"][];
             nextCursor: string | null;
@@ -475,6 +511,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDelivery"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listAdminLogisticsDeliveryHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                deliveryId: components["parameters"]["DeliveryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded immutable history for administrator exception oversight */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryHistoryPage"];
                 };
             };
             default: components["responses"]["Error"];
@@ -674,6 +735,39 @@ export interface operations {
                     "application/json": components["schemas"]["LogisticsDelivery"];
                 };
             };
+            default: components["responses"]["Error"];
+        };
+    };
+    verifyLogisticsDeliveryRecipientCode: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Organization-Id": components["parameters"]["OrganizationId"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                deliveryId: components["parameters"]["DeliveryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipientCodeProofInput"];
+            };
+        };
+        responses: {
+            /** @description Recipient code verified and delivery completed atomically */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogisticsDelivery"];
+                };
+            };
+            410: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

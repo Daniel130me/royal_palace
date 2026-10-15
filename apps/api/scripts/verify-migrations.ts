@@ -1411,6 +1411,10 @@ async function verifyLogisticsDeliveryInvariants(
        VALUES ($1, $2, NULL, 'ASSIGNED', $3, $4, now())`,
       [v7(), deliveryId, administratorId, `delivery:${deliveryId}:assigned`],
     );
+    await client.query(
+      `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id") VALUES ($1)`,
+      [deliveryId],
+    );
     await client.query("COMMIT");
 
     await expectSqlState(
@@ -1492,11 +1496,18 @@ async function verifyLogisticsDeliveryInvariants(
       await client.query("COMMIT");
     }
 
+    const proofVerifiedAt = new Date();
+    await client.query(
+      `UPDATE "logistics_recipient_code_challenges"
+          SET "verified_at" = $2, "updated_at" = now(), "version" = "version" + 1
+        WHERE "delivery_id" = $1`,
+      [deliveryId, proofVerifiedAt],
+    );
     await client.query(
       `INSERT INTO "logistics_delivery_proofs"
          ("id", "delivery_id", "method", "recorded_by_principal_id", "verified_at")
-       VALUES ($1, $2, 'RECIPIENT_CODE', $3, now())`,
-      [proofId, deliveryId, courierId],
+       VALUES ($1, $2, 'RECIPIENT_CODE', $3, $4)`,
+      [proofId, deliveryId, courierId, proofVerifiedAt],
     );
     await client.query("BEGIN");
     await client.query(
@@ -1533,6 +1544,15 @@ async function verifyLogisticsDeliveryInvariants(
     await expectSqlState(
       client,
       'DELETE FROM "logistics_delivery_status_history" WHERE "delivery_id" = $1',
+      [deliveryId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "logistics_recipient_code_challenges"
+          SET "failed_attempts" = 1, "attempt_window_started_at" = now(),
+              "updated_at" = now(), "version" = "version" + 1
+        WHERE "delivery_id" = $1`,
       [deliveryId],
       "P0001",
     );
