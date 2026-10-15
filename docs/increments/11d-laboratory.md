@@ -147,8 +147,10 @@ model.
 - [x] Connect team administration through a shared organization boundary. Exact organization
       administrators can create expiring single-use staff links, revoke pending invitations, and
       deactivate ordinary staff. Raw invitation secrets are returned once and never stored.
-- [ ] Complete clean/upgrade migration tests, failure/concurrency tests, load/query-plan
-      evidence, prototype parity verification, and Nigerian qualification/UAT.
+- [x] Verify the machine-readable prototype scope lock against full Git history without removing or
+      narrowing an approved capability. Stakeholder visual/flow acceptance remains part of UAT.
+- [ ] Complete protected clean/upgrade migration execution, remaining failure/concurrency tests,
+      load/query-plan evidence, telemetry validation, and Nigerian qualification/UAT.
 - [ ] Keep all real laboratory processing disabled until the approval evidence is
       complete.
 
@@ -300,6 +302,31 @@ migration is forbidden.
   backend can later connect pharmacy and hospital team settings without schema or policy
   duplication.
 
+## Checkpoint 11D4H hardening report
+
+- The machine-readable prototype scope lock now verifies successfully against the complete Git
+  history: 139 approved capabilities across 11 portals, 16 visual references, and 138 unique
+  historical artifacts. This confirms preservation of the approved scope; it does not replace
+  stakeholder prototype-parity UAT or change any capability to `ACCEPTED`.
+- The shared PostgreSQL query-plan harness now loads 5,000 complete laboratory request, booking,
+  published-result, and verified-review workflows plus 500 overdue critical results. It reviews
+  patient and practitioner request cursors, the laboratory booking and result queues, patient and
+  practitioner published-result readers, the critical-result worker claim, review moderation,
+  and organization review history with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
+- The migration verifier now exercises organization-team role, invitation-state, immutability,
+  duplicate-membership, and duplicate-role constraints. A two-connection acceptance test proves
+  that different valid invitations accepted concurrently create one active membership and one
+  active staff role, while each invitation remains single-use.
+- Invitation acceptance uses row and organization/principal advisory locks under PostgreSQL's
+  default read-committed transaction isolation. This retains deterministic serialization without
+  exposing callers to avoidable serializable-transaction aborts during ordinary concurrent use.
+- The separated organization-administrator enum migration is now independently transactional;
+  the following migration remains separate so PostgreSQL commits the enum value before it is used.
+- Local TypeScript, lint, Prisma-schema, prototype-history, and parity-verifier tests pass. The
+  clean/upgrade migration and representative query-plan executions remain pending because the
+  local Docker Linux engine and PostgreSQL service are unavailable; CI must execute both before
+  this checklist item can be closed.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -331,8 +358,8 @@ migration is forbidden.
   organization-finance boundary. Verified completion-bound laboratory ratings now use the
   production review boundary, including administrator comment moderation. Shared organization
   team administration is now connected to laboratory settings. Automated payout execution,
-  billing, representative moderation load evidence, and
-  qualification work remains
+  billing, protected-environment execution of the representative load suite, and qualification
+  work remain
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
   privacy, and jurisdictional procedures are qualified. No approved screen or navigation

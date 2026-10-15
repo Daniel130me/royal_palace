@@ -45,6 +45,9 @@ single current branch:
   history so historical verification cannot be skipped by a shallow clone.
 - Production work is not permitted to reinterpret a missing current file as product
   approval to remove its capability.
+- The automated scope lock was rerun during checkpoint 11D4H and verified all 139 declared
+  capabilities, 16 visual references, and 138 unique historical artifacts. This is repository
+  integrity evidence only; stakeholder comparison and acceptance remain required before release.
 - The complete source inventory is reproducible with:
 
   ```text

@@ -205,104 +205,101 @@ export class PrismaOrganizationTeamRepository implements OrganizationTeamReposit
     requestId: string;
     tokenDigest: string;
   }) {
-    return this.prisma.$transaction(
-      async (transaction) => {
-        const [invitation] = await transaction.$queryRaw<
-          Array<{
-            expires_at: Date;
-            created_by_principal_id: string;
-            id: string;
-            organization_id: string;
-            status: "ACCEPTED" | "PENDING" | "REVOKED";
-          }>
-        >(Prisma.sql`
+    return this.prisma.$transaction(async (transaction) => {
+      const [invitation] = await transaction.$queryRaw<
+        Array<{
+          expires_at: Date;
+          created_by_principal_id: string;
+          id: string;
+          organization_id: string;
+          status: "ACCEPTED" | "PENDING" | "REVOKED";
+        }>
+      >(Prisma.sql`
           SELECT "id", "organization_id", "status", "expires_at", "created_by_principal_id"
           FROM "organization_team_invitations"
           WHERE "token_digest" = ${input.tokenDigest}
           FOR UPDATE
         `);
-        if (invitation === undefined || invitation.status !== "PENDING") return "UNAVAILABLE";
-        if (invitation.expires_at <= new Date()) return "EXPIRED";
+      if (invitation === undefined || invitation.status !== "PENDING") return "UNAVAILABLE";
+      if (invitation.expires_at <= new Date()) return "EXPIRED";
 
-        // Different valid invitations could be accepted concurrently by the same
-        // principal. Serialize that organization/principal key before checking the
-        // partial active-membership uniqueness constraint to avoid a race-dependent
-        // 500 while preserving the database constraint as the final guard.
-        await transaction.$queryRaw(Prisma.sql`
+      // Different valid invitations could be accepted concurrently by the same
+      // principal. Serialize that organization/principal key before checking the
+      // partial active-membership uniqueness constraint to avoid a race-dependent
+      // 500 while preserving the database constraint as the final guard.
+      await transaction.$queryRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(
             hashtextextended(${`${invitation.organization_id}:${input.acceptedByPrincipalId}`}, 0)
           )
         `);
 
-        let membership = await transaction.membership.findFirst({
-          where: {
-            effectiveUntil: null,
-            organizationId: invitation.organization_id,
-            principalId: input.acceptedByPrincipalId,
-          },
-          select: { id: true },
-        });
-        membership ??= await transaction.membership.create({
-          data: {
-            id: createOpaqueId(),
-            organizationId: invitation.organization_id,
-            principalId: input.acceptedByPrincipalId,
-          },
-          select: { id: true },
-        });
+      let membership = await transaction.membership.findFirst({
+        where: {
+          effectiveUntil: null,
+          organizationId: invitation.organization_id,
+          principalId: input.acceptedByPrincipalId,
+        },
+        select: { id: true },
+      });
+      membership ??= await transaction.membership.create({
+        data: {
+          id: createOpaqueId(),
+          organizationId: invitation.organization_id,
+          principalId: input.acceptedByPrincipalId,
+        },
+        select: { id: true },
+      });
 
-        const existingRole = await transaction.roleAssignment.findFirst({
-          where: {
-            effectiveUntil: null,
+      const existingRole = await transaction.roleAssignment.findFirst({
+        where: {
+          effectiveUntil: null,
+          membershipId: membership.id,
+          role: "ORGANIZATION_STAFF",
+        },
+        select: { id: true },
+      });
+      if (existingRole === null) {
+        await transaction.roleAssignment.create({
+          data: {
+            grantedByPrincipalId: invitation.created_by_principal_id,
+            id: createOpaqueId(),
             membershipId: membership.id,
             role: "ORGANIZATION_STAFF",
+            scope: "ORGANIZATION",
           },
-          select: { id: true },
         });
-        if (existingRole === null) {
-          await transaction.roleAssignment.create({
-            data: {
-              grantedByPrincipalId: invitation.created_by_principal_id,
-              id: createOpaqueId(),
-              membershipId: membership.id,
-              role: "ORGANIZATION_STAFF",
-              scope: "ORGANIZATION",
-            },
-          });
-        }
+      }
 
-        const now = new Date();
-        await transaction.organizationTeamInvitation.update({
-          where: { id: invitation.id },
-          data: {
-            acceptedAt: now,
-            acceptedByPrincipalId: input.acceptedByPrincipalId,
-            acceptedMembershipId: membership.id,
-            status: "ACCEPTED",
-            version: { increment: 1 },
-          },
-        });
-        await transaction.auditEvent.create({
-          data: {
-            action: "organization_team.invitation_accepted",
-            actorPrincipalId: input.acceptedByPrincipalId,
-            effectiveRole: "ORGANIZATION_STAFF",
-            id: createOpaqueId(),
-            organizationId: invitation.organization_id,
-            requestId: input.requestId,
-            resourceId: invitation.id,
-            resourceType: "organization_team_invitation",
-            result: "SUCCEEDED",
-          },
-        });
-        const organization = await transaction.organization.findUniqueOrThrow({
-          where: { id: invitation.organization_id },
-          select: { displayName: true, id: true, type: true },
-        });
-        return { membershipId: membership.id, organization };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+      const now = new Date();
+      await transaction.organizationTeamInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          acceptedAt: now,
+          acceptedByPrincipalId: input.acceptedByPrincipalId,
+          acceptedMembershipId: membership.id,
+          status: "ACCEPTED",
+          version: { increment: 1 },
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "organization_team.invitation_accepted",
+          actorPrincipalId: input.acceptedByPrincipalId,
+          effectiveRole: "ORGANIZATION_STAFF",
+          id: createOpaqueId(),
+          organizationId: invitation.organization_id,
+          requestId: input.requestId,
+          resourceId: invitation.id,
+          resourceType: "organization_team_invitation",
+          result: "SUCCEEDED",
+        },
+      });
+      const organization = await transaction.organization.findUniqueOrThrow({
+        where: { id: invitation.organization_id },
+        select: { displayName: true, id: true, type: true },
+      });
+      return { membershipId: membership.id, organization };
+    });
   }
 }
 

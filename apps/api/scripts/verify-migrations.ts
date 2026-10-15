@@ -89,10 +89,13 @@ async function main(): Promise<void> {
     await verifyDatabaseInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
     await verifyPharmacyCommercialInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
     await verifyConcurrentBooking(databaseUrlWithName(baseUrl, databaseNames.clean));
+    await verifyConcurrentOrganizationTeamAcceptance(
+      databaseUrlWithName(baseUrl, databaseNames.clean),
+    );
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
-      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial invariants, transactional repair, and constraints.\n",
+      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial and organization-team invariants, concurrency, transactional repair, and constraints.\n",
     );
   } finally {
     for (const databaseName of Object.values(databaseNames).reverse()) {
@@ -274,6 +277,8 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   const notificationEndpointId = v7();
   const pharmacyOrganizationId = v7();
   const scannedPrescriptionId = v7();
+  const organizationTeamInvitationId = v7();
+  const organizationStaffRoleId = v7();
 
   await client.connect();
   try {
@@ -373,6 +378,53 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
       'INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at") VALUES ($1, $2, $3, now())',
       [v7(), organizationId, principalId],
       "23505",
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "organization_team_invitations"
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_ADMIN', $4, now() + interval '1 day')`,
+      [v7(), organizationId, "b".repeat(64), principalId],
+      "23514",
+    );
+    await client.query(
+      `INSERT INTO "organization_team_invitations"
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', $4, now() + interval '1 day')`,
+      [organizationTeamInvitationId, organizationId, "c".repeat(64), principalId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "organization_team_invitations" SET "token_digest" = $1 WHERE "id" = $2',
+      ["d".repeat(64), organizationTeamInvitationId],
+      "P0001",
+    );
+    await client.query(
+      `INSERT INTO "role_assignments"
+         ("id", "membership_id", "granted_by_principal_id", "role", "scope", "updated_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', 'ORGANIZATION', now())`,
+      [organizationStaffRoleId, membershipId, principalId],
+    );
+    await expectSqlState(
+      client,
+      `INSERT INTO "role_assignments"
+         ("id", "membership_id", "granted_by_principal_id", "role", "scope", "updated_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', 'ORGANIZATION', now())`,
+      [v7(), membershipId, principalId],
+      "23505",
+    );
+    await client.query(
+      `UPDATE "organization_team_invitations"
+          SET "status" = 'ACCEPTED', "accepted_by_principal_id" = $1,
+              "accepted_membership_id" = $2, "accepted_at" = now(), "version" = "version" + 1
+        WHERE "id" = $3`,
+      [principalId, membershipId, organizationTeamInvitationId],
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "organization_team_invitations" SET "version" = "version" + 1 WHERE "id" = $1',
+      [organizationTeamInvitationId],
+      "P0001",
     );
     await expectSqlState(
       client,
@@ -1337,6 +1389,144 @@ async function verifyConcurrentBooking(databaseUrl: string): Promise<void> {
     );
     if (result.rows[0]?.appointments !== "1" || result.rows[0]?.payments !== "1") {
       throw new Error("Concurrent booking created duplicate or incomplete financial records");
+    }
+  } finally {
+    await Promise.all([setup.end(), first.end(), second.end()]);
+  }
+}
+
+async function verifyConcurrentOrganizationTeamAcceptance(databaseUrl: string): Promise<void> {
+  const setup = new Client({ connectionString: databaseUrl });
+  const first = new Client({ connectionString: databaseUrl });
+  const second = new Client({ connectionString: databaseUrl });
+  const creatorPrincipalId = v7();
+  const invitedPrincipalId = v7();
+  const organizationId = v7();
+  const invitationIds = [v7(), v7()] as const;
+
+  await Promise.all([setup.connect(), first.connect(), second.connect()]);
+  try {
+    await setup.query(
+      `INSERT INTO "identity_principals" ("id", "updated_at")
+       VALUES ($1, now()), ($2, now())`,
+      [creatorPrincipalId, invitedPrincipalId],
+    );
+    await setup.query(
+      `INSERT INTO "organizations"
+         ("id", "type", "legal_name", "display_name", "updated_at")
+       VALUES ($1, 'LABORATORY', 'Concurrent Team Laboratory', 'Concurrent Team Laboratory', now())`,
+      [organizationId],
+    );
+    await setup.query(
+      `INSERT INTO "organization_team_invitations"
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
+       VALUES ($1, $3, $4, 'ORGANIZATION_STAFF', $5, now() + interval '1 day'),
+              ($2, $3, $6, 'ORGANIZATION_STAFF', $5, now() + interval '1 day')`,
+      [
+        invitationIds[0],
+        invitationIds[1],
+        organizationId,
+        "e".repeat(64),
+        creatorPrincipalId,
+        "f".repeat(64),
+      ],
+    );
+
+    const accept = async (client: pg.Client, invitationId: string): Promise<boolean> => {
+      await client.query("BEGIN");
+      try {
+        const invitation = await client.query<{ status: string }>(
+          `SELECT "status"::text
+             FROM "organization_team_invitations"
+            WHERE "id" = $1
+            FOR UPDATE`,
+          [invitationId],
+        );
+        if (invitation.rows[0]?.status !== "PENDING") {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+          `${organizationId}:${invitedPrincipalId}`,
+        ]);
+        let membership = await client.query<{ id: string }>(
+          `SELECT "id" FROM "memberships"
+            WHERE "organization_id" = $1 AND "principal_id" = $2 AND "effective_until" IS NULL`,
+          [organizationId, invitedPrincipalId],
+        );
+        if (membership.rowCount === 0) {
+          membership = await client.query<{ id: string }>(
+            `INSERT INTO "memberships"
+               ("id", "organization_id", "principal_id", "updated_at")
+             VALUES ($1, $2, $3, now()) RETURNING "id"`,
+            [v7(), organizationId, invitedPrincipalId],
+          );
+        }
+        const membershipId = membership.rows[0]?.id;
+        if (membershipId === undefined) throw new Error("Concurrent membership was not resolved");
+        const role = await client.query<{ id: string }>(
+          `SELECT "id" FROM "role_assignments"
+            WHERE "membership_id" = $1 AND "role" = 'ORGANIZATION_STAFF'
+              AND "effective_until" IS NULL`,
+          [membershipId],
+        );
+        if (role.rowCount === 0) {
+          await client.query(
+            `INSERT INTO "role_assignments"
+               ("id", "membership_id", "granted_by_principal_id", "role", "scope", "updated_at")
+             VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', 'ORGANIZATION', now())`,
+            [v7(), membershipId, creatorPrincipalId],
+          );
+        }
+        await client.query(
+          `UPDATE "organization_team_invitations"
+              SET "status" = 'ACCEPTED', "accepted_by_principal_id" = $1,
+                  "accepted_membership_id" = $2, "accepted_at" = now(),
+                  "version" = "version" + 1
+            WHERE "id" = $3`,
+          [invitedPrincipalId, membershipId, invitationId],
+        );
+        await client.query("COMMIT");
+        return true;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    };
+
+    const accepted = await Promise.all([
+      accept(first, invitationIds[0]),
+      accept(second, invitationIds[1]),
+    ]);
+    if (!accepted.every(Boolean) || (await accept(first, invitationIds[0]))) {
+      throw new Error("Organization team invitations were not single-use under concurrency");
+    }
+    const counts = await setup.query<{
+      accepted_invitations: string;
+      active_memberships: string;
+      active_roles: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM "organization_team_invitations"
+           WHERE "id" = ANY($1::uuid[]) AND "status" = 'ACCEPTED') AS accepted_invitations,
+         (SELECT count(*)::text FROM "memberships"
+           WHERE "organization_id" = $2 AND "principal_id" = $3 AND "effective_until" IS NULL)
+           AS active_memberships,
+         (SELECT count(*)::text FROM "role_assignments" role_assignment
+           JOIN "memberships" membership ON membership."id" = role_assignment."membership_id"
+          WHERE membership."organization_id" = $2 AND membership."principal_id" = $3
+            AND membership."effective_until" IS NULL
+            AND role_assignment."role" = 'ORGANIZATION_STAFF'
+            AND role_assignment."effective_until" IS NULL) AS active_roles`,
+      [invitationIds, organizationId, invitedPrincipalId],
+    );
+    const result = counts.rows[0];
+    if (
+      result?.accepted_invitations !== "2" ||
+      result.active_memberships !== "1" ||
+      result.active_roles !== "1"
+    ) {
+      throw new Error("Concurrent team acceptance created duplicate membership or role state");
     }
   } finally {
     await Promise.all([setup.end(), first.end(), second.end()]);

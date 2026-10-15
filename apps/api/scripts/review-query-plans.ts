@@ -15,6 +15,8 @@ const MANAGER_EARNING_COUNT = 5_000;
 const APPOINTMENT_COUNT = 5_000;
 const NOTIFICATION_DELIVERY_COUNT = 10_000;
 const HISTORICAL_NOTIFICATION_ENDPOINT_COUNT = 10_000;
+const LABORATORY_WORKFLOW_COUNT = 5_000;
+const LABORATORY_CRITICAL_COUNT = 500;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -42,15 +44,21 @@ async function main(): Promise<void> {
   await client.connect();
   await client.query("BEGIN");
   try {
-    const { managerProfileId, targetPaymentId, targetPractitionerId, targetSessionId } =
-      await loadRepresentativeData(
-        client,
-        principalId,
-        externalIdentityId,
-        organizationIds,
-        practitionerIds,
-        targetOrganizationId,
-      );
+    const {
+      managerProfileId,
+      patientId,
+      targetLaboratoryOrganizationId,
+      targetPaymentId,
+      targetPractitionerId,
+      targetSessionId,
+    } = await loadRepresentativeData(
+      client,
+      principalId,
+      externalIdentityId,
+      organizationIds,
+      practitionerIds,
+      targetOrganizationId,
+    );
     await client.query("ANALYZE");
 
     const evidence = [
@@ -114,6 +122,127 @@ async function main(): Promise<void> {
         ["1970-01-01T00:00:00.000Z", "00000000-0000-0000-0000-000000000000"],
         "laboratory_booking_reviews_moderation_queue_idx",
         { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
+      await reviewPlan(
+        client,
+        "patient laboratory request cursor",
+        `SELECT "id", "status", "priority", "created_at"
+           FROM "laboratory_requests"
+          WHERE "patient_id" = $1
+            AND ("created_at", "id") < ($2, $3)
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [patientId, new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        "laboratory_requests_patient_created_idx",
+      ),
+      await reviewPlan(
+        client,
+        "practitioner laboratory request cursor",
+        `SELECT "id", "status", "priority", "created_at"
+           FROM "laboratory_requests"
+          WHERE "practitioner_id" = $1
+            AND ("created_at", "id") < ($2, $3)
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetPractitionerId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "laboratory_requests_practitioner_created_idx",
+      ),
+      await reviewPlan(
+        client,
+        "laboratory booking queue cursor",
+        `SELECT "id", "status", "accepted_at"
+           FROM "laboratory_bookings"
+          WHERE "laboratory_organization_id" = $1
+            AND "status" = 'COMPLETED'
+            AND ("accepted_at", "id") < ($2, $3)
+          ORDER BY "accepted_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetLaboratoryOrganizationId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "laboratory_bookings_org_status_accepted_idx",
+      ),
+      await reviewPlan(
+        client,
+        "laboratory result queue cursor",
+        `SELECT "id", "status", "created_at"
+           FROM "laboratory_results"
+          WHERE "laboratory_organization_id" = $1
+            AND "status" = 'PUBLISHED'
+            AND ("created_at", "id") < ($2, $3)
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetLaboratoryOrganizationId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "laboratory_results_org_status_created_idx",
+      ),
+      await reviewPlan(
+        client,
+        "patient published laboratory result cursor",
+        `SELECT "id", "published_at"
+           FROM "laboratory_results"
+          WHERE "patient_id" = $1
+            AND "published_at" IS NOT NULL
+            AND ("published_at", "id") < ($2, $3)
+          ORDER BY "published_at" DESC, "id" DESC
+          LIMIT 50`,
+        [patientId, new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        "laboratory_results_patient_published_idx",
+      ),
+      await reviewPlan(
+        client,
+        "practitioner published laboratory result cursor",
+        `SELECT "id", "published_at"
+           FROM "laboratory_results"
+          WHERE "practitioner_id" = $1
+            AND "published_at" IS NOT NULL
+            AND ("published_at", "id") < ($2, $3)
+          ORDER BY "published_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetPractitionerId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "laboratory_results_practitioner_published_idx",
+      ),
+      await reviewPlan(
+        client,
+        "overdue critical laboratory result claim",
+        `SELECT "id", "result_id", "acknowledgement_due_at"
+           FROM "laboratory_critical_results"
+          WHERE "status" = 'OPEN'
+            AND "acknowledgement_due_at" <= now()
+          ORDER BY "acknowledgement_due_at", "id"
+          LIMIT 100
+          FOR UPDATE SKIP LOCKED`,
+        [],
+        "laboratory_critical_results_status_due_idx",
+      ),
+      await reviewPlan(
+        client,
+        "laboratory verified review cursor",
+        `SELECT "id", "score", "submitted_at"
+           FROM "laboratory_booking_reviews"
+          WHERE "laboratory_organization_id" = $1
+            AND ("submitted_at", "id") < ($2, $3)
+          ORDER BY "submitted_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetLaboratoryOrganizationId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "laboratory_booking_reviews_org_submitted_idx",
       ),
       await reviewPlan(
         client,
@@ -379,6 +508,8 @@ async function loadRepresentativeData(
   targetOrganizationId: string,
 ): Promise<{
   managerProfileId: string;
+  patientId: string;
+  targetLaboratoryOrganizationId: string;
   targetPaymentId: string;
   targetPractitionerId: string;
   targetSessionId: string;
@@ -532,10 +663,15 @@ async function loadRepresentativeData(
   const organizationStatuses = organizationIds.map((_, index) =>
     index % 17 === 0 ? "SUSPENDED" : "ACTIVE",
   );
-  const verificationStatuses = organizationTypes.map((type) =>
-    type === "HOSPITAL" ? "VERIFIED" : "PENDING",
+  const targetLaboratoryOrganizationId = organizationIds[2];
+  if (targetLaboratoryOrganizationId === undefined)
+    throw new Error("Representative laboratory set is empty");
+  const verificationStatuses = organizationTypes.map((type, index) =>
+    type === "HOSPITAL" || index === 2 ? "VERIFIED" : "PENDING",
   );
-  const verifiedAt = organizationTypes.map((type) => (type === "HOSPITAL" ? new Date() : null));
+  const verifiedAt = organizationTypes.map((type, index) =>
+    type === "HOSPITAL" || index === 2 ? new Date() : null,
+  );
   const legalNames = organizationIds.map(
     (_, index) => `Synthetic Organization ${String(index).padStart(6, "0")} Limited`,
   );
@@ -854,7 +990,165 @@ async function loadRepresentativeData(
   if (targetSessionId === undefined) throw new Error("Representative session set is empty");
   const targetPaymentId = paymentIds[501];
   if (targetPaymentId === undefined) throw new Error("Representative payment set is empty");
-  return { managerProfileId, targetPaymentId, targetPractitionerId, targetSessionId };
+  const targetAppointmentId = appointmentIds[501];
+  const targetServiceId = discoveryServiceIds[0];
+  if (targetAppointmentId === undefined || targetServiceId === undefined) {
+    throw new Error("Representative laboratory dependencies are empty");
+  }
+  await loadRepresentativeLaboratoryData(client, {
+    appointmentId: targetAppointmentId,
+    laboratoryOrganizationId: targetLaboratoryOrganizationId,
+    patientId,
+    practitionerId: targetPractitionerId,
+    principalId,
+    serviceId: targetServiceId,
+  });
+  return {
+    managerProfileId,
+    patientId,
+    targetLaboratoryOrganizationId,
+    targetPaymentId,
+    targetPractitionerId,
+    targetSessionId,
+  };
+}
+
+async function loadRepresentativeLaboratoryData(
+  client: pg.Client,
+  input: {
+    appointmentId: string;
+    laboratoryOrganizationId: string;
+    patientId: string;
+    practitionerId: string;
+    principalId: string;
+    serviceId: string;
+  },
+): Promise<void> {
+  const offeringId = v7();
+  const servicePriceId = v7();
+  await client.query(
+    'INSERT INTO "organization_services" ("id", "organization_id", "service_id", "updated_at") VALUES ($1, $2, $3, now())',
+    [offeringId, input.laboratoryOrganizationId, input.serviceId],
+  );
+  await client.query(
+    `INSERT INTO "service_prices"
+       ("id", "service_id", "patient_price_minor", "provider_payout_minor", "currency",
+        "effective_from", "status", "created_by_principal_id", "approved_by_principal_id", "updated_at")
+     VALUES ($1, $2, 15000, 12000, 'USD', now() - interval '1 year', 'ACTIVE', $3, $3, now())`,
+    [servicePriceId, input.serviceId, input.principalId],
+  );
+  await client.query('UPDATE "practitioners" SET "principal_id" = $1 WHERE "id" = $2', [
+    input.principalId,
+    input.practitionerId,
+  ]);
+
+  const requestIds = Array.from({ length: LABORATORY_WORKFLOW_COUNT }, () => v7());
+  const bookingIds = requestIds.map(() => v7());
+  const resultIds = requestIds.map(() => v7());
+  const componentIds = requestIds.map(() => v7());
+  const reviewIds = requestIds.map(() => v7());
+
+  await client.query(
+    `INSERT INTO "laboratory_requests"
+       ("id", "request_number", "patient_id", "practitioner_id", "appointment_id", "service_id",
+        "priority", "clinical_indication", "ordered_at", "created_at", "updated_at")
+     SELECT fixture.id, 'RPT-LRQ-' || lpad(fixture.ordinality::text, 8, '0'),
+            $1, $2, $3, $4,
+            CASE WHEN fixture.ordinality % 20 = 0 THEN 'URGENT'::"LaboratoryRequestPriority"
+                 ELSE 'ROUTINE'::"LaboratoryRequestPriority" END,
+            'Synthetic query-plan indication',
+            now() - (fixture.ordinality * interval '1 minute'),
+            now() - (fixture.ordinality * interval '1 minute'), now()
+       FROM unnest($5::uuid[]) WITH ORDINALITY AS fixture(id, ordinality)`,
+    [input.patientId, input.practitionerId, input.appointmentId, input.serviceId, requestIds],
+  );
+  await client.query(
+    `INSERT INTO "laboratory_bookings"
+       ("id", "booking_number", "request_id", "laboratory_organization_id", "status",
+        "accepted_at", "sample_collected_at", "processing_started_at", "result_ready_at",
+        "completed_at", "created_at", "updated_at", "service_price_id", "patient_price_minor",
+        "laboratory_payout_minor", "currency")
+     SELECT fixture.booking_id, 'RPT-LBK-' || lpad(fixture.ordinality::text, 8, '0'),
+            fixture.request_id, $1, 'COMPLETED',
+            now() - (fixture.ordinality * interval '1 minute'),
+            now() - (fixture.ordinality * interval '1 minute') + interval '1 second',
+            now() - (fixture.ordinality * interval '1 minute') + interval '2 seconds',
+            now() - (fixture.ordinality * interval '1 minute') + interval '3 seconds',
+            now() - (fixture.ordinality * interval '1 minute') + interval '4 seconds',
+            now() - (fixture.ordinality * interval '1 minute'), now(), $2, 15000, 12000, 'USD'
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS fixture(booking_id, request_id, ordinality)`,
+    [input.laboratoryOrganizationId, servicePriceId, bookingIds, requestIds],
+  );
+  await client.query(
+    `INSERT INTO "laboratory_results"
+       ("id", "result_number", "booking_id", "patient_id", "practitioner_id",
+        "laboratory_organization_id", "summary_flag", "created_by_principal_id", "created_at", "updated_at")
+     SELECT fixture.result_id, 'RPT-LRS-' || lpad(fixture.ordinality::text, 8, '0'),
+            fixture.booking_id, $1, $2, $3,
+            CASE WHEN fixture.ordinality <= $4 THEN 'CRITICAL'::"LaboratoryResultFlag"
+                 ELSE 'NORMAL'::"LaboratoryResultFlag" END,
+            $5, now() - (fixture.ordinality * interval '1 minute'), now()
+       FROM unnest($6::uuid[], $7::uuid[]) WITH ORDINALITY
+            AS fixture(result_id, booking_id, ordinality)`,
+    [
+      input.patientId,
+      input.practitionerId,
+      input.laboratoryOrganizationId,
+      LABORATORY_CRITICAL_COUNT,
+      input.principalId,
+      resultIds,
+      bookingIds,
+    ],
+  );
+  await client.query(
+    `INSERT INTO "laboratory_result_components"
+       ("id", "result_id", "line_number", "name", "value", "flag")
+     SELECT fixture.component_id, fixture.result_id, 1, 'Synthetic analyte', '1.0',
+            CASE WHEN fixture.ordinality <= $1 THEN 'CRITICAL'::"LaboratoryResultFlag"
+                 ELSE 'NORMAL'::"LaboratoryResultFlag" END
+       FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
+            AS fixture(component_id, result_id, ordinality)`,
+    [LABORATORY_CRITICAL_COUNT, componentIds, resultIds],
+  );
+  await client.query(
+    `UPDATE "laboratory_results" SET "status" = 'IN_REVIEW', "updated_at" = now()
+      WHERE "id" = ANY($1::uuid[])`,
+    [resultIds],
+  );
+  await client.query(
+    `UPDATE "laboratory_results"
+        SET "status" = 'PUBLISHED', "content_digest" = repeat('b', 64),
+            "verified_by_principal_id" = $1, "published_by_principal_id" = $1,
+            "verified_at" = "created_at" + interval '5 seconds',
+            "published_at" = "created_at" + interval '10 seconds', "updated_at" = now()
+      WHERE "id" = ANY($2::uuid[])`,
+    [input.principalId, resultIds],
+  );
+  await client.query(
+    `INSERT INTO "laboratory_critical_results"
+       ("id", "result_id", "component_id", "owner_principal_id", "acknowledgement_due_at",
+        "created_at", "updated_at")
+     SELECT gen_random_uuid(), fixture.result_id, fixture.component_id, $1,
+            now() - interval '1 hour', now() - interval '1 day', now()
+       FROM unnest($2::uuid[], $3::uuid[]) AS fixture(result_id, component_id)`,
+    [
+      input.principalId,
+      resultIds.slice(0, LABORATORY_CRITICAL_COUNT),
+      componentIds.slice(0, LABORATORY_CRITICAL_COUNT),
+    ],
+  );
+  await client.query(
+    `INSERT INTO "laboratory_booking_reviews"
+       ("id", "booking_id", "patient_id", "laboratory_organization_id", "score", "comment",
+        "comment_status", "submitted_at", "updated_at")
+     SELECT fixture.review_id, fixture.booking_id, $1, $2,
+            ((fixture.ordinality - 1) % 5) + 1, 'Synthetic moderation comment', 'PENDING',
+            now() - (fixture.ordinality * interval '1 minute'), now()
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS fixture(review_id, booking_id, ordinality)`,
+    [input.patientId, input.laboratoryOrganizationId, reviewIds, bookingIds],
+  );
 }
 
 async function reviewPlan(
@@ -924,6 +1218,8 @@ async function reviewPlan(
       applicationDocuments: ONBOARDING_APPLICATION_COUNT,
       notificationDeliveries: NOTIFICATION_DELIVERY_COUNT,
       historicalNotificationEndpoints: HISTORICAL_NOTIFICATION_ENDPOINT_COUNT,
+      laboratoryWorkflows: LABORATORY_WORKFLOW_COUNT,
+      laboratoryCriticalResults: LABORATORY_CRITICAL_COUNT,
     },
   };
 }

@@ -343,9 +343,9 @@ that completes an increment.
       exact-service capability gating, patient/exact-laboratory disclosure, and practitioner
       address redaction. The Services, Notifications, and Settings screens now use an
       exact-organization workspace projection and the shared production notification inbox;
-      their approved visual surface remains intact, while unavailable commercial pricing,
-      verified ratings, billing, and team administration are explicitly shown as unconfigured.
-      Commercial parity, migration/load evidence, and qualification remain open. Every approved
+      their approved visual surface remains intact. Governed commercial pricing, verified ratings,
+      and team administration are connected; billing, protected migration/load execution, and
+      qualification remain open. Every approved
       laboratory, patient, and practitioner prototype capability remains in the release
       register.
     - `[x]` 11D4E adds one immutable verified rating per patient-owned completed laboratory
@@ -360,8 +360,13 @@ that completes an increment.
       founder-role backfill through approved application linkage, hashed expiring single-use staff
       invitations, transactional acceptance/revocation/deactivation, audit evidence, bounded team
       reads, a generated contract, exact BFF routes, and connected laboratory settings plus an
-      authenticated invitation-acceptance screen. Billing, representative moderation/team load
-      evidence, and qualification remain open.
+      authenticated invitation-acceptance screen.
+    - `[x]` 11D4H adds representative database-performance fixtures for 5,000 laboratory
+      workflows and 500 critical results, eight exact laboratory query-plan assertions,
+      organization-team migration invariants and two-connection acceptance concurrency evidence,
+      transactional enum migration enforcement, and a successful automated scope-lock audit of
+      139 approved prototype capabilities. Protected PostgreSQL execution, billing, and
+      qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

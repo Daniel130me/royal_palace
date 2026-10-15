@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TYPE "OrganizationTeamInvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REVOKED');
 
 -- Active membership and active membership-role uniqueness is a cross-cutting
@@ -143,3 +145,5 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "organization_team_invitations_update_guard"
   BEFORE UPDATE ON "organization_team_invitations"
   FOR EACH ROW EXECUTE FUNCTION enforce_organization_team_invitation_update();
+
+COMMIT;
