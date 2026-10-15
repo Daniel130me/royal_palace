@@ -315,17 +315,18 @@ migration is forbidden.
   and organization review history with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
 - The migration verifier now exercises organization-team role, invitation-state, immutability,
   duplicate-membership, and duplicate-role constraints. A two-connection acceptance test proves
-  that different valid invitations accepted concurrently create one active membership and one
-  active staff role, while each invitation remains single-use.
+  that concurrent invitations for the same organization and principal produce one accepted token,
+  consume the redundant token as revoked, and create exactly one active membership and staff role.
 - Invitation acceptance uses row and organization/principal advisory locks under PostgreSQL's
   default read-committed transaction isolation. This retains deterministic serialization without
   exposing callers to avoidable serializable-transaction aborts during ordinary concurrent use.
 - The separated organization-administrator enum migration is now independently transactional;
   the following migration remains separate so PostgreSQL commits the enum value before it is used.
-- Local TypeScript, lint, Prisma-schema, prototype-history, and parity-verifier tests pass. The
-  clean/upgrade migration and representative query-plan executions remain pending because the
-  local Docker Linux engine and PostgreSQL service are unavailable; CI must execute both before
-  this checklist item can be closed.
+- Local TypeScript, lint, Prisma-schema, prototype-history, and parity-verifier tests pass. A clean
+  PostgreSQL 17.6 run now passes clean install, prior-schema upgrade, payment backfill, repair,
+  database invariants, and concurrent organization-team acceptance. The representative load also
+  proves every required laboratory index with 5,000 workflows and 500 critical-result rows. The
+  protected CI rerun must still pass before this checklist item can be closed.
 
 ## Standards walkthrough
 
@@ -374,8 +375,9 @@ migration is forbidden.
   "reviewed" receipt. That data-corrupting behavior was not carried forward: critical results
   use the durable acknowledgement aggregate, while ordinary result access remains visible
   and authorization-audited without inventing a clinical acknowledgement record.
-  The organization-team Prisma schema validates and the complete automated API suite passes,
-  but clean-database and upgrade-path execution of the two new migrations remains pending because
-  the local Docker Desktop Linux engine and PostgreSQL port are unavailable. This environment
-  limitation is not treated as migration approval: both paths must run successfully in CI or a
-  protected staging environment before this checkpoint can be released.
+  The organization-team Prisma schema validates, the complete automated API suite passes, and the
+  clean-database plus upgrade-path checks pass against disposable PostgreSQL 17.6. The first CI
+  run exposed an incorrect concurrency-test expectation: the database correctly refused two
+  accepted invitations pointing at one membership. Runtime acceptance now deterministically
+  accepts one token, revokes the redundant token, and returns the existing membership without a
+  uniqueness error. Protected CI must confirm the correction before release.

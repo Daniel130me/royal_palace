@@ -365,8 +365,10 @@ that completes an increment.
       workflows and 500 critical results, eight exact laboratory query-plan assertions,
       organization-team migration invariants and two-connection acceptance concurrency evidence,
       transactional enum migration enforcement, and a successful automated scope-lock audit of
-      139 approved prototype capabilities. Protected PostgreSQL execution, billing, and
-      qualification remain open.
+      139 approved prototype capabilities. Disposable PostgreSQL 17.6 now proves the clean/upgrade
+      path and every representative index. Concurrent duplicate invitations deterministically
+      consume one token as accepted and the redundant token as revoked while returning one active
+      membership and role. Protected CI confirmation, billing, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

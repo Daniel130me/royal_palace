@@ -271,6 +271,48 @@ export class PrismaOrganizationTeamRepository implements OrganizationTeamReposit
       }
 
       const now = new Date();
+      const priorAcceptance = await transaction.organizationTeamInvitation.findFirst({
+        where: {
+          acceptedMembershipId: membership.id,
+          status: "ACCEPTED",
+        },
+        select: { id: true },
+      });
+
+      // A principal may receive more than one bearer invitation before accepting
+      // either one. The organization/principal advisory lock makes this decision
+      // deterministic: the first token establishes the membership and every later
+      // token is consumed as redundant instead of leaking a uniqueness error or
+      // remaining usable indefinitely.
+      if (priorAcceptance !== null) {
+        await transaction.organizationTeamInvitation.update({
+          where: { id: invitation.id },
+          data: {
+            revokedAt: now,
+            status: "REVOKED",
+            version: { increment: 1 },
+          },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            action: "organization_team.invitation_redundant_revoked",
+            actorPrincipalId: input.acceptedByPrincipalId,
+            effectiveRole: "ORGANIZATION_STAFF",
+            id: createOpaqueId(),
+            organizationId: invitation.organization_id,
+            requestId: input.requestId,
+            resourceId: invitation.id,
+            resourceType: "organization_team_invitation",
+            result: "SUCCEEDED",
+          },
+        });
+        const organization = await transaction.organization.findUniqueOrThrow({
+          where: { id: invitation.organization_id },
+          select: { displayName: true, id: true, type: true },
+        });
+        return { membershipId: membership.id, organization };
+      }
+
       await transaction.organizationTeamInvitation.update({
         where: { id: invitation.id },
         data: {

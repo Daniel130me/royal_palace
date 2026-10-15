@@ -1478,6 +1478,21 @@ async function verifyConcurrentOrganizationTeamAcceptance(databaseUrl: string): 
             [v7(), membershipId, creatorPrincipalId],
           );
         }
+        const priorAcceptance = await client.query(
+          `SELECT 1 FROM "organization_team_invitations"
+            WHERE "accepted_membership_id" = $1 AND "status" = 'ACCEPTED'`,
+          [membershipId],
+        );
+        if (priorAcceptance.rowCount !== 0) {
+          await client.query(
+            `UPDATE "organization_team_invitations"
+                SET "status" = 'REVOKED', "revoked_at" = now(), "version" = "version" + 1
+              WHERE "id" = $1`,
+            [invitationId],
+          );
+          await client.query("COMMIT");
+          return false;
+        }
         await client.query(
           `UPDATE "organization_team_invitations"
               SET "status" = 'ACCEPTED', "accepted_by_principal_id" = $1,
@@ -1498,17 +1513,24 @@ async function verifyConcurrentOrganizationTeamAcceptance(databaseUrl: string): 
       accept(first, invitationIds[0]),
       accept(second, invitationIds[1]),
     ]);
-    if (!accepted.every(Boolean) || (await accept(first, invitationIds[0]))) {
+    if (
+      accepted.filter(Boolean).length !== 1 ||
+      (await accept(first, invitationIds[0])) ||
+      (await accept(second, invitationIds[1]))
+    ) {
       throw new Error("Organization team invitations were not single-use under concurrency");
     }
     const counts = await setup.query<{
       accepted_invitations: string;
       active_memberships: string;
       active_roles: string;
+      revoked_invitations: string;
     }>(
       `SELECT
          (SELECT count(*)::text FROM "organization_team_invitations"
            WHERE "id" = ANY($1::uuid[]) AND "status" = 'ACCEPTED') AS accepted_invitations,
+         (SELECT count(*)::text FROM "organization_team_invitations"
+           WHERE "id" = ANY($1::uuid[]) AND "status" = 'REVOKED') AS revoked_invitations,
          (SELECT count(*)::text FROM "memberships"
            WHERE "organization_id" = $2 AND "principal_id" = $3 AND "effective_until" IS NULL)
            AS active_memberships,
@@ -1522,7 +1544,8 @@ async function verifyConcurrentOrganizationTeamAcceptance(databaseUrl: string): 
     );
     const result = counts.rows[0];
     if (
-      result?.accepted_invitations !== "2" ||
+      result?.accepted_invitations !== "1" ||
+      result.revoked_invitations !== "1" ||
       result.active_memberships !== "1" ||
       result.active_roles !== "1"
     ) {
