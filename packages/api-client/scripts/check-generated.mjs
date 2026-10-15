@@ -10,6 +10,7 @@ for (const name of [
   "notifications",
   "prescriptions",
   "laboratory",
+  "clinical-encounters",
   "organization-finance",
   "organization-team",
   "logistics",

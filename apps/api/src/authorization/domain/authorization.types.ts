@@ -68,7 +68,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 26;
+export const AUTHORIZATION_POLICY_VERSION = 27;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -81,13 +81,10 @@ interface ResourceReference {
 
 export interface AuthorizationPolicyContexts {
   ACCESS_CLINICAL_RECORD: ResourceReference & {
-    accessLevel: "FULL" | "REDACTED";
-    hasActiveCareAssignment: boolean;
-    hasActiveConsent: boolean;
     patientPrincipalId: string;
-    patientRecordAuthorized: boolean;
-    organizationId: string;
+    practitionerPrincipalId: string;
     patientScopeId: string;
+    visibility: "PATIENT_SIGNED" | "PRACTITIONER_FULL";
   };
   ADMINISTER_CONSULTATION_FEES: ResourceReference;
   ADMINISTER_CATALOGUE: ResourceReference;

@@ -1474,3 +1474,77 @@ export interface ClinicalCatalogueListResponse {
   data: readonly ClinicalCatalogueEntry[];
   pageInfo: CursorPageInfo;
 }
+
+export type ClinicalEncounterStatus = "OPEN" | "SIGNED";
+export type ClinicalNoteKind = "DRAFT" | "SIGNED" | "ADDENDUM";
+export type ClinicalDiagnosisType = "PRIMARY" | "SECONDARY" | "DIFFERENTIAL" | "PROVISIONAL";
+export type ClinicalDiagnosisStatus = "ACTIVE" | "RESOLVED" | "ENTERED_IN_ERROR";
+export type ClinicalObservationValueType = "QUANTITY" | "TEXT" | "CODED" | "BOOLEAN";
+
+export interface ClinicalDocumentationSection {
+  code: string;
+  text: string;
+  title: string;
+}
+
+export interface ClinicalDocumentation {
+  sections: readonly ClinicalDocumentationSection[];
+}
+
+export interface ClinicalDiagnosisResponse {
+  code: string | null;
+  codeSystem: string | null;
+  display: string;
+  id: string;
+  onsetAt: string | null;
+  recordedAt: string;
+  status: ClinicalDiagnosisStatus;
+  type: ClinicalDiagnosisType;
+}
+
+export interface ClinicalObservationResponse {
+  booleanValue: boolean | null;
+  code: string;
+  codedValue: string | null;
+  codeSystem: string | null;
+  display: string;
+  id: string;
+  numericValue: string | null;
+  observedAt: string;
+  textValue: string | null;
+  unitCode: string | null;
+  valueType: ClinicalObservationValueType;
+}
+
+export interface ClinicalEncounterNoteResponse {
+  authoredAt: string;
+  contentHash: string;
+  diagnoses: readonly ClinicalDiagnosisResponse[];
+  documentation: ClinicalDocumentation;
+  id: string;
+  kind: ClinicalNoteKind;
+  observations: readonly ClinicalObservationResponse[];
+  revision: number;
+  schemaVersion: number;
+  signedAt: string | null;
+  supersedesNoteId: string | null;
+}
+
+export interface ClinicalEncounterResponse {
+  appointmentId: string;
+  encounterNumber: string;
+  id: string;
+  notes: readonly ClinicalEncounterNoteResponse[];
+  openedAt: string;
+  patient: { displayName: string; id: string };
+  practitioner: { displayName: string; id: string };
+  signedAt: string | null;
+  status: ClinicalEncounterStatus;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ClinicalEncounterListResponse {
+  data: readonly ClinicalEncounterResponse[];
+  pageInfo: CursorPageInfo;
+}

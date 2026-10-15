@@ -125,15 +125,12 @@ function baselineRequest(
         ...base,
         policy,
         context: {
-          accessLevel: "FULL",
-          hasActiveCareAssignment: false,
-          hasActiveConsent: false,
-          organizationId,
           patientPrincipalId: targetPrincipalId,
-          patientRecordAuthorized: false,
+          practitionerPrincipalId: targetPrincipalId,
           patientScopeId: targetPrincipalId,
           resourceId,
           resourceType: "clinical_record",
+          visibility: "PATIENT_SIGNED",
         },
       };
     case AUTHORIZATION_POLICY.ESCALATE_TICKET:
@@ -453,18 +450,18 @@ describe("PolicyEngine", () => {
     ).toBe(false);
   });
 
-  it("allows clinical access only for the patient or assigned and consented clinician", () => {
+  it("allows signed record access to the patient and full access only to the exact practitioner", () => {
     const patient = actor(["PATIENT"], { principalId: targetPrincipalId });
     const ownRecord = baselineRequest(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD, patient);
     if (ownRecord.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
     expect(
       engine.evaluate({
         ...ownRecord,
-        context: { ...ownRecord.context, patientRecordAuthorized: true },
+        context: { ...ownRecord.context, visibility: "PATIENT_SIGNED" },
       }).allowed,
     ).toBe(true);
 
-    const provider = actor([], { organizationRoles: ["PROVIDER"] });
+    const provider = actor(["PROVIDER"]);
     const providerRequest = baselineRequest(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD, provider);
     if (providerRequest.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
     expect(
@@ -472,8 +469,8 @@ describe("PolicyEngine", () => {
         ...providerRequest,
         context: {
           ...providerRequest.context,
-          hasActiveCareAssignment: true,
-          hasActiveConsent: true,
+          practitionerPrincipalId: provider.principalId,
+          visibility: "PRACTITIONER_FULL",
         },
       }).allowed,
     ).toBe(true);
@@ -482,14 +479,14 @@ describe("PolicyEngine", () => {
         ...providerRequest,
         context: {
           ...providerRequest.context,
-          hasActiveCareAssignment: true,
-          hasActiveConsent: false,
+          practitionerPrincipalId: targetPrincipalId,
+          visibility: "PRACTITIONER_FULL",
         },
       }).allowed,
     ).toBe(false);
   });
 
-  it("limits support to redacted clinical access", () => {
+  it("denies clinical content to support even when operational access exists", () => {
     const request = baselineRequest(
       AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD,
       actor(["SUPPORT"]),
@@ -497,9 +494,9 @@ describe("PolicyEngine", () => {
     if (request.policy !== AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD) throw new Error();
     expect(engine.evaluate(request).allowed).toBe(false);
     expect(
-      engine.evaluate({ ...request, context: { ...request.context, accessLevel: "REDACTED" } })
+      engine.evaluate({ ...request, context: { ...request.context, visibility: "PATIENT_SIGNED" } })
         .allowed,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("limits managers to their own minimal ticket and earnings views", () => {

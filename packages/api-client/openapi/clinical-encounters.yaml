@@ -1,0 +1,426 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Clinical Encounter API
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /v1/provider/clinical-encounters:
+    get:
+      operationId: listProviderClinicalEncounters
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/PatientId"
+      responses:
+        "200":
+          $ref: "#/components/responses/EncounterList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: openClinicalEncounter
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [appointmentId]
+              properties:
+                appointmentId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          $ref: "#/components/responses/Encounter"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/{encounterId}:
+    get:
+      operationId: getProviderClinicalEncounter
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Encounter"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/{encounterId}/drafts:
+    post:
+      operationId: saveClinicalEncounterDraft
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/Draft"
+      responses:
+        "201":
+          $ref: "#/components/responses/Encounter"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/{encounterId}/sign:
+    post:
+      operationId: signClinicalEncounter
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/Sign"
+      responses:
+        "201":
+          $ref: "#/components/responses/Encounter"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/{encounterId}/addenda:
+    post:
+      operationId: addClinicalEncounterAddendum
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/Addendum"
+      responses:
+        "201":
+          $ref: "#/components/responses/Encounter"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/patient/clinical-encounters:
+    get:
+      operationId: listPatientClinicalEncounters
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          $ref: "#/components/responses/EncounterList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /v1/patient/clinical-encounters/{encounterId}:
+    get:
+      operationId: getPatientClinicalEncounter
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Encounter"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+components:
+  parameters:
+    Cursor:
+      in: query
+      name: cursor
+      schema:
+        type: string
+        maxLength: 1024
+    EncounterId:
+      in: path
+      name: encounterId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: "^[A-Za-z0-9._:-]+$"
+    Limit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    PatientId:
+      in: query
+      name: patientId
+      schema:
+        type: string
+        format: uuid
+  requestBodies:
+    Draft:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DraftInput"
+    Sign:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SignInput"
+    Addendum:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AddendumInput"
+  responses:
+    Encounter:
+      description: Clinical encounter
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ClinicalEncounter"
+    EncounterList:
+      description: Bounded clinical encounter page
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, pageInfo]
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClinicalEncounter"
+              pageInfo:
+                $ref: "#/components/schemas/PageInfo"
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Documentation:
+      type: object
+      additionalProperties: false
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items:
+            type: object
+            additionalProperties: false
+            required: [code, title, text]
+            properties:
+              code: { type: string, maxLength: 100 }
+              title: { type: string, maxLength: 200 }
+              text: { type: string, maxLength: 20000 }
+    NoteBaseInput:
+      type: object
+      required: [documentation, expectedLatestRevision, schemaVersion]
+      properties:
+        documentation:
+          $ref: "#/components/schemas/Documentation"
+        expectedLatestRevision: { type: integer, minimum: 0 }
+        schemaVersion: { type: integer, enum: [1] }
+    DraftInput:
+      allOf:
+        - $ref: "#/components/schemas/NoteBaseInput"
+      unevaluatedProperties: false
+    DiagnosisInput:
+      type: object
+      additionalProperties: false
+      required: [display, status, type]
+      properties:
+        code: { type: string, maxLength: 100 }
+        codeSystem: { type: string, maxLength: 255 }
+        display: { type: string, maxLength: 500 }
+        onsetAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE, RESOLVED, ENTERED_IN_ERROR] }
+        type: { type: string, enum: [PRIMARY, SECONDARY, DIFFERENTIAL, PROVISIONAL] }
+    ObservationInput:
+      oneOf:
+        - $ref: "#/components/schemas/QuantityObservationInput"
+        - $ref: "#/components/schemas/TextObservationInput"
+        - $ref: "#/components/schemas/CodedObservationInput"
+        - $ref: "#/components/schemas/BooleanObservationInput"
+    ObservationBaseInput:
+      type: object
+      required: [code, display, observedAt, valueType]
+      properties:
+        code: { type: string, maxLength: 100 }
+        codeSystem: { type: string, maxLength: 255 }
+        display: { type: string, maxLength: 200 }
+        observedAt: { type: string, format: date-time }
+        unitCode: { type: string, maxLength: 100 }
+        valueType: { type: string, enum: [QUANTITY, TEXT, CODED, BOOLEAN] }
+    QuantityObservationInput:
+      allOf:
+        - $ref: "#/components/schemas/ObservationBaseInput"
+        - type: object
+          required: [numericValue]
+          properties:
+            numericValue: { type: string, pattern: "^-?\\d{1,12}(?:\\.\\d{1,6})?$" }
+            valueType: { type: string, enum: [QUANTITY] }
+      unevaluatedProperties: false
+    TextObservationInput:
+      allOf:
+        - $ref: "#/components/schemas/ObservationBaseInput"
+        - type: object
+          required: [textValue]
+          properties:
+            textValue: { type: string, maxLength: 1000 }
+            valueType: { type: string, enum: [TEXT] }
+      unevaluatedProperties: false
+    CodedObservationInput:
+      allOf:
+        - $ref: "#/components/schemas/ObservationBaseInput"
+        - type: object
+          required: [codedValue]
+          properties:
+            codedValue: { type: string, maxLength: 255 }
+            valueType: { type: string, enum: [CODED] }
+      unevaluatedProperties: false
+    BooleanObservationInput:
+      allOf:
+        - $ref: "#/components/schemas/ObservationBaseInput"
+        - type: object
+          required: [booleanValue]
+          properties:
+            booleanValue: { type: boolean }
+            valueType: { type: string, enum: [BOOLEAN] }
+      unevaluatedProperties: false
+    SignInput:
+      allOf:
+        - $ref: "#/components/schemas/NoteBaseInput"
+        - type: object
+          required: [diagnoses, expectedVersion, observations]
+          properties:
+            diagnoses:
+              type: array
+              minItems: 1
+              maxItems: 50
+              items: { $ref: "#/components/schemas/DiagnosisInput" }
+            expectedVersion: { type: integer, minimum: 1 }
+            observations:
+              type: array
+              maxItems: 100
+              items: { $ref: "#/components/schemas/ObservationInput" }
+      unevaluatedProperties: false
+    AddendumInput:
+      allOf:
+        - $ref: "#/components/schemas/NoteBaseInput"
+        - type: object
+          required: [diagnoses, observations, supersedesNoteId]
+          properties:
+            diagnoses:
+              type: array
+              maxItems: 50
+              items: { $ref: "#/components/schemas/DiagnosisInput" }
+            observations:
+              type: array
+              maxItems: 100
+              items: { $ref: "#/components/schemas/ObservationInput" }
+            supersedesNoteId: { type: string, format: uuid }
+      unevaluatedProperties: false
+    ClinicalEncounter:
+      type: object
+      required:
+        [
+          appointmentId,
+          encounterNumber,
+          id,
+          notes,
+          openedAt,
+          patient,
+          practitioner,
+          signedAt,
+          status,
+          updatedAt,
+          version,
+        ]
+      properties:
+        appointmentId: { type: string, format: uuid }
+        encounterNumber: { type: string }
+        id: { type: string, format: uuid }
+        notes:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalNote" }
+        openedAt: { type: string, format: date-time }
+        patient: { $ref: "#/components/schemas/Party" }
+        practitioner: { $ref: "#/components/schemas/Party" }
+        signedAt: { type: [string, "null"], format: date-time }
+        status: { type: string, enum: [OPEN, SIGNED] }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer }
+    ClinicalNote:
+      type: object
+      required:
+        [
+          authoredAt,
+          contentHash,
+          diagnoses,
+          documentation,
+          id,
+          kind,
+          observations,
+          revision,
+          schemaVersion,
+          signedAt,
+          supersedesNoteId,
+        ]
+      properties:
+        authoredAt: { type: string, format: date-time }
+        contentHash: { type: string }
+        diagnoses: { type: array, items: { type: object, additionalProperties: true } }
+        documentation: { $ref: "#/components/schemas/Documentation" }
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [DRAFT, SIGNED, ADDENDUM] }
+        observations: { type: array, items: { type: object, additionalProperties: true } }
+        revision: { type: integer }
+        schemaVersion: { type: integer }
+        signedAt: { type: [string, "null"], format: date-time }
+        supersedesNoteId: { type: [string, "null"], format: uuid }
+    Party:
+      type: object
+      required: [displayName, id]
+      properties:
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+    PageInfo:
+      type: object
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }

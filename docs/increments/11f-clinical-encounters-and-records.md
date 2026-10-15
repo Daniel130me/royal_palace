@@ -27,11 +27,11 @@ review and controlled-environment UAT are complete.
 
 ### 11F2 — production encounter API
 
-- [ ] Add exact-practitioner start/save/sign/addendum commands with idempotency and audit.
-- [ ] Add patient-owner and exact-practitioner record reads with bounded stable cursors.
-- [ ] Keep support projections operational-only and deny managers/organizations by default.
-- [ ] Add generated OpenAPI contracts and narrowly allowlisted BFF routes.
-- [ ] Add authorization, replay, concurrency, privacy, validation, and negative-path tests.
+- [x] Add exact-practitioner start/save/sign/addendum commands with idempotency and audit.
+- [x] Add patient-owner and exact-practitioner record reads with bounded stable cursors.
+- [x] Keep support projections operational-only and deny managers/organizations by default.
+- [x] Add generated OpenAPI contracts and narrowly allowlisted BFF routes.
+- [x] Add authorization, replay, concurrency, privacy, validation, and negative-path tests.
 
 ### 11F3 — related clinical actions
 
@@ -79,6 +79,30 @@ review and controlled-environment UAT are complete.
   query shapes. Because this foundation intentionally does not seed clinical records into normal
   test environments, these two results are index-eligibility proofs rather than inflated synthetic
   latency claims; representative-scale API query measurements will be recorded in 11F2.
+
+## 11F2 qualification evidence
+
+- The API exposes only appointment-linked open, append-only draft, sign, addendum, and bounded read
+  operations. Each write has a principal-scoped idempotency record, a canonical request hash,
+  serializable transaction handling, optimistic revision/version checks, and a content-free audit
+  event.
+- Clinical authorization policy version 27 grants full access only to the encounter's exact
+  verified practitioner and signed-record access only to the patient owner. Support,
+  administrators, managers, unrelated practitioners, and organization memberships receive no
+  clinical-content access. Authorization is evaluated from relationship metadata before narrative
+  content is loaded; patient queries do not select draft notes.
+- Request validation is strict and bounded: schema version 1, structured sections, matched
+  diagnosis code systems, discriminated observation values, item limits, exact UUIDs, and safe
+  idempotency keys. Clinical mode remains synthetic-only and fails closed elsewhere.
+- Generated OpenAPI types and explicit provider/patient BFF allowlists cover the seven new API
+  operations without accepting arbitrary path suffixes or query parameters.
+- The clinical authorization, service, controller-validation, and route-policy suite passes 751
+  checks. The full migration verifier passes clean install, upgrade, repair, clinical invariants,
+  rejection, and concurrency checks.
+- PostgreSQL representative query review demonstrates the intended patient and practitioner cursor
+  indexes. The test fixture intentionally contains no synthetic clinical records, so the measured
+  0.034 ms patient and 0.088 ms practitioner executions are index-eligibility evidence rather than
+  production latency claims.
 
 ## Rollback and qualification
 

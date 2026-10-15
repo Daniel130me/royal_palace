@@ -1,0 +1,228 @@
+import type { CurrentSession } from "@royal-palace/contracts";
+import { describe, expect, it, vi } from "vitest";
+
+import { AuthorizationService } from "../src/authorization/application/authorization.service.js";
+import { PolicyEngine } from "../src/authorization/domain/policy-engine.js";
+import {
+  ClinicalEncounterService,
+  mapClinicalEncounterConflict,
+} from "../src/clinical/application/clinical-encounter.service.js";
+import {
+  ClinicalEncounterConflictError,
+  type ClinicalEncounterAccessRecord,
+  type ClinicalEncounterRepository,
+} from "../src/clinical/domain/clinical-encounter.types.js";
+import { createOpaqueId } from "../src/platform/identifiers.js";
+import { testConfig } from "./test-config.js";
+
+function session(
+  role: CurrentSession["roles"][number],
+  principalId = createOpaqueId(),
+): CurrentSession {
+  return {
+    absoluteExpiresAt: "2099-01-01T00:00:00.000Z",
+    assuranceContext: null,
+    authenticatedAt: new Date().toISOString(),
+    authenticationMethods: ["pwd"],
+    idleExpiresAt: "2099-01-01T00:00:00.000Z",
+    memberships: [],
+    principalId,
+    roles: [role],
+    sessionId: createOpaqueId(),
+  };
+}
+
+function encounter(
+  overrides: Partial<ClinicalEncounterAccessRecord> = {},
+): ClinicalEncounterAccessRecord {
+  const patientPrincipalId = createOpaqueId();
+  const practitionerPrincipalId = createOpaqueId();
+  return {
+    appointmentId: createOpaqueId(),
+    encounterNumber: `ENC-${createOpaqueId()}`,
+    id: createOpaqueId(),
+    notes: [
+      {
+        authoredAt: new Date().toISOString(),
+        contentHash: "a".repeat(64),
+        diagnoses: [],
+        documentation: {
+          sections: [{ code: "assessment", text: "Synthetic note", title: "Assessment" }],
+        },
+        id: createOpaqueId(),
+        kind: "DRAFT",
+        observations: [],
+        revision: 1,
+        schemaVersion: 1,
+        signedAt: null,
+        supersedesNoteId: null,
+      },
+    ],
+    openedAt: new Date().toISOString(),
+    patient: { displayName: "Synthetic Patient", id: createOpaqueId() },
+    patientPrincipalId,
+    practitioner: { displayName: "Synthetic Practitioner", id: createOpaqueId() },
+    practitionerPrincipalId,
+    signedAt: null,
+    status: "OPEN",
+    updatedAt: new Date().toISOString(),
+    version: 1,
+    ...overrides,
+  };
+}
+
+function createService(repository: Partial<ClinicalEncounterRepository>, enabled = true) {
+  return new ClinicalEncounterService(
+    repository as ClinicalEncounterRepository,
+    new AuthorizationService(new PolicyEngine(), { append: vi.fn(async () => undefined) }),
+    {
+      ...testConfig,
+      clinicalWorkflow: { mode: enabled ? ("synthetic" as const) : ("disabled" as const) },
+    },
+  );
+}
+
+describe("ClinicalEncounterService", () => {
+  it("fails closed while the clinical workflow is unqualified", async () => {
+    await expect(
+      createService({}, false).listForPatient(
+        { actor: session("PATIENT"), requestId: "request-disabled" },
+        { limit: 20 },
+      ),
+    ).rejects.toMatchObject({ code: "clinical_workflow_disabled", status: 503 });
+  });
+
+  it("opens only a confirmed appointment owned by the exact verified practitioner", async () => {
+    const principalId = createOpaqueId();
+    const practitionerId = createOpaqueId();
+    const appointmentId = createOpaqueId();
+    const patientPrincipalId = createOpaqueId();
+    const current = encounter({
+      appointmentId,
+      patientPrincipalId,
+      practitionerPrincipalId: principalId,
+    });
+    const open = vi.fn<ClinicalEncounterRepository["open"]>(async () => current);
+    const service = createService({
+      findAppointmentScope: vi.fn(async () => ({
+        id: appointmentId,
+        patientPrincipalId,
+        practitionerId,
+        practitionerPrincipalId: principalId,
+        status: "CONFIRMED",
+      })),
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: practitionerId,
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+      open,
+    });
+
+    await service.open(
+      { actor: session("PROVIDER", principalId), requestId: "request-open" },
+      { appointmentId },
+      "clinical-open-001",
+    );
+
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId,
+        idempotencyKey: "clinical-open-001",
+        practitionerId,
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    );
+  });
+
+  it("denies clinical content to managers, support, administrators, and organizations", async () => {
+    const current = encounter({ status: "SIGNED", signedAt: new Date().toISOString() });
+    const service = createService({
+      findScopeById: vi.fn(async () => current),
+    });
+    for (const role of ["MANAGER", "SUPPORT", "ADMINISTRATOR", "ORGANIZATION_ADMIN"] as const) {
+      await expect(
+        service.get({ actor: session(role), requestId: `request-${role}` }, current.id),
+      ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    }
+  });
+
+  it("returns only signed and addendum notes to the patient owner", async () => {
+    const patientPrincipalId = createOpaqueId();
+    const draft = encounter().notes[0]!;
+    const signed = {
+      ...draft,
+      id: createOpaqueId(),
+      kind: "SIGNED" as const,
+      signedAt: new Date().toISOString(),
+    };
+    const current = encounter({
+      notes: [draft, signed],
+      patientPrincipalId,
+      signedAt: signed.signedAt,
+      status: "SIGNED",
+    });
+    const result = await createService({
+      findPatientRecord: vi.fn(async () => ({
+        ...current,
+        notes: current.notes.filter((note) => note.kind !== "DRAFT"),
+      })),
+      findScopeById: vi.fn(async () => current),
+    }).get(
+      { actor: session("PATIENT", patientPrincipalId), requestId: "request-patient" },
+      current.id,
+    );
+    expect(result.notes).toEqual([signed]);
+  });
+
+  it("denies a different practitioner even if they have the provider role", async () => {
+    const current = encounter();
+    await expect(
+      createService({ findScopeById: vi.fn(async () => current) }).get(
+        { actor: session("PROVIDER"), requestId: "request-other-provider" },
+        current.id,
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+  });
+
+  it("requires an active primary diagnosis before signing", async () => {
+    const principalId = createOpaqueId();
+    const current = encounter({ practitionerPrincipalId: principalId });
+    const service = createService({
+      findById: vi.fn(async () => current),
+      findScopeById: vi.fn(async () => current),
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: current.practitioner.id,
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+    });
+    await expect(
+      service.sign(
+        { actor: session("PROVIDER", principalId), requestId: "request-sign" },
+        current.id,
+        {
+          diagnoses: [{ display: "Synthetic", status: "ACTIVE", type: "SECONDARY" }],
+          documentation: { sections: [{ code: "plan", text: "Synthetic plan", title: "Plan" }] },
+          expectedLatestRevision: 1,
+          expectedVersion: 1,
+          observations: [],
+          schemaVersion: 1,
+        },
+        "clinical-sign-001",
+      ),
+    ).rejects.toMatchObject({ code: "primary_diagnosis_required", status: 400 });
+  });
+
+  it("maps idempotency and concurrency conflicts without exposing database details", () => {
+    for (const reason of [
+      "IDEMPOTENCY_CONFLICT",
+      "REVISION_CONFLICT",
+      "VERSION_CONFLICT",
+    ] as const) {
+      expect(() =>
+        mapClinicalEncounterConflict(new ClinicalEncounterConflictError(reason)),
+      ).toThrow(expect.objectContaining({ code: `clinical_${reason.toLowerCase()}`, status: 409 }));
+    }
+  });
+});

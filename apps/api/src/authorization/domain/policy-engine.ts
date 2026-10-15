@@ -350,21 +350,18 @@ export class PolicyEngine {
     if (
       actor.principalId === context.patientPrincipalId &&
       actor.roles.includes("PATIENT") &&
-      context.patientRecordAuthorized
+      context.visibility === "PATIENT_SIGNED"
     ) {
       return this.allow(policy, "PATIENT", ALLOW.OWNER);
     }
-    if (context.accessLevel === "REDACTED" && actor.roles.includes("SUPPORT")) {
-      return this.allow(policy, "SUPPORT", ALLOW.SUPPORT);
-    }
     if (
-      context.hasActiveCareAssignment &&
-      context.hasActiveConsent &&
-      this.hasOrganizationRole(actor, context.organizationId, "PROVIDER")
+      actor.principalId === context.practitionerPrincipalId &&
+      actor.roles.includes("PROVIDER") &&
+      context.visibility === "PRACTITIONER_FULL"
     ) {
-      return this.allow(policy, "PROVIDER", ALLOW.ASSIGNED_CLINICIAN);
+      return this.allow(policy, "PROVIDER", ALLOW.OWNER);
     }
-    return this.deny(policy, "clinical_relationship_and_consent_required");
+    return this.deny(policy, "exact_clinical_relationship_required");
   }
 
   private canEscalateTicket(
