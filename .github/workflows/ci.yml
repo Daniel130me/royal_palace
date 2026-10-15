@@ -89,6 +89,8 @@ jobs:
       APP_ENV: test
       DATABASE_MIGRATION_VERIFY: "true"
       DATABASE_URL: postgresql://royal_palace_ci:synthetic-ci-password@127.0.0.1:5432/royal_palace_ci
+      LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: synthetic-ci-key-1
+      LOGISTICS_RECIPIENT_CODE_KEYS: '{"synthetic-ci-key-1":"BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU="}'
       OIDC_ISSUER_URL: http://127.0.0.1:5556
 
     steps:

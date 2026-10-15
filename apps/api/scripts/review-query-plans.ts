@@ -1110,8 +1110,8 @@ async function loadRepresentativeLogisticsData(
   );
   await client.query(
     `INSERT INTO "pharmacy_product_classifications" ("id", "kind", "code", "name", "updated_at")
-     VALUES ($1, 'CATEGORY', 'query-plan-logistics-category', 'Query plan category', now()),
-            ($2, 'DOSAGE_FORM', 'query-plan-logistics-form', 'Query plan dosage form', now())`,
+     VALUES ($1, 'CATEGORY', 'QUERY-PLAN-LOGISTICS-CATEGORY', 'Query plan category', now()),
+            ($2, 'DOSAGE_FORM', 'QUERY-PLAN-LOGISTICS-FORM', 'Query plan dosage form', now())`,
     [categoryId, dosageFormId],
   );
   await client.query(
@@ -1232,8 +1232,9 @@ async function loadRepresentativeLogisticsData(
     [input.principalId, historyIds, deliveryIds],
   );
   await client.query(
-    `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id")
-     SELECT fixture.delivery_id FROM unnest($1::uuid[]) AS fixture(delivery_id)`,
+    `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id", "updated_at")
+     SELECT fixture.delivery_id, now()
+       FROM unnest($1::uuid[]) AS fixture(delivery_id)`,
     [deliveryIds],
   );
 

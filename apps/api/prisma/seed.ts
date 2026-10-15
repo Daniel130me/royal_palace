@@ -502,6 +502,7 @@ async function seedSyntheticLogisticsDelivery(
   });
   if (existing !== null) return;
 
+  const patientPrincipalId = requiredReviewerPrincipal(principals, "patient-reviewer");
   const pharmacyPrincipalId = requiredReviewerPrincipal(principals, "pharmacy-reviewer");
   const logisticsPrincipalId = requiredReviewerPrincipal(principals, "logistics-reviewer");
   const recipientCode = syntheticRecipientCodeDigest(SYNTHETIC_LOGISTICS_DELIVERY.deliveryId);
@@ -512,13 +513,13 @@ async function seedSyntheticLogisticsDelivery(
     await transaction.pharmacyProductClassification.createMany({
       data: [
         {
-          code: "synthetic-logistics-category",
+          code: "SYNTHETIC-LOGISTICS-CATEGORY",
           id: SYNTHETIC_LOGISTICS_DELIVERY.catalogCategoryId,
           kind: "CATEGORY",
           name: "Synthetic delivery review",
         },
         {
-          code: "synthetic-logistics-form",
+          code: "SYNTHETIC-LOGISTICS-FORM",
           id: SYNTHETIC_LOGISTICS_DELIVERY.catalogDosageFormId,
           kind: "DOSAGE_FORM",
           name: "Synthetic unit",
@@ -589,7 +590,7 @@ async function seedSyntheticLogisticsDelivery(
     await transaction.pharmacyOrder.create({
       data: {
         acceptedAt: assignedAt,
-        acceptedByPrincipalId: pharmacyPrincipalId,
+        acceptedByPrincipalId: patientPrincipalId,
         confirmedAt: assignedAt,
         id: SYNTHETIC_LOGISTICS_DELIVERY.orderId,
         orderNumber: "SYNTHETIC-LOGISTICS-ORDER-001",
