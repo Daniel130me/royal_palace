@@ -382,15 +382,15 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
     await expectSqlState(
       client,
       `INSERT INTO "organization_team_invitations"
-         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
-       VALUES ($1, $2, $3, 'ORGANIZATION_ADMIN', $4, now() + interval '1 day')`,
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at", "updated_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_ADMIN', $4, now() + interval '1 day', now())`,
       [v7(), organizationId, "b".repeat(64), principalId],
       "23514",
     );
     await client.query(
       `INSERT INTO "organization_team_invitations"
-         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
-       VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', $4, now() + interval '1 day')`,
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at", "updated_at")
+       VALUES ($1, $2, $3, 'ORGANIZATION_STAFF', $4, now() + interval '1 day', now())`,
       [organizationTeamInvitationId, organizationId, "c".repeat(64), principalId],
     );
     await expectSqlState(
@@ -1419,9 +1419,9 @@ async function verifyConcurrentOrganizationTeamAcceptance(databaseUrl: string): 
     );
     await setup.query(
       `INSERT INTO "organization_team_invitations"
-         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at")
-       VALUES ($1, $3, $4, 'ORGANIZATION_STAFF', $5, now() + interval '1 day'),
-              ($2, $3, $6, 'ORGANIZATION_STAFF', $5, now() + interval '1 day')`,
+         ("id", "organization_id", "token_digest", "role", "created_by_principal_id", "expires_at", "updated_at")
+       VALUES ($1, $3, $4, 'ORGANIZATION_STAFF', $5, now() + interval '1 day', now()),
+              ($2, $3, $6, 'ORGANIZATION_STAFF', $5, now() + interval '1 day', now())`,
       [
         invitationIds[0],
         invitationIds[1],

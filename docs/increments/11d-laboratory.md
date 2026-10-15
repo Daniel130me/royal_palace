@@ -322,6 +322,10 @@ migration is forbidden.
   exposing callers to avoidable serializable-transaction aborts during ordinary concurrent use.
 - The separated organization-administrator enum migration is now independently transactional;
   the following migration remains separate so PostgreSQL commits the enum value before it is used.
+- A forward-only atomic alignment migration normalizes the laboratory-review, rating-summary, and
+  organization-team foreign-key names and removes the unintended database default from the
+  Prisma-managed `updated_at` column. Published migration checksums remain untouched, and the
+  exact Prisma drift gate now reports no difference.
 - Local TypeScript, lint, Prisma-schema, prototype-history, and parity-verifier tests pass. A clean
   PostgreSQL 17.6 run now passes clean install, prior-schema upgrade, payment backfill, repair,
   database invariants, and concurrent organization-team acceptance. The representative load also
@@ -376,7 +380,8 @@ migration is forbidden.
   use the durable acknowledgement aggregate, while ordinary result access remains visible
   and authorization-audited without inventing a clinical acknowledgement record.
   The organization-team Prisma schema validates, the complete automated API suite passes, and the
-  clean-database plus upgrade-path checks pass against disposable PostgreSQL 17.6. The first CI
+  clean-database plus upgrade-path checks pass against disposable PostgreSQL 17.6. The exact
+  Prisma migration and schema-drift gates also pass locally with the pinned engine. The first CI
   run exposed an incorrect concurrency-test expectation: the database correctly refused two
   accepted invitations pointing at one membership. Runtime acceptance now deterministically
   accepts one token, revokes the redundant token, and returns the existing membership without a

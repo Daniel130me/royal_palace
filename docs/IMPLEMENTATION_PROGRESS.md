@@ -368,7 +368,9 @@ that completes an increment.
       139 approved prototype capabilities. Disposable PostgreSQL 17.6 now proves the clean/upgrade
       path and every representative index. Concurrent duplicate invitations deterministically
       consume one token as accepted and the redundant token as revoked while returning one active
-      membership and role. Protected CI confirmation, billing, and qualification remain open.
+      membership and role. A forward-only atomic migration also aligns deployed constraint metadata
+      with Prisma without rewriting published migrations; the exact drift gate reports no difference.
+      Protected CI confirmation, billing, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**
