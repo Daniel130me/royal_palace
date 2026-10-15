@@ -1412,7 +1412,8 @@ async function verifyLogisticsDeliveryInvariants(
       [v7(), deliveryId, administratorId, `delivery:${deliveryId}:assigned`],
     );
     await client.query(
-      `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id") VALUES ($1)`,
+      `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id", "updated_at")
+       VALUES ($1, now())`,
       [deliveryId],
     );
     await client.query("COMMIT");
