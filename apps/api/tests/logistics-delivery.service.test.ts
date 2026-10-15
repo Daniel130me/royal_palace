@@ -116,6 +116,47 @@ describe("LogisticsDeliveryService projections", () => {
     ).rejects.toMatchObject({ code: "delivery_not_found", status: 404 });
   });
 
+  it("does not query patient deliveries when authorization rejects the request", async () => {
+    const { authorization, repository, service } = createService();
+    vi.mocked(authorization.authorize).mockRejectedValue(new Error("authorization_denied"));
+
+    await expect(
+      service.listPatient(context(session(["MANAGER"], createOpaqueId())), { limit: 25 }),
+    ).rejects.toThrow("authorization_denied");
+    expect(repository.listByPatient).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed cursors before querying a delivery page", async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.listOrganization(
+        context(session([], courierPrincipalId, ["LOGISTICS"])),
+        logisticsOrganizationId,
+        { cursor: "not-a-cursor", limit: 25 },
+      ),
+    ).rejects.toMatchObject({ code: "invalid_cursor", status: 400 });
+    expect(repository.listByLogisticsOrganization).not.toHaveBeenCalled();
+  });
+
+  it("keeps recipient identity and full addresses out of administrator oversight", async () => {
+    const { service } = createService();
+    const result = await service.getAdmin(
+      context(session(["ADMINISTRATOR"], createOpaqueId())),
+      delivery.id,
+    );
+
+    expect(result).toMatchObject({
+      courierAssigned: true,
+      deliveryArea: { administrativeArea: "Lagos", countryCode: "NG", locality: "Ikeja" },
+      pickupArea: { administrativeArea: "Lagos", countryCode: "NG", locality: "Ikeja" },
+    });
+    expect(result).not.toHaveProperty("recipientName");
+    expect(result).not.toHaveProperty("recipientPhoneE164");
+    expect(result).not.toHaveProperty("deliveryAddress");
+    expect(result).not.toHaveProperty("pickupAddress");
+  });
+
   it("completes recipient-code verification only inside the exact logistics organization", async () => {
     const { service, repository } = createService();
     repository.verifyRecipientCode.mockResolvedValue({ delivery, outcome: "DELIVERED" });
@@ -178,7 +219,11 @@ function createService() {
   const authorization = {
     authorize: vi.fn().mockResolvedValue({ allowed: true }),
   } as unknown as AuthorizationService;
-  return { repository, service: new LogisticsDeliveryService(repository, authorization) };
+  return {
+    authorization,
+    repository,
+    service: new LogisticsDeliveryService(repository, authorization),
+  };
 }
 
 function session(

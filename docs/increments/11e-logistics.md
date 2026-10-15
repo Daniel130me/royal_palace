@@ -58,7 +58,7 @@ routes or expose prescription, medication, clinical-record, or patient-payment d
       and bounded history APIs.
 - [x] Add privacy-minimized patient tracking and pharmacy handoff projections.
 - [x] Generate OpenAPI clients and add exact BFF allowlists; no generic resource route may be used.
-- [ ] Add field-visibility, authorization, concurrency, replay, and negative-path tests.
+- [x] Add field-visibility, authorization, concurrency, replay, and negative-path tests.
 
 ### 11E3 — proof and notification
 
@@ -214,8 +214,9 @@ handoff reference. A patient order displays its own minimized tracking projectio
 delivery handoff reference matches. The legacy generic delivery collection, unauthenticated
 delivery-progress action, and logistics branch of the legacy payout action are no longer exposed.
 
-Synthetic development seeding now creates a verified logistics organization plus an exact
-organization membership for the synthetic logistics reviewer. It is still guarded by the existing
+Synthetic development seeding now creates a verified logistics organization, an exact organization
+membership for the synthetic logistics reviewer, and one internally consistent synthetic pharmacy
+order/handoff/delivery aggregate for browser review. It is still guarded by the existing
 non-production and loopback-issuer checks; no real provider, courier, patient, or delivery data is
 enabled.
 
@@ -241,3 +242,59 @@ and stakeholder UAT intentionally remain open rather than being claimed without 
 - **Non-standard conditions flagged:** stakeholder visual/UAT approval, representative logistics
   query-plan evidence, deeper API negative-path coverage, and real logistics/payment provider
   qualification remain open. Real logistics activation remains prohibited.
+
+## Technical qualification follow-through
+
+The shared PostgreSQL performance harness now creates 5,000 complete synthetic logistics
+workflows, including the direct-OTC quote, reservation, confirmed order, successful synthetic
+payment, delivery handoff, delivery, assignment, initial history, and recipient challenge. It checks
+the exact organization/status queue, administrator/status queue, and per-delivery history indexes.
+These rows exist only inside the verifier transaction and are rolled back after `EXPLAIN (ANALYZE,
+BUFFERS)`; they never become development or production records.
+
+The API suite now proves completed dispatch replay without duplicate delivery or notification
+writes, rejects an idempotency-key/hash mismatch, stops unauthorized reads before repository
+access, rejects malformed cursors before queries execute, preserves exact-organization hiding, and
+keeps recipient identity and full addresses out of administrator projections. Existing disposable
+PostgreSQL evidence continues to cover assignment concurrency, illegal transitions, terminal
+reopening, proof/history immutability, and exact courier membership.
+
+The guarded development seed adds one browser-review delivery with ID
+`0199a18e-a400-7000-8000-000000000822`. Its recipient code is printed only by the local synthetic
+seed process and is HMAC-digested with the configured local key before storage. The complete fixture
+is written atomically, so a failed seed cannot leave a partial commercial or logistics aggregate.
+It remains impossible to run this seed in production.
+
+### Browser review
+
+After the local services are running and the synthetic seed has completed, sign in as the logistics
+reviewer and open:
+
+- `http://127.0.0.1:3100/#/logistics/dashboard`
+- `http://127.0.0.1:3100/#/logistics/assignments`
+- `http://127.0.0.1:3100/#/logistics/delivery?id=0199a18e-a400-7000-8000-000000000822`
+- `http://127.0.0.1:3100/#/logistics/history`
+
+The same synthetic aggregate is visible through the privacy-minimized administrator, pharmacy, and
+patient screens where their own projections apply. Earnings and payouts intentionally remain based
+on immutable finance facts; the seed does not invent logistics commercial terms.
+
+### Qualification standards walkthrough
+
+- **Readable and maintainable:** the browser fixture follows the same quote → order → handoff →
+  delivery aggregate boundaries as runtime code, while replay coverage targets the repository
+  boundary that owns idempotency.
+- **Security first:** the seed remains environment-guarded, recipient proof is stored only as a
+  key-versioned HMAC digest, denied requests stop before data access, and minimized projections are
+  asserted explicitly.
+- **Performance conscious:** 5,000 full workflows exercise the real composite queue/history indexes;
+  no unbounded read or per-row application follow-up query was added.
+- **Extendable:** the evidence is organized around organization, status, cursor, and history
+  contracts without selecting a courier vendor, routing engine, cloud, country, or payment gateway.
+- **No magic production assumptions:** CAD/USD values and Canadian addresses are scoped only to
+  synthetic fixtures; they are not defaults or commercial rules. Logistics earnings remain empty
+  until governed commercial policy creates finance facts.
+- **Non-standard conditions flagged:** Docker Desktop was unavailable for the local PostgreSQL run,
+  so the representative query-plan checkbox remains open until the protected CI database records
+  the required indexes. Visual parity, stakeholder UAT, provider qualification, and real activation
+  also remain open.

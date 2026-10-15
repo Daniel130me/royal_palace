@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../src/generated/prisma/client.js";
@@ -79,6 +81,21 @@ const SYNTHETIC_LOGISTICS_MEMBERSHIP_ID = "0199a18e-a400-7000-8000-000000000024"
 const SYNTHETIC_LOGISTICS_ROLE_ASSIGNMENTS = {
   courier: "0199a18e-a400-7000-8000-000000000025",
   staff: "0199a18e-a400-7000-8000-000000000026",
+} as const;
+const SYNTHETIC_LOGISTICS_DELIVERY = {
+  assignmentId: "0199a18e-a400-7000-8000-000000000821",
+  catalogCategoryId: "0199a18e-a400-7000-8000-000000000811",
+  catalogDosageFormId: "0199a18e-a400-7000-8000-000000000812",
+  catalogItemId: "0199a18e-a400-7000-8000-000000000813",
+  challengeCode: "24681357",
+  deliveryId: "0199a18e-a400-7000-8000-000000000822",
+  handoffId: "0199a18e-a400-7000-8000-000000000819",
+  historyId: "0199a18e-a400-7000-8000-000000000823",
+  orderId: "0199a18e-a400-7000-8000-000000000817",
+  paymentId: "0199a18e-a400-7000-8000-000000000818",
+  quoteId: "0199a18e-a400-7000-8000-000000000814",
+  quoteLineId: "0199a18e-a400-7000-8000-000000000815",
+  reservationId: "0199a18e-a400-7000-8000-000000000816",
 } as const;
 const SYNTHETIC_ORGANIZATIONS = [
   {
@@ -472,6 +489,222 @@ async function seedReviewerPortals(
       select: { id: true },
     });
   }
+  await seedSyntheticLogisticsDelivery(database, principals);
+}
+
+async function seedSyntheticLogisticsDelivery(
+  database: PrismaClient,
+  principals: ReviewerPrincipalMap,
+): Promise<void> {
+  const existing = await database.logisticsDelivery.findUnique({
+    select: { id: true },
+    where: { id: SYNTHETIC_LOGISTICS_DELIVERY.deliveryId },
+  });
+  if (existing !== null) return;
+
+  const pharmacyPrincipalId = requiredReviewerPrincipal(principals, "pharmacy-reviewer");
+  const logisticsPrincipalId = requiredReviewerPrincipal(principals, "logistics-reviewer");
+  const recipientCode = syntheticRecipientCodeDigest(SYNTHETIC_LOGISTICS_DELIVERY.deliveryId);
+  const assignedAt = new Date("2026-10-15T10:00:00.000Z");
+  const expiresAt = new Date("2099-01-01T00:00:00.000Z");
+
+  await database.$transaction(async (transaction) => {
+    await transaction.pharmacyProductClassification.createMany({
+      data: [
+        {
+          code: "synthetic-logistics-category",
+          id: SYNTHETIC_LOGISTICS_DELIVERY.catalogCategoryId,
+          kind: "CATEGORY",
+          name: "Synthetic delivery review",
+        },
+        {
+          code: "synthetic-logistics-form",
+          id: SYNTHETIC_LOGISTICS_DELIVERY.catalogDosageFormId,
+          kind: "DOSAGE_FORM",
+          name: "Synthetic unit",
+        },
+      ],
+      skipDuplicates: true,
+    });
+    await transaction.pharmacyCatalogItem.upsert({
+      where: { id: SYNTHETIC_LOGISTICS_DELIVERY.catalogItemId },
+      create: {
+        categoryId: SYNTHETIC_LOGISTICS_DELIVERY.catalogCategoryId,
+        controlledMedication: false,
+        createdByPrincipalId: pharmacyPrincipalId,
+        currency: "CAD",
+        dosageFormId: SYNTHETIC_LOGISTICS_DELIVERY.catalogDosageFormId,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.catalogItemId,
+        lowStockThreshold: 10,
+        name: "Synthetic non-clinical review item",
+        nearExpiryDays: 30,
+        pharmacyOrganizationId: "0199a18e-a400-7000-8000-000000000203",
+        prescriptionRequired: false,
+        sku: "SYNTHETIC-DELIVERY-REVIEW",
+        unitPriceMinor: 1_000n,
+      },
+      update: {},
+      select: { id: true },
+    });
+    await transaction.pharmacyQuote.create({
+      data: {
+        acceptedAt: assignedAt,
+        createdByPrincipalId: pharmacyPrincipalId,
+        currency: "CAD",
+        expiresAt,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.quoteId,
+        kind: "DIRECT_OTC",
+        patientId: "0199a18e-a400-7000-8000-000000000031",
+        pharmacyOrganizationId: "0199a18e-a400-7000-8000-000000000203",
+        quoteNumber: "SYNTHETIC-LOGISTICS-QUOTE-001",
+        status: "ACCEPTED",
+        subtotalMinor: 1_000n,
+        totalMinor: 1_000n,
+      },
+    });
+    await transaction.pharmacyQuoteLine.create({
+      data: {
+        catalogItemId: SYNTHETIC_LOGISTICS_DELIVERY.catalogItemId,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.quoteLineId,
+        lineNumber: 1,
+        lineSubtotalMinor: 1_000n,
+        medicationName: "Synthetic non-clinical review item",
+        quantity: 1,
+        quantityUnit: "unit",
+        quoteId: SYNTHETIC_LOGISTICS_DELIVERY.quoteId,
+        unitPriceMinor: 1_000n,
+      },
+    });
+    await transaction.inventoryReservation.create({
+      data: {
+        evidenceHash: "a".repeat(64),
+        expiresAt,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.reservationId,
+        providerCode: "SYNTHETIC_SEED",
+        providerReservationReference: "synthetic-logistics-reservation-001",
+        quoteId: SYNTHETIC_LOGISTICS_DELIVERY.quoteId,
+        status: "COMMITTED",
+      },
+    });
+    await transaction.pharmacyOrder.create({
+      data: {
+        acceptedAt: assignedAt,
+        acceptedByPrincipalId: pharmacyPrincipalId,
+        confirmedAt: assignedAt,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.orderId,
+        orderNumber: "SYNTHETIC-LOGISTICS-ORDER-001",
+        patientId: "0199a18e-a400-7000-8000-000000000031",
+        pharmacyOrganizationId: "0199a18e-a400-7000-8000-000000000203",
+        quoteId: SYNTHETIC_LOGISTICS_DELIVERY.quoteId,
+        status: "CONFIRMED",
+      },
+    });
+    await transaction.payment.create({
+      data: {
+        amountMinor: 1_000n,
+        currency: "CAD",
+        id: SYNTHETIC_LOGISTICS_DELIVERY.paymentId,
+        patientId: "0199a18e-a400-7000-8000-000000000031",
+        payableUntil: expiresAt,
+        pharmacyOrderId: SYNTHETIC_LOGISTICS_DELIVERY.orderId,
+        providerCode: "SYNTHETIC_SEED",
+        providerOccurredAt: assignedAt,
+        providerPaymentReference: "synthetic-logistics-payment-001",
+        purpose: "PHARMACY_ORDER",
+        reference: "SYNTHETIC-LOGISTICS-PAYMENT-001",
+        status: "SUCCEEDED",
+        succeededAt: assignedAt,
+      },
+    });
+    await transaction.pharmacyOrderHandoff.create({
+      data: {
+        handoffReference: "SYNTHETIC-LOGISTICS-HANDOFF-001",
+        id: SYNTHETIC_LOGISTICS_DELIVERY.handoffId,
+        method: "DELIVERY",
+        orderId: SYNTHETIC_LOGISTICS_DELIVERY.orderId,
+        preparedAt: assignedAt,
+        preparedByPrincipalId: pharmacyPrincipalId,
+        status: "READY",
+      },
+    });
+    await transaction.logisticsDelivery.create({
+      data: {
+        assignedAt,
+        deliveryAddressLine1: "2 Synthetic Patient Street",
+        deliveryAdministrativeArea: "Ontario",
+        deliveryCountryCode: "CA",
+        deliveryInstruction: "Synthetic review data only",
+        deliveryLocality: "Toronto",
+        deliveryNumber: "SYNTHETIC-DELIVERY-001",
+        deliveryPostalCode: "M5V 1A1",
+        handoffId: SYNTHETIC_LOGISTICS_DELIVERY.handoffId,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.deliveryId,
+        logisticsOrganizationId: SYNTHETIC_LOGISTICS_ORGANIZATION_ID,
+        orderId: SYNTHETIC_LOGISTICS_DELIVERY.orderId,
+        pickupAddressLine1: "3 Example Pharmacy Street",
+        pickupAdministrativeArea: "Ontario",
+        pickupContactName: "Synthetic Pharmacy Reviewer",
+        pickupContactPhoneE164: "+15555550101",
+        pickupCountryCode: "CA",
+        pickupLocality: "Toronto",
+        pickupLocationName: "Synthetic Community Pharmacy",
+        pickupPostalCode: "M5V 1A1",
+        recipientCodeDigest: recipientCode.digest,
+        recipientCodeExpiresAt: expiresAt,
+        recipientCodeKeyId: recipientCode.keyId,
+        recipientName: "Synthetic Patient Reviewer",
+        recipientPhoneE164: "+15555550102",
+      },
+    });
+    await transaction.logisticsRecipientCodeChallenge.create({
+      data: { deliveryId: SYNTHETIC_LOGISTICS_DELIVERY.deliveryId },
+    });
+    await transaction.logisticsDeliveryAssignment.create({
+      data: {
+        assignedAt,
+        assignedByPrincipalId: logisticsPrincipalId,
+        courierPrincipalId: logisticsPrincipalId,
+        deliveryId: SYNTHETIC_LOGISTICS_DELIVERY.deliveryId,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.assignmentId,
+        logisticsOrganizationId: SYNTHETIC_LOGISTICS_ORGANIZATION_ID,
+      },
+    });
+    await transaction.logisticsDeliveryStatusHistory.create({
+      data: {
+        actorPrincipalId: logisticsPrincipalId,
+        deliveryId: SYNTHETIC_LOGISTICS_DELIVERY.deliveryId,
+        id: SYNTHETIC_LOGISTICS_DELIVERY.historyId,
+        idempotencyKey: "synthetic-logistics-delivery-assigned-001",
+        occurredAt: assignedAt,
+        reasonCode: "SYNTHETIC_REVIEW_FIXTURE",
+        toStatus: "ASSIGNED",
+      },
+    });
+  });
+
+  // Keep the local-only code visible to reviewers without placing it in application responses.
+  process.stdout.write(
+    `Synthetic logistics delivery ${SYNTHETIC_LOGISTICS_DELIVERY.deliveryId} uses recipient code ${SYNTHETIC_LOGISTICS_DELIVERY.challengeCode}.\n`,
+  );
+}
+
+function syntheticRecipientCodeDigest(deliveryId: string): { digest: string; keyId: string } {
+  const keyId = process.env.LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID;
+  const keysJson = process.env.LOGISTICS_RECIPIENT_CODE_KEYS;
+  if (keyId === undefined || keysJson === undefined) {
+    throw new Error("Synthetic logistics seeding requires the configured recipient-code key ring");
+  }
+  const keys = JSON.parse(keysJson) as Record<string, string>;
+  const encodedKey = keys[keyId];
+  if (encodedKey === undefined) {
+    throw new Error(`Synthetic logistics recipient-code key is unavailable: ${keyId}`);
+  }
+  return {
+    digest: createHmac("sha256", Buffer.from(encodedKey, "base64"))
+      .update(`${deliveryId}:${SYNTHETIC_LOGISTICS_DELIVERY.challengeCode}`)
+      .digest("hex"),
+    keyId,
+  };
 }
 
 function requiredReviewerPrincipal(principals: ReviewerPrincipalMap, subject: string): string {

@@ -17,6 +17,7 @@ const NOTIFICATION_DELIVERY_COUNT = 10_000;
 const HISTORICAL_NOTIFICATION_ENDPOINT_COUNT = 10_000;
 const LABORATORY_WORKFLOW_COUNT = 5_000;
 const LABORATORY_CRITICAL_COUNT = 500;
+const LOGISTICS_WORKFLOW_COUNT = 5_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -48,6 +49,8 @@ async function main(): Promise<void> {
       managerProfileId,
       patientId,
       targetLaboratoryOrganizationId,
+      targetLogisticsDeliveryId,
+      targetLogisticsOrganizationId,
       targetPaymentId,
       targetPractitionerId,
       targetSessionId,
@@ -490,6 +493,47 @@ async function main(): Promise<void> {
         [targetPaymentId],
         "payments_pkey",
       ),
+      await reviewPlan(
+        client,
+        "logistics organization status queue",
+        `SELECT "id", "status", "assigned_at"
+           FROM "logistics_deliveries"
+          WHERE "logistics_organization_id" = $1
+            AND "status" = 'ASSIGNED'
+            AND ("assigned_at", "id") < ($2, $3)
+          ORDER BY "assigned_at" DESC, "id" DESC
+          LIMIT 50`,
+        [
+          targetLogisticsOrganizationId,
+          new Date("9999-12-31T23:59:59.999Z"),
+          "ffffffff-ffff-7fff-bfff-ffffffffffff",
+        ],
+        "logistics_deliveries_org_status_assigned_idx",
+      ),
+      await reviewPlan(
+        client,
+        "logistics administrator status queue",
+        `SELECT "id", "logistics_organization_id", "status", "assigned_at"
+           FROM "logistics_deliveries"
+          WHERE "status" = 'ASSIGNED'
+            AND ("assigned_at", "id") < ($1, $2)
+          ORDER BY "assigned_at" DESC, "id" DESC
+          LIMIT 50`,
+        [new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        "logistics_deliveries_status_assigned_idx",
+      ),
+      await reviewPlan(
+        client,
+        "logistics delivery history",
+        `SELECT "id", "from_status", "to_status", "occurred_at"
+           FROM "logistics_delivery_status_history"
+          WHERE "delivery_id" = $1
+          ORDER BY "occurred_at" DESC, "id" DESC
+          LIMIT 50`,
+        [targetLogisticsDeliveryId],
+        "logistics_delivery_history_delivery_time_idx",
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
     ];
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -510,6 +554,8 @@ async function loadRepresentativeData(
   managerProfileId: string;
   patientId: string;
   targetLaboratoryOrganizationId: string;
+  targetLogisticsDeliveryId: string;
+  targetLogisticsOrganizationId: string;
   targetPaymentId: string;
   targetPractitionerId: string;
   targetSessionId: string;
@@ -1003,14 +1049,195 @@ async function loadRepresentativeData(
     principalId,
     serviceId: targetServiceId,
   });
+  const { targetLogisticsDeliveryId, targetLogisticsOrganizationId } =
+    await loadRepresentativeLogisticsData(client, {
+      patientId,
+      pharmacyOrganizationId: organizationIds[1] ?? targetOrganizationId,
+      principalId,
+    });
   return {
     managerProfileId,
     patientId,
     targetLaboratoryOrganizationId,
+    targetLogisticsDeliveryId,
+    targetLogisticsOrganizationId,
     targetPaymentId,
     targetPractitionerId,
     targetSessionId,
   };
+}
+
+async function loadRepresentativeLogisticsData(
+  client: pg.Client,
+  input: { patientId: string; pharmacyOrganizationId: string; principalId: string },
+): Promise<{ targetLogisticsDeliveryId: string; targetLogisticsOrganizationId: string }> {
+  const logisticsOrganizationId = v7();
+  const membershipId = v7();
+  const categoryId = v7();
+  const dosageFormId = v7();
+  const catalogItemId = v7();
+  const quoteIds = Array.from({ length: LOGISTICS_WORKFLOW_COUNT }, () => v7());
+  const quoteLineIds = quoteIds.map(() => v7());
+  const reservationIds = quoteIds.map(() => v7());
+  const orderIds = quoteIds.map(() => v7());
+  const paymentIds = quoteIds.map(() => v7());
+  const handoffIds = quoteIds.map(() => v7());
+  const deliveryIds = quoteIds.map(() => v7());
+  const assignmentIds = quoteIds.map(() => v7());
+  const historyIds = quoteIds.map(() => v7());
+  const targetLogisticsDeliveryId = deliveryIds[0];
+  if (targetLogisticsDeliveryId === undefined) {
+    throw new Error("Representative logistics set is empty");
+  }
+
+  await client.query(
+    `INSERT INTO "organizations"
+       ("id", "type", "verification_status", "verified_at", "legal_name", "display_name", "updated_at")
+     VALUES ($1, 'LOGISTICS', 'VERIFIED', now(),
+             'Query Plan Logistics Limited', 'Query Plan Logistics', now())`,
+    [logisticsOrganizationId],
+  );
+  await client.query(
+    `INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at")
+     VALUES ($1, $2, $3, now())`,
+    [membershipId, logisticsOrganizationId, input.principalId],
+  );
+  await client.query(
+    `INSERT INTO "role_assignments"
+       ("id", "membership_id", "role", "scope", "updated_at")
+     VALUES ($1, $2, 'LOGISTICS', 'ORGANIZATION', now())`,
+    [v7(), membershipId],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_product_classifications" ("id", "kind", "code", "name", "updated_at")
+     VALUES ($1, 'CATEGORY', 'query-plan-logistics-category', 'Query plan category', now()),
+            ($2, 'DOSAGE_FORM', 'query-plan-logistics-form', 'Query plan dosage form', now())`,
+    [categoryId, dosageFormId],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_catalog_items"
+       ("id", "pharmacy_organization_id", "sku", "name", "category_id", "dosage_form_id",
+        "unit_price_minor", "currency", "low_stock_threshold", "near_expiry_days",
+        "created_by_principal_id", "updated_at")
+     VALUES ($1, $2, 'QP-LOGISTICS-ITEM', 'Synthetic logistics query-plan item', $3, $4,
+             1000, 'USD', 10, 30, $5, now())`,
+    [catalogItemId, input.pharmacyOrganizationId, categoryId, dosageFormId, input.principalId],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_quotes"
+       ("id", "quote_number", "kind", "pharmacy_organization_id", "patient_id", "currency",
+        "subtotal_minor", "total_minor", "status", "expires_at", "accepted_at",
+        "created_by_principal_id", "created_at", "updated_at")
+     SELECT fixture.quote_id, 'QP-LQ-' || lpad(fixture.ordinality::text, 8, '0'),
+            'DIRECT_OTC', $1, $2, 'USD', 1000, 1000, 'ACCEPTED', now() + interval '1 day',
+            now(), $3, now() - (fixture.ordinality * interval '1 second'), now()
+       FROM unnest($4::uuid[]) WITH ORDINALITY AS fixture(quote_id, ordinality)`,
+    [input.pharmacyOrganizationId, input.patientId, input.principalId, quoteIds],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_quote_lines"
+       ("id", "quote_id", "catalog_item_id", "line_number", "medication_name", "quantity",
+        "quantity_unit", "unit_price_minor", "line_subtotal_minor")
+     SELECT fixture.line_id, fixture.quote_id, $1, 1, 'Synthetic query-plan item', 1,
+            'unit', 1000, 1000
+       FROM unnest($2::uuid[], $3::uuid[]) AS fixture(line_id, quote_id)`,
+    [catalogItemId, quoteLineIds, quoteIds],
+  );
+  await client.query(
+    `INSERT INTO "inventory_reservations"
+       ("id", "quote_id", "provider_code", "provider_reservation_reference", "evidence_hash",
+        "status", "expires_at", "updated_at")
+     SELECT fixture.reservation_id, fixture.quote_id, 'SYNTHETIC_QUERY_PLAN',
+            'qp-logistics-' || fixture.quote_id::text, repeat('a', 64), 'COMMITTED',
+            now() + interval '1 day', now()
+       FROM unnest($1::uuid[], $2::uuid[]) AS fixture(reservation_id, quote_id)`,
+    [reservationIds, quoteIds],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_orders"
+       ("id", "order_number", "quote_id", "pharmacy_organization_id", "patient_id", "status",
+        "accepted_by_principal_id", "accepted_at", "confirmed_at", "created_at", "updated_at")
+     SELECT fixture.order_id, 'QP-LO-' || lpad(fixture.ordinality::text, 8, '0'), fixture.quote_id,
+            $1, $2, 'CONFIRMED', $3, now(), now(),
+            now() - (fixture.ordinality * interval '1 second'), now()
+       FROM unnest($4::uuid[], $5::uuid[]) WITH ORDINALITY
+            AS fixture(order_id, quote_id, ordinality)`,
+    [input.pharmacyOrganizationId, input.patientId, input.principalId, orderIds, quoteIds],
+  );
+  await client.query(
+    `INSERT INTO "payments"
+       ("id", "pharmacy_order_id", "purpose", "patient_id", "reference", "provider_code",
+        "provider_payment_reference", "amount_minor", "currency", "payable_until", "status",
+        "provider_occurred_at", "succeeded_at", "created_at", "updated_at")
+     SELECT fixture.payment_id, fixture.order_id, 'PHARMACY_ORDER', $1,
+            'QP-LP-' || lpad(fixture.ordinality::text, 8, '0'), 'SYNTHETIC_QUERY_PLAN',
+            'qp-logistics-payment-' || fixture.payment_id::text, 1000, 'USD', now() + interval '1 day',
+            'SUCCEEDED', now(), now(), now() - (fixture.ordinality * interval '1 second'), now()
+       FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
+            AS fixture(payment_id, order_id, ordinality)`,
+    [input.patientId, paymentIds, orderIds],
+  );
+  await client.query(
+    `INSERT INTO "pharmacy_order_handoffs"
+       ("id", "order_id", "method", "status", "handoff_reference", "prepared_by_principal_id",
+        "prepared_at", "created_at", "updated_at")
+     SELECT fixture.handoff_id, fixture.order_id, 'DELIVERY', 'READY',
+            'QP-LH-' || lpad(fixture.ordinality::text, 8, '0'), $1,
+            now() - (fixture.ordinality * interval '1 second'),
+            now() - (fixture.ordinality * interval '1 second'), now()
+       FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
+            AS fixture(handoff_id, order_id, ordinality)`,
+    [input.principalId, handoffIds, orderIds],
+  );
+  await client.query(
+    `INSERT INTO "logistics_deliveries"
+       ("id", "delivery_number", "order_id", "handoff_id", "logistics_organization_id", "status",
+        "pickup_location_name", "pickup_contact_name", "pickup_contact_phone_e164",
+        "pickup_address_line_1", "pickup_locality", "pickup_administrative_area", "pickup_country_code",
+        "recipient_name", "recipient_phone_e164", "delivery_address_line_1", "delivery_locality",
+        "delivery_administrative_area", "delivery_country_code", "recipient_code_digest",
+        "recipient_code_key_id", "recipient_code_expires_at", "assigned_at", "created_at", "updated_at")
+     SELECT fixture.delivery_id, 'QP-LD-' || lpad(fixture.ordinality::text, 8, '0'),
+            fixture.order_id, fixture.handoff_id, $1, 'ASSIGNED', 'Synthetic pharmacy',
+            'Synthetic pharmacist', '+15555550101', '1 Synthetic Pharmacy Street', 'Toronto',
+            'Ontario', 'CA', 'Synthetic patient', '+15555550102', '2 Synthetic Patient Street',
+            'Toronto', 'Ontario', 'CA', repeat('b', 64), 'query-plan-key', now() + interval '1 day',
+            now() - (fixture.ordinality * interval '1 second'),
+            now() - (fixture.ordinality * interval '1 second'), now()
+       FROM unnest($2::uuid[], $3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS fixture(delivery_id, order_id, handoff_id, ordinality)`,
+    [logisticsOrganizationId, deliveryIds, orderIds, handoffIds],
+  );
+  await client.query(
+    `INSERT INTO "logistics_delivery_assignments"
+       ("id", "delivery_id", "logistics_organization_id", "courier_principal_id",
+        "assigned_by_principal_id", "assigned_at", "created_at")
+     SELECT fixture.assignment_id, fixture.delivery_id, $1, $2, $2,
+            now() - (fixture.ordinality * interval '1 second'),
+            now() - (fixture.ordinality * interval '1 second')
+       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+            AS fixture(assignment_id, delivery_id, ordinality)`,
+    [logisticsOrganizationId, input.principalId, assignmentIds, deliveryIds],
+  );
+  await client.query(
+    `INSERT INTO "logistics_delivery_status_history"
+       ("id", "delivery_id", "from_status", "to_status", "actor_principal_id",
+        "idempotency_key", "occurred_at", "created_at")
+     SELECT fixture.history_id, fixture.delivery_id, NULL, 'ASSIGNED', $1,
+            'query-plan-logistics-' || fixture.delivery_id::text,
+            now() - (fixture.ordinality * interval '1 second'),
+            now() - (fixture.ordinality * interval '1 second')
+       FROM unnest($2::uuid[], $3::uuid[]) WITH ORDINALITY
+            AS fixture(history_id, delivery_id, ordinality)`,
+    [input.principalId, historyIds, deliveryIds],
+  );
+  await client.query(
+    `INSERT INTO "logistics_recipient_code_challenges" ("delivery_id")
+     SELECT fixture.delivery_id FROM unnest($1::uuid[]) AS fixture(delivery_id)`,
+    [deliveryIds],
+  );
+
+  return { targetLogisticsDeliveryId, targetLogisticsOrganizationId: logisticsOrganizationId };
 }
 
 async function loadRepresentativeLaboratoryData(
@@ -1220,6 +1447,7 @@ async function reviewPlan(
       historicalNotificationEndpoints: HISTORICAL_NOTIFICATION_ENDPOINT_COUNT,
       laboratoryWorkflows: LABORATORY_WORKFLOW_COUNT,
       laboratoryCriticalResults: LABORATORY_CRITICAL_COUNT,
+      logisticsWorkflows: LOGISTICS_WORKFLOW_COUNT,
     },
   };
 }
