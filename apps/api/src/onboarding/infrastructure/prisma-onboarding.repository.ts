@@ -776,14 +776,14 @@ async function createApprovedResource(
           principalId: application.applicantPrincipalId,
         },
       });
-      await transaction.roleAssignment.create({
-        data: {
+      await transaction.roleAssignment.createMany({
+        data: ["ORGANIZATION_ADMIN", "ORGANIZATION_STAFF"].map((role) => ({
           grantedByPrincipalId: administratorPrincipalId,
           id: createOpaqueId(),
           membershipId: membership.id,
-          role: "ORGANIZATION_STAFF",
+          role: role as "ORGANIZATION_ADMIN" | "ORGANIZATION_STAFF",
           scope: "ORGANIZATION",
-        },
+        })),
       });
       return resourceId;
     }

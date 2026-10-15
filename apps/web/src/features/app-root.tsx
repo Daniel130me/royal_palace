@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PublicSite } from "@/features/public/public-site";
 import { LoginPage } from "@/features/auth/login-page";
 import { SignupPage } from "@/features/auth/signup-page";
+import { TeamInvitationPage } from "@/features/auth/team-invitation-page";
 import { OrganizationSignupPage } from "@/features/auth/organization-signup-page";
 import { PractitionerSignupPage } from "@/features/auth/practitioner-signup-page";
 import { PatientPortal } from "@/features/patient/patient-portal";
@@ -51,6 +52,8 @@ export function AppRoot() {
           <OrganizationSignupPage />
         ) : view.page === "practitioner-signup" ? (
           <PractitionerSignupPage />
+        ) : view.page === "team-invitation" ? (
+          <TeamInvitationPage />
         ) : (
           <LoginPage />
         )

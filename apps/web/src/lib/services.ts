@@ -11,10 +11,12 @@ import {
   createPrescriptionClient,
   createSchedulingPaymentClient,
   createOrganizationFinanceClient,
+  createOrganizationTeamClient,
 } from "@royal-palace/api-client";
 import type {
   LaboratoryComponents,
   OrganizationFinanceComponents,
+  OrganizationTeamComponents,
   PrescriptionComponents,
 } from "@royal-palace/api-client";
 import type {
@@ -158,6 +160,57 @@ const generatedNotificationClient = createNotificationClient({
 const generatedOrganizationFinanceClient = createOrganizationFinanceClient({
   fetch: versionedBffFetch,
 });
+const generatedOrganizationTeamClient = createOrganizationTeamClient({ fetch: versionedBffFetch });
+
+export const productionOrganizationTeamService = {
+  team: (organizationId: string) =>
+    generatedOrganizationTeamClient
+      .GET("/v1/organization/team", {
+        params: { header: { ...financeRequestHeader(), "X-Organization-Id": organizationId } },
+      })
+      .then(unwrapGeneratedResponse),
+  createInvitation: (organizationId: string) =>
+    generatedOrganizationTeamClient
+      .POST("/v1/organization/team/invitations", {
+        params: { header: { ...financeRequestHeader(), "X-Organization-Id": organizationId } },
+      })
+      .then(unwrapGeneratedResponse),
+  revokeInvitation: (
+    organizationId: string,
+    invitationId: string,
+    body: OrganizationTeamComponents["schemas"]["VersionInput"],
+  ) =>
+    generatedOrganizationTeamClient
+      .DELETE("/v1/organization/team/invitations/{invitationId}", {
+        body,
+        params: {
+          header: { ...financeRequestHeader(), "X-Organization-Id": organizationId },
+          path: { invitationId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  deactivateMember: (
+    organizationId: string,
+    membershipId: string,
+    body: OrganizationTeamComponents["schemas"]["VersionInput"],
+  ) =>
+    generatedOrganizationTeamClient
+      .DELETE("/v1/organization/team/members/{membershipId}", {
+        body,
+        params: {
+          header: { ...financeRequestHeader(), "X-Organization-Id": organizationId },
+          path: { membershipId },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  acceptInvitation: (token: string) =>
+    generatedOrganizationTeamClient
+      .POST("/v1/organization/team/invitations/accept", {
+        body: { token },
+        params: { header: financeRequestHeader() },
+      })
+      .then(unwrapGeneratedResponse),
+};
 
 export const productionOrganizationFinanceService = {
   organization: {

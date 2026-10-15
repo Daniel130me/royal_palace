@@ -355,8 +355,13 @@ that completes an increment.
     - `[x]` 11D4F adds an administrator-only, privacy-minimized comment-moderation queue,
       controlled publish/hide decisions, actor-attributed database evidence, optimistic
       concurrency, immutable score/comment protection, audit events, exact BFF routes, and a
-      dedicated administrator screen. Billing, team administration, representative moderation
-      load evidence, and qualification remain open.
+      dedicated administrator screen.
+    - `[x]` 11D4G adds shared organization-team governance: exact organization-admin authority,
+      founder-role backfill through approved application linkage, hashed expiring single-use staff
+      invitations, transactional acceptance/revocation/deactivation, audit evidence, bounded team
+      reads, a generated contract, exact BFF routes, and connected laboratory settings plus an
+      authenticated invitation-acceptance screen. Billing, representative moderation/team load
+      evidence, and qualification remain open.
   - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
     advanced-reporting slices remain after the laboratory slice.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

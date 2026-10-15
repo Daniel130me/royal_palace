@@ -2,6 +2,7 @@ export type PlatformRole =
   | "PATIENT"
   | "MANAGER"
   | "ORGANIZATION_APPLICANT"
+  | "ORGANIZATION_ADMIN"
   | "ORGANIZATION_STAFF"
   | "PROVIDER"
   | "SUPPORT"
@@ -26,6 +27,50 @@ export interface CurrentSession {
   principalId: string;
   roles: readonly PlatformRole[];
   sessionId: string;
+}
+
+export type OrganizationTeamInvitationStatus = "PENDING" | "ACCEPTED" | "REVOKED";
+
+export interface OrganizationTeamMemberResponse {
+  effectiveFrom: string;
+  id: string;
+  principalId: string;
+  roles: readonly PlatformRole[];
+  version: number;
+}
+
+export interface OrganizationTeamInvitationResponse {
+  createdAt: string;
+  expiresAt: string;
+  id: string;
+  role: "ORGANIZATION_STAFF";
+  status: OrganizationTeamInvitationStatus;
+  version: number;
+}
+
+export interface OrganizationTeamResponse {
+  invitations: readonly OrganizationTeamInvitationResponse[];
+  members: readonly OrganizationTeamMemberResponse[];
+  organization: {
+    displayName: string;
+    id: string;
+    type: AuthenticatedMembership["organizationType"];
+  };
+}
+
+export interface CreateOrganizationTeamInvitationResponse {
+  invitation: OrganizationTeamInvitationResponse;
+  /** A high-entropy bearer secret returned once. Persisting or logging it is forbidden. */
+  token: string;
+}
+
+export interface AcceptOrganizationTeamInvitationResponse {
+  membershipId: string;
+  organization: {
+    displayName: string;
+    id: string;
+    type: AuthenticatedMembership["organizationType"];
+  };
 }
 
 export const NOTIFICATION_TEMPLATE = {

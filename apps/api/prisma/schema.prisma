@@ -367,6 +367,7 @@ enum PlatformRole {
   PATIENT
   MANAGER
   ORGANIZATION_APPLICANT
+  ORGANIZATION_ADMIN
   ORGANIZATION_STAFF
   PROVIDER
   SUPPORT
@@ -374,6 +375,12 @@ enum PlatformRole {
   FINANCE
   LOGISTICS
   SYSTEM_WORKER
+}
+
+enum OrganizationTeamInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
 }
 
 enum AuditResult {
@@ -638,6 +645,8 @@ model IdentityPrincipal {
   organizationPayoutRequests     OrganizationPayoutRequest[]        @relation("OrganizationPayoutRequester")
   organizationPayoutReviews      OrganizationPayoutRequest[]        @relation("OrganizationPayoutReviewer")
   moderatedLaboratoryReviews     LaboratoryBookingReview[]          @relation("LaboratoryReviewModerator")
+  createdTeamInvitations         OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationCreator")
+  acceptedTeamInvitations        OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationAcceptor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -780,6 +789,7 @@ model Organization {
   ratingSummary                     OrganizationRatingSummary?
   earnings                          OrganizationEarning[]
   payoutRequests                    OrganizationPayoutRequest[]
+  teamInvitations                   OrganizationTeamInvitation[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -1424,10 +1434,36 @@ model Membership {
   organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   principal       IdentityPrincipal @relation(fields: [principalId], references: [id], onDelete: Restrict)
   roleAssignments RoleAssignment[]
+  acceptedInvitation OrganizationTeamInvitation? @relation("OrganizationTeamInvitationMembership")
 
   @@index([organizationId, effectiveFrom, id], map: "memberships_org_effective_id_idx")
   @@index([principalId, effectiveFrom, id], map: "memberships_principal_effective_id_idx")
   @@map("memberships")
+}
+
+model OrganizationTeamInvitation {
+  id                     String                           @id @db.Uuid
+  organizationId         String                           @map("organization_id") @db.Uuid
+  tokenDigest             String                           @unique(map: "organization_team_invitations_token_digest_key") @map("token_digest") @db.Char(64)
+  role                    PlatformRole
+  status                  OrganizationTeamInvitationStatus @default(PENDING)
+  createdByPrincipalId    String                           @map("created_by_principal_id") @db.Uuid
+  acceptedByPrincipalId   String?                          @map("accepted_by_principal_id") @db.Uuid
+  acceptedMembershipId    String?                          @unique(map: "organization_team_invitations_accepted_membership_key") @map("accepted_membership_id") @db.Uuid
+  expiresAt               DateTime                         @map("expires_at") @db.Timestamptz(6)
+  acceptedAt              DateTime?                        @map("accepted_at") @db.Timestamptz(6)
+  revokedAt               DateTime?                        @map("revoked_at") @db.Timestamptz(6)
+  createdAt               DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int                              @default(1)
+  organization           Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByPrincipal     IdentityPrincipal                @relation("OrganizationTeamInvitationCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  acceptedByPrincipal    IdentityPrincipal?               @relation("OrganizationTeamInvitationAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
+  acceptedMembership     Membership?                      @relation("OrganizationTeamInvitationMembership", fields: [acceptedMembershipId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "organization_team_invitations_org_status_created_idx")
+  @@index([status, expiresAt, id], map: "organization_team_invitations_status_expiry_idx")
+  @@map("organization_team_invitations")
 }
 
 model RoleAssignment {

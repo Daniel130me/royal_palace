@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Organization Team API
+  version: 1.0.0
+paths:
+  /v1/organization/team:
+    get:
+      parameters:
+        [
+          { $ref: "#/components/parameters/RequestId" },
+          { $ref: "#/components/parameters/OrganizationId" },
+        ]
+      responses:
+        "200":
+          description: Organization team
+          content: { application/json: { schema: { $ref: "#/components/schemas/Team" } } }
+  /v1/organization/team/invitations:
+    post:
+      parameters:
+        [
+          { $ref: "#/components/parameters/RequestId" },
+          { $ref: "#/components/parameters/OrganizationId" },
+        ]
+      responses:
+        "201":
+          description: Single-display invitation bearer token
+          content:
+            { application/json: { schema: { $ref: "#/components/schemas/CreatedInvitation" } } }
+  /v1/organization/team/invitations/{invitationId}:
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - { name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VersionInput" } } }
+      responses:
+        "200": { description: Invitation revoked }
+  /v1/organization/team/members/{membershipId}:
+    delete:
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - { name: membershipId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VersionInput" } } }
+      responses:
+        "200": { description: Staff membership deactivated }
+  /v1/organization/team/invitations/accept:
+    post:
+      parameters: [{ $ref: "#/components/parameters/RequestId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties: { token: { type: string, minLength: 32, maxLength: 512 } }
+      responses:
+        "201":
+          description: Invitation accepted
+          content:
+            { application/json: { schema: { $ref: "#/components/schemas/AcceptedInvitation" } } }
+components:
+  parameters:
+    RequestId: { name: X-Request-Id, in: header, required: true, schema: { type: string } }
+    OrganizationId:
+      {
+        name: X-Organization-Id,
+        in: header,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  schemas:
+    Organization:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, type]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        type: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY] }
+    Member:
+      type: object
+      additionalProperties: false
+      required: [id, principalId, effectiveFrom, roles, version]
+      properties:
+        id: { type: string, format: uuid }
+        principalId: { type: string, format: uuid }
+        effectiveFrom: { type: string, format: date-time }
+        roles: { type: array, items: { type: string } }
+        version: { type: integer, minimum: 1 }
+    Invitation:
+      type: object
+      additionalProperties: false
+      required: [id, role, status, createdAt, expiresAt, version]
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [ORGANIZATION_STAFF] }
+        status: { type: string, enum: [PENDING, ACCEPTED, REVOKED] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    Team:
+      type: object
+      additionalProperties: false
+      required: [organization, members, invitations]
+      properties:
+        organization: { $ref: "#/components/schemas/Organization" }
+        members: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/Member" } }
+        invitations:
+          { type: array, maxItems: 50, items: { $ref: "#/components/schemas/Invitation" } }
+    CreatedInvitation:
+      type: object
+      additionalProperties: false
+      required: [invitation, token]
+      properties:
+        invitation: { $ref: "#/components/schemas/Invitation" }
+        token: { type: string }
+    AcceptedInvitation:
+      type: object
+      additionalProperties: false
+      required: [membershipId, organization]
+      properties:
+        membershipId: { type: string, format: uuid }
+        organization: { $ref: "#/components/schemas/Organization" }
+    VersionInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties: { expectedVersion: { type: integer, minimum: 1 } }

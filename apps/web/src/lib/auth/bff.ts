@@ -77,7 +77,7 @@ export async function callAuthenticatedApi<T>(
   options: {
     body?: unknown;
     idempotencyKey?: string;
-    method?: "GET" | "PATCH" | "POST";
+    method?: "DELETE" | "GET" | "PATCH" | "POST";
     organizationId?: string;
   } = {},
 ): Promise<T> {
@@ -137,7 +137,7 @@ export async function callAuthenticatedApi<T>(
 export async function proxyAuthenticatedApi(
   request: NextRequest,
   apiPath: string,
-  method: "GET" | "PATCH" | "POST",
+  method: "DELETE" | "GET" | "PATCH" | "POST",
   options: { organizationId?: string } = {},
 ): Promise<NextResponse> {
   try {
@@ -225,7 +225,7 @@ export function proxyAuthenticatedList(
 export function proxyAuthenticatedOrganizationApi(
   request: NextRequest,
   apiPath: string,
-  method: "GET" | "PATCH" | "POST",
+  method: "DELETE" | "GET" | "PATCH" | "POST",
 ): Promise<NextResponse> | NextResponse {
   try {
     return proxyAuthenticatedApi(request, apiPath, method, {

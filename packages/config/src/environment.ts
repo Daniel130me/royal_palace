@@ -179,6 +179,7 @@ const serviceEnvironmentSchema = z
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
     NOTIFICATION_DELIVERY_MODE: notificationDeliveryModeSchema.default("disabled"),
+    TEAM_INVITATION_TTL_SECONDS: z.coerce.number().int().min(900).max(2_592_000).default(604_800),
     OBJECT_STORAGE_ACCESS_KEY: z.string().min(1).optional(),
     OBJECT_STORAGE_BUCKET_QUARANTINE: z
       .string()
@@ -379,6 +380,9 @@ interface BaseServiceConfig {
   notificationDelivery: {
     mode: z.infer<typeof notificationDeliveryModeSchema>;
   };
+  organizationTeam: {
+    invitationTtlSeconds: number;
+  };
   objectStorage: {
     credentials?: { accessKey: string; secretKey: string };
     cleanBucket: string;
@@ -540,6 +544,9 @@ export function loadServiceConfig(
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,
     logLevel: values.LOG_LEVEL,
     notificationDelivery: Object.freeze({ mode: values.NOTIFICATION_DELIVERY_MODE }),
+    organizationTeam: Object.freeze({
+      invitationTtlSeconds: values.TEAM_INVITATION_TTL_SECONDS,
+    }),
     objectStorage: Object.freeze({
       ...(values.OBJECT_STORAGE_ACCESS_KEY === undefined ||
       values.OBJECT_STORAGE_SECRET_KEY === undefined

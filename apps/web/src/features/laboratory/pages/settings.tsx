@@ -1,9 +1,10 @@
 "use client";
 
-import type { NotificationComponents } from "@royal-palace/api-client";
+import type { NotificationComponents, OrganizationTeamComponents } from "@royal-palace/api-client";
 import {
   Building2,
   CheckCircle2,
+  Copy,
   FileText,
   Globe,
   Mail,
@@ -11,6 +12,8 @@ import {
   Phone,
   Shield,
   Star,
+  Trash2,
+  UserPlus,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -18,17 +21,23 @@ import { toast } from "sonner";
 import { ExpandableCard } from "@/components/healthcare/compact-list";
 import { ErrorState, LoadingState, PageHeader } from "@/components/healthcare/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { productionNotificationService } from "@/lib/services";
+import { productionNotificationService, productionOrganizationTeamService } from "@/lib/services";
 
 import { useLabContext } from "../use-lab-context";
 
 type Preference = NotificationComponents["schemas"]["NotificationPreference"];
+type Team = OrganizationTeamComponents["schemas"]["Team"];
 
 export function LabSettings() {
   const { workspace, loading, error, reload } = useLabContext();
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [team, setTeam] = useState<Team | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [teamBusy, setTeamBusy] = useState(false);
 
   const loadPreferences = useCallback(async () => {
     try {
@@ -42,6 +51,17 @@ export function LabSettings() {
     }
   }, []);
   useEffect(() => void loadPreferences(), [loadPreferences]);
+
+  const loadTeam = useCallback(async () => {
+    if (workspace === null) return;
+    try {
+      setTeam(await productionOrganizationTeamService.team(workspace.organization.id));
+      setTeamError(null);
+    } catch (reason) {
+      setTeamError(reason instanceof Error ? reason.message : "Team members could not be loaded.");
+    }
+  }, [workspace]);
+  useEffect(() => void loadTeam(), [loadTeam]);
 
   async function updateMarketing(enabled: boolean) {
     const current = preferences.find(
@@ -62,6 +82,54 @@ export function LabSettings() {
     } catch (reason) {
       toast.error(reason instanceof Error ? reason.message : "Preference could not be saved.");
       await loadPreferences();
+    }
+  }
+
+  async function createInvitation() {
+    if (workspace === null) return;
+    setTeamBusy(true);
+    try {
+      const created = await productionOrganizationTeamService.createInvitation(
+        workspace.organization.id,
+      );
+      const link = `${window.location.origin}/#/login/team-invitation?token=${encodeURIComponent(created.token)}`;
+      setInvitationLink(link);
+      await loadTeam();
+      toast.success("Invitation link created. It is shown only in this browser session.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Invitation could not be created.");
+    } finally {
+      setTeamBusy(false);
+    }
+  }
+
+  async function revokeInvitation(invitationId: string, expectedVersion: number) {
+    if (workspace === null) return;
+    try {
+      await productionOrganizationTeamService.revokeInvitation(
+        workspace.organization.id,
+        invitationId,
+        { expectedVersion },
+      );
+      await loadTeam();
+      toast.success("Invitation revoked.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Invitation could not be revoked.");
+    }
+  }
+
+  async function deactivateMember(membershipId: string, expectedVersion: number) {
+    if (workspace === null) return;
+    try {
+      await productionOrganizationTeamService.deactivateMember(
+        workspace.organization.id,
+        membershipId,
+        { expectedVersion },
+      );
+      await loadTeam();
+      toast.success("Team member access removed.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Team member could not be removed.");
     }
   }
 
@@ -234,11 +302,112 @@ export function LabSettings() {
             />
             {preferencesError && <p className="text-xs text-destructive">{preferencesError}</p>}
             <p className="text-xs text-muted-foreground">
-              Billing details and team-member administration remain visible in the approved
-              prototype scope and will connect to their governed production aggregates in later
-              checkpoints.
+              Billing details remain visible in the approved prototype scope and will connect to
+              their governed production aggregate in a later checkpoint.
             </p>
           </div>
+        </ExpandableCard>
+
+        <ExpandableCard
+          leading={
+            <div className="rounded-lg bg-violet-50 p-2 ring-1 ring-violet-100">
+              <UserPlus className="h-4 w-4 text-violet-600" />
+            </div>
+          }
+          title="Team members"
+          subtitle="Invite staff and control access"
+        >
+          {teamError ? (
+            <p className="text-sm text-muted-foreground">
+              Team administration is available only to an organization administrator. {teamError}
+            </p>
+          ) : team === null ? (
+            <p className="text-sm text-muted-foreground">Loading team members…</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Invitation links expire automatically and grant staff access only.
+                </p>
+                <Button size="sm" disabled={teamBusy} onClick={() => void createInvitation()}>
+                  <UserPlus className="mr-1 h-4 w-4" /> Create invitation link
+                </Button>
+              </div>
+              {invitationLink && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-900">Copy this link now</p>
+                  <p className="mt-1 break-all font-mono text-xs text-amber-800">
+                    {invitationLink}
+                  </p>
+                  <Button
+                    className="mt-2"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(invitationLink);
+                      toast.success("Invitation link copied.");
+                    }}
+                  >
+                    <Copy className="mr-1 h-3.5 w-3.5" /> Copy link
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-2">
+                {team.members.map((member) => {
+                  const administrator = member.roles.includes("ORGANIZATION_ADMIN");
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-xs">{member.principalId}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {administrator ? "Organization administrator" : "Organization staff"}
+                        </p>
+                      </div>
+                      {!administrator && (
+                        <Button
+                          aria-label="Remove team member"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => void deactivateMember(member.id, member.version)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {team.invitations.some((invitation) => invitation.status === "PENDING") && (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Pending invitations
+                  </p>
+                  {team.invitations
+                    .filter((invitation) => invitation.status === "PENDING")
+                    .map((invitation) => (
+                      <div
+                        key={invitation.id}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-3"
+                      >
+                        <p className="text-xs text-muted-foreground">
+                          Expires {new Date(invitation.expiresAt).toLocaleString()}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void revokeInvitation(invitation.id, invitation.version)}
+                        >
+                          Revoke
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
         </ExpandableCard>
       </div>
     </div>

@@ -27,7 +27,9 @@ daily/monthly/custom-range reporting, concurrency-safe payout reservation, finan
 and conservative refund/dispute holds. Checkpoint 11D4E adds completion-bound verified ratings,
 immutable rating evidence, moderation-safe comments, and database-maintained aggregates. Real
 payout execution and the remaining supporting-screen work remain tracked below and must be
-completed before parity can be claimed.
+completed before parity can be claimed. Checkpoint 11D4G establishes shared organization-team
+governance and connects the laboratory team settings without creating a laboratory-only identity
+model.
 
 ## Controlling rules
 
@@ -142,6 +144,9 @@ completed before parity can be claimed.
 - [x] Require patients to rate completed laboratory services, bind each rating to one owned
       completed booking, keep optional comments private pending moderation, and expose only
       database-maintained verified aggregates to laboratory and public discovery surfaces.
+- [x] Connect team administration through a shared organization boundary. Exact organization
+      administrators can create expiring single-use staff links, revoke pending invitations, and
+      deactivate ordinary staff. Raw invitation secrets are returned once and never stored.
 - [ ] Complete clean/upgrade migration tests, failure/concurrency tests, load/query-plan
       evidence, prototype parity verification, and Nigerian qualification/UAT.
 - [ ] Keep all real laboratory processing disabled until the approval evidence is
@@ -271,6 +276,30 @@ migration is forbidden.
   The administrator UI is available at `#/admin/review-moderation`; the existing approved
   Complaints screen remains unchanged at `#/admin/complaints`.
 
+## Checkpoint 11D4G completion report
+
+- Organization founders approved through onboarding receive separate administrator and staff
+  roles. The upgrade backfill uses the exact approved-application applicant/organization link and
+  refuses duplicate active membership data instead of guessing an owner.
+- Team administration is a shared hospital/pharmacy/laboratory capability. It is authorized only
+  by an exact `ORGANIZATION_ADMIN` membership or a platform administrator; ordinary organization
+  staff cannot list or alter the team.
+- Invitations grant `ORGANIZATION_STAFF` only. Each link contains a 256-bit bearer secret returned
+  once to the administrator; PostgreSQL stores only its SHA-256 digest. Links expire through
+  validated configuration, can be consumed once, and can be revoked with optimistic concurrency.
+- Acceptance, revocation, and staff deactivation are transactional and audited. Database checks,
+  partial unique indexes, and a transition trigger independently enforce active-membership,
+  active-role, invitation-state, organization, principal, and role consistency.
+- Team reads are capped at 100 active members and 50 recent invitations and use two bounded
+  relational queries without N+1 principal lookups. The response intentionally exposes principal
+  references and roles, not email addresses or identity-provider claims.
+- Prototype screens covered by this checkpoint are available at `#/laboratory/settings`. A
+  generated link opens `#/login/team-invitation?token=…`; the bearer token is removed from browser
+  history immediately, kept only in tab-scoped session storage across authentication, and deleted
+  after successful acceptance. It is never forwarded through the login return URL. The same
+  backend can later connect pharmacy and hospital team settings without schema or policy
+  duplication.
+
 ## Standards walkthrough
 
 - **Readable and structured:** database, state-machine, authorization, and future
@@ -300,8 +329,9 @@ migration is forbidden.
   screens now use production boundaries. Laboratory charging now uses the production payment
   boundary. Laboratory settlement reporting and internal payout review now use the production
   organization-finance boundary. Verified completion-bound laboratory ratings now use the
-  production review boundary, including administrator comment moderation. Automated payout
-  execution, billing and team administration, representative moderation load evidence, and
+  production review boundary, including administrator comment moderation. Shared organization
+  team administration is now connected to laboratory settings. Automated payout execution,
+  billing, representative moderation load evidence, and
   qualification work remains
   explicitly release-blocking. Home collection is implemented for synthetic review, but real
   operations remain disabled until collection coverage, workforce, transport, consent,
@@ -317,3 +347,8 @@ migration is forbidden.
   "reviewed" receipt. That data-corrupting behavior was not carried forward: critical results
   use the durable acknowledgement aggregate, while ordinary result access remains visible
   and authorization-audited without inventing a clinical acknowledgement record.
+  The organization-team Prisma schema validates and the complete automated API suite passes,
+  but clean-database and upgrade-path execution of the two new migrations remains pending because
+  the local Docker Desktop Linux engine and PostgreSQL port are unavailable. This environment
+  limitation is not treated as migration approval: both paths must run successfully in CI or a
+  protected staging environment before this checkpoint can be released.

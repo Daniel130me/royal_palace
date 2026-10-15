@@ -133,6 +133,19 @@ describe("loadServiceConfig", () => {
     ).toThrow(/PAYMENT_CHECKOUT_TTL_SECONDS/);
   });
 
+  it("validates organization-team invitation expiry as bounded configuration", () => {
+    expect(loadServiceConfig("api", validEnvironment).organizationTeam).toEqual({
+      invitationTtlSeconds: 604_800,
+    });
+    expect(
+      loadServiceConfig("api", { ...validEnvironment, TEAM_INVITATION_TTL_SECONDS: "3600" })
+        .organizationTeam.invitationTtlSeconds,
+    ).toBe(3_600);
+    expect(() =>
+      loadServiceConfig("api", { ...validEnvironment, TEAM_INVITATION_TTL_SECONDS: "899" }),
+    ).toThrow(/TEAM_INVITATION_TTL_SECONDS/);
+  });
+
   it("allows the synthetic gateway only outside protected environments", () => {
     const paymentEnvironment = {
       ...validEnvironment,

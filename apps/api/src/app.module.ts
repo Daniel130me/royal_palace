@@ -15,6 +15,7 @@ import { NotificationModule } from "./notification/notification.module.js";
 import { PharmacyModule } from "./pharmacy/pharmacy.module.js";
 import { DEPENDENCY_READINESS } from "./tokens.js";
 import { OrganizationFinanceModule } from "./finance/organization-finance.module.js";
+import { OrganizationTeamModule } from "./organization-team/organization-team.module.js";
 
 @Module({})
 export class AppModule {
@@ -36,6 +37,7 @@ export class AppModule {
         NotificationModule,
         PharmacyModule,
         OrganizationFinanceModule,
+        OrganizationTeamModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: DEPENDENCY_READINESS, useValue: dependencies }],

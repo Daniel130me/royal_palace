@@ -138,6 +138,19 @@ export class PolicyEngine {
         return request.actor.principalId === request.context.recipientPrincipalId
           ? this.allow(request.policy, this.firstActorRole(request.actor), ALLOW.OWNER)
           : this.deny(request.policy, "notification_recipient_required");
+      case AUTHORIZATION_POLICY.MANAGE_ORGANIZATION_TEAM: {
+        const platformRole = this.firstPlatformRole(request.actor, ["ADMINISTRATOR"]);
+        if (platformRole !== null) {
+          return this.allow(request.policy, platformRole, ALLOW.ADMINISTRATOR);
+        }
+        return this.hasOrganizationRole(
+          request.actor,
+          request.context.organizationId,
+          "ORGANIZATION_ADMIN",
+        )
+          ? this.allow(request.policy, "ORGANIZATION_ADMIN", ALLOW.ORGANIZATION_MEMBER)
+          : this.deny(request.policy, "organization_admin_membership_required");
+      }
       case AUTHORIZATION_POLICY.REVIEW_APPLICATION:
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
       case AUTHORIZATION_POLICY.DECIDE_APPLICATION:

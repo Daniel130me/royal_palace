@@ -6,6 +6,7 @@ import { AUTHORIZATION_POLICY } from "../src/authorization/domain/authorization.
 import { AUTHORIZATION_POLICY_METADATA } from "../src/authorization/presentation/policy-protected.decorator.js";
 import { InternalIdentityController } from "../src/identity/presentation/internal-identity.controller.js";
 import { AdminLaboratoryReviewController } from "../src/laboratory/presentation/laboratory-review.controller.js";
+import { OrganizationTeamController } from "../src/organization-team/presentation/organization-team.controller.js";
 import { PharmacyCommercialController } from "../src/pharmacy/presentation/pharmacy-commercial.controller.js";
 import {
   PatientScannedPrescriptionController,
@@ -53,6 +54,16 @@ describe("protected route policy inventory", () => {
       const handler = AdminLaboratoryReviewController.prototype[handlerName];
       expect(Reflect.getMetadata(AUTHORIZATION_POLICY_METADATA, handler)).toBe(
         AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION,
+      );
+    },
+  );
+
+  it.each(["getTeam", "createInvitation", "revokeInvitation", "deactivateMember"] as const)(
+    "maps organization-team %s to exact organization-admin policy",
+    (handlerName) => {
+      const handler = OrganizationTeamController.prototype[handlerName];
+      expect(Reflect.getMetadata(AUTHORIZATION_POLICY_METADATA, handler)).toBe(
+        AUTHORIZATION_POLICY.MANAGE_ORGANIZATION_TEAM,
       );
     },
   );

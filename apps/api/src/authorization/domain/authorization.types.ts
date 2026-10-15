@@ -12,6 +12,7 @@ export const AUTHORIZATION_POLICY = {
   ADMINISTER_REVIEW_MODERATION: "ADMINISTER_REVIEW_MODERATION",
   VIEW_NOTIFICATION_INBOX: "VIEW_NOTIFICATION_INBOX",
   MANAGE_NOTIFICATION_PREFERENCES: "MANAGE_NOTIFICATION_PREFERENCES",
+  MANAGE_ORGANIZATION_TEAM: "MANAGE_ORGANIZATION_TEAM",
   ADMINISTER_ROLE_ASSIGNMENT: "ADMINISTER_ROLE_ASSIGNMENT",
   DECIDE_APPLICATION: "DECIDE_APPLICATION",
   CORRECT_REFERRAL_ATTRIBUTION: "CORRECT_REFERRAL_ATTRIBUTION",
@@ -63,7 +64,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 22;
+export const AUTHORIZATION_POLICY_VERSION = 23;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -94,6 +95,7 @@ export interface AuthorizationPolicyContexts {
   ADMINISTER_REVIEW_MODERATION: ResourceReference;
   VIEW_NOTIFICATION_INBOX: ResourceReference & { recipientPrincipalId: string };
   MANAGE_NOTIFICATION_PREFERENCES: ResourceReference & { recipientPrincipalId: string };
+  MANAGE_ORGANIZATION_TEAM: ResourceReference & { organizationId: string };
   ADMINISTER_ROLE_ASSIGNMENT: ResourceReference;
   DECIDE_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   CORRECT_REFERRAL_ATTRIBUTION: ResourceReference;

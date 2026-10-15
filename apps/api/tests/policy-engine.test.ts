@@ -13,6 +13,7 @@ const ALL_ROLES: readonly PlatformRole[] = [
   "PATIENT",
   "MANAGER",
   "ORGANIZATION_APPLICANT",
+  "ORGANIZATION_ADMIN",
   "ORGANIZATION_STAFF",
   "PROVIDER",
   "SUPPORT",
@@ -64,6 +65,7 @@ function baselineRequest(
         },
       };
     case AUTHORIZATION_POLICY.VIEW_ORGANIZATION:
+    case AUTHORIZATION_POLICY.MANAGE_ORGANIZATION_TEAM:
       return {
         ...base,
         policy,
@@ -313,6 +315,7 @@ describe("PolicyEngine", () => {
     VIEW_LABORATORY_RESULT: [],
     ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT: [],
     MANAGE_NOTIFICATION_PREFERENCES: [],
+    MANAGE_ORGANIZATION_TEAM: ["ADMINISTRATOR"],
     ADMINISTER_PHARMACY_DISPUTE: ["ADMINISTRATOR"],
     MANAGE_OWN_APPLICATION: [],
     REVIEW_APPLICATION: ["SUPPORT", "ADMINISTRATOR"],
@@ -359,6 +362,37 @@ describe("PolicyEngine", () => {
     expect(
       engine.evaluate({ ...request, policy: "UNKNOWN_POLICY" } as unknown as AuthorizationRequest),
     ).toMatchObject({ allowed: false, reasonCode: "unknown_policy_denied" });
+  });
+
+  it("allows team administration only for an exact organization administrator membership", () => {
+    const request = baselineRequest(AUTHORIZATION_POLICY.MANAGE_ORGANIZATION_TEAM, actor([]));
+    expect(
+      engine.evaluate({
+        ...request,
+        actor: actor([], { organizationRoles: ["ORGANIZATION_ADMIN"] }),
+      }).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate({
+        ...request,
+        actor: actor([], { organizationRoles: ["ORGANIZATION_STAFF"] }),
+      }).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate({
+        ...request,
+        actor: {
+          ...actor([], { organizationRoles: ["ORGANIZATION_ADMIN"] }),
+          memberships: [
+            {
+              organizationId: createOpaqueId(),
+              organizationType: "LABORATORY",
+              roles: ["ORGANIZATION_ADMIN"],
+            },
+          ],
+        },
+      }).allowed,
+    ).toBe(false);
   });
 
   it("allows an authenticated applicant to manage only their own application", () => {
