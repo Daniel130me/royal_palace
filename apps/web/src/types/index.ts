@@ -30,7 +30,7 @@ export interface User {
 export interface Session {
   memberships: readonly {
     organizationId: string;
-    organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+    organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
   }[];
   userId: string;
   role: UserRole;

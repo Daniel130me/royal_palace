@@ -175,6 +175,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
     case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
     case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
+    case AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY:
       return {
         ...base,
         policy,
@@ -243,6 +244,18 @@ function baselineRequest(
           resourceType: "pharmacy_commercial",
         },
       };
+    case AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY:
+      return {
+        ...base,
+        policy,
+        context: {
+          logisticsOrganizationId: organizationId,
+          patientPrincipalId: targetPrincipalId,
+          pharmacyOrganizationId: organizationId,
+          resourceId,
+          resourceType: "logistics_delivery",
+        },
+      };
     case AUTHORIZATION_POLICY.VIEW_APPOINTMENT:
       return {
         ...base,
@@ -262,6 +275,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.ADMINISTER_MANAGER_PROGRAM:
     case AUTHORIZATION_POLICY.ADMINISTER_NOTIFICATION_DELIVERY:
     case AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT:
+    case AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_ASSIGNMENT:
     case AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION:
     case AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_DISPUTE:
     case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
@@ -289,6 +303,7 @@ describe("PolicyEngine", () => {
     ADMINISTER_MANAGER_PROGRAM: ["ADMINISTRATOR"],
     ADMINISTER_NOTIFICATION_DELIVERY: ["ADMINISTRATOR"],
     ADMINISTER_PHARMACY_ORDER_OVERSIGHT: ["ADMINISTRATOR"],
+    ADMINISTER_LOGISTICS_ASSIGNMENT: ["ADMINISTRATOR"],
     ADMINISTER_REVIEW_MODERATION: ["ADMINISTRATOR"],
     ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
     DECIDE_APPLICATION: ["ADMINISTRATOR"],
@@ -312,6 +327,7 @@ describe("PolicyEngine", () => {
     MANAGE_PHARMACY_SETTINGS: [],
     MANAGE_LABORATORY_BOOKING: [],
     MANAGE_LABORATORY_RESULT: [],
+    MANAGE_LOGISTICS_DELIVERY: [],
     VIEW_LABORATORY_RESULT: [],
     ACKNOWLEDGE_CRITICAL_LABORATORY_RESULT: [],
     MANAGE_NOTIFICATION_PREFERENCES: [],
@@ -340,6 +356,7 @@ describe("PolicyEngine", () => {
     VIEW_LABORATORY_REQUEST: [],
     VIEW_PHARMACY_ORDER: ["SUPPORT", "ADMINISTRATOR"],
     VIEW_PHARMACY_QUOTE: ["SUPPORT", "ADMINISTRATOR"],
+    VIEW_LOGISTICS_DELIVERY: ["ADMINISTRATOR"],
     EXPIRE_PRESCRIPTIONS: ["SYSTEM_WORKER"],
   };
 
@@ -576,6 +593,31 @@ describe("PolicyEngine", () => {
           AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING,
           actor(["ORGANIZATION_STAFF"]),
         ),
+      ).allowed,
+    ).toBe(false);
+  });
+
+  it("limits delivery detail to its patient, pharmacy, assigned logistics team, or administrator", () => {
+    const patient = actor(["PATIENT"], { principalId: targetPrincipalId });
+    const organizationMember = actor([], { organizationRoles: ["ORGANIZATION_STAFF"] });
+
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY, patient))
+        .allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY, organizationMember),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY, actor(["SUPPORT"])),
+      ).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY, actor(["MANAGER"])),
       ).allowed,
     ).toBe(false);
   });

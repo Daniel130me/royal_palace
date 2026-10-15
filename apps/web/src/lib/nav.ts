@@ -117,7 +117,10 @@ function selectPortalRole(
 function organizationPortalRole(
   type: CurrentSession["memberships"][number]["organizationType"],
 ): UserRole {
-  return type === "PHARMACY" ? "pharmacy" : type === "LABORATORY" ? "laboratory" : "hospital";
+  if (type === "PHARMACY") return "pharmacy";
+  if (type === "LABORATORY") return "laboratory";
+  if (type === "LOGISTICS") return "logistics";
+  return "hospital";
 }
 
 export const useNav = create<NavState>((set, get) => ({

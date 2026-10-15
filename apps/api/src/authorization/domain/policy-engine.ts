@@ -82,6 +82,7 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
+      case AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY:
       case AUTHORIZATION_POLICY.REQUEST_ORGANIZATION_PAYOUT:
         return this.canManageOrganizationResource(
           request.actor,
@@ -133,6 +134,8 @@ export class PolicyEngine {
           request.context.organizationId,
           request.policy,
         );
+      case AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY:
+        return this.canViewLogisticsDelivery(request.actor, request.context);
       case AUTHORIZATION_POLICY.VIEW_NOTIFICATION_INBOX:
       case AUTHORIZATION_POLICY.MANAGE_NOTIFICATION_PREFERENCES:
         return request.actor.principalId === request.context.recipientPrincipalId
@@ -161,6 +164,7 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.ADMINISTER_MANAGER_PROGRAM:
       case AUTHORIZATION_POLICY.ADMINISTER_NOTIFICATION_DELIVERY:
       case AUTHORIZATION_POLICY.ADMINISTER_PHARMACY_ORDER_OVERSIGHT:
+      case AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_ASSIGNMENT:
       case AUTHORIZATION_POLICY.ADMINISTER_REVIEW_MODERATION:
       case AUTHORIZATION_POLICY.CORRECT_REFERRAL_ATTRIBUTION:
       case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
@@ -206,6 +210,29 @@ export class PolicyEngine {
       default:
         return this.denyUnknownPolicy(request);
     }
+  }
+
+  private canViewLogisticsDelivery(
+    actor: CurrentSession,
+    context: Extract<AuthorizationRequest, { policy: "VIEW_LOGISTICS_DELIVERY" }>["context"],
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY;
+    const administrator = this.firstPlatformRole(actor, ["ADMINISTRATOR"]);
+    if (administrator !== null) {
+      return this.allow(policy, administrator, ALLOW.ADMINISTRATOR);
+    }
+    if (actor.roles.includes("PATIENT") && actor.principalId === context.patientPrincipalId) {
+      return this.allow(policy, "PATIENT", ALLOW.OWNER);
+    }
+    const organizationRole = this.firstOrganizationRole(actor, context.logisticsOrganizationId, [
+      "ORGANIZATION_ADMIN",
+      "ORGANIZATION_STAFF",
+      "LOGISTICS",
+    ]);
+    if (organizationRole !== null) {
+      return this.allow(policy, organizationRole, ALLOW.ORGANIZATION_MEMBER);
+    }
+    return this.canManageOrganizationResource(actor, context.pharmacyOrganizationId, policy);
   }
 
   private canViewOrganization(

@@ -13,9 +13,23 @@ export type PlatformRole =
 
 export interface AuthenticatedMembership {
   organizationId: string;
-  organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+  organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
   roles: readonly PlatformRole[];
 }
+
+export type LogisticsDeliveryStatus =
+  | "ASSIGNED"
+  | "ACCEPTED"
+  | "HEADING_TO_PICKUP"
+  | "ARRIVED_AT_PICKUP"
+  | "PICKUP_VERIFIED"
+  | "PICKED_UP"
+  | "IN_TRANSIT"
+  | "ARRIVED_AT_DESTINATION"
+  | "DELIVERED"
+  | "FAILED"
+  | "RETURNED"
+  | "CANCELLED";
 
 export interface CurrentSession {
   absoluteExpiresAt: string;

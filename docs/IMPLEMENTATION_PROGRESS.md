@@ -373,8 +373,13 @@ that completes an increment.
       Database CI now declares its loopback synthetic issuer explicitly so the security-checked seed
       can prove idempotency without weakening its environment validation. Protected CI confirmation,
       billing, and qualification remain open.
-  - `[ ]` Logistics, clinical encounter/record, settlement/payout, and
-    advanced-reporting slices remain after the laboratory slice.
+  - `[~]` 11E logistics is in progress. 11E1 adds the verified-logistics-organization delivery
+    integrity foundation, immutable fulfilment snapshots, assignment/status/proof evidence,
+    signed-prototype state machine, queue indexes, and default-deny access policies. Database
+    qualification, APIs/BFF, recipient-code delivery, prototype screen connectivity, commercial
+    reporting, and UAT remain open; no real logistics use is enabled.
+  - `[ ]` Clinical encounter/record, remaining settlement/payout, and advanced-reporting slices
+    remain after logistics.
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open

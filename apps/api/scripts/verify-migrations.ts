@@ -87,7 +87,13 @@ async function main(): Promise<void> {
       databaseUrlWithName(baseUrl, databaseNames.repair),
     );
     await verifyDatabaseInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
-    await verifyPharmacyCommercialInvariants(databaseUrlWithName(baseUrl, databaseNames.clean));
+    const logisticsFixture = await verifyPharmacyCommercialInvariants(
+      databaseUrlWithName(baseUrl, databaseNames.clean),
+    );
+    await verifyLogisticsDeliveryInvariants(
+      databaseUrlWithName(baseUrl, databaseNames.clean),
+      logisticsFixture,
+    );
     await verifyConcurrentBooking(databaseUrlWithName(baseUrl, databaseNames.clean));
     await verifyConcurrentOrganizationTeamAcceptance(
       databaseUrlWithName(baseUrl, databaseNames.clean),
@@ -95,7 +101,7 @@ async function main(): Promise<void> {
     await assertMigrationsAreTransactional();
 
     process.stdout.write(
-      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial and organization-team invariants, concurrency, transactional repair, and constraints.\n",
+      "Migration verification passed: clean install, prior-schema upgrade, payment-subject data backfill, pharmacy-commercial, logistics-delivery, and organization-team invariants, concurrency, transactional repair, and constraints.\n",
     );
   } finally {
     for (const databaseName of Object.values(databaseNames).reverse()) {
@@ -1026,7 +1032,12 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
   }
 }
 
-async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<void> {
+interface LogisticsFixture {
+  handoffId: string;
+  orderId: string;
+}
+
+async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<LogisticsFixture> {
   const client = new Client({ connectionString: databaseUrl });
   const patientPrincipalId = v7();
   const practitionerPrincipalId = v7();
@@ -1226,7 +1237,7 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
     );
     await client.query("COMMIT");
     await client.query(
-      'INSERT INTO "pharmacy_order_handoffs" ("id", "order_id", "method", "handoff_reference", "prepared_by_principal_id", "prepared_at", "updated_at") VALUES ($1, $2, \'PICKUP\', $3, $4, now(), now())',
+      'INSERT INTO "pharmacy_order_handoffs" ("id", "order_id", "method", "handoff_reference", "prepared_by_principal_id", "prepared_at", "updated_at") VALUES ($1, $2, \'DELIVERY\', $3, $4, now(), now())',
       [handoffId, orderId, `HANDOFF-${handoffId}`, practitionerPrincipalId],
     );
     await expectSqlState(
@@ -1283,9 +1294,231 @@ async function verifyPharmacyCommercialInvariants(databaseUrl: string): Promise<
       [resolutionId],
       "P0001",
     );
+    return { handoffId, orderId };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+async function verifyLogisticsDeliveryInvariants(
+  databaseUrl: string,
+  fixture: LogisticsFixture,
+): Promise<void> {
+  const client = new Client({ connectionString: databaseUrl });
+  const administratorId = v7();
+  const courierId = v7();
+  const outsiderId = v7();
+  const organizationId = v7();
+  const pendingOrganizationId = v7();
+  const membershipId = v7();
+  const deliveryId = v7();
+  const assignmentId = v7();
+  const proofId = v7();
+
+  await client.connect();
+  try {
+    await client.query(
+      'INSERT INTO "identity_principals" ("id", "updated_at") VALUES ($1, now()), ($2, now()), ($3, now())',
+      [administratorId, courierId, outsiderId],
+    );
+    await client.query(
+      `INSERT INTO "organizations"
+         ("id", "type", "verification_status", "verified_at", "legal_name", "display_name", "updated_at")
+       VALUES ($1, 'LOGISTICS', 'VERIFIED', now(), 'Synthetic Logistics Limited', 'Synthetic Logistics', now()),
+              ($2, 'LOGISTICS', 'PENDING', NULL, 'Pending Logistics Limited', 'Pending Logistics', now())`,
+      [organizationId, pendingOrganizationId],
+    );
+    await client.query(
+      'INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at") VALUES ($1, $2, $3, now())',
+      [membershipId, organizationId, courierId],
+    );
+    await client.query(
+      `INSERT INTO "role_assignments"
+         ("id", "membership_id", "granted_by_principal_id", "role", "scope", "updated_at")
+       VALUES ($1, $2, $3, 'LOGISTICS', 'ORGANIZATION', now())`,
+      [v7(), membershipId, administratorId],
+    );
+
+    const insertDelivery = async (logisticsOrganizationId: string): Promise<void> => {
+      await client.query(
+        `INSERT INTO "logistics_deliveries" (
+           "id", "delivery_number", "order_id", "handoff_id", "logistics_organization_id",
+           "pickup_location_name", "pickup_contact_name", "pickup_contact_phone_e164",
+           "pickup_address_line_1", "pickup_locality", "pickup_administrative_area",
+           "pickup_country_code", "recipient_name", "recipient_phone_e164",
+           "delivery_address_line_1", "delivery_locality", "delivery_administrative_area",
+           "delivery_country_code", "recipient_code_digest", "recipient_code_expires_at",
+           "assigned_at", "updated_at"
+         ) VALUES (
+           $1, $2, $3, $4, $5, 'Synthetic Pharmacy', 'Synthetic Pharmacist', '+15555550101',
+           '1 Synthetic Pharmacy Street', 'Toronto', 'Ontario', 'CA', 'Synthetic Patient',
+           '+15555550102', '2 Synthetic Patient Street', 'Toronto', 'Ontario', 'CA', $6,
+           now() + interval '1 day', now(), now()
+         )`,
+        [
+          deliveryId,
+          `DELIVERY-${deliveryId}`,
+          fixture.orderId,
+          fixture.handoffId,
+          logisticsOrganizationId,
+          "a".repeat(64),
+        ],
+      );
+    };
+
+    await client.query("BEGIN");
+    await expectSqlState(
+      client,
+      `INSERT INTO "logistics_deliveries" (
+         "id", "delivery_number", "order_id", "handoff_id", "logistics_organization_id",
+         "pickup_location_name", "pickup_contact_name", "pickup_contact_phone_e164",
+         "pickup_address_line_1", "pickup_locality", "pickup_administrative_area",
+         "pickup_country_code", "recipient_name", "recipient_phone_e164",
+         "delivery_address_line_1", "delivery_locality", "delivery_administrative_area",
+         "delivery_country_code", "recipient_code_digest", "recipient_code_expires_at",
+         "assigned_at", "updated_at"
+       ) VALUES ($1, $2, $3, $4, $5, 'Pickup', 'Contact', '+15555550101', '1 Street',
+         'Toronto', 'Ontario', 'CA', 'Recipient', '+15555550102', '2 Street', 'Toronto',
+         'Ontario', 'CA', $6, now() + interval '1 day', now(), now())`,
+      [
+        v7(),
+        `INVALID-${v7()}`,
+        fixture.orderId,
+        fixture.handoffId,
+        pendingOrganizationId,
+        "b".repeat(64),
+      ],
+      "P0001",
+    );
+    await client.query("ROLLBACK");
+
+    await client.query("BEGIN");
+    await insertDelivery(organizationId);
+    await client.query(
+      `INSERT INTO "logistics_delivery_assignments"
+         ("id", "delivery_id", "logistics_organization_id", "courier_principal_id",
+          "assigned_by_principal_id", "assigned_at")
+       VALUES ($1, $2, $3, $4, $5, now())`,
+      [assignmentId, deliveryId, organizationId, courierId, administratorId],
+    );
+    await client.query(
+      `INSERT INTO "logistics_delivery_status_history"
+         ("id", "delivery_id", "from_status", "to_status", "actor_principal_id",
+          "idempotency_key", "occurred_at")
+       VALUES ($1, $2, NULL, 'ASSIGNED', $3, $4, now())`,
+      [v7(), deliveryId, administratorId, `delivery:${deliveryId}:assigned`],
+    );
+    await client.query("COMMIT");
+
+    await expectSqlState(
+      client,
+      `INSERT INTO "logistics_delivery_assignments"
+         ("id", "delivery_id", "logistics_organization_id", "courier_principal_id",
+          "assigned_by_principal_id", "assigned_at")
+       VALUES ($1, $2, $3, $4, $5, now())`,
+      [v7(), deliveryId, organizationId, outsiderId, administratorId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "logistics_deliveries"
+          SET "status" = 'PICKED_UP', "picked_up_at" = now(), "updated_at" = now(),
+              "version" = "version" + 1
+        WHERE "id" = $1`,
+      [deliveryId],
+      "P0001",
+    );
+
+    const transitions: readonly {
+      column: string | null;
+      from: string;
+      to: string;
+    }[] = [
+      { column: "accepted_at", from: "ASSIGNED", to: "ACCEPTED" },
+      { column: null, from: "ACCEPTED", to: "HEADING_TO_PICKUP" },
+      { column: "arrived_at_pickup_at", from: "HEADING_TO_PICKUP", to: "ARRIVED_AT_PICKUP" },
+      { column: "pickup_verified_at", from: "ARRIVED_AT_PICKUP", to: "PICKUP_VERIFIED" },
+      { column: "picked_up_at", from: "PICKUP_VERIFIED", to: "PICKED_UP" },
+      { column: null, from: "PICKED_UP", to: "IN_TRANSIT" },
+      {
+        column: "arrived_at_destination_at",
+        from: "IN_TRANSIT",
+        to: "ARRIVED_AT_DESTINATION",
+      },
+    ];
+    for (const transition of transitions) {
+      await client.query("BEGIN");
+      const timestamp = transition.column === null ? "" : `, "${transition.column}" = now()`;
+      await client.query(
+        `UPDATE "logistics_deliveries"
+            SET "status" = $1${timestamp}, "updated_at" = now(), "version" = "version" + 1
+          WHERE "id" = $2 AND "status" = $3`,
+        [transition.to, deliveryId, transition.from],
+      );
+      await client.query(
+        `INSERT INTO "logistics_delivery_status_history"
+           ("id", "delivery_id", "from_status", "to_status", "actor_principal_id",
+            "idempotency_key", "occurred_at")
+         VALUES ($1, $2, $3::"LogisticsDeliveryStatus", $4::"LogisticsDeliveryStatus", $5, $6, now())`,
+        [
+          v7(),
+          deliveryId,
+          transition.from,
+          transition.to,
+          courierId,
+          `delivery:${deliveryId}:${transition.to}`,
+        ],
+      );
+      await client.query("COMMIT");
+    }
+
+    await client.query(
+      `INSERT INTO "logistics_delivery_proofs"
+         ("id", "delivery_id", "method", "recorded_by_principal_id", "verified_at")
+       VALUES ($1, $2, 'RECIPIENT_CODE', $3, now())`,
+      [proofId, deliveryId, courierId],
+    );
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE "logistics_deliveries"
+          SET "status" = 'DELIVERED', "delivered_at" = now(), "updated_at" = now(),
+              "version" = "version" + 1
+        WHERE "id" = $1 AND "status" = 'ARRIVED_AT_DESTINATION'`,
+      [deliveryId],
+    );
+    await client.query(
+      `INSERT INTO "logistics_delivery_status_history"
+         ("id", "delivery_id", "from_status", "to_status", "actor_principal_id",
+          "idempotency_key", "occurred_at")
+       VALUES ($1, $2, 'ARRIVED_AT_DESTINATION', 'DELIVERED', $3, $4, now())`,
+      [v7(), deliveryId, courierId, `delivery:${deliveryId}:DELIVERED`],
+    );
+    await client.query("COMMIT");
+
+    await expectSqlState(
+      client,
+      `UPDATE "logistics_deliveries"
+          SET "status" = 'IN_TRANSIT', "delivered_at" = NULL, "updated_at" = now(),
+              "version" = "version" + 1
+        WHERE "id" = $1`,
+      [deliveryId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'UPDATE "logistics_delivery_proofs" SET "verified_at" = now() WHERE "id" = $1',
+      [proofId],
+      "P0001",
+    );
+    await expectSqlState(
+      client,
+      'DELETE FROM "logistics_delivery_status_history" WHERE "delivery_id" = $1',
+      [deliveryId],
+      "P0001",
+    );
   } finally {
     await client.end();
   }

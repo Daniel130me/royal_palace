@@ -34,6 +34,7 @@ enum OrganizationType {
   HOSPITAL
   PHARMACY
   LABORATORY
+  LOGISTICS
 }
 
 enum OrganizationStatus {
@@ -542,6 +543,30 @@ enum PharmacyOrderHandoffStatus {
   CANCELLED
 }
 
+enum LogisticsDeliveryStatus {
+  ASSIGNED
+  ACCEPTED
+  HEADING_TO_PICKUP
+  ARRIVED_AT_PICKUP
+  PICKUP_VERIFIED
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVED_AT_DESTINATION
+  DELIVERED
+  FAILED
+  RETURNED
+  CANCELLED
+}
+
+enum LogisticsAssignmentStatus {
+  ACTIVE
+  RELEASED
+}
+
+enum LogisticsDeliveryProofMethod {
+  RECIPIENT_CODE
+}
+
 enum PharmacyOrderResolutionType {
   CANCELLATION
   REFUND
@@ -647,6 +672,10 @@ model IdentityPrincipal {
   moderatedLaboratoryReviews     LaboratoryBookingReview[]          @relation("LaboratoryReviewModerator")
   createdTeamInvitations         OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationCreator")
   acceptedTeamInvitations        OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationAcceptor")
+  logisticsDeliveryAssignments   LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCourier")
+  createdLogisticsAssignments    LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCreator")
+  logisticsDeliveryStatusChanges LogisticsDeliveryStatusHistory[]   @relation("LogisticsDeliveryStatusActor")
+  logisticsDeliveryProofs        LogisticsDeliveryProof[]           @relation("LogisticsDeliveryProofRecorder")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -790,6 +819,8 @@ model Organization {
   earnings                          OrganizationEarning[]
   payoutRequests                    OrganizationPayoutRequest[]
   teamInvitations                   OrganizationTeamInvitation[]
+  assignedLogisticsDeliveries       LogisticsDelivery[]             @relation("LogisticsDeliveryOrganization")
+  logisticsDeliveryAssignments      LogisticsDeliveryAssignment[]
 
   @@index([type, status, displayName, id], map: "organizations_type_status_name_id_idx")
   @@index([type, status, verificationStatus, displayName, id], map: "organizations_public_discovery_idx")
@@ -2670,6 +2701,7 @@ model PharmacyOrder {
   acceptedByPrincipal    IdentityPrincipal         @relation("PharmacyOrderAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
   payment                Payment?
   handoff                PharmacyOrderHandoff?
+  logisticsDelivery      LogisticsDelivery?
   resolutions            PharmacyOrderResolution[]
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "pharmacy_orders_patient_created_idx")
@@ -2698,9 +2730,117 @@ model PharmacyOrderHandoff {
   order                  PharmacyOrder              @relation(fields: [orderId], references: [id], onDelete: Restrict)
   preparedByPrincipal    IdentityPrincipal          @relation("PharmacyOrderHandoffPreparer", fields: [preparedByPrincipalId], references: [id], onDelete: Restrict)
   handedOffByPrincipal   IdentityPrincipal?         @relation("PharmacyOrderHandoffCompleter", fields: [handedOffByPrincipalId], references: [id], onDelete: Restrict)
+  logisticsDelivery      LogisticsDelivery?
 
   @@index([status, preparedAt, id], map: "pharmacy_order_handoffs_status_prepared_idx")
   @@map("pharmacy_order_handoffs")
+}
+
+model LogisticsDelivery {
+  id                         String                           @id @db.Uuid
+  deliveryNumber             String                           @unique @map("delivery_number") @db.VarChar(64)
+  orderId                    String                           @unique @map("order_id") @db.Uuid
+  handoffId                  String                           @unique @map("handoff_id") @db.Uuid
+  logisticsOrganizationId    String                           @map("logistics_organization_id") @db.Uuid
+  status                     LogisticsDeliveryStatus          @default(ASSIGNED)
+  pickupLocationName         String                           @map("pickup_location_name") @db.VarChar(120)
+  pickupContactName          String                           @map("pickup_contact_name") @db.VarChar(160)
+  pickupContactPhoneE164     String                           @map("pickup_contact_phone_e164") @db.VarChar(16)
+  pickupAddressLine1         String                           @map("pickup_address_line_1") @db.VarChar(200)
+  pickupAddressLine2         String?                          @map("pickup_address_line_2") @db.VarChar(200)
+  pickupLocality             String                           @map("pickup_locality") @db.VarChar(120)
+  pickupAdministrativeArea   String                           @map("pickup_administrative_area") @db.VarChar(120)
+  pickupPostalCode           String?                          @map("pickup_postal_code") @db.VarChar(32)
+  pickupCountryCode          String                           @map("pickup_country_code") @db.Char(2)
+  recipientName              String                           @map("recipient_name") @db.VarChar(160)
+  recipientPhoneE164         String                           @map("recipient_phone_e164") @db.VarChar(16)
+  deliveryAddressLine1       String                           @map("delivery_address_line_1") @db.VarChar(200)
+  deliveryAddressLine2       String?                          @map("delivery_address_line_2") @db.VarChar(200)
+  deliveryLocality           String                           @map("delivery_locality") @db.VarChar(120)
+  deliveryAdministrativeArea String                           @map("delivery_administrative_area") @db.VarChar(120)
+  deliveryPostalCode         String?                          @map("delivery_postal_code") @db.VarChar(32)
+  deliveryCountryCode        String                           @map("delivery_country_code") @db.Char(2)
+  deliveryInstruction        String?                          @map("delivery_instruction") @db.VarChar(500)
+  recipientCodeDigest        String                           @map("recipient_code_digest") @db.Char(64)
+  recipientCodeExpiresAt     DateTime                         @map("recipient_code_expires_at") @db.Timestamptz(6)
+  assignedAt                 DateTime                         @map("assigned_at") @db.Timestamptz(6)
+  acceptedAt                 DateTime?                        @map("accepted_at") @db.Timestamptz(6)
+  arrivedAtPickupAt          DateTime?                        @map("arrived_at_pickup_at") @db.Timestamptz(6)
+  pickupVerifiedAt           DateTime?                        @map("pickup_verified_at") @db.Timestamptz(6)
+  pickedUpAt                 DateTime?                        @map("picked_up_at") @db.Timestamptz(6)
+  arrivedAtDestinationAt     DateTime?                        @map("arrived_at_destination_at") @db.Timestamptz(6)
+  deliveredAt                DateTime?                        @map("delivered_at") @db.Timestamptz(6)
+  failedAt                   DateTime?                        @map("failed_at") @db.Timestamptz(6)
+  returnedAt                 DateTime?                        @map("returned_at") @db.Timestamptz(6)
+  cancelledAt                DateTime?                        @map("cancelled_at") @db.Timestamptz(6)
+  createdAt                  DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                    Int                              @default(1)
+  order                      PharmacyOrder                    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  handoff                    PharmacyOrderHandoff             @relation(fields: [handoffId], references: [id], onDelete: Restrict)
+  logisticsOrganization      Organization                     @relation("LogisticsDeliveryOrganization", fields: [logisticsOrganizationId], references: [id], onDelete: Restrict)
+  assignments                LogisticsDeliveryAssignment[]
+  statusHistory              LogisticsDeliveryStatusHistory[]
+  proof                      LogisticsDeliveryProof?
+
+  @@index([logisticsOrganizationId, status, assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_deliveries_org_status_assigned_idx")
+  @@index([status, assignedAt, id], map: "logistics_deliveries_status_assigned_idx")
+  @@index([orderId, status, id], map: "logistics_deliveries_order_status_idx")
+  @@map("logistics_deliveries")
+}
+
+model LogisticsDeliveryAssignment {
+  id                      String                    @id @db.Uuid
+  deliveryId              String                    @map("delivery_id") @db.Uuid
+  logisticsOrganizationId String                    @map("logistics_organization_id") @db.Uuid
+  courierPrincipalId      String?                   @map("courier_principal_id") @db.Uuid
+  status                  LogisticsAssignmentStatus @default(ACTIVE)
+  assignedByPrincipalId   String                    @map("assigned_by_principal_id") @db.Uuid
+  assignedAt              DateTime                  @map("assigned_at") @db.Timestamptz(6)
+  releasedAt              DateTime?                 @map("released_at") @db.Timestamptz(6)
+  releaseReasonCode       String?                   @map("release_reason_code") @db.VarChar(100)
+  createdAt               DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  version                 Int                       @default(1)
+  delivery                LogisticsDelivery         @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  logisticsOrganization   Organization              @relation(fields: [logisticsOrganizationId], references: [id], onDelete: Restrict)
+  courierPrincipal        IdentityPrincipal?        @relation("LogisticsAssignmentCourier", fields: [courierPrincipalId], references: [id], onDelete: Restrict)
+  assignedByPrincipal     IdentityPrincipal         @relation("LogisticsAssignmentCreator", fields: [assignedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([logisticsOrganizationId, status, assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_assignments_org_status_assigned_idx")
+  @@index([courierPrincipalId, status, assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_assignments_courier_status_idx")
+  @@map("logistics_delivery_assignments")
+}
+
+model LogisticsDeliveryStatusHistory {
+  id               String                   @id @db.Uuid
+  deliveryId       String                   @map("delivery_id") @db.Uuid
+  fromStatus       LogisticsDeliveryStatus? @map("from_status")
+  toStatus         LogisticsDeliveryStatus  @map("to_status")
+  actorPrincipalId String                   @map("actor_principal_id") @db.Uuid
+  reasonCode       String?                  @map("reason_code") @db.VarChar(100)
+  idempotencyKey   String                   @unique @map("idempotency_key") @db.VarChar(160)
+  occurredAt       DateTime                 @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  delivery         LogisticsDelivery        @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal        @relation("LogisticsDeliveryStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryId, toStatus], map: "logistics_delivery_history_delivery_status_key")
+  @@index([deliveryId, occurredAt, id], map: "logistics_delivery_history_delivery_time_idx")
+  @@map("logistics_delivery_status_history")
+}
+
+model LogisticsDeliveryProof {
+  id                    String                       @id @db.Uuid
+  deliveryId            String                       @unique @map("delivery_id") @db.Uuid
+  method                LogisticsDeliveryProofMethod
+  recordedByPrincipalId String                       @map("recorded_by_principal_id") @db.Uuid
+  verifiedAt            DateTime                     @map("verified_at") @db.Timestamptz(6)
+  createdAt             DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  delivery              LogisticsDelivery            @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  recordedByPrincipal   IdentityPrincipal            @relation("LogisticsDeliveryProofRecorder", fields: [recordedByPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([verifiedAt(sort: Desc), id(sort: Desc)], map: "logistics_delivery_proofs_verified_idx")
+  @@map("logistics_delivery_proofs")
 }
 
 model PharmacyOrderResolution {
