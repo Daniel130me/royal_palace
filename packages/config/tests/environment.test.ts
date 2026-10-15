@@ -12,6 +12,8 @@ const validEnvironment = {
   DATABASE_URL: "postgresql://test-user:test-password@127.0.0.1:5432/test-db",
   DEPENDENCY_TIMEOUT_MS: "1500",
   LOG_LEVEL: "info",
+  LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: "test-logistics-key-1",
+  LOGISTICS_RECIPIENT_CODE_KEYS: JSON.stringify({ "test-logistics-key-1": testKey }),
   IDENTITY_ACTIVE_ENCRYPTION_KEY_ID: "test-key-1",
   IDENTITY_ENCRYPTION_KEYS: JSON.stringify({ "test-key-1": testKey }),
   LOGIN_TRANSACTION_TTL_SECONDS: "300",
@@ -144,6 +146,26 @@ describe("loadServiceConfig", () => {
     expect(() =>
       loadServiceConfig("api", { ...validEnvironment, TEAM_INVITATION_TTL_SECONDS: "899" }),
     ).toThrow(/TEAM_INVITATION_TTL_SECONDS/);
+  });
+
+  it("requires a bounded logistics code lifetime and an active key in the configured key ring", () => {
+    expect(loadServiceConfig("api", validEnvironment).logisticsRecipientCode).toEqual({
+      activeKeyId: "test-logistics-key-1",
+      keys: { "test-logistics-key-1": testKey },
+      ttlSeconds: 900,
+    });
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: "missing-key",
+      }),
+    ).toThrow(/LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID/);
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        LOGISTICS_RECIPIENT_CODE_TTL_SECONDS: "60",
+      }),
+    ).toThrow(/LOGISTICS_RECIPIENT_CODE_TTL_SECONDS/);
   });
 
   it("allows the synthetic gateway only outside protected environments", () => {

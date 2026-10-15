@@ -82,12 +82,18 @@ export class PolicyEngine {
       case AUTHORIZATION_POLICY.MANAGE_PHARMACY_SETTINGS:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
       case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
-      case AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY:
       case AUTHORIZATION_POLICY.REQUEST_ORGANIZATION_PAYOUT:
         return this.canManageOrganizationResource(
           request.actor,
           request.context.organizationId,
           request.policy,
+        );
+      case AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY:
+        return this.canManageLogisticsResource(request.actor, request.context.organizationId);
+      case AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT:
+        return this.canAdministerLogisticsCourierAssignment(
+          request.actor,
+          request.context.organizationId,
         );
       case AUTHORIZATION_POLICY.VIEW_ORGANIZATION_FINANCIALS:
         if (request.context.organizationId === undefined) {
@@ -221,18 +227,68 @@ export class PolicyEngine {
     if (administrator !== null) {
       return this.allow(policy, administrator, ALLOW.ADMINISTRATOR);
     }
-    if (actor.roles.includes("PATIENT") && actor.principalId === context.patientPrincipalId) {
+    if (
+      context.patientPrincipalId !== undefined &&
+      actor.roles.includes("PATIENT") &&
+      actor.principalId === context.patientPrincipalId
+    ) {
       return this.allow(policy, "PATIENT", ALLOW.OWNER);
     }
-    const organizationRole = this.firstOrganizationRole(actor, context.logisticsOrganizationId, [
-      "ORGANIZATION_ADMIN",
-      "ORGANIZATION_STAFF",
-      "LOGISTICS",
-    ]);
-    if (organizationRole !== null) {
-      return this.allow(policy, organizationRole, ALLOW.ORGANIZATION_MEMBER);
+    if (context.logisticsOrganizationId !== undefined) {
+      const organizationRole = this.firstOrganizationRole(actor, context.logisticsOrganizationId, [
+        "ORGANIZATION_ADMIN",
+        "ORGANIZATION_STAFF",
+        "LOGISTICS",
+      ]);
+      if (organizationRole !== null) {
+        return this.allow(policy, organizationRole, ALLOW.ORGANIZATION_MEMBER);
+      }
     }
-    return this.canManageOrganizationResource(actor, context.pharmacyOrganizationId, policy);
+    if (context.pharmacyOrganizationId !== undefined) {
+      return this.canManageOrganizationResource(actor, context.pharmacyOrganizationId, policy);
+    }
+    return this.deny(policy, "delivery_relationship_required");
+  }
+
+  private canManageLogisticsResource(
+    actor: CurrentSession,
+    organizationId: string,
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY;
+    const membership = actor.memberships.find(
+      (item) => item.organizationId === organizationId && item.organizationType === "LOGISTICS",
+    );
+    const role =
+      membership === undefined
+        ? null
+        : this.firstOrganizationRole(actor, organizationId, [
+            "ORGANIZATION_ADMIN",
+            "ORGANIZATION_STAFF",
+            "LOGISTICS",
+          ]);
+    return role === null
+      ? this.deny(policy, "assigned_logistics_membership_required")
+      : this.allow(policy, role, ALLOW.ORGANIZATION_MEMBER);
+  }
+
+  private canAdministerLogisticsCourierAssignment(
+    actor: CurrentSession,
+    organizationId: string,
+  ): AuthorizationDecision {
+    const policy = AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT;
+    const membership = actor.memberships.find(
+      (item) => item.organizationId === organizationId && item.organizationType === "LOGISTICS",
+    );
+    const role =
+      membership === undefined
+        ? null
+        : this.firstOrganizationRole(actor, organizationId, [
+            "ORGANIZATION_ADMIN",
+            "ORGANIZATION_STAFF",
+          ]);
+    return role === null
+      ? this.deny(policy, "logistics_dispatcher_membership_required")
+      : this.allow(policy, role, ALLOW.ORGANIZATION_MEMBER);
   }
 
   private canViewOrganization(

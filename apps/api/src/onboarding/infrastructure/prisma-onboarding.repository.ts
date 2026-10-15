@@ -9,6 +9,7 @@ import type {
 import type { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { requirePublicOrganizationType } from "../../platform/organization-types.js";
 import { enqueueEmailNotification } from "../../notification/infrastructure/enqueue-notification.js";
 import { SERVICE_CONFIG } from "../../tokens.js";
 import type {
@@ -949,7 +950,11 @@ function applicationData(record: ApplicationDetailRecord): OnboardingApplication
       const { requestedServices, ...values } = detail;
       return {
         kind: "ORGANIZATION",
-        values: { ...values, serviceIds: requestedServices.map(({ serviceId }) => serviceId) },
+        values: {
+          ...values,
+          organizationType: requirePublicOrganizationType(values.organizationType),
+          serviceIds: requestedServices.map(({ serviceId }) => serviceId),
+        },
       };
     }
     case "PRACTITIONER": {

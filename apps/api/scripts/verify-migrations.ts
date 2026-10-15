@@ -1350,12 +1350,12 @@ async function verifyLogisticsDeliveryInvariants(
            "pickup_address_line_1", "pickup_locality", "pickup_administrative_area",
            "pickup_country_code", "recipient_name", "recipient_phone_e164",
            "delivery_address_line_1", "delivery_locality", "delivery_administrative_area",
-           "delivery_country_code", "recipient_code_digest", "recipient_code_expires_at",
+           "delivery_country_code", "recipient_code_digest", "recipient_code_key_id", "recipient_code_expires_at",
            "assigned_at", "updated_at"
          ) VALUES (
            $1, $2, $3, $4, $5, 'Synthetic Pharmacy', 'Synthetic Pharmacist', '+15555550101',
            '1 Synthetic Pharmacy Street', 'Toronto', 'Ontario', 'CA', 'Synthetic Patient',
-           '+15555550102', '2 Synthetic Patient Street', 'Toronto', 'Ontario', 'CA', $6,
+           '+15555550102', '2 Synthetic Patient Street', 'Toronto', 'Ontario', 'CA', $6, 'test-key-1',
            now() + interval '1 day', now(), now()
          )`,
         [
@@ -1378,11 +1378,11 @@ async function verifyLogisticsDeliveryInvariants(
          "pickup_address_line_1", "pickup_locality", "pickup_administrative_area",
          "pickup_country_code", "recipient_name", "recipient_phone_e164",
          "delivery_address_line_1", "delivery_locality", "delivery_administrative_area",
-         "delivery_country_code", "recipient_code_digest", "recipient_code_expires_at",
+         "delivery_country_code", "recipient_code_digest", "recipient_code_key_id", "recipient_code_expires_at",
          "assigned_at", "updated_at"
        ) VALUES ($1, $2, $3, $4, $5, 'Pickup', 'Contact', '+15555550101', '1 Street',
          'Toronto', 'Ontario', 'CA', 'Recipient', '+15555550102', '2 Street', 'Toronto',
-         'Ontario', 'CA', $6, now() + interval '1 day', now(), now())`,
+         'Ontario', 'CA', $6, 'test-key-1', now() + interval '1 day', now(), now())`,
       [
         v7(),
         `INVALID-${v7()}`,
@@ -1413,6 +1413,23 @@ async function verifyLogisticsDeliveryInvariants(
     );
     await client.query("COMMIT");
 
+    await expectSqlState(
+      client,
+      `INSERT INTO "logistics_delivery_assignments"
+         ("id", "delivery_id", "logistics_organization_id", "courier_principal_id",
+          "assigned_by_principal_id", "assigned_at")
+       VALUES ($1, $2, $3, $4, $5, now())`,
+      [v7(), deliveryId, organizationId, courierId, administratorId],
+      "23505",
+    );
+    await expectSqlState(
+      client,
+      `UPDATE "logistics_deliveries"
+          SET "recipient_code_key_id" = 'different-key', "updated_at" = now()
+        WHERE "id" = $1`,
+      [deliveryId],
+      "P0001",
+    );
     await expectSqlState(
       client,
       `INSERT INTO "logistics_delivery_assignments"

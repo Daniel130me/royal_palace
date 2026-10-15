@@ -1,0 +1,526 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace logistics API
+  version: 0.1.0
+servers:
+  - url: /
+paths:
+  /v1/admin/logistics/deliveries:
+    get:
+      operationId: listAdminLogisticsDeliveries
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Bounded administrator delivery oversight page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminDeliveryPage" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: dispatchLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DispatchDeliveryInput" }
+      responses:
+        "201":
+          description: Delivery dispatched
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/admin/logistics/deliveries/{deliveryId}:
+    get:
+      operationId: getAdminLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+      responses:
+        "200":
+          description: Privacy-minimized administrator delivery oversight
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/admin/logistics/deliveries/{deliveryId}/reassign:
+    post:
+      operationId: reassignLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReassignDeliveryInput" }
+      responses:
+        "200":
+          description: Delivery reassigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/admin/logistics/deliveries/{deliveryId}/cancel:
+    post:
+      operationId: cancelLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelDeliveryInput" }
+      responses:
+        "200":
+          description: Delivery cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries:
+    get:
+      operationId: listLogisticsOrganizationDeliveries
+      parameters:
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Exact-organization delivery queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsDeliveryPage" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries/{deliveryId}:
+    get:
+      operationId: getLogisticsOrganizationDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Fulfilment projection for the assigned logistics organization
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries/{deliveryId}/history:
+    get:
+      operationId: listLogisticsDeliveryHistory
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Bounded immutable delivery history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryHistoryPage" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries/{deliveryId}/courier-assignment:
+    post:
+      operationId: assignLogisticsCourier
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignCourierInput" }
+      responses:
+        "200":
+          description: Courier assigned within the exact organization
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/logistics/deliveries/{deliveryId}/transitions:
+    post:
+      operationId: transitionLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransitionDeliveryInput" }
+      responses:
+        "200":
+          description: Delivery progressed by its assigned courier
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/patient/logistics/deliveries:
+    get:
+      operationId: listPatientLogisticsDeliveries
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Authenticated patient's delivery tracking page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingDeliveryPage" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/patient/logistics/deliveries/{deliveryId}:
+    get:
+      operationId: getPatientLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+      responses:
+        "200":
+          description: Authenticated patient's delivery tracking projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/pharmacy/logistics-deliveries:
+    get:
+      operationId: listPharmacyLogisticsDeliveries
+      parameters:
+        - $ref: "#/components/parameters/OrganizationId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Exact-pharmacy delivery handoff page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyDeliveryPage" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/pharmacy/logistics-deliveries/{deliveryId}:
+    get:
+      operationId: getPharmacyLogisticsDelivery
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+        - $ref: "#/components/parameters/OrganizationId"
+      responses:
+        "200":
+          description: Exact-pharmacy delivery handoff projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PharmacyDelivery" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string, minLength: 1, maxLength: 1024 }
+    DeliveryId:
+      name: deliveryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+    OrganizationId:
+      name: X-Organization-Id
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+    Status:
+      name: status
+      in: query
+      schema: { $ref: "#/components/schemas/DeliveryStatus" }
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    DeliveryStatus:
+      type: string
+      enum:
+        [
+          ASSIGNED,
+          ACCEPTED,
+          HEADING_TO_PICKUP,
+          ARRIVED_AT_PICKUP,
+          PICKUP_VERIFIED,
+          PICKED_UP,
+          IN_TRANSIT,
+          ARRIVED_AT_DESTINATION,
+          DELIVERED,
+          FAILED,
+          RETURNED,
+          CANCELLED,
+        ]
+    MutableDeliveryStatus:
+      type: string
+      enum:
+        [
+          ACCEPTED,
+          HEADING_TO_PICKUP,
+          ARRIVED_AT_PICKUP,
+          PICKUP_VERIFIED,
+          PICKED_UP,
+          IN_TRANSIT,
+          ARRIVED_AT_DESTINATION,
+          FAILED,
+          RETURNED,
+        ]
+    Address:
+      type: object
+      additionalProperties: false
+      required: [addressLine1, administrativeArea, countryCode, locality]
+      properties:
+        addressLine1: { type: string, minLength: 2, maxLength: 200 }
+        addressLine2: { type: string, minLength: 1, maxLength: 200 }
+        administrativeArea: { type: string, minLength: 1, maxLength: 120 }
+        countryCode: { type: string, pattern: "^[A-Za-z]{2}$" }
+        locality: { type: string, minLength: 1, maxLength: 120 }
+        postalCode: { type: string, minLength: 1, maxLength: 32 }
+    Area:
+      type: object
+      additionalProperties: false
+      required: [administrativeArea, countryCode, locality]
+      properties:
+        administrativeArea: { type: string }
+        countryCode: { type: string }
+        locality: { type: string }
+        postalCode: { type: string }
+    Timeline:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acceptedAt,
+          arrivedAtDestinationAt,
+          arrivedAtPickupAt,
+          assignedAt,
+          cancelledAt,
+          deliveredAt,
+          failedAt,
+          pickedUpAt,
+          pickupVerifiedAt,
+          returnedAt,
+        ]
+      properties:
+        acceptedAt: { type: [string, "null"], format: date-time }
+        arrivedAtDestinationAt: { type: [string, "null"], format: date-time }
+        arrivedAtPickupAt: { type: [string, "null"], format: date-time }
+        assignedAt: { type: string, format: date-time }
+        cancelledAt: { type: [string, "null"], format: date-time }
+        deliveredAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+        pickedUpAt: { type: [string, "null"], format: date-time }
+        pickupVerifiedAt: { type: [string, "null"], format: date-time }
+        returnedAt: { type: [string, "null"], format: date-time }
+    BaseDelivery:
+      type: object
+      additionalProperties: false
+      required: [deliveryNumber, handoffReference, id, status, timeline, updatedAt, version]
+      properties:
+        deliveryNumber: { type: string }
+        handoffReference: { type: string }
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/DeliveryStatus" }
+        timeline: { $ref: "#/components/schemas/Timeline" }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    AdminDelivery:
+      allOf:
+        - $ref: "#/components/schemas/BaseDelivery"
+        - type: object
+          required:
+            [
+              courierAssigned,
+              deliveryArea,
+              logisticsOrganizationId,
+              orderNumber,
+              pharmacyOrganizationId,
+              pickupArea,
+            ]
+          properties:
+            courierAssigned: { type: boolean }
+            deliveryArea: { $ref: "#/components/schemas/Area" }
+            logisticsOrganizationId: { type: string, format: uuid }
+            orderNumber: { type: string }
+            pharmacyOrganizationId: { type: string, format: uuid }
+            pickupArea: { $ref: "#/components/schemas/Area" }
+    ActiveAssignment:
+      type: object
+      additionalProperties: false
+      required: [assignedAt, courierPrincipalId, id, logisticsOrganizationId, version]
+      properties:
+        assignedAt: { type: string, format: date-time }
+        courierPrincipalId: { type: [string, "null"], format: uuid }
+        id: { type: string, format: uuid }
+        logisticsOrganizationId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+    LogisticsDelivery:
+      allOf:
+        - $ref: "#/components/schemas/BaseDelivery"
+        - type: object
+          required:
+            [
+              activeAssignment,
+              deliveryAddress,
+              deliveryInstruction,
+              orderNumber,
+              pickupAddress,
+              pickupContactName,
+              pickupContactPhoneE164,
+              pickupLocationName,
+              recipientName,
+              recipientPhoneE164,
+            ]
+          properties:
+            activeAssignment:
+              { oneOf: [{ $ref: "#/components/schemas/ActiveAssignment" }, { type: "null" }] }
+            deliveryAddress: { $ref: "#/components/schemas/Address" }
+            deliveryInstruction: { type: [string, "null"] }
+            orderNumber: { type: string }
+            pickupAddress: { $ref: "#/components/schemas/Address" }
+            pickupContactName: { type: string }
+            pickupContactPhoneE164: { type: string }
+            pickupLocationName: { type: string }
+            recipientName: { type: string }
+            recipientPhoneE164: { type: string }
+    TrackingDelivery:
+      allOf:
+        - $ref: "#/components/schemas/BaseDelivery"
+        - type: object
+          required: [deliveryArea, pickupLocationName]
+          properties:
+            deliveryArea: { $ref: "#/components/schemas/Area" }
+            pickupLocationName: { type: string }
+    PharmacyDelivery:
+      allOf:
+        - $ref: "#/components/schemas/BaseDelivery"
+        - type: object
+          required: [deliveryArea, orderNumber, pickupLocationName]
+          properties:
+            deliveryArea: { $ref: "#/components/schemas/Area" }
+            orderNumber: { type: string }
+            pickupLocationName: { type: string }
+    DispatchDeliveryInput:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          deliveryAddress,
+          handoffId,
+          logisticsOrganizationId,
+          pickupAddress,
+          pickupContactName,
+          pickupContactPhoneE164,
+          pickupLocationName,
+          recipientName,
+          recipientPhoneE164,
+        ]
+      properties:
+        courierPrincipalId: { type: string, format: uuid }
+        deliveryAddress: { $ref: "#/components/schemas/Address" }
+        deliveryInstruction: { type: string, minLength: 1, maxLength: 500 }
+        handoffId: { type: string, format: uuid }
+        logisticsOrganizationId: { type: string, format: uuid }
+        pickupAddress: { $ref: "#/components/schemas/Address" }
+        pickupContactName: { type: string, minLength: 1, maxLength: 160 }
+        pickupContactPhoneE164: { type: string, pattern: '^\\+[1-9]\\d{6,14}$' }
+        pickupLocationName: { type: string, minLength: 1, maxLength: 120 }
+        recipientName: { type: string, minLength: 1, maxLength: 160 }
+        recipientPhoneE164: { type: string, pattern: '^\\+[1-9]\\d{6,14}$' }
+    ReassignDeliveryInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, logisticsOrganizationId, reasonCode]
+      properties:
+        courierPrincipalId: { type: string, format: uuid }
+        expectedVersion: { type: integer, minimum: 1 }
+        logisticsOrganizationId: { type: string, format: uuid }
+        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+    CancelDeliveryInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reasonCode]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+    AssignCourierInput:
+      type: object
+      additionalProperties: false
+      required: [courierPrincipalId, expectedAssignmentVersion]
+      properties:
+        courierPrincipalId: { type: string, format: uuid }
+        expectedAssignmentVersion: { type: integer, minimum: 1 }
+    TransitionDeliveryInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, toStatus]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+        toStatus: { $ref: "#/components/schemas/MutableDeliveryStatus" }
+    AdminDeliveryPage:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AdminDelivery" } }
+        nextCursor: { type: [string, "null"] }
+    LogisticsDeliveryPage:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/LogisticsDelivery" } }
+        nextCursor: { type: [string, "null"] }
+    TrackingDeliveryPage:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/TrackingDelivery" } }
+        nextCursor: { type: [string, "null"] }
+    PharmacyDeliveryPage:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PharmacyDelivery" } }
+        nextCursor: { type: [string, "null"] }
+    DeliveryHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [fromStatus, id, occurredAt, reasonCode, toStatus]
+      properties:
+        fromStatus: { oneOf: [{ $ref: "#/components/schemas/DeliveryStatus" }, { type: "null" }] }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        reasonCode: { type: [string, "null"] }
+        toStatus: { $ref: "#/components/schemas/DeliveryStatus" }
+    DeliveryHistoryPage:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/DeliveryHistoryItem" } }
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }

@@ -10,6 +10,7 @@ import type {
 
 import type { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
+import { requirePublicOrganizationType } from "../../platform/organization-types.js";
 import type {
   ListOrganizationsQuery,
   PublicDiscoveryRepository,
@@ -247,7 +248,7 @@ function mapOrganizationSummary(record: PublicOrganizationRecord): PublicOrganiz
     id: record.id,
     locations: record.facilityLocations as PublicFacilityLocation[],
     openTwentyFourHours: record.publicProfile.openTwentyFourHours,
-    organizationType: record.type,
+    organizationType: requirePublicOrganizationType(record.type),
     rating: {
       averageScore:
         record.ratingSummary === null || record.ratingSummary.ratingCount === 0

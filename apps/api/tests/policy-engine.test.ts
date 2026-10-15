@@ -29,7 +29,11 @@ const targetPrincipalId = createOpaqueId();
 
 function actor(
   roles: readonly PlatformRole[],
-  options: { organizationRoles?: readonly PlatformRole[]; principalId?: string } = {},
+  options: {
+    organizationRoles?: readonly PlatformRole[];
+    organizationType?: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
+    principalId?: string;
+  } = {},
 ): CurrentSession {
   return {
     absoluteExpiresAt: "2099-01-01T00:00:00.000Z",
@@ -40,7 +44,13 @@ function actor(
     memberships:
       options.organizationRoles === undefined
         ? []
-        : [{ organizationId, organizationType: "HOSPITAL", roles: options.organizationRoles }],
+        : [
+            {
+              organizationId,
+              organizationType: options.organizationType ?? "HOSPITAL",
+              roles: options.organizationRoles,
+            },
+          ],
     principalId: options.principalId ?? createOpaqueId(),
     roles,
     sessionId: createOpaqueId(),
@@ -176,6 +186,7 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.MANAGE_LABORATORY_BOOKING:
     case AUTHORIZATION_POLICY.MANAGE_LABORATORY_RESULT:
     case AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY:
+    case AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT:
       return {
         ...base,
         policy,
@@ -304,6 +315,7 @@ describe("PolicyEngine", () => {
     ADMINISTER_NOTIFICATION_DELIVERY: ["ADMINISTRATOR"],
     ADMINISTER_PHARMACY_ORDER_OVERSIGHT: ["ADMINISTRATOR"],
     ADMINISTER_LOGISTICS_ASSIGNMENT: ["ADMINISTRATOR"],
+    ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT: [],
     ADMINISTER_REVIEW_MODERATION: ["ADMINISTRATOR"],
     ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
     DECIDE_APPLICATION: ["ADMINISTRATOR"],
@@ -618,6 +630,53 @@ describe("PolicyEngine", () => {
     expect(
       engine.evaluate(
         baselineRequest(AUTHORIZATION_POLICY.VIEW_LOGISTICS_DELIVERY, actor(["MANAGER"])),
+      ).allowed,
+    ).toBe(false);
+  });
+
+  it("requires an exact logistics-organization membership to manage delivery operations", () => {
+    const logisticsMember = actor([], {
+      organizationRoles: ["LOGISTICS"],
+      organizationType: "LOGISTICS",
+    });
+    const logisticsAdministrator = actor([], {
+      organizationRoles: ["ORGANIZATION_ADMIN"],
+      organizationType: "LOGISTICS",
+    });
+    const sameRoleAtHospital = actor([], {
+      organizationRoles: ["LOGISTICS"],
+      organizationType: "HOSPITAL",
+    });
+
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY, logisticsMember),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY, logisticsAdministrator),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(AUTHORIZATION_POLICY.MANAGE_LOGISTICS_DELIVERY, sameRoleAtHospital),
+      ).allowed,
+    ).toBe(false);
+    expect(
+      engine.evaluate(
+        baselineRequest(
+          AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT,
+          logisticsAdministrator,
+        ),
+      ).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(
+        baselineRequest(
+          AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT,
+          logisticsMember,
+        ),
       ).allowed,
     ).toBe(false);
   });

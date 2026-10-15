@@ -175,6 +175,9 @@ const serviceEnvironmentSchema = z
       .min(300)
       .max(86_400)
       .default(3_600),
+    LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: z.string().trim().min(1).max(64),
+    LOGISTICS_RECIPIENT_CODE_KEYS: keyRingSchema,
+    LOGISTICS_RECIPIENT_CODE_TTL_SECONDS: z.coerce.number().int().min(300).max(3_600).default(900),
     DATABASE_URL: postgresUrlSchema,
     DEPENDENCY_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
@@ -212,6 +215,13 @@ const serviceEnvironmentSchema = z
     REDIS_URL: redisUrlSchema,
   })
   .superRefine((value, context) => {
+    if (!(value.LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID in value.LOGISTICS_RECIPIENT_CODE_KEYS)) {
+      context.addIssue({
+        code: "custom",
+        message: "must identify a key present in LOGISTICS_RECIPIENT_CODE_KEYS",
+        path: ["LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID"],
+      });
+    }
     if (
       value.APP_ENV !== "production" &&
       (value.CLAMAV_HOST === undefined || value.CLAMAV_PORT === undefined)
@@ -373,6 +383,11 @@ interface BaseServiceConfig {
   };
   laboratory: {
     criticalAcknowledgementSeconds: number;
+  };
+  logisticsRecipientCode: {
+    activeKeyId: string;
+    keys: Readonly<Record<string, string>>;
+    ttlSeconds: number;
   };
   databaseUrl: string;
   dependencyTimeoutMs: number;
@@ -539,6 +554,11 @@ export function loadServiceConfig(
     }),
     laboratory: Object.freeze({
       criticalAcknowledgementSeconds: values.LABORATORY_CRITICAL_ACKNOWLEDGEMENT_SECONDS,
+    }),
+    logisticsRecipientCode: Object.freeze({
+      activeKeyId: values.LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID,
+      keys: Object.freeze(values.LOGISTICS_RECIPIENT_CODE_KEYS),
+      ttlSeconds: values.LOGISTICS_RECIPIENT_CODE_TTL_SECONDS,
     }),
     databaseUrl: values.DATABASE_URL,
     dependencyTimeoutMs: values.DEPENDENCY_TIMEOUT_MS,

@@ -46,17 +46,18 @@ routes or expose prescription, medication, clinical-record, or patient-payment d
 - [x] Add disposable-PostgreSQL clean/upgrade and trigger evidence for verified-organization
       scope, exact courier membership, legal progression, proof-before-delivery, and immutable
       terminal/history/proof state.
-- [ ] Add assignment concurrency and representative logistics query-plan/load evidence before this
-      checkpoint is considered production-qualified.
+- [x] Add assignment concurrency evidence for the one-active-assignment invariant.
+- [ ] Add representative logistics query-plan/load evidence before this checkpoint is considered
+      production-qualified.
 
 ### 11E2 — assignment and operations API
 
-- [ ] Add administrator dispatch/create/reassign/cancel use cases with idempotency, audit, and
+- [x] Add administrator dispatch/create/reassign/cancel use cases with idempotency, audit, and
       optimistic concurrency.
-- [ ] Add exact logistics-organization queues, courier assignment, accept/progress/fail/return,
+- [x] Add exact logistics-organization queues, courier assignment, accept/progress/fail/return,
       and bounded history APIs.
-- [ ] Add privacy-minimized patient tracking and pharmacy handoff projections.
-- [ ] Generate OpenAPI clients and add exact BFF allowlists; no generic resource route may be used.
+- [x] Add privacy-minimized patient tracking and pharmacy handoff projections.
+- [x] Generate OpenAPI clients and add exact BFF allowlists; no generic resource route may be used.
 - [ ] Add field-visibility, authorization, concurrency, replay, and negative-path tests.
 
 ### 11E3 — proof and notification
@@ -105,12 +106,47 @@ No signed prototype screen is connected by 11E1; this is the integrity foundatio
 will consume in 11E2–11E4. The current legacy logistics UI remains visible for prototype comparison
 but is not evidence of production connectivity.
 
+## Checkpoint 11E2 implementation report
+
+The production boundary now exposes administrator dispatch/reassignment/cancellation, exact
+logistics-organization queues and courier assignment, assigned-courier state progression, bounded
+history, patient tracking, and pharmacy handoff tracking. Every mutation is optimistic,
+idempotency-scoped to the authenticated principal and operation, and writes business audit evidence
+in the same transaction. Courier assignment is append-only: assigning a courier releases the prior
+active assignment and creates a new one instead of rewriting history.
+
+The API returns four deliberate projections. Logistics fulfilment receives the minimum contact and
+address snapshot required to deliver. Patients receive status, timestamps, locality-level tracking,
+and pickup location. Pharmacies receive order/handoff tracking without recipient identity or phone.
+Administrators receive organization IDs and locality-level oversight without full contact/address
+data. Support and managers remain denied. Couriers may progress only their own active assignments;
+cancellation remains an administrator-only operation.
+
+Dispatch now creates an eight-digit recipient code from qualified platform entropy, stores only a
+key-versioned HMAC digest, and enqueues a transactional message for the order's patient in the same
+transaction. External delivery still uses the existing verified-email-only adapter policy. Code
+verification, attempt throttling, proof completion, exception notifications, and replay/concurrency
+repository integration tests remain 11E3/11E2 qualification work; real logistics activation remains
+disabled.
+
+No signed prototype screen is production-connected by 11E2. The approved logistics routes remain
+available for visual comparison at `#/logistics/dashboard`, `#/logistics/assignments`,
+`#/logistics/delivery?id=<delivery-id>`, `#/logistics/history`, `#/logistics/earnings`, and
+`#/logistics/payouts`; they still use legacy prototype data until 11E4.
+
+Validation at this checkpoint includes the full repository parity/format/lint/type/test/build/schema
+gate, 921 passing API tests, 43 passing web tests, 19 passing worker tests, generated-client drift
+checking, and disposable-PostgreSQL clean-install/upgrade/backfill/concurrency/constraint evidence.
+The additive key-rotation migration was also applied successfully to the local development database.
+
 ## Standards walkthrough
 
 - **Readable and maintainable:** delivery, assignment, state history, and proof each have one clear
   responsibility; the TypeScript and PostgreSQL transition maps use the prototype vocabulary.
 - **Security first:** codes are digests, clinical/commercial data is excluded, visibility is
-  default-deny, courier authority is exact-organization scoped, and terminal states cannot reopen.
+  default-deny, courier authority is exact-organization scoped, courier assignment requires an
+  organization dispatcher role, external code delivery requires a verified email, and terminal
+  states cannot reopen.
 - **Performance conscious:** bounded queue/history access has composite indexes; no unbounded or
   N+1 runtime query was introduced by this foundation.
 - **Extendable:** organizations, couriers, provider adapters, routing, vehicle metadata, pricing,
@@ -118,5 +154,6 @@ but is not evidence of production connectivity.
 - **No magic assumptions:** no currency, country, fee, vehicle, cloud, or payment provider is baked
   into delivery state.
 - **Non-standard conditions flagged:** database qualification evidence, API/BFF integration, real
-  recipient-code delivery, operations telemetry, commercial reporting, visual parity, and UAT are
-  still open. Real logistics use remains prohibited.
+  code verification/rate limiting, representative query-plan evidence, repository replay/concurrency
+  integration tests, proof completion, operations telemetry, commercial reporting, visual parity,
+  and UAT are still open. Real logistics use remains prohibited.

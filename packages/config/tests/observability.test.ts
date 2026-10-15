@@ -17,6 +17,10 @@ const environment = {
   DATABASE_URL: "postgresql://test-user:test-password@127.0.0.1:5432/test-db",
   DEPENDENCY_TIMEOUT_MS: "1500",
   LOG_LEVEL: "info",
+  LOGISTICS_RECIPIENT_CODE_ACTIVE_KEY_ID: "test-logistics-key-1",
+  LOGISTICS_RECIPIENT_CODE_KEYS: JSON.stringify({
+    "test-logistics-key-1": Buffer.alloc(32, 5).toString("base64"),
+  }),
   IDENTITY_ACTIVE_ENCRYPTION_KEY_ID: "test-key-1",
   IDENTITY_ENCRYPTION_KEYS: JSON.stringify({
     "test-key-1": Buffer.alloc(32, 2).toString("base64"),

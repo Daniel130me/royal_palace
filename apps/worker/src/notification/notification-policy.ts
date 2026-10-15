@@ -92,6 +92,14 @@ const ENGLISH_TEMPLATES: Readonly<Record<NotificationTemplateKey, TemplateDefini
       title: "Laboratory result available",
     }),
   },
+  [NOTIFICATION_TEMPLATE.LOGISTICS_RECIPIENT_CODE]: {
+    category: "TRANSACTIONAL",
+    render: (reference) => ({
+      body: `Your delivery confirmation code is ${reference.slice(-8)} for delivery ${reference.slice(0, -9)}. Share it only after receiving your delivery.`,
+      subject: "Delivery confirmation code",
+      title: "Delivery confirmation code",
+    }),
+  },
   [NOTIFICATION_TEMPLATE.PRESCRIPTION_ACTION_REQUIRED]: {
     category: "TRANSACTIONAL",
     render: (reference) => ({

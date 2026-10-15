@@ -75,6 +75,20 @@ describe("notification policy", () => {
     }
   });
 
+  it("renders a delivery code without clinical, payment, or address details", () => {
+    const notification = renderNotification({
+      category: "TRANSACTIONAL",
+      channel: "EMAIL",
+      locale: "en",
+      templateKey: NOTIFICATION_TEMPLATE.LOGISTICS_RECIPIENT_CODE,
+      templateVersion: 1,
+      variables: { reference: "DLV-0199A18E-A400-7000-8000-000000000203-12345678" },
+    });
+    expect(notification.body).toContain("12345678");
+    expect(notification.body).toContain("only after receiving");
+    expect(notification.body).not.toMatch(/medicine|prescription|diagnos|payment|amount|address/i);
+  });
+
   it("requires a verified email and explicit marketing consent", () => {
     expect(
       requireEmailRecipient({

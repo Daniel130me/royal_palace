@@ -2762,6 +2762,7 @@ model LogisticsDelivery {
   deliveryCountryCode        String                           @map("delivery_country_code") @db.Char(2)
   deliveryInstruction        String?                          @map("delivery_instruction") @db.VarChar(500)
   recipientCodeDigest        String                           @map("recipient_code_digest") @db.Char(64)
+  recipientCodeKeyId         String                           @map("recipient_code_key_id") @db.VarChar(64)
   recipientCodeExpiresAt     DateTime                         @map("recipient_code_expires_at") @db.Timestamptz(6)
   assignedAt                 DateTime                         @map("assigned_at") @db.Timestamptz(6)
   acceptedAt                 DateTime?                        @map("accepted_at") @db.Timestamptz(6)

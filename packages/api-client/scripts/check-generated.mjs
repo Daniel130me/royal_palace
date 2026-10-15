@@ -11,6 +11,8 @@ for (const name of [
   "prescriptions",
   "laboratory",
   "organization-finance",
+  "organization-team",
+  "logistics",
 ]) {
   const specificationUrl = new URL(`../openapi/${name}.yaml`, import.meta.url);
   const generatedUrl = new URL(`../src/generated/${name}.ts`, import.meta.url);

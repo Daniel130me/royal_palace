@@ -10,6 +10,7 @@ export const AUTHORIZATION_POLICY = {
   ADMINISTER_NOTIFICATION_DELIVERY: "ADMINISTER_NOTIFICATION_DELIVERY",
   ADMINISTER_PHARMACY_ORDER_OVERSIGHT: "ADMINISTER_PHARMACY_ORDER_OVERSIGHT",
   ADMINISTER_LOGISTICS_ASSIGNMENT: "ADMINISTER_LOGISTICS_ASSIGNMENT",
+  ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT: "ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT",
   ADMINISTER_REVIEW_MODERATION: "ADMINISTER_REVIEW_MODERATION",
   VIEW_NOTIFICATION_INBOX: "VIEW_NOTIFICATION_INBOX",
   MANAGE_NOTIFICATION_PREFERENCES: "MANAGE_NOTIFICATION_PREFERENCES",
@@ -67,7 +68,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 24;
+export const AUTHORIZATION_POLICY_VERSION = 26;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -96,6 +97,7 @@ export interface AuthorizationPolicyContexts {
   ADMINISTER_NOTIFICATION_DELIVERY: ResourceReference;
   ADMINISTER_PHARMACY_ORDER_OVERSIGHT: ResourceReference;
   ADMINISTER_LOGISTICS_ASSIGNMENT: ResourceReference;
+  ADMINISTER_LOGISTICS_COURIER_ASSIGNMENT: ResourceReference & { organizationId: string };
   ADMINISTER_REVIEW_MODERATION: ResourceReference;
   VIEW_NOTIFICATION_INBOX: ResourceReference & { recipientPrincipalId: string };
   MANAGE_NOTIFICATION_PREFERENCES: ResourceReference & { recipientPrincipalId: string };
@@ -184,9 +186,9 @@ export interface AuthorizationPolicyContexts {
     patientPrincipalId: string;
   };
   VIEW_LOGISTICS_DELIVERY: ResourceReference & {
-    logisticsOrganizationId: string;
-    patientPrincipalId: string;
-    pharmacyOrganizationId: string;
+    logisticsOrganizationId?: string;
+    patientPrincipalId?: string;
+    pharmacyOrganizationId?: string;
   };
   EXPIRE_PRESCRIPTIONS: ResourceReference;
 }

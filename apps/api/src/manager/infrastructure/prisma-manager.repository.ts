@@ -16,6 +16,7 @@ import type {
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
 import { createOpaqueId } from "../../platform/identifiers.js";
+import { optionalPublicOrganizationType } from "../../platform/organization-types.js";
 import type {
   ManagerRepository,
   SettledPatientActivityInput,
@@ -59,7 +60,7 @@ export class PrismaManagerRepository implements ManagerRepository {
           label: record.label,
           managerProfileId: record.managerProfileId,
           managerStatus: record.managerProfile.status,
-          organizationType: record.organizationType,
+          organizationType: optionalPublicOrganizationType(record.organizationType),
           signingKeyId: record.signingKeyId,
           status: record.status,
           tokenVersion: record.tokenVersion,
@@ -274,7 +275,11 @@ export class PrismaManagerRepository implements ManagerRepository {
         validUntil: true,
       },
     });
-    return { ...record, managerStatus: record.managerProfile.status };
+    return {
+      ...record,
+      managerStatus: record.managerProfile.status,
+      organizationType: optionalPublicOrganizationType(record.organizationType),
+    };
   }
 
   async listReferralLinks(managerProfileId: string): Promise<StoredReferralLinkForClaim[]> {
@@ -296,7 +301,11 @@ export class PrismaManagerRepository implements ManagerRepository {
       take: 100,
       where: { managerProfileId },
     });
-    return records.map((record) => ({ ...record, managerStatus: record.managerProfile.status }));
+    return records.map((record) => ({
+      ...record,
+      managerStatus: record.managerProfile.status,
+      organizationType: optionalPublicOrganizationType(record.organizationType),
+    }));
   }
 
   async listReferralStatuses(input: {

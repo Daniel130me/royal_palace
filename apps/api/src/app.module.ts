@@ -6,6 +6,7 @@ import { AuthorizationModule } from "./authorization/authorization.module.js";
 import { HealthController } from "./health.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { LaboratoryModule } from "./laboratory/laboratory.module.js";
+import { LogisticsModule } from "./logistics/logistics.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { ManagerModule } from "./manager/manager.module.js";
 import { DatabaseModule } from "./platform/database/database.module.js";
@@ -30,6 +31,7 @@ export class AppModule {
         AuthorizationModule,
         IdentityModule,
         LaboratoryModule,
+        LogisticsModule,
         ManagerModule,
         OnboardingModule,
         PublicDiscoveryModule,

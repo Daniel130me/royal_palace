@@ -11,6 +11,7 @@ import {
   pharmacyDeliveryListPath,
   pharmacyInventoryListPath,
 } from "@/lib/auth/pharmacy-bff";
+import { logisticsListPath } from "@/lib/auth/logistics-bff";
 
 type Context = { params: Promise<{ segments?: string[] }> };
 
@@ -29,6 +30,12 @@ export async function GET(request: NextRequest, context: Context) {
   }
   if (segments.length === 1 && segments[0] === "deliveries") {
     const path = pharmacyDeliveryListPath(request.nextUrl, "/v1/pharmacy/deliveries");
+    return path === null
+      ? pharmacyBffNotFound()
+      : proxyAuthenticatedOrganizationApi(request, path, "GET");
+  }
+  if (segments.length === 1 && segments[0] === "logistics-deliveries") {
+    const path = logisticsListPath(request.nextUrl, "/v1/pharmacy/logistics-deliveries");
     return path === null
       ? pharmacyBffNotFound()
       : proxyAuthenticatedOrganizationApi(request, path, "GET");
@@ -59,6 +66,13 @@ export async function GET(request: NextRequest, context: Context) {
   }
   if (resourceId !== null && segments.length === 2 && ["quotes", "orders"].includes(segments[0]!)) {
     return proxyAuthenticatedApi(request, `/v1/pharmacy/${segments[0]}/${resourceId}`, "GET");
+  }
+  if (resourceId !== null && segments.length === 2 && segments[0] === "logistics-deliveries") {
+    return proxyAuthenticatedOrganizationApi(
+      request,
+      `/v1/pharmacy/logistics-deliveries/${resourceId}`,
+      "GET",
+    );
   }
   return resourceId !== null && segments.length === 2 && segments[0] === "catalog-items"
     ? proxyAuthenticatedOrganizationApi(request, `/v1/pharmacy/catalog-items/${resourceId}`, "GET")
