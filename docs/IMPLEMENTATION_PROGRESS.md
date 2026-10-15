@@ -379,9 +379,10 @@ that completes an increment.
     Authorization, replay, cursor, projection, state-machine, migration, and concurrency tests are
     implemented, and the performance harness now loads 5,000 complete synthetic workflows for
     exact queue/history index assertions. A guarded atomic browser-review fixture is included.
-    Protected PostgreSQL query-plan confirmation, visual comparison, stakeholder UAT, commercial
-    policy, provider qualification, and real activation remain open; no real logistics use is
-    enabled.
+    Native PostgreSQL 18 and protected CI PostgreSQL 17.6 now confirm the exact queue/history
+    indexes, clean/upgrade migration paths, zero drift, and repeatable synthetic seed. Visual
+    comparison, stakeholder UAT, governed commercial policy, provider qualification, and real
+    activation remain open; no real logistics use is enabled.
   - `[ ]` Clinical encounter/record, remaining settlement/payout, and advanced-reporting slices
     remain after logistics.
 - `[ ]` **Increment 12 — Qualification and controlled launch**

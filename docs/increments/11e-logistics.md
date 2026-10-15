@@ -47,7 +47,7 @@ routes or expose prescription, medication, clinical-record, or patient-payment d
       scope, exact courier membership, legal progression, proof-before-delivery, and immutable
       terminal/history/proof state.
 - [x] Add assignment concurrency evidence for the one-active-assignment invariant.
-- [ ] Add representative logistics query-plan/load evidence before this checkpoint is considered
+- [x] Add representative logistics query-plan/load evidence before this checkpoint is considered
       production-qualified.
 
 ### 11E2 — assignment and operations API
@@ -239,9 +239,9 @@ and stakeholder UAT intentionally remain open rather than being claimed without 
   vendor-neutral and contain no Nigeria-only, provider-specific, vehicle, SLA, or currency default.
 - **No magic assumptions:** the browser no longer invents ETA or payout values; date-range limits
   mirror the server contract and currencies come from finance facts.
-- **Non-standard conditions flagged:** stakeholder visual/UAT approval, representative logistics
-  query-plan evidence, deeper API negative-path coverage, and real logistics/payment provider
-  qualification remain open. Real logistics activation remains prohibited.
+- **Non-standard conditions flagged:** stakeholder visual/UAT approval, governed commercial policy,
+  and real logistics/payment provider qualification remain open. Real logistics activation remains
+  prohibited.
 
 ## Technical qualification follow-through
 
@@ -251,6 +251,13 @@ payment, delivery handoff, delivery, assignment, initial history, and recipient 
 the exact organization/status queue, administrator/status queue, and per-delivery history indexes.
 These rows exist only inside the verifier transaction and are rolled back after `EXPLAIN (ANALYZE,
 BUFFERS)`; they never become development or production records.
+
+Native PostgreSQL 18 and protected CI PostgreSQL 17.6 both observed
+`logistics_deliveries_org_status_assigned_idx`, `logistics_deliveries_status_assigned_idx`, and
+`logistics_delivery_history_delivery_time_idx` for the intended queue/history reads. The published
+recipient-challenge migration was preserved; a forward-only corrective migration aligns its
+`updated_at` ownership and foreign-key action with Prisma. Clean install, prior-schema upgrade,
+constraint, idempotent-seed, zero-drift, and representative-plan gates all pass.
 
 The API suite now proves completed dispatch replay without duplicate delivery or notification
 writes, rejects an idempotency-key/hash mismatch, stops unauthorized reads before repository
@@ -294,7 +301,6 @@ on immutable finance facts; the seed does not invent logistics commercial terms.
 - **No magic production assumptions:** CAD/USD values and Canadian addresses are scoped only to
   synthetic fixtures; they are not defaults or commercial rules. Logistics earnings remain empty
   until governed commercial policy creates finance facts.
-- **Non-standard conditions flagged:** Docker Desktop was unavailable for the local PostgreSQL run,
-  so the representative query-plan checkbox remains open until the protected CI database records
-  the required indexes. Visual parity, stakeholder UAT, provider qualification, and real activation
-  also remain open.
+- **Non-standard conditions flagged:** stakeholder visual parity/UAT, governed logistics commercial
+  policy, provider qualification, and real activation remain open. No technical qualification is
+  being claimed as authorization for real logistics use.
