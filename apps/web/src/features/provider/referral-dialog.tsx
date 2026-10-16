@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { referralService, providerService } from "@/lib/services";
+import { productionClinicalService, providerService } from "@/lib/services";
 import { normalizeProvider } from "./normalize";
 import type { Provider, Patient } from "@/types";
 import {
@@ -67,29 +67,31 @@ export function ReferralDialog({ open, onOpenChange, patient, encounterId, provi
 
   async function submit() {
     if (!patient) return;
-    if (!reason.trim()) {
-      setError("Reason for referral is required.");
+    if (!reason.trim() || !specialty.trim()) {
+      setError("Reason and recipient specialty are required.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      await referralService.create({
-        encounterId,
-        patientId: patient.id,
-        senderProviderId: providerId,
-        recipientProviderId: recipientId || undefined,
-        recipientSpecialty: specialty || undefined,
-        reason,
-        symptoms: symptoms || undefined,
-        relevantHistory: relevantHistory || undefined,
-        diagnosis: diagnosis || undefined,
-        currentTreatment: currentTreatment || undefined,
-        requiredAction: requiredAction || undefined,
-        urgency,
-        attachments: [],
-        accessExpiry: accessExpiry || undefined,
-        actorId: providerId,
+      const recipient = providers.find((provider) => provider.id === recipientId);
+      const clinicalContext = [
+        reason.trim(),
+        symptoms.trim() ? `Symptoms: ${symptoms.trim()}` : "",
+        relevantHistory.trim() ? `Relevant history: ${relevantHistory.trim()}` : "",
+        diagnosis.trim() ? `Working diagnosis: ${diagnosis.trim()}` : "",
+        currentTreatment.trim() ? `Current treatment: ${currentTreatment.trim()}` : "",
+        requiredAction.trim() ? `Requested action: ${requiredAction.trim()}` : "",
+        accessExpiry ? `Requested review by: ${accessExpiry}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await productionClinicalService.provider.relatedAction(encounterId, {
+        kind: "REFERRAL",
+        priority: urgency.toUpperCase() as "ROUTINE" | "URGENT" | "EMERGENCY",
+        reason: clinicalContext,
+        ...(recipient ? { recipientName: `${recipient.firstName} ${recipient.lastName}` } : {}),
+        specialtyCode: specialty.trim(),
       });
       onCreated();
     } catch (e) {

@@ -23,6 +23,13 @@ const SIGN_OPERATION = "clinical.encounter.sign";
 const ADDENDUM_OPERATION = "clinical.encounter.add-addendum";
 
 const encounterInclude = {
+  allergies: { orderBy: [{ recordedAt: "desc" as const }, { id: "desc" as const }] },
+  attachmentReferences: { orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }] },
+  carePlans: { orderBy: [{ updatedAt: "desc" as const }, { id: "desc" as const }] },
+  laboratoryRequests: {
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    select: { id: true },
+  },
   notes: {
     include: {
       diagnoses: { orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] },
@@ -32,6 +39,11 @@ const encounterInclude = {
   },
   patient: { select: { familyName: true, givenName: true, id: true, principalId: true } },
   practitioner: { select: { displayName: true, id: true, principalId: true } },
+  prescriptions: {
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    select: { id: true },
+  },
+  referrals: { orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }] },
 } satisfies Prisma.ClinicalEncounterInclude;
 
 type EncounterRow = Prisma.ClinicalEncounterGetPayload<{ include: typeof encounterInclude }>;
@@ -100,6 +112,28 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
       relationLoadStrategy: "join",
       where: {
         id: input.encounterId,
+        patient: { principalId: input.patientPrincipalId },
+        status: "SIGNED",
+      },
+    });
+    return row === null ? null : mapEncounter(row);
+  }
+
+  async findPatientRecordByAppointment(input: {
+    appointmentId: string;
+    patientPrincipalId: string;
+  }) {
+    const row = await this.database.clinicalEncounter.findFirst({
+      include: {
+        ...encounterInclude,
+        notes: {
+          ...encounterInclude.notes,
+          where: { kind: { in: ["SIGNED", "ADDENDUM"] } },
+        },
+      },
+      relationLoadStrategy: "join",
+      where: {
+        appointmentId: input.appointmentId,
         patient: { principalId: input.patientPrincipalId },
         status: "SIGNED",
       },
@@ -258,6 +292,102 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
       input.diagnoses,
       input.observations,
     );
+  }
+
+  async createRelatedAction(
+    input: Parameters<ClinicalEncounterRepository["createRelatedAction"]>[0],
+  ): Promise<ClinicalEncounterAccessRecord> {
+    const operation = `clinical.encounter.create-${input.action.kind.toLowerCase()}`;
+    const encounterId = await this.transaction(async (transaction) => {
+      const replay = await beginIdempotentMutation(transaction, { ...input, operation });
+      if (replay !== null) return replay;
+      const current = await lockEncounter(transaction, input.encounterId);
+      if (
+        current === null ||
+        current.practitioner_principal_id !== input.actorPrincipalId ||
+        !["OPEN", "SIGNED"].includes(current.status)
+      ) {
+        throw new ClinicalEncounterConflictError("INVALID_STATE");
+      }
+      const id = createOpaqueId();
+      const now = new Date();
+      switch (input.action.kind) {
+        case "REFERRAL":
+          await transaction.clinicalReferral.create({
+            data: {
+              createdByPrincipalId: input.actorPrincipalId,
+              encounterId: input.encounterId,
+              id,
+              patientId: current.patient_id,
+              priority: input.action.priority,
+              practitionerId: current.practitioner_id,
+              reason: input.action.reason,
+              recipientName: input.action.recipientName,
+              specialtyCode: input.action.specialtyCode,
+              updatedAt: now,
+            },
+          });
+          break;
+        case "CARE_PLAN":
+          await transaction.clinicalCarePlan.create({
+            data: {
+              activities: [...input.action.activities],
+              endsAt: input.action.endsAt,
+              encounterId: input.encounterId,
+              goal: input.action.goal,
+              id,
+              patientId: current.patient_id,
+              practitionerId: current.practitioner_id,
+              startsAt: input.action.startsAt,
+              title: input.action.title,
+              updatedAt: now,
+              updatedByPrincipalId: input.actorPrincipalId,
+            },
+          });
+          break;
+        case "ALLERGY":
+          await transaction.clinicalAllergy.create({
+            data: {
+              criticality: input.action.criticality,
+              encounterId: input.encounterId,
+              id,
+              patientId: current.patient_id,
+              practitionerId: current.practitioner_id,
+              reaction: input.action.reaction,
+              recordedAt: now,
+              recordedByPrincipalId: input.actorPrincipalId,
+              substanceCode: input.action.substanceCode,
+              substanceCodeSystem: input.action.substanceCodeSystem,
+              substanceDisplay: input.action.substanceDisplay,
+              updatedAt: now,
+            },
+          });
+          break;
+        case "ATTACHMENT_REFERENCE":
+          await assertCleanAttachmentSource(transaction, input.action, current.patient_id);
+          await transaction.clinicalAttachmentReference.create({
+            data: {
+              encounterId: input.encounterId,
+              id,
+              linkedByPrincipalId: input.actorPrincipalId,
+              purpose: input.action.purpose,
+              sourceId: input.action.sourceId,
+              sourceType: input.action.sourceType,
+            },
+          });
+          break;
+      }
+      await completeMutation(
+        transaction,
+        input,
+        operation,
+        input.encounterId,
+        `clinical.encounter.${input.action.kind.toLowerCase()}-created`,
+        current.patient_id,
+      );
+      return input.encounterId;
+    });
+    return requireEncounter(await this.findById(encounterId));
   }
 
   private async appendNote(
@@ -512,12 +642,14 @@ async function lockEncounter(transaction: Transaction, encounterId: string) {
   const rows = await transaction.$queryRaw<
     Array<{
       patient_id: string;
+      practitioner_id: string;
       practitioner_principal_id: string;
       status: string;
       version: number;
     }>
   >(Prisma.sql`
     SELECT encounter."status"::text, encounter."version", encounter."patient_id",
+           encounter."practitioner_id",
            practitioner."principal_id" AS practitioner_principal_id
     FROM "clinical_encounters" encounter
     JOIN "practitioners" practitioner ON practitioner."id" = encounter."practitioner_id"
@@ -531,6 +663,44 @@ async function lockEncounter(transaction: Transaction, encounterId: string) {
     where: { encounterId },
   });
   return { ...current, latest_revision: latest._max.revision ?? 0 };
+}
+
+async function assertCleanAttachmentSource(
+  transaction: Transaction,
+  source: {
+    sourceId: string;
+    sourceType: "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION" | "APPLICATION_DOCUMENT";
+  },
+  patientId: string,
+) {
+  if (source.sourceType === "LABORATORY_RESULT_ATTACHMENT") {
+    const attachment = await transaction.laboratoryResultAttachment.findFirst({
+      select: { id: true },
+      where: { id: source.sourceId, result: { patientId }, status: "CLEAN" },
+    });
+    if (attachment !== null) return;
+  } else if (source.sourceType === "SCANNED_PRESCRIPTION") {
+    const attachment = await transaction.scannedPrescription.findFirst({
+      select: { id: true },
+      where: { id: source.sourceId, patientId, status: "CLEAN" },
+    });
+    if (attachment !== null) return;
+  } else {
+    const patient = await transaction.patient.findUnique({
+      select: { principalId: true },
+      where: { id: patientId },
+    });
+    const attachment = await transaction.applicationDocument.findFirst({
+      select: { id: true },
+      where: {
+        application: { applicantPrincipalId: patient?.principalId },
+        id: source.sourceId,
+        status: "CLEAN",
+      },
+    });
+    if (attachment !== null) return;
+  }
+  throw new ClinicalEncounterConflictError("INVALID_STATE");
 }
 
 function hashDocumentation(documentation: ClinicalDocumentation): string {
@@ -599,6 +769,49 @@ function mapEncounter(row: EncounterRow): ClinicalEncounterAccessRecord {
       supersedesNoteId: note.supersedesNoteId,
     })),
     openedAt: row.openedAt.toISOString(),
+    relatedActions: {
+      allergies: row.allergies.map((allergy) => ({
+        criticality: allergy.criticality,
+        id: allergy.id,
+        reaction: allergy.reaction,
+        recordedAt: allergy.recordedAt.toISOString(),
+        status: allergy.status,
+        substanceCode: allergy.substanceCode,
+        substanceCodeSystem: allergy.substanceCodeSystem,
+        substanceDisplay: allergy.substanceDisplay,
+        version: allergy.version,
+      })),
+      attachmentReferences: row.attachmentReferences.map((attachment) => ({
+        createdAt: attachment.createdAt.toISOString(),
+        id: attachment.id,
+        purpose: attachment.purpose,
+        sourceId: attachment.sourceId,
+        sourceType: attachment.sourceType,
+      })),
+      carePlans: row.carePlans.map((plan) => ({
+        activities: plan.activities as string[],
+        endsAt: plan.endsAt?.toISOString() ?? null,
+        goal: plan.goal,
+        id: plan.id,
+        startsAt: plan.startsAt.toISOString(),
+        status: plan.status,
+        title: plan.title,
+        updatedAt: plan.updatedAt.toISOString(),
+        version: plan.version,
+      })),
+      laboratoryRequestIds: row.laboratoryRequests.map((request) => request.id),
+      prescriptionIds: row.prescriptions.map((prescription) => prescription.id),
+      referrals: row.referrals.map((referral) => ({
+        createdAt: referral.createdAt.toISOString(),
+        id: referral.id,
+        priority: referral.priority as "ROUTINE" | "URGENT" | "EMERGENCY",
+        reason: referral.reason,
+        recipientName: referral.recipientName,
+        specialtyCode: referral.specialtyCode,
+        status: referral.status,
+        version: referral.version,
+      })),
+    },
     patient: {
       displayName: `${row.patient.givenName} ${row.patient.familyName}`.trim(),
       id: row.patient.id,

@@ -66,6 +66,44 @@ export class ClinicalEncounterConflictError extends Error {
 }
 
 export interface ClinicalEncounterRepository {
+  createRelatedAction(input: {
+    actorPrincipalId: string;
+    encounterId: string;
+    idempotencyKey: string;
+    requestHash: string;
+    traceRequestId: string;
+    action:
+      | {
+          kind: "REFERRAL";
+          priority: "ROUTINE" | "URGENT" | "EMERGENCY";
+          reason: string;
+          recipientName?: string;
+          specialtyCode: string;
+        }
+      | {
+          activities: readonly string[];
+          endsAt?: Date;
+          goal: string;
+          kind: "CARE_PLAN";
+          startsAt: Date;
+          title: string;
+        }
+      | {
+          criticality: "LOW" | "HIGH" | "UNABLE_TO_ASSESS";
+          kind: "ALLERGY";
+          reaction?: string;
+          substanceCode?: string;
+          substanceCodeSystem?: string;
+          substanceDisplay: string;
+        }
+      | {
+          kind: "ATTACHMENT_REFERENCE";
+          purpose: string;
+          sourceId: string;
+          sourceType:
+            "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION" | "APPLICATION_DOCUMENT";
+        };
+  }): Promise<ClinicalEncounterAccessRecord>;
   appendAddendum(
     input: ClinicalMutationEnvelope & {
       diagnoses: readonly ClinicalDiagnosisDraft[];
@@ -79,6 +117,10 @@ export interface ClinicalEncounterRepository {
   findById(encounterId: string): Promise<ClinicalEncounterAccessRecord | null>;
   findPatientRecord(input: {
     encounterId: string;
+    patientPrincipalId: string;
+  }): Promise<ClinicalEncounterAccessRecord | null>;
+  findPatientRecordByAppointment(input: {
+    appointmentId: string;
     patientPrincipalId: string;
   }): Promise<ClinicalEncounterAccessRecord | null>;
   findScopeById(encounterId: string): Promise<ClinicalEncounterScope | null>;

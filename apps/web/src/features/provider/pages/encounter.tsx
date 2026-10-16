@@ -8,6 +8,7 @@ import {
   appointmentService,
   productionPrescriptionService,
   productionLaboratoryService,
+  productionClinicalService,
 } from "@/lib/services";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
 import type { LaboratoryResultResponse } from "@royal-palace/contracts";
@@ -259,22 +260,31 @@ export function ProviderEncounter() {
   function updateVital(key: string, value: string) {
     setDoc((prev) => ({ ...prev, vitalSigns: { ...(prev.vitalSigns ?? {}), [key]: value } }));
   }
-  function addMockAttachment() {
-    const names = ["EKG.pdf", "Patient-Photo.jpg", "Wound.jpg", "Lab-Requisition.pdf"];
-    const name = names[Math.floor(Math.random() * names.length)];
-    setAttachments((prev) => [
-      ...prev,
-      {
-        id: `ATT-${Date.now().toString(36)}`,
-        name,
-        type: name.endsWith(".pdf") ? "application/pdf" : "image/jpeg",
-        size: 100_000 + Math.floor(Math.random() * 200_000),
-        uploadedAt: new Date().toISOString(),
-      },
-    ]);
-  }
-  function removeAttachment(idx: number) {
-    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  async function addClinicalAttachment() {
+    if (!encounter) return;
+    const source = labResults
+      .flatMap((result) => result.attachments)
+      .find(
+        (attachment) =>
+          attachment.status === "CLEAN" &&
+          !attachments.some((existing) => existing.name === attachment.originalFilename),
+      );
+    if (!source) {
+      toast.info("No unlinked, security-scanned laboratory attachment is available.");
+      return;
+    }
+    try {
+      await productionClinicalService.provider.relatedAction(encounter.id, {
+        kind: "ATTACHMENT_REFERENCE",
+        purpose: source.originalFilename,
+        sourceId: source.id,
+        sourceType: "LABORATORY_RESULT_ATTACHMENT",
+      });
+      toast.success("Clinical attachment linked.");
+      await load();
+    } catch (e) {
+      toast.error("Could not link attachment: " + (e as Error).message);
+    }
   }
 
   async function complete() {
@@ -338,8 +348,7 @@ export function ProviderEncounter() {
     missingFields,
     isMissing,
     attachments,
-    addMockAttachment,
-    removeAttachment,
+    addClinicalAttachment,
     encounter,
     completing,
     complete,
@@ -564,8 +573,7 @@ interface NotesPanelProps {
   missingFields: string[];
   isMissing: (key: keyof EncounterDocumentation) => boolean;
   attachments: FileMeta[];
-  addMockAttachment: () => void;
-  removeAttachment: (idx: number) => void;
+  addClinicalAttachment: () => Promise<void>;
   encounter: ClinicalEncounter;
   completing: boolean;
   complete: () => void;
@@ -586,8 +594,7 @@ function NotesPanel(props: NotesPanelProps) {
     missingFields,
     isMissing,
     attachments,
-    addMockAttachment,
-    removeAttachment,
+    addClinicalAttachment,
   } = props;
 
   // Render the inner SOAP content once.
@@ -804,7 +811,7 @@ function NotesPanel(props: NotesPanelProps) {
           {attachments.length === 0 ? (
             <p className="text-xs text-muted-foreground">No attachments.</p>
           ) : (
-            attachments.map((f, i) => (
+            attachments.map((f) => (
               <div
                 key={f.id}
                 className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/20 p-2.5"
@@ -815,22 +822,13 @@ function NotesPanel(props: NotesPanelProps) {
                     {Math.round(f.size / 1024)} KB · {relativeDay(f.uploadedAt)}
                   </span>
                 </div>
-                {!locked && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-rose-600 hover:text-rose-700"
-                    onClick={() => removeAttachment(i)}
-                  >
-                    Remove
-                  </Button>
-                )}
+                <Badge variant="outline">Governed reference</Badge>
               </div>
             ))
           )}
           {!locked && (
-            <Button size="sm" variant="outline" onClick={addMockAttachment}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add mock attachment
+            <Button size="sm" variant="outline" onClick={addClinicalAttachment}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Link clinical attachment
             </Button>
           )}
         </div>

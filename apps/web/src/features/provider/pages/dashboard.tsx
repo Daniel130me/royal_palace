@@ -10,7 +10,6 @@ import {
   settlementService,
   productionLaboratoryService,
 } from "@/lib/services";
-import { resource } from "@/lib/api-client";
 import { normalizeEncounter, normalizeReferral } from "../normalize";
 import type { Appointment, ClinicalEncounter, Referral, Settlement } from "@/types";
 import type { LaboratoryResultResponse } from "@royal-palace/contracts";
@@ -136,7 +135,7 @@ export function ProviderDashboard() {
     try {
       const [appts, encs, resultPage, refs, stls] = await Promise.all([
         appointmentService.list({ providerId }),
-        resource.list<ClinicalEncounter>("clinicalEncounter", { providerId }),
+        encounterService.listProvider(),
         productionLaboratoryService.provider.results(undefined, 50),
         referralService.list({ recipientProviderId: providerId }),
         settlementService.list({ entityType: "provider", entityId: providerId }),

@@ -97,11 +97,21 @@ export class PrismaLaboratoryRepository implements LaboratoryRepository {
     const requestId = createOpaqueId();
     await this.database.$transaction(async (transaction) => {
       await assertRequestReferences(transaction, input.draft, input.practitionerId);
+      const encounter = await transaction.clinicalEncounter.findFirst({
+        select: { id: true },
+        where: {
+          appointmentId: input.draft.appointmentId,
+          patientId: input.draft.patientId,
+          practitionerId: input.practitionerId,
+          status: { in: ["OPEN", "SIGNED"] },
+        },
+      });
       const now = new Date();
       await transaction.laboratoryRequest.create({
         data: {
           appointmentId: input.draft.appointmentId,
           clinicalIndication: input.draft.clinicalIndication,
+          encounterId: encounter?.id,
           id: requestId,
           orderedAt: now,
           patientId: input.draft.patientId,

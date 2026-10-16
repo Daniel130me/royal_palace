@@ -1534,6 +1534,7 @@ export interface ClinicalEncounterResponse {
   appointmentId: string;
   encounterNumber: string;
   id: string;
+  relatedActions: ClinicalRelatedActionsResponse;
   notes: readonly ClinicalEncounterNoteResponse[];
   openedAt: string;
   patient: { displayName: string; id: string };
@@ -1542,6 +1543,58 @@ export interface ClinicalEncounterResponse {
   status: ClinicalEncounterStatus;
   updatedAt: string;
   version: number;
+}
+
+export interface ClinicalReferralResponse {
+  createdAt: string;
+  id: string;
+  priority: "ROUTINE" | "URGENT" | "EMERGENCY";
+  reason: string;
+  recipientName: string | null;
+  specialtyCode: string;
+  status: "ACTIVE" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+  version: number;
+}
+
+export interface ClinicalCarePlanResponse {
+  activities: readonly string[];
+  endsAt: string | null;
+  goal: string;
+  id: string;
+  startsAt: string;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  title: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ClinicalAllergyResponse {
+  criticality: "LOW" | "HIGH" | "UNABLE_TO_ASSESS";
+  id: string;
+  reaction: string | null;
+  recordedAt: string;
+  status: "ACTIVE" | "RESOLVED" | "ENTERED_IN_ERROR";
+  substanceCode: string | null;
+  substanceCodeSystem: string | null;
+  substanceDisplay: string;
+  version: number;
+}
+
+export interface ClinicalAttachmentReferenceResponse {
+  createdAt: string;
+  id: string;
+  purpose: string;
+  sourceId: string;
+  sourceType: "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION" | "APPLICATION_DOCUMENT";
+}
+
+export interface ClinicalRelatedActionsResponse {
+  allergies: readonly ClinicalAllergyResponse[];
+  attachmentReferences: readonly ClinicalAttachmentReferenceResponse[];
+  carePlans: readonly ClinicalCarePlanResponse[];
+  laboratoryRequestIds: readonly string[];
+  prescriptionIds: readonly string[];
+  referrals: readonly ClinicalReferralResponse[];
 }
 
 export interface ClinicalEncounterListResponse {

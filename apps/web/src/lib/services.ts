@@ -4,6 +4,7 @@
 
 import {
   createManagerClient,
+  createClinicalEncounterClient,
   createLaboratoryClient,
   createLogisticsClient,
   createNotificationClient,
@@ -16,6 +17,7 @@ import {
 } from "@royal-palace/api-client";
 import type {
   LaboratoryComponents,
+  ClinicalEncounterComponents,
   LogisticsComponents,
   OrganizationFinanceComponents,
   OrganizationTeamComponents,
@@ -39,6 +41,7 @@ import type {
   CommissionPolicyResponse,
   ReferralAttributionCorrectionResponse,
   AppointmentResponse,
+  ClinicalEncounterResponse,
   HostedCheckoutResponse,
   PaymentStatusResponse,
   PractitionerAvailabilityResponse,
@@ -150,6 +153,9 @@ const generatedPublicDiscoveryClient = createPublicDiscoveryClient({});
 const generatedOnboardingClient = createOnboardingClient({ fetch: authenticatedGeneratedFetch });
 const generatedManagerClient = createManagerClient({ fetch: authenticatedGeneratedFetch });
 const generatedLaboratoryClient = createLaboratoryClient({ fetch: versionedBffFetch });
+const generatedClinicalEncounterClient = createClinicalEncounterClient({
+  fetch: versionedBffFetch,
+});
 const generatedLogisticsClient = createLogisticsClient({ fetch: versionedBffFetch });
 const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
   fetch: authenticatedGeneratedFetch,
@@ -1651,22 +1657,250 @@ export const appointmentService = {
     ),
 };
 
+type ClinicalRelatedActionInput = ClinicalEncounterComponents["schemas"]["RelatedActionInput"];
+
+const CLINICAL_SECTION_TITLES: Readonly<Record<string, string>> = {
+  allergyConfirmation: "Allergy confirmation",
+  assessment: "Assessment",
+  chiefComplaint: "Chief complaint",
+  consultationReason: "Consultation reason",
+  differentialDiagnosis: "Differential diagnosis",
+  diagnosis: "Diagnosis",
+  examinationFindings: "Examination findings",
+  familyHistory: "Family history",
+  followUp: "Follow-up",
+  historyPresentIllness: "History of present illness",
+  medicationHistory: "Medication history",
+  patientInstructions: "Patient instructions",
+  relevantMedicalHistory: "Relevant medical history",
+  safetyNetting: "Safety netting",
+  socialHistory: "Social history",
+  treatmentPlan: "Treatment plan",
+  vitalSigns: "Vital signs",
+};
+
+function clinicalDocumentation(documentation: Partial<EncounterDocumentation>) {
+  const sections = Object.entries(documentation).flatMap(([code, value]) => {
+    if (code === "attachments" || value === undefined || value === null) return [];
+    const text =
+      code === "vitalSigns" && typeof value === "object"
+        ? Object.entries(value as Record<string, string>)
+            .filter(([, reading]) => reading.trim().length > 0)
+            .map(([name, reading]) => `${name}: ${reading}`)
+            .join("\n")
+        : String(value).trim();
+    if (!text) return [];
+    return [{ code, text, title: CLINICAL_SECTION_TITLES[code] ?? code }];
+  });
+  if (sections.length === 0) throw new Error("Clinical documentation cannot be empty");
+  return { sections };
+}
+
+function latestClinicalNote(encounter: ClinicalEncounterResponse) {
+  return encounter.notes.reduce<(typeof encounter.notes)[number] | undefined>(
+    (latest, note) => (latest === undefined || note.revision > latest.revision ? note : latest),
+    undefined,
+  );
+}
+
+function mapClinicalEncounter(encounter: ClinicalEncounterResponse): ClinicalEncounter {
+  const latest = latestClinicalNote(encounter);
+  const documentation = Object.fromEntries(
+    (latest?.documentation.sections ?? []).map((section) => [
+      section.code,
+      section.code === "vitalSigns"
+        ? Object.fromEntries(
+            section.text.split("\n").flatMap((line) => {
+              const separator = line.indexOf(":");
+              return separator < 1
+                ? []
+                : [[line.slice(0, separator), line.slice(separator + 1).trim()]];
+            }),
+          )
+        : section.text,
+    ]),
+  ) as EncounterDocumentation;
+  const attachmentReferences = encounter.relatedActions.attachmentReferences.map((reference) => ({
+    id: reference.id,
+    name: reference.purpose,
+    size: 0,
+    type: reference.sourceType,
+    uploadedAt: reference.createdAt,
+  }));
+  if (attachmentReferences.length > 0) documentation.attachments = attachmentReferences;
+  const latestDiagnosis = latest?.diagnoses.find((diagnosis) => diagnosis.type === "PRIMARY");
+  if (latestDiagnosis?.display) documentation.diagnosis = latestDiagnosis.display;
+
+  return {
+    appointmentId: encounter.appointmentId,
+    createdAt: encounter.openedAt,
+    documentation,
+    encounterNumber: encounter.encounterNumber,
+    id: encounter.id,
+    locked: encounter.status === "SIGNED",
+    patientId: encounter.patient.id,
+    providerId: encounter.practitioner.id,
+    signedAt: encounter.signedAt,
+    status: encounter.status === "SIGNED" ? "completed" : "open",
+    updatedAt: encounter.updatedAt,
+    diagnoses: (latest?.diagnoses ?? []).map((diagnosis) => ({
+      code: diagnosis.code,
+      description: diagnosis.display,
+      encounterId: encounter.id,
+      id: diagnosis.id,
+      patientId: encounter.patient.id,
+      status: diagnosis.status.toLowerCase(),
+      type: diagnosis.type.toLowerCase(),
+    })),
+    referrals: encounter.relatedActions.referrals.map((referral) => ({
+      attachments: [],
+      encounterId: encounter.id,
+      id: referral.id,
+      patientId: encounter.patient.id,
+      reason: referral.reason,
+      recipientSpecialty: referral.specialtyCode,
+      referralNumber: referral.id,
+      senderProviderId: encounter.practitioner.id,
+      status: referral.status.toLowerCase() as Referral["status"],
+      urgency: referral.priority.toLowerCase(),
+    })),
+    carePlans: encounter.relatedActions.carePlans.map((plan) => ({
+      description: plan.goal,
+      endDate: plan.endsAt,
+      goals: [...plan.activities],
+      id: plan.id,
+      patientId: encounter.patient.id,
+      startDate: plan.startsAt,
+      status: plan.status.toLowerCase(),
+      title: plan.title,
+    })),
+  };
+}
+
+function clinicalMutationHeader() {
+  return { "Idempotency-Key": crypto.randomUUID() };
+}
+
+export const productionClinicalService = {
+  provider: {
+    get: (encounterId: string) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/provider/clinical-encounters/{encounterId}", {
+          params: { path: { encounterId } },
+        })
+        .then(unwrapGeneratedResponse),
+    list: (patientId?: string, cursor?: string, limit = 50) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/provider/clinical-encounters", {
+          params: {
+            query: { ...(cursor ? { cursor } : {}), limit, ...(patientId ? { patientId } : {}) },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    open: (appointmentId: string) =>
+      generatedClinicalEncounterClient
+        .POST("/v1/provider/clinical-encounters", {
+          body: { appointmentId },
+          params: { header: clinicalMutationHeader() },
+        })
+        .then(unwrapGeneratedResponse),
+    relatedAction: (encounterId: string, body: ClinicalRelatedActionInput) =>
+      generatedClinicalEncounterClient
+        .POST("/v1/provider/clinical-encounters/{encounterId}/related-actions", {
+          body,
+          params: { header: clinicalMutationHeader(), path: { encounterId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+  patient: {
+    get: (encounterId: string) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/patient/clinical-encounters/{encounterId}", {
+          params: { path: { encounterId } },
+        })
+        .then(unwrapGeneratedResponse),
+    list: (cursor?: string, limit = 50) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/patient/clinical-encounters", {
+          params: { query: { ...(cursor ? { cursor } : {}), limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    byAppointment: (appointmentId: string) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/patient/clinical-encounters/by-appointment/{appointmentId}", {
+          params: { path: { appointmentId } },
+        })
+        .then(unwrapGeneratedResponse),
+  },
+};
+
 export const encounterService = {
-  get: (id: string) => resource.get<ClinicalEncounter>("clinicalEncounter", id),
+  get: (id: string) => productionClinicalService.provider.get(id).then(mapClinicalEncounter),
+  listProvider: (patientId?: string) =>
+    productionClinicalService.provider
+      .list(patientId, undefined, 50)
+      .then((page) => page.data.map(mapClinicalEncounter)),
+  listPatient: () =>
+    productionClinicalService.patient
+      .list(undefined, 50)
+      .then((page) => page.data.map(mapClinicalEncounter)),
   byAppointment: (appointmentId: string) =>
-    resource
-      .list<ClinicalEncounter>("clinicalEncounter", { appointmentId })
-      .then((r) => r[0] ?? null),
-  update: (id: string, documentation: Partial<EncounterDocumentation>) =>
-    resource.update<ClinicalEncounter>("clinicalEncounter", id, {
-      documentation: JSON.stringify(documentation),
-    }),
-  start: (appointmentId: string, actorId: string) =>
-    action("start-encounter", { appointmentId, actorId }).then((r) => r.data as ClinicalEncounter),
-  complete: (encounterId: string, documentation: EncounterDocumentation, actorId: string) =>
-    action("complete-encounter", { encounterId, documentation, actorId }, "PATCH").then(
-      (r) => r.data as ClinicalEncounter,
-    ),
+    productionClinicalService.patient.byAppointment(appointmentId).then(mapClinicalEncounter),
+  update: async (id: string, documentation: Partial<EncounterDocumentation>) => {
+    const encounter = await productionClinicalService.provider.get(id);
+    const latestRevision = latestClinicalNote(encounter)?.revision ?? 0;
+    return generatedClinicalEncounterClient
+      .POST("/v1/provider/clinical-encounters/{encounterId}/drafts", {
+        body: {
+          documentation: clinicalDocumentation(documentation),
+          expectedLatestRevision: latestRevision,
+          schemaVersion: 1,
+        },
+        params: { header: clinicalMutationHeader(), path: { encounterId: id } },
+      })
+      .then(unwrapGeneratedResponse)
+      .then(mapClinicalEncounter);
+  },
+  start: (appointmentId: string, _actorId: string) =>
+    productionClinicalService.provider.open(appointmentId).then(mapClinicalEncounter),
+  complete: async (
+    encounterId: string,
+    documentation: EncounterDocumentation,
+    _actorId: string,
+  ) => {
+    const encounter = await productionClinicalService.provider.get(encounterId);
+    const latestRevision = latestClinicalNote(encounter)?.revision ?? 0;
+    const diagnosis = documentation.diagnosis?.trim();
+    if (!diagnosis) throw new Error("A primary diagnosis is required before signing");
+    const observations = Object.entries(documentation.vitalSigns ?? {}).flatMap(
+      ([code, reading]) =>
+        reading.trim()
+          ? [
+              {
+                code,
+                display: CLINICAL_SECTION_TITLES[code] ?? code,
+                observedAt: new Date().toISOString(),
+                textValue: reading.trim(),
+                valueType: "TEXT" as const,
+              },
+            ]
+          : [],
+    );
+    return generatedClinicalEncounterClient
+      .POST("/v1/provider/clinical-encounters/{encounterId}/sign", {
+        body: {
+          diagnoses: [{ display: diagnosis, status: "ACTIVE", type: "PRIMARY" }],
+          documentation: clinicalDocumentation(documentation),
+          expectedLatestRevision: latestRevision,
+          expectedVersion: encounter.version,
+          observations,
+          schemaVersion: 1,
+        },
+        params: { header: clinicalMutationHeader(), path: { encounterId } },
+      })
+      .then(unwrapGeneratedResponse)
+      .then(mapClinicalEncounter);
+  },
 };
 
 export const labRequestService = {

@@ -127,6 +127,54 @@ const addendumSchema = z
     supersedesNoteId: idSchema,
   })
   .strict();
+const relatedActionSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("REFERRAL"),
+      priority: z.enum(["ROUTINE", "URGENT", "EMERGENCY"]),
+      reason: z.string().trim().min(1).max(2000),
+      recipientName: z.string().trim().min(1).max(200).optional(),
+      specialtyCode: z.string().trim().min(1).max(120),
+    })
+    .strict(),
+  z
+    .object({
+      activities: z.array(z.string().trim().min(1).max(500)).min(1).max(50),
+      endsAt: instantSchema.optional(),
+      goal: z.string().trim().min(1).max(2000),
+      kind: z.literal("CARE_PLAN"),
+      startsAt: instantSchema,
+      title: z.string().trim().min(1).max(200),
+    })
+    .strict(),
+  z
+    .object({
+      criticality: z.enum(["LOW", "HIGH", "UNABLE_TO_ASSESS"]),
+      kind: z.literal("ALLERGY"),
+      reaction: z.string().trim().min(1).max(1000).optional(),
+      substanceCode: z.string().trim().min(1).max(120).optional(),
+      substanceCodeSystem: z.string().trim().min(1).max(255).optional(),
+      substanceDisplay: z.string().trim().min(1).max(300),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if ((value.substanceCode === undefined) !== (value.substanceCodeSystem === undefined)) {
+        context.addIssue({ code: "custom", message: "Code and code system must be paired" });
+      }
+    }),
+  z
+    .object({
+      kind: z.literal("ATTACHMENT_REFERENCE"),
+      purpose: z.string().trim().min(1).max(80),
+      sourceId: idSchema,
+      sourceType: z.enum([
+        "LABORATORY_RESULT_ATTACHMENT",
+        "SCANNED_PRESCRIPTION",
+        "APPLICATION_DOCUMENT",
+      ]),
+    })
+    .strict(),
+]);
 const listSchema = z
   .object({
     cursor: z.string().min(1).max(1024).optional(),
@@ -227,6 +275,36 @@ export class ProviderClinicalEncounterController {
       ),
     );
   }
+
+  @Post(":encounterId/related-actions")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  createRelatedAction(
+    @Param("encounterId") encounterId: string,
+    @Body() body: unknown,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const action = parse(relatedActionSchema, body);
+    const normalizedAction =
+      action.kind === "CARE_PLAN"
+        ? (() => {
+            const { endsAt, startsAt, ...carePlan } = action;
+            return {
+              ...carePlan,
+              ...(endsAt === undefined ? {} : { endsAt: new Date(endsAt) }),
+              startsAt: new Date(startsAt),
+            };
+          })()
+        : action;
+    return execute(() =>
+      this.encounters.createRelatedAction(
+        requestContext(request),
+        parse(idSchema, encounterId),
+        normalizedAction,
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
+  }
 }
 
 @Controller("v1/patient/clinical-encounters")
@@ -241,6 +319,20 @@ export class PatientClinicalEncounterController {
   list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     const input = parse(listSchema.omit({ patientId: true }), query);
     return execute(() => this.encounters.listForPatient(requestContext(request), input));
+  }
+
+  @Get("by-appointment/:appointmentId")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  getByAppointment(
+    @Param("appointmentId") appointmentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.encounters.getForPatientByAppointment(
+        requestContext(request),
+        parse(idSchema, appointmentId),
+      ),
+    );
   }
 
   @Get(":encounterId")

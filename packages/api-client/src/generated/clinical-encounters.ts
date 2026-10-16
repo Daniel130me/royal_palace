@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/provider/clinical-encounters/{encounterId}/related-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createClinicalEncounterRelatedAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/patient/clinical-encounters": {
         parameters: {
             query?: never;
@@ -108,6 +124,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getPatientClinicalEncounter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/patient/clinical-encounters/by-appointment/{appointmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPatientClinicalEncounterByAppointment"];
         put?: never;
         post?: never;
         delete?: never;
@@ -187,6 +219,46 @@ export interface components {
             /** Format: uuid */
             supersedesNoteId: string;
         };
+        RelatedActionInput: components["schemas"]["ReferralInput"] | components["schemas"]["CarePlanInput"] | components["schemas"]["AllergyInput"] | components["schemas"]["AttachmentReferenceInput"];
+        ReferralInput: {
+            /** @enum {string} */
+            kind: "REFERRAL";
+            /** @enum {string} */
+            priority: "ROUTINE" | "URGENT" | "EMERGENCY";
+            reason: string;
+            recipientName?: string;
+            specialtyCode: string;
+        };
+        CarePlanInput: {
+            activities: string[];
+            /** Format: date-time */
+            endsAt?: string;
+            goal: string;
+            /** @enum {string} */
+            kind: "CARE_PLAN";
+            /** Format: date-time */
+            startsAt: string;
+            title: string;
+        };
+        AllergyInput: {
+            /** @enum {string} */
+            criticality: "LOW" | "HIGH" | "UNABLE_TO_ASSESS";
+            /** @enum {string} */
+            kind: "ALLERGY";
+            reaction?: string;
+            substanceCode?: string;
+            substanceCodeSystem?: string;
+            substanceDisplay: string;
+        };
+        AttachmentReferenceInput: {
+            /** @enum {string} */
+            kind: "ATTACHMENT_REFERENCE";
+            purpose: string;
+            /** Format: uuid */
+            sourceId: string;
+            /** @enum {string} */
+            sourceType: "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION" | "APPLICATION_DOCUMENT";
+        };
         ClinicalEncounter: {
             /** Format: uuid */
             appointmentId: string;
@@ -198,6 +270,7 @@ export interface components {
             openedAt: string;
             patient: components["schemas"]["Party"];
             practitioner: components["schemas"]["Party"];
+            relatedActions: components["schemas"]["ClinicalRelatedActions"];
             /** Format: date-time */
             signedAt: string | null;
             /** @enum {string} */
@@ -206,27 +279,118 @@ export interface components {
             updatedAt: string;
             version: number;
         };
+        ClinicalRelatedActions: {
+            allergies: components["schemas"]["ClinicalAllergy"][];
+            attachmentReferences: components["schemas"]["ClinicalAttachmentReference"][];
+            carePlans: components["schemas"]["ClinicalCarePlan"][];
+            laboratoryRequestIds: string[];
+            prescriptionIds: string[];
+            referrals: components["schemas"]["ClinicalReferral"][];
+        };
+        ClinicalReferral: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            priority: "ROUTINE" | "URGENT" | "EMERGENCY";
+            reason: string;
+            recipientName: string | null;
+            specialtyCode: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+            version: number;
+        };
+        ClinicalCarePlan: {
+            activities: string[];
+            /** Format: date-time */
+            endsAt: string | null;
+            goal: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            startsAt: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        ClinicalAllergy: {
+            /** @enum {string} */
+            criticality: "LOW" | "HIGH" | "UNABLE_TO_ASSESS";
+            /** Format: uuid */
+            id: string;
+            reaction: string | null;
+            /** Format: date-time */
+            recordedAt: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "RESOLVED" | "ENTERED_IN_ERROR";
+            substanceCode: string | null;
+            substanceCodeSystem: string | null;
+            substanceDisplay: string;
+            version: number;
+        };
+        ClinicalAttachmentReference: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            purpose: string;
+            /** Format: uuid */
+            sourceId: string;
+            /** @enum {string} */
+            sourceType: "LABORATORY_RESULT_ATTACHMENT" | "SCANNED_PRESCRIPTION" | "APPLICATION_DOCUMENT";
+        };
         ClinicalNote: {
             /** Format: date-time */
             authoredAt: string;
             contentHash: string;
-            diagnoses: {
-                [key: string]: unknown;
-            }[];
+            diagnoses: components["schemas"]["ClinicalDiagnosis"][];
             documentation: components["schemas"]["Documentation"];
             /** Format: uuid */
             id: string;
             /** @enum {string} */
             kind: "DRAFT" | "SIGNED" | "ADDENDUM";
-            observations: {
-                [key: string]: unknown;
-            }[];
+            observations: components["schemas"]["ClinicalObservation"][];
             revision: number;
             schemaVersion: number;
             /** Format: date-time */
             signedAt: string | null;
             /** Format: uuid */
             supersedesNoteId: string | null;
+        };
+        ClinicalDiagnosis: {
+            code: string | null;
+            codeSystem: string | null;
+            display: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            onsetAt: string | null;
+            /** Format: date-time */
+            recordedAt: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "RESOLVED" | "ENTERED_IN_ERROR";
+            /** @enum {string} */
+            type: "PRIMARY" | "SECONDARY" | "DIFFERENTIAL" | "PROVISIONAL";
+        };
+        ClinicalObservation: {
+            booleanValue: boolean | null;
+            code: string;
+            codedValue: string | null;
+            codeSystem: string | null;
+            display: string;
+            /** Format: uuid */
+            id: string;
+            numericValue: string | null;
+            /** Format: date-time */
+            observedAt: string;
+            textValue: string | null;
+            unitCode: string | null;
+            /** @enum {string} */
+            valueType: "QUANTITY" | "TEXT" | "CODED" | "BOOLEAN";
         };
         Party: {
             displayName: string;
@@ -420,6 +584,29 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    createClinicalEncounterRelatedAction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                encounterId: components["parameters"]["EncounterId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelatedActionInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Encounter"];
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
     listPatientClinicalEncounters: {
         parameters: {
             query?: {
@@ -443,6 +630,23 @@ export interface operations {
             header?: never;
             path: {
                 encounterId: components["parameters"]["EncounterId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Encounter"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    getPatientClinicalEncounterByAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: string;
             };
             cookie?: never;
         };

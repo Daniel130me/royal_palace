@@ -41,6 +41,14 @@ function encounter(
     appointmentId: createOpaqueId(),
     encounterNumber: `ENC-${createOpaqueId()}`,
     id: createOpaqueId(),
+    relatedActions: {
+      allergies: [],
+      attachmentReferences: [],
+      carePlans: [],
+      laboratoryRequestIds: [],
+      prescriptionIds: [],
+      referrals: [],
+    },
     notes: [
       {
         authoredAt: new Date().toISOString(),
@@ -175,6 +183,42 @@ describe("ClinicalEncounterService", () => {
     expect(result.notes).toEqual([signed]);
   });
 
+  it("loads the patient's signed encounter by exact appointment without scanning a page", async () => {
+    const patientPrincipalId = createOpaqueId();
+    const appointmentId = createOpaqueId();
+    const draft = encounter().notes[0]!;
+    const signed = {
+      ...draft,
+      id: createOpaqueId(),
+      kind: "SIGNED" as const,
+      signedAt: new Date().toISOString(),
+    };
+    const current = encounter({
+      appointmentId,
+      notes: [signed],
+      patientPrincipalId,
+      signedAt: signed.signedAt,
+      status: "SIGNED",
+    });
+    const findPatientRecordByAppointment = vi.fn<
+      ClinicalEncounterRepository["findPatientRecordByAppointment"]
+    >(async () => current);
+
+    const result = await createService({
+      findPatientRecordByAppointment,
+    }).getForPatientByAppointment(
+      { actor: session("PATIENT", patientPrincipalId), requestId: "request-patient-appointment" },
+      appointmentId,
+    );
+
+    expect(findPatientRecordByAppointment).toHaveBeenCalledWith({
+      appointmentId,
+      patientPrincipalId,
+    });
+    expect(result.id).toBe(current.id);
+    expect(result.notes).toEqual([signed]);
+  });
+
   it("denies a different practitioner even if they have the provider role", async () => {
     const current = encounter();
     await expect(
@@ -212,6 +256,45 @@ describe("ClinicalEncounterService", () => {
         "clinical-sign-001",
       ),
     ).rejects.toMatchObject({ code: "primary_diagnosis_required", status: 400 });
+  });
+
+  it("creates a governed related action for the exact verified practitioner", async () => {
+    const principalId = createOpaqueId();
+    const current = encounter({ practitionerPrincipalId: principalId, status: "SIGNED" });
+    const createRelatedAction = vi.fn<ClinicalEncounterRepository["createRelatedAction"]>(
+      async () => current,
+    );
+    const service = createService({
+      createRelatedAction,
+      findScopeById: vi.fn(async () => current),
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: current.practitioner.id,
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+    });
+
+    await service.createRelatedAction(
+      { actor: session("PROVIDER", principalId), requestId: "request-related-action" },
+      current.id,
+      {
+        kind: "REFERRAL",
+        priority: "URGENT",
+        reason: "Synthetic specialist review",
+        specialtyCode: "synthetic-specialty",
+      },
+      "related-action-001",
+    );
+
+    expect(createRelatedAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({ kind: "REFERRAL", priority: "URGENT" }),
+        actorPrincipalId: principalId,
+        encounterId: current.id,
+        idempotencyKey: "related-action-001",
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    );
   });
 
   it("maps idempotency and concurrency conflicts without exposing database details", () => {

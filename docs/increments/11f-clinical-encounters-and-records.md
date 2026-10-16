@@ -35,20 +35,20 @@ review and controlled-environment UAT are complete.
 
 ### 11F3 — related clinical actions
 
-- [ ] Link production prescriptions and laboratory requests to the exact signed/open encounter
+- [x] Link production prescriptions and laboratory requests to the exact signed/open encounter
       according to their approved workflow rules.
-- [ ] Implement governed referrals, care plans, allergies, and attachment references as separate
+- [x] Implement governed referrals, care plans, allergies, and attachment references as separate
       aggregates with their own authorization and lifecycle evidence.
-- [ ] Preserve the complete approved provider workspace actions without embedding clinical detail
+- [x] Preserve the complete approved provider workspace actions without embedding clinical detail
       in external notifications.
 
 ### 11F4 — signed prototype connection
 
-- [ ] Connect provider encounter at `#/provider/encounter?id=<encounter-id>`.
-- [ ] Connect provider patient record at `#/provider/patient?id=<patient-id>`.
-- [ ] Connect patient health records at `#/patient/records`.
-- [ ] Connect patient consultation summary at `#/patient/consultation?id=<appointment-id>`.
-- [ ] Retire the corresponding unauthenticated legacy actions/resources only after parity evidence.
+- [x] Connect provider encounter at `#/provider/encounter?id=<encounter-id>`.
+- [x] Connect provider patient record at `#/provider/patient?id=<patient-id>`.
+- [x] Connect patient health records at `#/patient/records`.
+- [x] Connect patient consultation summary at `#/patient/consultation?id=<appointment-id>`.
+- [x] Retire the corresponding unauthenticated legacy actions/resources only after parity evidence.
 - [ ] Record visual comparison and stakeholder UAT without treating automated checks as approval.
 
 ## Architecture rules
@@ -103,6 +103,32 @@ review and controlled-environment UAT are complete.
   indexes. The test fixture intentionally contains no synthetic clinical records, so the measured
   0.034 ms patient and 0.088 ms practitioner executions are index-eligibility evidence rather than
   production latency claims.
+
+## 11F3–11F4 implementation evidence
+
+- Prescriptions and laboratory requests resolve their encounter from the exact appointment,
+  patient, and practitioner tuple. PostgreSQL rejects cross-patient, cross-practitioner, and
+  non-open/non-signed links even if an application defect reaches the database.
+- Referrals, care plans, allergies, and attachment references are normalized clinical aggregates,
+  not mutable fields inside a note JSON document. Writes require the exact verified practitioner,
+  principal-scoped idempotency, a serializable transaction, and a content-free audit event.
+- Attachment references accept only an already clean laboratory attachment, clean scanned
+  prescription, or clean onboarding document owned by the encounter patient. The prototype's
+  random fake-attachment behavior is retired.
+- The provider encounter, provider patient record, patient health-record timeline, patient
+  consultation summary, and provider dashboard now read/write through the typed production
+  clinical API. Signed-record patient reads exclude drafts. Consultation lookup uses the exact
+  patient-and-appointment index path instead of scanning a bounded encounter page.
+- Legacy SQLite encounter, diagnosis, and care-plan resources and the legacy start/sign actions
+  return `410 Gone`. This explicit tombstone prevents stale clients from silently writing clinical
+  facts into the retired store; the separate legacy referral inbox remains visible until its
+  recipient workflow receives its own production lifecycle slice.
+- No real clinical mode, external notification content, production terminology, retention rule,
+  or emergency-access policy was activated by this increment.
+- Final combined-batch verification passed: 8/8 workspace type-check and lint tasks, 953 API tests
+  with one intentional skip, 44/44 web tests, 8/8 production builds with 57 static pages,
+  139-capability prototype-parity verification, Prisma validation, and the complete PostgreSQL
+  clean-install/upgrade/backfill/repair/concurrency/constraint migration harness.
 
 ## Rollback and qualification
 

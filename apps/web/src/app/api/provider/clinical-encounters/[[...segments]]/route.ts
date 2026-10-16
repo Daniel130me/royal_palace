@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, context: Context) {
   if (
     encounterId !== null &&
     segments.length === 2 &&
-    ["drafts", "sign", "addenda"].includes(segments[1]!)
+    ["drafts", "sign", "addenda", "related-actions"].includes(segments[1]!)
   ) {
     return proxyAuthenticatedApi(
       request,

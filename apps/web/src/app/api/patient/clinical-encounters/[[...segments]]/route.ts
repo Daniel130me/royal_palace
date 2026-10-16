@@ -11,6 +11,16 @@ export async function GET(
   if (segments.length === 0) {
     return proxyAuthenticatedList(request, "/v1/patient/clinical-encounters");
   }
+  if (segments.length === 2 && segments[0] === "by-appointment") {
+    const appointmentId = exactClinicalUuid(segments[1]);
+    return appointmentId === null
+      ? clinicalBffNotFound()
+      : proxyAuthenticatedApi(
+          request,
+          `/v1/patient/clinical-encounters/by-appointment/${appointmentId}`,
+          "GET",
+        );
+  }
   const encounterId = segments.length === 1 ? exactClinicalUuid(segments[0]) : null;
   return encounterId === null
     ? clinicalBffNotFound()

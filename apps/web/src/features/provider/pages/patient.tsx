@@ -7,13 +7,11 @@ import {
   patientService,
   appointmentService,
   productionPrescriptionService,
-  referralService,
   encounterService,
   productionLaboratoryService,
 } from "@/lib/services";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
 import type { LaboratoryResultResponse } from "@royal-palace/contracts";
-import { resource } from "@/lib/api-client";
 import {
   normalizePatient,
   normalizeEncounter,
@@ -78,21 +76,20 @@ export function ProviderPatientDetail() {
     setLoading(true);
     setError(null);
     try {
-      const [p, appts, rxs, resultPage, refs, encs] = await Promise.all([
+      const [p, appts, rxs, resultPage, encs] = await Promise.all([
         patientService.get(id),
         appointmentService.list({ patientId: id }),
         productionPrescriptionService.provider
           .list(id, undefined, 50)
           .then((page) => [...page.data]),
         productionLaboratoryService.provider.results(undefined, 50, id),
-        referralService.list({ patientId: id }),
-        resource.list<ClinicalEncounter>("clinicalEncounter", { patientId: id }),
+        encounterService.listProvider(id),
       ]);
       setPatient(normalizePatient(p));
       setAppointments(appts);
       setPrescriptions(rxs);
       setLabResults(resultPage.data);
-      setReferrals(refs.map(normalizeReferral));
+      setReferrals(encs.flatMap((encounter) => encounter.referrals ?? []).map(normalizeReferral));
       setEncounters(encs.map(normalizeEncounter));
     } catch (e) {
       setError((e as Error).message ?? "Failed to load patient.");

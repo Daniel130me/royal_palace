@@ -5,11 +5,7 @@ import { navigate } from "@/lib/nav";
 import {
   appointmentService,
   productionPrescriptionService,
-  labRequestService,
-  referralService,
-  carePlanService,
   encounterService,
-  diagnosisService,
   productionLaboratoryService,
 } from "@/lib/services";
 import type {
@@ -108,34 +104,36 @@ export function PatientRecords() {
     Promise.all([
       appointmentService.list({ patientId: profile.id }),
       productionPrescriptionService.patient.list(undefined, 50).then((page) => [...page.data]),
-      labRequestService.list({ patientId: profile.id }),
+      productionLaboratoryService.patient.list(undefined, 50),
       productionPrescriptionService.patient.orders(undefined, 50).then((page) => [...page.data]),
-      referralService.list({ patientId: profile.id }),
-      carePlanService.list(profile.id),
-      diagnosisService.list(profile.id),
+      encounterService.listPatient(),
       productionLaboratoryService.patient.results(undefined, 50),
     ])
-      .then(async ([appts, rx, labs, ords, refs, plans, dx, resultPage]) => {
+      .then(([appts, rx, labPage, ords, encs, resultPage]) => {
         if (cancelled) return;
         setAppointments(appts);
         setPrescriptions(rx);
-        setLabRequests(labs);
+        setLabRequests(
+          labPage.data.map((request) => ({
+            booking: null,
+            clinicalIndication: request.clinicalIndication,
+            fastingRequired: false,
+            id: request.id,
+            patientId: request.patient.id,
+            preparationInstructions: request.specimenInstructions,
+            priority: request.priority.toLowerCase(),
+            requestNumber: request.requestNumber,
+            requestingProviderId: request.practitioner.id,
+            status: request.status.toLowerCase() as LaboratoryRequest["status"],
+            tests: [request.service.name],
+          })),
+        );
         setOrders(ords);
-        setReferrals(refs);
-        setCarePlans(plans);
-        setDiagnoses(dx);
+        setReferrals(encs.flatMap((encounter) => encounter.referrals ?? []));
+        setCarePlans(encs.flatMap((encounter) => encounter.carePlans ?? []));
+        setDiagnoses(encs.flatMap((encounter) => encounter.diagnoses ?? []));
         setLabResults(resultPage.data);
-        const completed = appts.filter((a) => a.status === "completed");
-        const encs: ClinicalEncounter[] = [];
-        for (const a of completed) {
-          try {
-            const e = await encounterService.byAppointment(a.id);
-            if (e) encs.push(e);
-          } catch {
-            /* skip */
-          }
-        }
-        if (!cancelled) setEncounters(encs);
+        setEncounters(encs);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

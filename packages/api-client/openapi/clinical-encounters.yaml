@@ -111,6 +111,27 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/{encounterId}/related-actions:
+    post:
+      operationId: createClinicalEncounterRelatedAction
+      parameters:
+        - $ref: "#/components/parameters/EncounterId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelatedActionInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/Encounter"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /v1/patient/clinical-encounters:
     get:
       operationId: listPatientClinicalEncounters
@@ -129,6 +150,23 @@ paths:
       operationId: getPatientClinicalEncounter
       parameters:
         - $ref: "#/components/parameters/EncounterId"
+      responses:
+        "200":
+          $ref: "#/components/responses/Encounter"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/patient/clinical-encounters/by-appointment/{appointmentId}:
+    get:
+      operationId: getPatientClinicalEncounterByAppointment
+      parameters:
+        - in: path
+          name: appointmentId
+          required: true
+          schema: { type: string, format: uuid }
       responses:
         "200":
           $ref: "#/components/responses/Encounter"
@@ -348,6 +386,59 @@ components:
               items: { $ref: "#/components/schemas/ObservationInput" }
             supersedesNoteId: { type: string, format: uuid }
       unevaluatedProperties: false
+    RelatedActionInput:
+      oneOf:
+        - $ref: "#/components/schemas/ReferralInput"
+        - $ref: "#/components/schemas/CarePlanInput"
+        - $ref: "#/components/schemas/AllergyInput"
+        - $ref: "#/components/schemas/AttachmentReferenceInput"
+    ReferralInput:
+      type: object
+      additionalProperties: false
+      required: [kind, priority, reason, specialtyCode]
+      properties:
+        kind: { type: string, enum: [REFERRAL] }
+        priority: { type: string, enum: [ROUTINE, URGENT, EMERGENCY] }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        recipientName: { type: string, minLength: 1, maxLength: 200 }
+        specialtyCode: { type: string, minLength: 1, maxLength: 120 }
+    CarePlanInput:
+      type: object
+      additionalProperties: false
+      required: [activities, goal, kind, startsAt, title]
+      properties:
+        activities:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 500 }
+        endsAt: { type: string, format: date-time }
+        goal: { type: string, minLength: 1, maxLength: 2000 }
+        kind: { type: string, enum: [CARE_PLAN] }
+        startsAt: { type: string, format: date-time }
+        title: { type: string, minLength: 1, maxLength: 200 }
+    AllergyInput:
+      type: object
+      additionalProperties: false
+      required: [criticality, kind, substanceDisplay]
+      properties:
+        criticality: { type: string, enum: [LOW, HIGH, UNABLE_TO_ASSESS] }
+        kind: { type: string, enum: [ALLERGY] }
+        reaction: { type: string, minLength: 1, maxLength: 1000 }
+        substanceCode: { type: string, minLength: 1, maxLength: 120 }
+        substanceCodeSystem: { type: string, minLength: 1, maxLength: 255 }
+        substanceDisplay: { type: string, minLength: 1, maxLength: 300 }
+    AttachmentReferenceInput:
+      type: object
+      additionalProperties: false
+      required: [kind, purpose, sourceId, sourceType]
+      properties:
+        kind: { type: string, enum: [ATTACHMENT_REFERENCE] }
+        purpose: { type: string, minLength: 1, maxLength: 80 }
+        sourceId: { type: string, format: uuid }
+        sourceType:
+          type: string
+          enum: [LABORATORY_RESULT_ATTACHMENT, SCANNED_PRESCRIPTION, APPLICATION_DOCUMENT]
     ClinicalEncounter:
       type: object
       required:
@@ -359,6 +450,7 @@ components:
           openedAt,
           patient,
           practitioner,
+          relatedActions,
           signedAt,
           status,
           updatedAt,
@@ -374,10 +466,106 @@ components:
         openedAt: { type: string, format: date-time }
         patient: { $ref: "#/components/schemas/Party" }
         practitioner: { $ref: "#/components/schemas/Party" }
+        relatedActions: { $ref: "#/components/schemas/ClinicalRelatedActions" }
         signedAt: { type: [string, "null"], format: date-time }
         status: { type: string, enum: [OPEN, SIGNED] }
         updatedAt: { type: string, format: date-time }
         version: { type: integer }
+    ClinicalRelatedActions:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          allergies,
+          attachmentReferences,
+          carePlans,
+          laboratoryRequestIds,
+          prescriptionIds,
+          referrals,
+        ]
+      properties:
+        allergies:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalAllergy" }
+        attachmentReferences:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalAttachmentReference" }
+        carePlans:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalCarePlan" }
+        laboratoryRequestIds:
+          type: array
+          items: { type: string, format: uuid }
+        prescriptionIds:
+          type: array
+          items: { type: string, format: uuid }
+        referrals:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalReferral" }
+    ClinicalReferral:
+      type: object
+      additionalProperties: false
+      required: [createdAt, id, priority, reason, recipientName, specialtyCode, status, version]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        priority: { type: string, enum: [ROUTINE, URGENT, EMERGENCY] }
+        reason: { type: string }
+        recipientName: { type: [string, "null"] }
+        specialtyCode: { type: string }
+        status: { type: string, enum: [ACTIVE, ACCEPTED, COMPLETED, CANCELLED] }
+        version: { type: integer }
+    ClinicalCarePlan:
+      type: object
+      additionalProperties: false
+      required: [activities, endsAt, goal, id, startsAt, status, title, updatedAt, version]
+      properties:
+        activities: { type: array, items: { type: string } }
+        endsAt: { type: [string, "null"], format: date-time }
+        goal: { type: string }
+        id: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE, COMPLETED, CANCELLED] }
+        title: { type: string }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer }
+    ClinicalAllergy:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          criticality,
+          id,
+          reaction,
+          recordedAt,
+          status,
+          substanceCode,
+          substanceCodeSystem,
+          substanceDisplay,
+          version,
+        ]
+      properties:
+        criticality: { type: string, enum: [LOW, HIGH, UNABLE_TO_ASSESS] }
+        id: { type: string, format: uuid }
+        reaction: { type: [string, "null"] }
+        recordedAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE, RESOLVED, ENTERED_IN_ERROR] }
+        substanceCode: { type: [string, "null"] }
+        substanceCodeSystem: { type: [string, "null"] }
+        substanceDisplay: { type: string }
+        version: { type: integer }
+    ClinicalAttachmentReference:
+      type: object
+      additionalProperties: false
+      required: [createdAt, id, purpose, sourceId, sourceType]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        purpose: { type: string }
+        sourceId: { type: string, format: uuid }
+        sourceType:
+          type: string
+          enum: [LABORATORY_RESULT_ATTACHMENT, SCANNED_PRESCRIPTION, APPLICATION_DOCUMENT]
     ClinicalNote:
       type: object
       required:
@@ -397,15 +585,61 @@ components:
       properties:
         authoredAt: { type: string, format: date-time }
         contentHash: { type: string }
-        diagnoses: { type: array, items: { type: object, additionalProperties: true } }
+        diagnoses:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalDiagnosis" }
         documentation: { $ref: "#/components/schemas/Documentation" }
         id: { type: string, format: uuid }
         kind: { type: string, enum: [DRAFT, SIGNED, ADDENDUM] }
-        observations: { type: array, items: { type: object, additionalProperties: true } }
+        observations:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalObservation" }
         revision: { type: integer }
         schemaVersion: { type: integer }
         signedAt: { type: [string, "null"], format: date-time }
         supersedesNoteId: { type: [string, "null"], format: uuid }
+    ClinicalDiagnosis:
+      type: object
+      additionalProperties: false
+      required: [code, codeSystem, display, id, onsetAt, recordedAt, status, type]
+      properties:
+        code: { type: [string, "null"] }
+        codeSystem: { type: [string, "null"] }
+        display: { type: string }
+        id: { type: string, format: uuid }
+        onsetAt: { type: [string, "null"], format: date-time }
+        recordedAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE, RESOLVED, ENTERED_IN_ERROR] }
+        type: { type: string, enum: [PRIMARY, SECONDARY, DIFFERENTIAL, PROVISIONAL] }
+    ClinicalObservation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          booleanValue,
+          code,
+          codedValue,
+          codeSystem,
+          display,
+          id,
+          numericValue,
+          observedAt,
+          textValue,
+          unitCode,
+          valueType,
+        ]
+      properties:
+        booleanValue: { type: [boolean, "null"] }
+        code: { type: string }
+        codedValue: { type: [string, "null"] }
+        codeSystem: { type: [string, "null"] }
+        display: { type: string }
+        id: { type: string, format: uuid }
+        numericValue: { type: [string, "null"] }
+        observedAt: { type: string, format: date-time }
+        textValue: { type: [string, "null"] }
+        unitCode: { type: [string, "null"] }
+        valueType: { type: string, enum: [QUANTITY, TEXT, CODED, BOOLEAN] }
     Party:
       type: object
       required: [displayName, id]

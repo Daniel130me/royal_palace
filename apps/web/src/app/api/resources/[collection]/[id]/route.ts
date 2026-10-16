@@ -17,6 +17,17 @@ import {
   serializeAccessGrant,
 } from "@/lib/serialize";
 
+const RETIRED_CLINICAL_MODELS = new Set(["carePlan", "clinicalEncounter", "diagnosis"]);
+
+function retiredClinicalResponse(collection: string) {
+  return RETIRED_CLINICAL_MODELS.has(collection)
+    ? NextResponse.json(
+        { error: "This prototype clinical resource has been retired." },
+        { status: 410 },
+      )
+    : null;
+}
+
 function serializeOne(collection: string, row: unknown): unknown {
   switch (collection) {
     case "patient":
@@ -49,6 +60,8 @@ export async function GET(
   { params }: { params: Promise<{ collection: string; id: string }> }
 ) {
   const { collection, id } = await params;
+  const retired = retiredClinicalResponse(collection);
+  if (retired) return retired;
   if (!(MODELS as readonly string[]).includes(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }
@@ -68,6 +81,8 @@ export async function PATCH(
   { params }: { params: Promise<{ collection: string; id: string }> }
 ) {
   const { collection, id } = await params;
+  const retired = retiredClinicalResponse(collection);
+  if (retired) return retired;
   if (!(MODELS as readonly string[]).includes(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }
@@ -128,6 +143,8 @@ export async function DELETE(
   { params }: { params: Promise<{ collection: string; id: string }> }
 ) {
   const { collection, id } = await params;
+  const retired = retiredClinicalResponse(collection);
+  if (retired) return retired;
   if (!(MODELS as readonly string[]).includes(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
   }

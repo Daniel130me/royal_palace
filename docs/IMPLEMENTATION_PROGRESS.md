@@ -383,9 +383,10 @@ that completes an increment.
     indexes, clean/upgrade migration paths, zero drift, and repeatable synthetic seed. Visual
     comparison, stakeholder UAT, governed commercial policy, provider qualification, and real
     activation remain open; no real logistics use is enabled.
-  - `[ ]` Clinical encounter/record, remaining settlement/payout, and advanced-reporting slices
-    remain after logistics.
-    - `[~]` 11F clinical encounters and patient records is tracked in
+  - `[ ]` Remaining settlement/payout and advanced-reporting slices remain after logistics.
+    - `[~]` 11F clinical encounters and patient records has completed its production encounter
+      foundation, related clinical actions, and signed-prototype screen connection. Controlled
+      visual comparison and stakeholder UAT remain open and are tracked in
       [`increments/11f-clinical-encounters-and-records.md`](./increments/11f-clinical-encounters-and-records.md).
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 

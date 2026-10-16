@@ -154,6 +154,35 @@ export class ClinicalEncounterService {
     return { ...page, data: page.data.map(patientEncounter) };
   }
 
+  async getForPatientByAppointment(context: ClinicalEncounterContext, appointmentId: string) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        patientScopeId: context.actor.principalId,
+        practitionerPrincipalId: context.actor.principalId,
+        resourceId: appointmentId,
+        resourceType: "clinical_encounter",
+        visibility: "PATIENT_SIGNED",
+      },
+      policy: AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD,
+      requestId: context.requestId,
+    });
+    const encounter = await this.repository.findPatientRecordByAppointment({
+      appointmentId,
+      patientPrincipalId: context.actor.principalId,
+    });
+    if (encounter === null) {
+      throw new ClinicalEncounterFlowError(
+        "clinical_encounter_not_found",
+        404,
+        "Encounter was not found",
+      );
+    }
+    return patientEncounter(encounter);
+  }
+
   async listForPractitioner(
     context: ClinicalEncounterContext,
     input: { cursor?: string; limit: number; patientId?: string },
@@ -293,15 +322,35 @@ export class ClinicalEncounterService {
     );
   }
 
+  async createRelatedAction(
+    context: ClinicalEncounterContext,
+    encounterId: string,
+    action: Parameters<ClinicalEncounterRepository["createRelatedAction"]>[0]["action"],
+    idempotencyKey: string,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizeMutation(context, encounterId, "OPEN_OR_SIGNED");
+    return publicEncounter(
+      await this.repository.createRelatedAction({
+        action,
+        actorPrincipalId: context.actor.principalId,
+        encounterId,
+        idempotencyKey,
+        requestHash: requestHash({ action, encounterId }),
+        traceRequestId: context.requestId,
+      }),
+    );
+  }
+
   private async authorizeMutation(
     context: ClinicalEncounterContext,
     encounterId: string,
-    expectedStatus: "OPEN" | "SIGNED",
+    expectedStatus: "OPEN" | "SIGNED" | "OPEN_OR_SIGNED",
   ) {
     await this.requireVerifiedPractitioner(context.actor.principalId);
     const scope = await this.requireScope(encounterId);
     await this.authorizePractitioner(context, scope);
-    if (scope.status !== expectedStatus) {
+    if (expectedStatus !== "OPEN_OR_SIGNED" && scope.status !== expectedStatus) {
       throw new ClinicalEncounterFlowError(
         "clinical_encounter_state_conflict",
         409,

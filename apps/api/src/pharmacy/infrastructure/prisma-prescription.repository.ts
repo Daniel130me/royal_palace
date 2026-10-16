@@ -95,10 +95,17 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
     const prescriptionId = createOpaqueId();
     await this.database.$transaction(async (transaction) => {
       await assertDraftReferences(transaction, input.draft, input.practitionerId);
+      const encounter = await findEncounterForClinicalAction(
+        transaction,
+        input.draft.appointmentId,
+        input.draft.patientId,
+        input.practitionerId,
+      );
       await transaction.prescription.create({
         data: {
           appointmentId: input.draft.appointmentId,
           clinicalNote: input.draft.clinicalNote,
+          encounterId: encounter?.id,
           id: prescriptionId,
           items: { create: itemCreates(input.draft.items) },
           jurisdictionCode: input.draft.jurisdictionCode,
@@ -138,6 +145,12 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
         return null;
       }
       await assertDraftReferences(transaction, input.draft, current.practitioner_id);
+      const encounter = await findEncounterForClinicalAction(
+        transaction,
+        input.draft.appointmentId,
+        input.draft.patientId,
+        current.practitioner_id,
+      );
       await transaction.prescriptionItem.deleteMany({
         where: { prescriptionId: input.prescriptionId },
       });
@@ -151,6 +164,7 @@ export class PrismaPrescriptionRepository implements PrescriptionRepository {
         data: {
           appointmentId: input.draft.appointmentId,
           clinicalNote: input.draft.clinicalNote,
+          encounterId: encounter?.id,
           jurisdictionCode: input.draft.jurisdictionCode,
           patientId: input.draft.patientId,
           previousPrescriptionId: input.draft.previousPrescriptionId,
@@ -956,6 +970,23 @@ async function assertDraftReferences(
     });
     if (previous === null) throw new PrescriptionConflictError("INVARIANT_VIOLATION");
   }
+}
+
+async function findEncounterForClinicalAction(
+  transaction: Prisma.TransactionClient,
+  appointmentId: string,
+  patientId: string,
+  practitionerId: string,
+) {
+  return transaction.clinicalEncounter.findFirst({
+    select: { id: true },
+    where: {
+      appointmentId,
+      patientId,
+      practitionerId,
+      status: { in: ["OPEN", "SIGNED"] },
+    },
+  });
 }
 
 function itemCreates(items: readonly PrescriptionDraftInput["items"][number][]) {

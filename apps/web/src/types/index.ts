@@ -212,6 +212,7 @@ export interface ClinicalEncounter {
   prescriptions?: Prescription[];
   labRequests?: LaboratoryRequest[];
   referrals?: Referral[];
+  carePlans?: CarePlan[];
   diagnoses?: Diagnosis[];
 }
 

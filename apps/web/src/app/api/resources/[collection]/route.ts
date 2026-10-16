@@ -57,6 +57,11 @@ const MODELS = [
 export { MODELS };
 
 type ModelName = (typeof MODELS)[number];
+const RETIRED_CLINICAL_MODELS = new Set<ModelName>([
+  "carePlan",
+  "clinicalEncounter",
+  "diagnosis",
+]);
 
 const INCLUDES: Partial<Record<ModelName, Record<string, boolean>>> = {
   appointment: { patient: true, provider: true, encounter: true, payment: true },
@@ -91,6 +96,12 @@ export async function GET(
   const { collection } = await params;
   if (!isModel(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
+  }
+  if (RETIRED_CLINICAL_MODELS.has(collection)) {
+    return NextResponse.json(
+      { error: "This prototype clinical resource has been retired." },
+      { status: 410 },
+    );
   }
   const url = new URL(req.url);
   const where: Record<string, unknown> = {};
@@ -155,6 +166,12 @@ export async function POST(
   const { collection } = await params;
   if (!isModel(collection)) {
     return NextResponse.json({ error: `Unknown collection: ${collection}` }, { status: 404 });
+  }
+  if (RETIRED_CLINICAL_MODELS.has(collection)) {
+    return NextResponse.json(
+      { error: "This prototype clinical resource has been retired." },
+      { status: 410 },
+    );
   }
   if (collection === "hospital" || collection === "hospitalService") {
     return NextResponse.json(
