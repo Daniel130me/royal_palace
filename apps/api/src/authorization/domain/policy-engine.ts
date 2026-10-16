@@ -109,6 +109,10 @@ export class PolicyEngine {
         );
       case AUTHORIZATION_POLICY.REVIEW_ORGANIZATION_PAYOUT:
         return this.allowPlatformRole(request.actor, request.policy, ["FINANCE", "ADMINISTRATOR"]);
+      case AUTHORIZATION_POLICY.FINALIZE_ORGANIZATION_SETTLEMENT:
+        return this.allowPlatformRole(request.actor, request.policy, ["FINANCE", "ADMINISTRATOR"]);
+      case AUTHORIZATION_POLICY.EXECUTE_ORGANIZATION_PAYOUT:
+        return this.allowPlatformRole(request.actor, request.policy, ["FINANCE"]);
       case AUTHORIZATION_POLICY.ACCEPT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.CREATE_DIRECT_PHARMACY_QUOTE:
       case AUTHORIZATION_POLICY.MANAGE_OWN_SCANNED_PRESCRIPTION:

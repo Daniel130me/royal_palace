@@ -44,6 +44,15 @@ const reviewSchema = z
     reasonCode: z.string().trim().min(3).max(100),
   })
   .strict();
+const executeSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
+const finalizeStatementSchema = z
+  .object({
+    currency: currencySchema,
+    from: z.iso.datetime({ offset: true }),
+    organizationId: idSchema,
+    to: z.iso.datetime({ offset: true }),
+  })
+  .strict();
 
 @Controller("v1/organization/finance")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -63,6 +72,16 @@ export class OrganizationFinanceController {
         ...parseRange(query),
         organizationId: parse(idSchema, organizationId),
       }),
+    );
+  }
+
+  @Get("statements")
+  statements(
+    @Headers("x-organization-id") organizationId: string | undefined,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.finance.statements(context(request), parse(idSchema, organizationId)),
     );
   }
 
@@ -109,6 +128,35 @@ export class AdminOrganizationFinanceController {
     return execute(() => this.finance.payouts(context(request)));
   }
 
+  @Get("statements")
+  statements(@Req() request: AuthenticatedInternalRequest) {
+    return execute(() => this.finance.statements(context(request)));
+  }
+
+  @Post("statements")
+  finalizeStatement(
+    @Body() body: unknown,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(finalizeStatementSchema, body);
+    const range = parseRange({ from: input.from, to: input.to, granularity: "TOTAL" });
+    return execute(() =>
+      this.finance.finalizeStatement(context(request), {
+        currency: input.currency,
+        from: range.from,
+        idempotencyKey: parse(idempotencySchema, idempotencyKey),
+        organizationId: input.organizationId,
+        to: range.to,
+      }),
+    );
+  }
+
+  @Get("reports/summary")
+  advancedReport(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() => this.finance.advancedReport(context(request), parseRange(query)));
+  }
+
   @Post("payouts/:payoutId/review")
   review(
     @Param("payoutId") payoutId: string,
@@ -118,6 +166,20 @@ export class AdminOrganizationFinanceController {
     return execute(() =>
       this.finance.review(context(request), {
         ...parse(reviewSchema, body),
+        payoutId: parse(idSchema, payoutId),
+      }),
+    );
+  }
+
+  @Post("payouts/:payoutId/execute")
+  executePayout(
+    @Param("payoutId") payoutId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.finance.executePayout(context(request), {
+        ...parse(executeSchema, body),
         payoutId: parse(idSchema, payoutId),
       }),
     );

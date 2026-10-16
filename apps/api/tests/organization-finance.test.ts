@@ -5,6 +5,7 @@ import {
   PrismaOrganizationFinanceRepository,
   projectOrganizationEarning,
 } from "../src/finance/infrastructure/prisma-organization-finance.repository.js";
+import { ConfiguredPayoutGateway } from "../src/finance/infrastructure/configured-payout.gateway.js";
 import { createOpaqueId } from "../src/platform/identifiers.js";
 
 function payment() {
@@ -55,6 +56,7 @@ describe("organization earning projection", () => {
         findUnique: vi.fn().mockResolvedValue({
           id: earningId,
           payoutAllocations: [{ payoutRequestId, payoutRequest: { status: "REQUESTED" } }],
+          settlementAllocation: null,
         }),
         update,
       },
@@ -92,6 +94,33 @@ describe("organization earning projection", () => {
       },
     );
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("flags a finalized statement for reconciliation after a negative payment event", async () => {
+    const settlementId = createOpaqueId();
+    const settlementUpdate = vi.fn().mockResolvedValue(undefined);
+    const transaction = {
+      organizationEarning: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: createOpaqueId(),
+          payoutAllocations: [],
+          settlementAllocation: { settlementId },
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      organizationPayoutRequest: { updateMany: vi.fn() },
+      organizationSettlement: { update: settlementUpdate },
+    } as unknown as Prisma.TransactionClient;
+
+    await projectOrganizationEarning(transaction, payment(), {
+      eventType: "REVERSED",
+      occurredAt: new Date("2026-10-14T13:00:00.000Z"),
+    });
+
+    expect(settlementUpdate).toHaveBeenCalledWith({
+      data: { status: "RECONCILIATION_REQUIRED" },
+      where: { id: settlementId },
+    });
   });
 });
 
@@ -137,5 +166,36 @@ describe("organization settlement reports", () => {
         reservedAmountMinor: "1000",
       }),
     ]);
+  });
+});
+
+describe("configured payout gateway", () => {
+  it("uses a stable provider reference for local idempotent execution", async () => {
+    const gateway = new ConfiguredPayoutGateway({ payoutGateway: { mode: "synthetic" } } as never);
+    const claim = {
+      amountMinor: "10000",
+      currency: "NGN",
+      organizationId: createOpaqueId(),
+      payoutId: createOpaqueId(),
+      payoutNumber: "PAYOUT-TEST",
+    };
+    const first = await gateway.execute(claim);
+    const second = await gateway.execute(claim);
+
+    expect(first).toEqual(second);
+    expect(first.providerCode).toBe("synthetic");
+  });
+
+  it("fails closed when payout execution is disabled", async () => {
+    const gateway = new ConfiguredPayoutGateway({ payoutGateway: { mode: "disabled" } } as never);
+    await expect(
+      gateway.execute({
+        amountMinor: "10000",
+        currency: "NGN",
+        organizationId: createOpaqueId(),
+        payoutId: createOpaqueId(),
+        payoutNumber: "PAYOUT-TEST",
+      }),
+    ).rejects.toThrow("payout_gateway_disabled");
   });
 });

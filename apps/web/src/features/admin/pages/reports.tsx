@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
-import { appointmentService, providerService, settlementService } from "@/lib/services";
+import {
+  appointmentService,
+  productionOrganizationFinanceService,
+  providerService,
+  settlementService,
+} from "@/lib/services";
 import { resource } from "@/lib/api-client";
 import type { Appointment, Provider, Settlement, Payment } from "@/types";
 import {
@@ -14,7 +19,7 @@ import {
   SectionCard,
 } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatMinorCurrency } from "@/lib/format";
 import {
   BarChart,
   Bar,
@@ -30,7 +35,19 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { BarChart3, TrendingUp, Users, Stethoscope, Activity } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  TrendingUp,
+  Users,
+  Stethoscope,
+  Activity,
+  WalletCards,
+} from "lucide-react";
+
+type FinancePeriod = Awaited<
+  ReturnType<typeof productionOrganizationFinanceService.admin.advancedReport>
+>["data"][number];
 
 const CATEGORY_COLORS = [
   "#10b981",
@@ -47,23 +64,34 @@ export function AdminReports() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [financePeriods, setFinancePeriods] = useState<FinancePeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(null);
+    const to = new Date();
+    const from = new Date(to.getTime() - 14 * 86_400_000);
     Promise.all([
-      appointmentService.list(),
-      providerService.list(),
-      settlementService.list(),
-      resource.list<Payment>("payment"),
+      productionOrganizationFinanceService.admin.advancedReport(
+        from.toISOString(),
+        to.toISOString(),
+        "DAY",
+      ),
+      Promise.allSettled([
+        appointmentService.list(),
+        providerService.list(),
+        settlementService.list(),
+        resource.list<Payment>("payment"),
+      ]),
     ])
-      .then(([a, p, s, pay]) => {
-        setAppts(a);
-        setProviders(p);
-        setSettlements(s);
-        setPayments(pay);
+      .then(([finance, legacy]) => {
+        setFinancePeriods(finance.data);
+        if (legacy[0]?.status === "fulfilled") setAppts(legacy[0].value as Appointment[]);
+        if (legacy[1]?.status === "fulfilled") setProviders(legacy[1].value as Provider[]);
+        if (legacy[2]?.status === "fulfilled") setSettlements(legacy[2].value as Settlement[]);
+        if (legacy[3]?.status === "fulfilled") setPayments(legacy[3].value as Payment[]);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load reports"))
       .finally(() => setLoading(false));
@@ -225,6 +253,55 @@ export function AdminReports() {
         />
       </div>
 
+      <SectionCard title="Audited finance summary (last 14 days)" icon={WalletCards}>
+        {financePeriods.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No immutable organization earnings have been recorded in this period.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {financePeriods.map((period) => (
+              <div
+                key={`${period.periodStart}-${period.currency}`}
+                className="grid gap-2 rounded-xl border border-border/60 p-3 text-sm sm:grid-cols-5"
+              >
+                <div>
+                  <p className="text-xs text-muted-foreground">Period / currency</p>
+                  <p className="font-semibold">
+                    {new Date(period.periodStart).toLocaleDateString("en-GB")} · {period.currency}
+                  </p>
+                </div>
+                <ReportAmount
+                  label="Gross"
+                  value={period.grossAmountMinor}
+                  currency={period.currency}
+                />
+                <ReportAmount
+                  label="Payable"
+                  value={period.payableAmountMinor}
+                  currency={period.currency}
+                />
+                <ReportAmount
+                  label="Paid out"
+                  value={period.paidAmountMinor}
+                  currency={period.currency}
+                />
+                <div>
+                  <p className="text-xs text-muted-foreground">Exceptions</p>
+                  <p className="flex items-center gap-1 font-semibold">
+                    {(period.failedPayoutCount ?? 0) + (period.reconciliationCount ?? 0) > 0 && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                    )}
+                    {period.failedPayoutCount ?? 0} failed · {period.reconciliationCount ?? 0}{" "}
+                    reconcile
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
       {/* Charts grid — stacks on mobile */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Consultations over time */}
@@ -354,6 +431,23 @@ export function AdminReports() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function ReportAmount({
+  label,
+  value,
+  currency,
+}: {
+  label: string;
+  value: string;
+  currency: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-semibold">{formatMinorCurrency(value, currency)}</p>
     </div>
   );
 }

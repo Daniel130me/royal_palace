@@ -421,6 +421,11 @@ enum OrganizationPayoutStatus {
   FAILED
 }
 
+enum OrganizationSettlementStatus {
+  FINALIZED
+  RECONCILIATION_REQUIRED
+}
+
 enum RoleScope {
   PLATFORM
   ORGANIZATION
@@ -667,84 +672,86 @@ enum SubstitutionDecisionOutcome {
 }
 
 model IdentityPrincipal {
-  id                             String                             @id @db.Uuid
-  status                         PrincipalStatus                    @default(ACTIVE)
-  createdAt                      DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                      DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                        Int                                @default(1)
-  externalIdentities             ExternalIdentity[]                 @relation("ExternalIdentityOwner")
-  linkedIdentities               ExternalIdentity[]                 @relation("ExternalIdentityLinker")
-  sessions                       AuthSession[]
-  memberships                    Membership[]
-  roleAssignments                RoleAssignment[]                   @relation("RoleAssignee")
-  grantedRoles                   RoleAssignment[]                   @relation("RoleGrantor")
-  auditEvents                    AuditEvent[]                       @relation("AuditActor")
-  idempotencyKeys                IdempotencyKey[]
-  practitioner                   Practitioner?
-  patient                        Patient?
-  onboardingApplications         OnboardingApplication[]            @relation("OnboardingApplicant")
-  startedApplicationReviews      OnboardingApplication[]            @relation("OnboardingReviewStarter")
-  decidedApplications            OnboardingApplication[]            @relation("OnboardingDecider")
-  applicationStatusHistory       ApplicationStatusHistory[]         @relation("ApplicationHistoryActor")
-  managerProfile                 ManagerProfile?
-  createdReferralLinks           ReferralLink[]                     @relation("ReferralLinkCreator")
-  referralAttributionEvents      ReferralAttributionEvent[]         @relation("ReferralAttributionActor")
-  commissionPoliciesCreated      CommissionPolicy[]                 @relation("CommissionPolicyCreator")
-  commissionPoliciesApproved     CommissionPolicy[]                 @relation("CommissionPolicyApprover")
-  recordedActivitySettlements    PatientActivitySettlement[]        @relation("ActivitySettlementRecorder")
-  createdManagerTickets          ManagerSupportTicket[]             @relation("ManagerTicketCreator")
-  managerTicketFollowUps         ManagerTicketFollowUp[]            @relation("ManagerTicketFollowUpAuthor")
-  createdAvailabilitySlots       AvailabilitySlot[]                 @relation("AvailabilitySlotCreator")
-  createdConsultationFees        ConsultationFee[]                  @relation("ConsultationFeeCreator")
-  approvedConsultationFees       ConsultationFee[]                  @relation("ConsultationFeeApprover")
-  createdServicePrices           ServicePrice[]                     @relation("ServicePriceCreator")
-  approvedServicePrices          ServicePrice[]                     @relation("ServicePriceApprover")
-  requestedReconciliations       PaymentReconciliation[]            @relation("PaymentReconciliationRequester")
-  notificationDeliveries         NotificationDelivery[]             @relation("NotificationRecipient")
-  notificationReplays            NotificationDelivery[]             @relation("NotificationReplayActor")
-  notificationEndpoints          NotificationRecipientEndpoint[]
-  notificationPreferences        NotificationPreference[]
-  notificationInboxItems         NotificationInboxItem[]            @relation("NotificationInboxPrincipalRecipient")
-  notificationInboxReads         NotificationInboxRead[]            @relation("NotificationInboxReader")
-  updatedPharmacySettings        PharmacyOperationalSettings[]      @relation("PharmacyOperationalSettingsUpdater")
-  prescriptionStatusChanges      PrescriptionStatusHistory[]        @relation("PrescriptionStatusActor")
-  createdSubstitutionProposals   PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
-  substitutionDecisions          PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
-  prescriptionDispenseEvents     PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
-  createdPharmacyQuotes          PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
-  acceptedPharmacyOrders         PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
-  preparedPharmacyHandoffs       PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
-  completedPharmacyHandoffs      PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
-  pharmacyOrderResolutions       PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
-  createdPharmacyCatalogItems    PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
-  pharmacyInventoryMovements     InventoryMovement[]                @relation("InventoryMovementActor")
-  scannedPrescriptionHistory     ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
-  laboratoryRequestStatusHistory LaboratoryRequestStatusHistory[]   @relation("LaboratoryRequestStatusActor")
-  laboratoryBookingStatusHistory LaboratoryBookingStatusHistory[]   @relation("LaboratoryBookingStatusActor")
-  laboratoryResultsCreated       LaboratoryResult[]                 @relation("LaboratoryResultCreator")
-  laboratoryResultsVerified      LaboratoryResult[]                 @relation("LaboratoryResultVerifier")
-  laboratoryResultsPublished     LaboratoryResult[]                 @relation("LaboratoryResultPublisher")
-  laboratoryResultStatusHistory  LaboratoryResultStatusHistory[]    @relation("LaboratoryResultStatusActor")
-  criticalResultsOwned           LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultOwner")
-  criticalResultsAcknowledged    LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultAcknowledger")
-  criticalResultsResolved        LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultResolver")
-  criticalResultNotifications    LaboratoryCriticalNotification[]   @relation("LaboratoryCriticalNotificationRecipient")
-  organizationPayoutRequests     OrganizationPayoutRequest[]        @relation("OrganizationPayoutRequester")
-  organizationPayoutReviews      OrganizationPayoutRequest[]        @relation("OrganizationPayoutReviewer")
-  moderatedLaboratoryReviews     LaboratoryBookingReview[]          @relation("LaboratoryReviewModerator")
-  createdTeamInvitations         OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationCreator")
-  acceptedTeamInvitations        OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationAcceptor")
-  logisticsDeliveryAssignments   LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCourier")
-  createdLogisticsAssignments    LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCreator")
-  logisticsDeliveryStatusChanges LogisticsDeliveryStatusHistory[]   @relation("LogisticsDeliveryStatusActor")
-  logisticsDeliveryProofs        LogisticsDeliveryProof[]           @relation("LogisticsDeliveryProofRecorder")
-  openedClinicalEncounters       ClinicalEncounter[]                 @relation("ClinicalEncounterOpener")
-  signedClinicalEncounters       ClinicalEncounter[]                 @relation("ClinicalEncounterSigner")
-  authoredClinicalNotes          ClinicalEncounterNote[]             @relation("ClinicalNoteAuthor")
-  createdClinicalReferrals       ClinicalReferral[]                  @relation("ClinicalReferralCreator")
-  updatedClinicalCarePlans       ClinicalCarePlan[]                  @relation("ClinicalCarePlanUpdater")
-  recordedClinicalAllergies      ClinicalAllergy[]                   @relation("ClinicalAllergyRecorder")
-  linkedClinicalAttachments      ClinicalAttachmentReference[]       @relation("ClinicalAttachmentLinker")
+  id                               String                             @id @db.Uuid
+  status                           PrincipalStatus                    @default(ACTIVE)
+  createdAt                        DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                          Int                                @default(1)
+  externalIdentities               ExternalIdentity[]                 @relation("ExternalIdentityOwner")
+  linkedIdentities                 ExternalIdentity[]                 @relation("ExternalIdentityLinker")
+  sessions                         AuthSession[]
+  memberships                      Membership[]
+  roleAssignments                  RoleAssignment[]                   @relation("RoleAssignee")
+  grantedRoles                     RoleAssignment[]                   @relation("RoleGrantor")
+  auditEvents                      AuditEvent[]                       @relation("AuditActor")
+  idempotencyKeys                  IdempotencyKey[]
+  practitioner                     Practitioner?
+  patient                          Patient?
+  onboardingApplications           OnboardingApplication[]            @relation("OnboardingApplicant")
+  startedApplicationReviews        OnboardingApplication[]            @relation("OnboardingReviewStarter")
+  decidedApplications              OnboardingApplication[]            @relation("OnboardingDecider")
+  applicationStatusHistory         ApplicationStatusHistory[]         @relation("ApplicationHistoryActor")
+  managerProfile                   ManagerProfile?
+  createdReferralLinks             ReferralLink[]                     @relation("ReferralLinkCreator")
+  referralAttributionEvents        ReferralAttributionEvent[]         @relation("ReferralAttributionActor")
+  commissionPoliciesCreated        CommissionPolicy[]                 @relation("CommissionPolicyCreator")
+  commissionPoliciesApproved       CommissionPolicy[]                 @relation("CommissionPolicyApprover")
+  recordedActivitySettlements      PatientActivitySettlement[]        @relation("ActivitySettlementRecorder")
+  createdManagerTickets            ManagerSupportTicket[]             @relation("ManagerTicketCreator")
+  managerTicketFollowUps           ManagerTicketFollowUp[]            @relation("ManagerTicketFollowUpAuthor")
+  createdAvailabilitySlots         AvailabilitySlot[]                 @relation("AvailabilitySlotCreator")
+  createdConsultationFees          ConsultationFee[]                  @relation("ConsultationFeeCreator")
+  approvedConsultationFees         ConsultationFee[]                  @relation("ConsultationFeeApprover")
+  createdServicePrices             ServicePrice[]                     @relation("ServicePriceCreator")
+  approvedServicePrices            ServicePrice[]                     @relation("ServicePriceApprover")
+  requestedReconciliations         PaymentReconciliation[]            @relation("PaymentReconciliationRequester")
+  notificationDeliveries           NotificationDelivery[]             @relation("NotificationRecipient")
+  notificationReplays              NotificationDelivery[]             @relation("NotificationReplayActor")
+  notificationEndpoints            NotificationRecipientEndpoint[]
+  notificationPreferences          NotificationPreference[]
+  notificationInboxItems           NotificationInboxItem[]            @relation("NotificationInboxPrincipalRecipient")
+  notificationInboxReads           NotificationInboxRead[]            @relation("NotificationInboxReader")
+  updatedPharmacySettings          PharmacyOperationalSettings[]      @relation("PharmacyOperationalSettingsUpdater")
+  prescriptionStatusChanges        PrescriptionStatusHistory[]        @relation("PrescriptionStatusActor")
+  createdSubstitutionProposals     PrescriptionSubstitutionProposal[] @relation("SubstitutionProposalCreator")
+  substitutionDecisions            PrescriptionSubstitutionDecision[] @relation("SubstitutionDecisionActor")
+  prescriptionDispenseEvents       PrescriptionDispenseEvent[]        @relation("PrescriptionDispenseActor")
+  createdPharmacyQuotes            PharmacyQuote[]                    @relation("PharmacyQuoteCreator")
+  acceptedPharmacyOrders           PharmacyOrder[]                    @relation("PharmacyOrderAcceptor")
+  preparedPharmacyHandoffs         PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffPreparer")
+  completedPharmacyHandoffs        PharmacyOrderHandoff[]             @relation("PharmacyOrderHandoffCompleter")
+  pharmacyOrderResolutions         PharmacyOrderResolution[]          @relation("PharmacyOrderResolutionRequester")
+  createdPharmacyCatalogItems      PharmacyCatalogItem[]              @relation("PharmacyCatalogItemCreator")
+  pharmacyInventoryMovements       InventoryMovement[]                @relation("InventoryMovementActor")
+  scannedPrescriptionHistory       ScannedPrescriptionStatusHistory[] @relation("ScannedPrescriptionHistoryActor")
+  laboratoryRequestStatusHistory   LaboratoryRequestStatusHistory[]   @relation("LaboratoryRequestStatusActor")
+  laboratoryBookingStatusHistory   LaboratoryBookingStatusHistory[]   @relation("LaboratoryBookingStatusActor")
+  laboratoryResultsCreated         LaboratoryResult[]                 @relation("LaboratoryResultCreator")
+  laboratoryResultsVerified        LaboratoryResult[]                 @relation("LaboratoryResultVerifier")
+  laboratoryResultsPublished       LaboratoryResult[]                 @relation("LaboratoryResultPublisher")
+  laboratoryResultStatusHistory    LaboratoryResultStatusHistory[]    @relation("LaboratoryResultStatusActor")
+  criticalResultsOwned             LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultOwner")
+  criticalResultsAcknowledged      LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultAcknowledger")
+  criticalResultsResolved          LaboratoryCriticalResult[]         @relation("LaboratoryCriticalResultResolver")
+  criticalResultNotifications      LaboratoryCriticalNotification[]   @relation("LaboratoryCriticalNotificationRecipient")
+  organizationPayoutRequests       OrganizationPayoutRequest[]        @relation("OrganizationPayoutRequester")
+  organizationPayoutReviews        OrganizationPayoutRequest[]        @relation("OrganizationPayoutReviewer")
+  organizationPayoutExecutions     OrganizationPayoutRequest[]        @relation("OrganizationPayoutExecutor")
+  finalizedOrganizationSettlements OrganizationSettlement[]           @relation("OrganizationSettlementFinalizer")
+  moderatedLaboratoryReviews       LaboratoryBookingReview[]          @relation("LaboratoryReviewModerator")
+  createdTeamInvitations           OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationCreator")
+  acceptedTeamInvitations          OrganizationTeamInvitation[]       @relation("OrganizationTeamInvitationAcceptor")
+  logisticsDeliveryAssignments     LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCourier")
+  createdLogisticsAssignments      LogisticsDeliveryAssignment[]      @relation("LogisticsAssignmentCreator")
+  logisticsDeliveryStatusChanges   LogisticsDeliveryStatusHistory[]   @relation("LogisticsDeliveryStatusActor")
+  logisticsDeliveryProofs          LogisticsDeliveryProof[]           @relation("LogisticsDeliveryProofRecorder")
+  openedClinicalEncounters         ClinicalEncounter[]                @relation("ClinicalEncounterOpener")
+  signedClinicalEncounters         ClinicalEncounter[]                @relation("ClinicalEncounterSigner")
+  authoredClinicalNotes            ClinicalEncounterNote[]            @relation("ClinicalNoteAuthor")
+  createdClinicalReferrals         ClinicalReferral[]                 @relation("ClinicalReferralCreator")
+  updatedClinicalCarePlans         ClinicalCarePlan[]                 @relation("ClinicalCarePlanUpdater")
+  recordedClinicalAllergies        ClinicalAllergy[]                  @relation("ClinicalAllergyRecorder")
+  linkedClinicalAttachments        ClinicalAttachmentReference[]      @relation("ClinicalAttachmentLinker")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -891,6 +898,7 @@ model Organization {
   ratingSummary                     OrganizationRatingSummary?
   earnings                          OrganizationEarning[]
   payoutRequests                    OrganizationPayoutRequest[]
+  settlements                       OrganizationSettlement[]
   teamInvitations                   OrganizationTeamInvitation[]
   assignedLogisticsDeliveries       LogisticsDelivery[]             @relation("LogisticsDeliveryOrganization")
   logisticsDeliveryAssignments      LogisticsDeliveryAssignment[]
@@ -1531,17 +1539,17 @@ model ApplicationStatusHistory {
 }
 
 model Membership {
-  id              String            @id @db.Uuid
-  organizationId  String            @map("organization_id") @db.Uuid
-  principalId     String            @map("principal_id") @db.Uuid
-  effectiveFrom   DateTime          @default(now()) @map("effective_from") @db.Timestamptz(6)
-  effectiveUntil  DateTime?         @map("effective_until") @db.Timestamptz(6)
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version         Int               @default(1)
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  principal       IdentityPrincipal @relation(fields: [principalId], references: [id], onDelete: Restrict)
-  roleAssignments RoleAssignment[]
+  id                 String                      @id @db.Uuid
+  organizationId     String                      @map("organization_id") @db.Uuid
+  principalId        String                      @map("principal_id") @db.Uuid
+  effectiveFrom      DateTime                    @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveUntil     DateTime?                   @map("effective_until") @db.Timestamptz(6)
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version            Int                         @default(1)
+  organization       Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  principal          IdentityPrincipal           @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  roleAssignments    RoleAssignment[]
   acceptedInvitation OrganizationTeamInvitation? @relation("OrganizationTeamInvitationMembership")
 
   @@index([organizationId, effectiveFrom, id], map: "memberships_org_effective_id_idx")
@@ -1550,24 +1558,24 @@ model Membership {
 }
 
 model OrganizationTeamInvitation {
-  id                     String                           @id @db.Uuid
-  organizationId         String                           @map("organization_id") @db.Uuid
-  tokenDigest             String                           @unique(map: "organization_team_invitations_token_digest_key") @map("token_digest") @db.Char(64)
-  role                    PlatformRole
-  status                  OrganizationTeamInvitationStatus @default(PENDING)
-  createdByPrincipalId    String                           @map("created_by_principal_id") @db.Uuid
-  acceptedByPrincipalId   String?                          @map("accepted_by_principal_id") @db.Uuid
-  acceptedMembershipId    String?                          @unique(map: "organization_team_invitations_accepted_membership_key") @map("accepted_membership_id") @db.Uuid
-  expiresAt               DateTime                         @map("expires_at") @db.Timestamptz(6)
-  acceptedAt              DateTime?                        @map("accepted_at") @db.Timestamptz(6)
-  revokedAt               DateTime?                        @map("revoked_at") @db.Timestamptz(6)
-  createdAt               DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version                 Int                              @default(1)
-  organization           Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByPrincipal     IdentityPrincipal                @relation("OrganizationTeamInvitationCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
-  acceptedByPrincipal    IdentityPrincipal?               @relation("OrganizationTeamInvitationAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
-  acceptedMembership     Membership?                      @relation("OrganizationTeamInvitationMembership", fields: [acceptedMembershipId], references: [id], onDelete: Restrict)
+  id                    String                           @id @db.Uuid
+  organizationId        String                           @map("organization_id") @db.Uuid
+  tokenDigest           String                           @unique(map: "organization_team_invitations_token_digest_key") @map("token_digest") @db.Char(64)
+  role                  PlatformRole
+  status                OrganizationTeamInvitationStatus @default(PENDING)
+  createdByPrincipalId  String                           @map("created_by_principal_id") @db.Uuid
+  acceptedByPrincipalId String?                          @map("accepted_by_principal_id") @db.Uuid
+  acceptedMembershipId  String?                          @unique(map: "organization_team_invitations_accepted_membership_key") @map("accepted_membership_id") @db.Uuid
+  expiresAt             DateTime                         @map("expires_at") @db.Timestamptz(6)
+  acceptedAt            DateTime?                        @map("accepted_at") @db.Timestamptz(6)
+  revokedAt             DateTime?                        @map("revoked_at") @db.Timestamptz(6)
+  createdAt             DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                              @default(1)
+  organization          Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByPrincipal    IdentityPrincipal                @relation("OrganizationTeamInvitationCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  acceptedByPrincipal   IdentityPrincipal?               @relation("OrganizationTeamInvitationAcceptor", fields: [acceptedByPrincipalId], references: [id], onDelete: Restrict)
+  acceptedMembership    Membership?                      @relation("OrganizationTeamInvitationMembership", fields: [acceptedMembershipId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, status, createdAt(sort: Desc), id(sort: Desc)], map: "organization_team_invitations_org_status_created_idx")
   @@index([status, expiresAt, id], map: "organization_team_invitations_status_expiry_idx")
@@ -2076,32 +2084,32 @@ model Appointment {
 }
 
 model ClinicalEncounter {
-  id                  String                  @id @db.Uuid
-  encounterNumber     String                  @unique @map("encounter_number") @db.VarChar(64)
-  appointmentId       String                  @unique @map("appointment_id") @db.Uuid
-  patientId           String                  @map("patient_id") @db.Uuid
-  practitionerId      String                  @map("practitioner_id") @db.Uuid
-  status              ClinicalEncounterStatus @default(OPEN)
-  openedByPrincipalId String                  @map("opened_by_principal_id") @db.Uuid
-  openedAt            DateTime                @map("opened_at") @db.Timestamptz(6)
-  signedByPrincipalId String?                 @map("signed_by_principal_id") @db.Uuid
-  signedAt            DateTime?               @map("signed_at") @db.Timestamptz(6)
-  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version             Int                     @default(1)
-  appointment         Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  patient             Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner        Practitioner            @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  openedByPrincipal   IdentityPrincipal       @relation("ClinicalEncounterOpener", fields: [openedByPrincipalId], references: [id], onDelete: Restrict)
-  signedByPrincipal   IdentityPrincipal?      @relation("ClinicalEncounterSigner", fields: [signedByPrincipalId], references: [id], onDelete: Restrict)
-  notes               ClinicalEncounterNote[]
-  diagnoses           ClinicalDiagnosis[]
-  observations        ClinicalObservation[]
-  prescriptions       Prescription[]
-  laboratoryRequests  LaboratoryRequest[]
-  referrals           ClinicalReferral[]
-  carePlans           ClinicalCarePlan[]
-  allergies           ClinicalAllergy[]
+  id                   String                        @id @db.Uuid
+  encounterNumber      String                        @unique @map("encounter_number") @db.VarChar(64)
+  appointmentId        String                        @unique @map("appointment_id") @db.Uuid
+  patientId            String                        @map("patient_id") @db.Uuid
+  practitionerId       String                        @map("practitioner_id") @db.Uuid
+  status               ClinicalEncounterStatus       @default(OPEN)
+  openedByPrincipalId  String                        @map("opened_by_principal_id") @db.Uuid
+  openedAt             DateTime                      @map("opened_at") @db.Timestamptz(6)
+  signedByPrincipalId  String?                       @map("signed_by_principal_id") @db.Uuid
+  signedAt             DateTime?                     @map("signed_at") @db.Timestamptz(6)
+  createdAt            DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                           @default(1)
+  appointment          Appointment                   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient              Patient                       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner         Practitioner                  @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  openedByPrincipal    IdentityPrincipal             @relation("ClinicalEncounterOpener", fields: [openedByPrincipalId], references: [id], onDelete: Restrict)
+  signedByPrincipal    IdentityPrincipal?            @relation("ClinicalEncounterSigner", fields: [signedByPrincipalId], references: [id], onDelete: Restrict)
+  notes                ClinicalEncounterNote[]
+  diagnoses            ClinicalDiagnosis[]
+  observations         ClinicalObservation[]
+  prescriptions        Prescription[]
+  laboratoryRequests   LaboratoryRequest[]
+  referrals            ClinicalReferral[]
+  carePlans            ClinicalCarePlan[]
+  allergies            ClinicalAllergy[]
   attachmentReferences ClinicalAttachmentReference[]
 
   @@index([patientId, openedAt(sort: Desc), id(sort: Desc)], map: "clinical_encounters_patient_opened_idx")
@@ -2179,23 +2187,23 @@ model ClinicalObservation {
 }
 
 model ClinicalReferral {
-  id                    String                 @id @db.Uuid
-  encounterId           String                 @map("encounter_id") @db.Uuid
-  patientId             String                 @map("patient_id") @db.Uuid
-  practitionerId        String                 @map("practitioner_id") @db.Uuid
-  createdByPrincipalId  String                 @map("created_by_principal_id") @db.Uuid
-  specialtyCode         String                 @map("specialty_code") @db.VarChar(120)
-  recipientName         String?                @map("recipient_name") @db.VarChar(200)
-  reason                String                 @db.VarChar(2000)
-  priority              String                 @db.VarChar(32)
-  status                ClinicalReferralStatus @default(ACTIVE)
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int                    @default(1)
-  encounter             ClinicalEncounter      @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner          Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  createdByPrincipal    IdentityPrincipal      @relation("ClinicalReferralCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  id                   String                 @id @db.Uuid
+  encounterId          String                 @map("encounter_id") @db.Uuid
+  patientId            String                 @map("patient_id") @db.Uuid
+  practitionerId       String                 @map("practitioner_id") @db.Uuid
+  createdByPrincipalId String                 @map("created_by_principal_id") @db.Uuid
+  specialtyCode        String                 @map("specialty_code") @db.VarChar(120)
+  recipientName        String?                @map("recipient_name") @db.VarChar(200)
+  reason               String                 @db.VarChar(2000)
+  priority             String                 @db.VarChar(32)
+  status               ClinicalReferralStatus @default(ACTIVE)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                    @default(1)
+  encounter            ClinicalEncounter      @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient              Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner         Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  createdByPrincipal   IdentityPrincipal      @relation("ClinicalReferralCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
 
   @@index([encounterId, createdAt, id], map: "clinical_referrals_encounter_created_idx")
   @@index([patientId, status, createdAt(sort: Desc), id(sort: Desc)], map: "clinical_referrals_patient_status_created_idx")
@@ -2203,24 +2211,24 @@ model ClinicalReferral {
 }
 
 model ClinicalCarePlan {
-  id                    String                 @id @db.Uuid
-  encounterId           String                 @map("encounter_id") @db.Uuid
-  patientId             String                 @map("patient_id") @db.Uuid
-  practitionerId        String                 @map("practitioner_id") @db.Uuid
-  updatedByPrincipalId  String                 @map("updated_by_principal_id") @db.Uuid
-  title                 String                 @db.VarChar(200)
-  goal                  String                 @db.VarChar(2000)
-  activities            Json                   @db.JsonB
-  status                ClinicalCarePlanStatus @default(ACTIVE)
-  startsAt              DateTime               @map("starts_at") @db.Timestamptz(6)
-  endsAt                DateTime?              @map("ends_at") @db.Timestamptz(6)
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int                    @default(1)
-  encounter             ClinicalEncounter      @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner          Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  updatedByPrincipal    IdentityPrincipal      @relation("ClinicalCarePlanUpdater", fields: [updatedByPrincipalId], references: [id], onDelete: Restrict)
+  id                   String                 @id @db.Uuid
+  encounterId          String                 @map("encounter_id") @db.Uuid
+  patientId            String                 @map("patient_id") @db.Uuid
+  practitionerId       String                 @map("practitioner_id") @db.Uuid
+  updatedByPrincipalId String                 @map("updated_by_principal_id") @db.Uuid
+  title                String                 @db.VarChar(200)
+  goal                 String                 @db.VarChar(2000)
+  activities           Json                   @db.JsonB
+  status               ClinicalCarePlanStatus @default(ACTIVE)
+  startsAt             DateTime               @map("starts_at") @db.Timestamptz(6)
+  endsAt               DateTime?              @map("ends_at") @db.Timestamptz(6)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                    @default(1)
+  encounter            ClinicalEncounter      @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient              Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner         Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  updatedByPrincipal   IdentityPrincipal      @relation("ClinicalCarePlanUpdater", fields: [updatedByPrincipalId], references: [id], onDelete: Restrict)
 
   @@index([encounterId, createdAt, id], map: "clinical_care_plans_encounter_created_idx")
   @@index([patientId, status, updatedAt(sort: Desc), id(sort: Desc)], map: "clinical_care_plans_patient_status_updated_idx")
@@ -2228,25 +2236,25 @@ model ClinicalCarePlan {
 }
 
 model ClinicalAllergy {
-  id                    String                      @id @db.Uuid
-  encounterId           String                      @map("encounter_id") @db.Uuid
-  patientId             String                      @map("patient_id") @db.Uuid
-  practitionerId        String                      @map("practitioner_id") @db.Uuid
-  recordedByPrincipalId String                      @map("recorded_by_principal_id") @db.Uuid
-  substanceCode         String?                     @map("substance_code") @db.VarChar(120)
-  substanceCodeSystem   String?                     @map("substance_code_system") @db.VarChar(255)
-  substanceDisplay      String                      @map("substance_display") @db.VarChar(300)
-  reaction              String?                     @db.VarChar(1000)
+  id                    String                     @id @db.Uuid
+  encounterId           String                     @map("encounter_id") @db.Uuid
+  patientId             String                     @map("patient_id") @db.Uuid
+  practitionerId        String                     @map("practitioner_id") @db.Uuid
+  recordedByPrincipalId String                     @map("recorded_by_principal_id") @db.Uuid
+  substanceCode         String?                    @map("substance_code") @db.VarChar(120)
+  substanceCodeSystem   String?                    @map("substance_code_system") @db.VarChar(255)
+  substanceDisplay      String                     @map("substance_display") @db.VarChar(300)
+  reaction              String?                    @db.VarChar(1000)
   criticality           ClinicalAllergyCriticality
-  status                ClinicalAllergyStatus       @default(ACTIVE)
-  recordedAt            DateTime                    @map("recorded_at") @db.Timestamptz(6)
-  createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int                         @default(1)
-  encounter             ClinicalEncounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  patient               Patient                     @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner          Practitioner                @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  recordedByPrincipal   IdentityPrincipal           @relation("ClinicalAllergyRecorder", fields: [recordedByPrincipalId], references: [id], onDelete: Restrict)
+  status                ClinicalAllergyStatus      @default(ACTIVE)
+  recordedAt            DateTime                   @map("recorded_at") @db.Timestamptz(6)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version               Int                        @default(1)
+  encounter             ClinicalEncounter          @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient               Patient                    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner          Practitioner               @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  recordedByPrincipal   IdentityPrincipal          @relation("ClinicalAllergyRecorder", fields: [recordedByPrincipalId], references: [id], onDelete: Restrict)
 
   @@index([encounterId, recordedAt, id], map: "clinical_allergies_encounter_recorded_idx")
   @@index([patientId, status, recordedAt(sort: Desc), id(sort: Desc)], map: "clinical_allergies_patient_status_recorded_idx")
@@ -2254,15 +2262,15 @@ model ClinicalAllergy {
 }
 
 model ClinicalAttachmentReference {
-  id                   String                       @id @db.Uuid
-  encounterId          String                       @map("encounter_id") @db.Uuid
-  linkedByPrincipalId  String                       @map("linked_by_principal_id") @db.Uuid
-  sourceType           ClinicalAttachmentSourceType @map("source_type")
-  sourceId             String                       @map("source_id") @db.Uuid
-  purpose              String                       @db.VarChar(80)
-  createdAt            DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
-  encounter            ClinicalEncounter            @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  linkedByPrincipal    IdentityPrincipal            @relation("ClinicalAttachmentLinker", fields: [linkedByPrincipalId], references: [id], onDelete: Restrict)
+  id                  String                       @id @db.Uuid
+  encounterId         String                       @map("encounter_id") @db.Uuid
+  linkedByPrincipalId String                       @map("linked_by_principal_id") @db.Uuid
+  sourceType          ClinicalAttachmentSourceType @map("source_type")
+  sourceId            String                       @map("source_id") @db.Uuid
+  purpose             String                       @db.VarChar(80)
+  createdAt           DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  encounter           ClinicalEncounter            @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  linkedByPrincipal   IdentityPrincipal            @relation("ClinicalAttachmentLinker", fields: [linkedByPrincipalId], references: [id], onDelete: Restrict)
 
   @@unique([encounterId, sourceType, sourceId], map: "clinical_attachment_references_source_key")
   @@index([encounterId, createdAt, id], map: "clinical_attachment_references_encounter_created_idx")
@@ -3070,15 +3078,15 @@ model LogisticsDelivery {
 }
 
 model LogisticsRecipientCodeChallenge {
-  deliveryId            String            @id @map("delivery_id") @db.Uuid
-  failedAttempts        Int               @default(0) @map("failed_attempts")
+  deliveryId             String            @id @map("delivery_id") @db.Uuid
+  failedAttempts         Int               @default(0) @map("failed_attempts")
   attemptWindowStartedAt DateTime?         @map("attempt_window_started_at") @db.Timestamptz(6)
-  lockedUntil           DateTime?          @map("locked_until") @db.Timestamptz(6)
-  verifiedAt            DateTime?          @map("verified_at") @db.Timestamptz(6)
-  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version               Int                @default(1)
-  delivery              LogisticsDelivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  lockedUntil            DateTime?         @map("locked_until") @db.Timestamptz(6)
+  verifiedAt             DateTime?         @map("verified_at") @db.Timestamptz(6)
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int               @default(1)
+  delivery               LogisticsDelivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
 
   @@index([lockedUntil, deliveryId], map: "logistics_recipient_challenges_locked_idx")
   @@map("logistics_recipient_code_challenges")
@@ -3429,22 +3437,23 @@ model PaymentReconciliation {
 }
 
 model OrganizationEarning {
-  id                 String                         @id @db.Uuid
-  organizationId     String                         @map("organization_id") @db.Uuid
-  paymentId          String                         @unique @map("payment_id") @db.Uuid
-  category           OrganizationEarningCategory
-  grossAmountMinor   BigInt                         @map("gross_amount_minor")
-  payableAmountMinor BigInt                         @map("payable_amount_minor")
-  currency           String                         @db.Char(3)
-  status             OrganizationEarningStatus      @default(AVAILABLE)
-  earnedAt           DateTime                       @map("earned_at") @db.Timestamptz(6)
-  holdReasonCode     String?                        @map("hold_reason_code") @db.VarChar(100)
-  createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version            Int                            @default(1)
-  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  payment            Payment                        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  payoutAllocations  OrganizationPayoutAllocation[]
+  id                   String                            @id @db.Uuid
+  organizationId       String                            @map("organization_id") @db.Uuid
+  paymentId            String                            @unique @map("payment_id") @db.Uuid
+  category             OrganizationEarningCategory
+  grossAmountMinor     BigInt                            @map("gross_amount_minor")
+  payableAmountMinor   BigInt                            @map("payable_amount_minor")
+  currency             String                            @db.Char(3)
+  status               OrganizationEarningStatus         @default(AVAILABLE)
+  earnedAt             DateTime                          @map("earned_at") @db.Timestamptz(6)
+  holdReasonCode       String?                           @map("hold_reason_code") @db.VarChar(100)
+  createdAt            DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version              Int                               @default(1)
+  organization         Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  payment              Payment                           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payoutAllocations    OrganizationPayoutAllocation[]
+  settlementAllocation OrganizationSettlementAllocation?
 
   @@index([organizationId, currency, status, earnedAt(sort: Desc), id(sort: Desc)], map: "organization_earnings_org_currency_status_earned_idx")
   @@index([status, earnedAt, id], map: "organization_earnings_status_earned_idx")
@@ -3460,11 +3469,13 @@ model OrganizationPayoutRequest {
   status                 OrganizationPayoutStatus       @default(REQUESTED)
   requestedByPrincipalId String                         @map("requested_by_principal_id") @db.Uuid
   reviewedByPrincipalId  String?                        @map("reviewed_by_principal_id") @db.Uuid
+  executedByPrincipalId  String?                        @map("executed_by_principal_id") @db.Uuid
   reviewReasonCode       String?                        @map("review_reason_code") @db.VarChar(100)
   providerCode           String?                        @map("provider_code") @db.VarChar(64)
   providerReference      String?                        @unique @map("provider_reference") @db.VarChar(255)
   requestedAt            DateTime                       @map("requested_at") @db.Timestamptz(6)
   reviewedAt             DateTime?                      @map("reviewed_at") @db.Timestamptz(6)
+  executionStartedAt     DateTime?                      @map("execution_started_at") @db.Timestamptz(6)
   paidAt                 DateTime?                      @map("paid_at") @db.Timestamptz(6)
   createdAt              DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -3472,11 +3483,52 @@ model OrganizationPayoutRequest {
   organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   requestedByPrincipal   IdentityPrincipal              @relation("OrganizationPayoutRequester", fields: [requestedByPrincipalId], references: [id], onDelete: Restrict)
   reviewedByPrincipal    IdentityPrincipal?             @relation("OrganizationPayoutReviewer", fields: [reviewedByPrincipalId], references: [id], onDelete: Restrict)
+  executedByPrincipal    IdentityPrincipal?             @relation("OrganizationPayoutExecutor", fields: [executedByPrincipalId], references: [id], onDelete: Restrict)
   allocations            OrganizationPayoutAllocation[]
 
   @@index([organizationId, currency, status, requestedAt(sort: Desc), id(sort: Desc)], map: "organization_payouts_org_currency_status_requested_idx")
   @@index([status, requestedAt, id], map: "organization_payouts_status_requested_idx")
   @@map("organization_payout_requests")
+}
+
+model OrganizationSettlement {
+  id                     String                             @id @db.Uuid
+  settlementNumber       String                             @unique @map("settlement_number") @db.VarChar(64)
+  organizationId         String                             @map("organization_id") @db.Uuid
+  currency               String                             @db.Char(3)
+  periodStart            DateTime                           @map("period_start") @db.Timestamptz(6)
+  periodEnd              DateTime                           @map("period_end") @db.Timestamptz(6)
+  earningCount           Int                                @map("earning_count")
+  grossAmountMinor       BigInt                             @map("gross_amount_minor")
+  payableAmountMinor     BigInt                             @map("payable_amount_minor")
+  heldAmountMinor        BigInt                             @map("held_amount_minor")
+  status                 OrganizationSettlementStatus       @default(FINALIZED)
+  finalizedByPrincipalId String                             @map("finalized_by_principal_id") @db.Uuid
+  finalizedAt            DateTime                           @map("finalized_at") @db.Timestamptz(6)
+  createdAt              DateTime                           @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization           Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  finalizedByPrincipal   IdentityPrincipal                  @relation("OrganizationSettlementFinalizer", fields: [finalizedByPrincipalId], references: [id], onDelete: Restrict)
+  allocations            OrganizationSettlementAllocation[]
+
+  @@index([organizationId, currency, periodStart, periodEnd], map: "organization_settlements_org_currency_period_idx")
+  @@index([organizationId, finalizedAt(sort: Desc), id(sort: Desc)], map: "organization_settlements_org_finalized_idx")
+  @@index([status, finalizedAt(sort: Desc), id(sort: Desc)], map: "organization_settlements_status_finalized_idx")
+  @@map("organization_settlements")
+}
+
+model OrganizationSettlementAllocation {
+  id                         String                    @id @db.Uuid
+  settlementId               String                    @map("settlement_id") @db.Uuid
+  earningId                  String                    @unique @map("earning_id") @db.Uuid
+  grossAmountMinorSnapshot   BigInt                    @map("gross_amount_minor_snapshot")
+  payableAmountMinorSnapshot BigInt                    @map("payable_amount_minor_snapshot")
+  earningStatusSnapshot      OrganizationEarningStatus @map("earning_status_snapshot")
+  createdAt                  DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  settlement                 OrganizationSettlement    @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  earning                    OrganizationEarning       @relation(fields: [earningId], references: [id], onDelete: Restrict)
+
+  @@index([settlementId, earningId], map: "organization_settlement_allocations_settlement_earning_idx")
+  @@map("organization_settlement_allocations")
 }
 
 model OrganizationPayoutAllocation {

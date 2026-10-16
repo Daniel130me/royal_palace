@@ -111,6 +111,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/organization/finance/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Request-Id": components["parameters"]["RequestId"];
+                    "X-Organization-Id": components["parameters"]["OrganizationId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Finalized organization settlement statements */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StatementList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/finance/settlements": {
         parameters: {
             query?: never;
@@ -189,6 +227,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/finance/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Request-Id": components["parameters"]["RequestId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Platform settlement statement register */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StatementList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Request-Id": components["parameters"]["RequestId"];
+                    "Idempotency-Key": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FinalizeStatementInput"];
+                };
+            };
+            responses: {
+                /** @description Finalized settlement statement */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Statement"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/reports/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    from: components["parameters"]["From"];
+                    to: components["parameters"]["To"];
+                    granularity?: components["parameters"]["Granularity"];
+                };
+                header: {
+                    "X-Request-Id": components["parameters"]["RequestId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Currency-separated finance summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdvancedFinanceReport"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/finance/payouts/{payoutId}/review": {
         parameters: {
             query?: never;
@@ -216,6 +358,49 @@ export interface paths {
             };
             responses: {
                 /** @description Reviewed payout */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Payout"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/finance/payouts/{payoutId}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Request-Id": components["parameters"]["RequestId"];
+                };
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ExecutePayoutInput"];
+                };
+            };
+            responses: {
+                /** @description Executed payout */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -284,6 +469,12 @@ export interface components {
             /** Format: date-time */
             paidAt: string | null;
             version: number;
+            /** Format: uuid */
+            executedByPrincipalId?: string | null;
+            /** Format: date-time */
+            executionStartedAt?: string | null;
+            providerCode?: string | null;
+            providerReference?: string | null;
         };
         PayoutList: {
             data: components["schemas"]["Payout"][];
@@ -297,6 +488,62 @@ export interface components {
             decision: "APPROVE" | "REJECT";
             expectedVersion: number;
             reasonCode: string;
+        };
+        ExecutePayoutInput: {
+            expectedVersion: number;
+        };
+        FinalizeStatementInput: {
+            /** Format: uuid */
+            organizationId: string;
+            currency: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+        };
+        Statement: {
+            /** Format: uuid */
+            id: string;
+            settlementNumber: string;
+            organization: components["schemas"]["OrganizationSummary"];
+            currency: string;
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            earningCount: number;
+            grossAmountMinor: string;
+            payableAmountMinor: string;
+            heldAmountMinor: string;
+            /** @enum {string} */
+            status: "FINALIZED" | "RECONCILIATION_REQUIRED";
+            /** Format: date-time */
+            finalizedAt: string;
+        };
+        StatementList: {
+            data: components["schemas"]["Statement"][];
+        };
+        AdvancedFinancePeriod: {
+            /** Format: date-time */
+            periodStart: string;
+            currency: string;
+            earningCount: number;
+            grossAmountMinor: string;
+            payableAmountMinor: string;
+            heldAmountMinor: string;
+            payoutCount: number;
+            paidAmountMinor: string;
+            failedPayoutCount: number;
+            reconciliationCount: number;
+        };
+        AdvancedFinanceReport: {
+            data: components["schemas"]["AdvancedFinancePeriod"][];
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** @enum {string} */
+            granularity: "DAY" | "MONTH" | "TOTAL";
         };
     };
     responses: never;

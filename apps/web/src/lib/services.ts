@@ -370,6 +370,12 @@ export const productionOrganizationFinanceService = {
           params: { header: { ...financeRequestHeader(), "X-Organization-Id": organizationId } },
         })
         .then(unwrapGeneratedResponse),
+    statements: (organizationId: string) =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/organization/finance/statements", {
+          params: { header: { ...financeRequestHeader(), "X-Organization-Id": organizationId } },
+        })
+        .then(unwrapGeneratedResponse),
     requestPayout: (
       organizationId: string,
       body: OrganizationFinanceComponents["schemas"]["RequestPayoutInput"],
@@ -399,12 +405,44 @@ export const productionOrganizationFinanceService = {
       generatedOrganizationFinanceClient
         .GET("/v1/admin/finance/payouts", { params: { header: financeRequestHeader() } })
         .then(unwrapGeneratedResponse),
+    statements: () =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/admin/finance/statements", { params: { header: financeRequestHeader() } })
+        .then(unwrapGeneratedResponse),
+    finalizeStatement: (
+      body: OrganizationFinanceComponents["schemas"]["FinalizeStatementInput"],
+      idempotencyKey: string,
+    ) =>
+      generatedOrganizationFinanceClient
+        .POST("/v1/admin/finance/statements", {
+          body,
+          params: {
+            header: { ...financeRequestHeader(), "Idempotency-Key": idempotencyKey },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    advancedReport: (from: string, to: string, granularity: "DAY" | "MONTH" | "TOTAL" = "DAY") =>
+      generatedOrganizationFinanceClient
+        .GET("/v1/admin/finance/reports/summary", {
+          params: { header: financeRequestHeader(), query: { from, to, granularity } },
+        })
+        .then(unwrapGeneratedResponse),
     review: (
       payoutId: string,
       body: OrganizationFinanceComponents["schemas"]["ReviewPayoutInput"],
     ) =>
       generatedOrganizationFinanceClient
         .POST("/v1/admin/finance/payouts/{payoutId}/review", {
+          body,
+          params: { header: financeRequestHeader(), path: { payoutId } },
+        })
+        .then(unwrapGeneratedResponse),
+    execute: (
+      payoutId: string,
+      body: OrganizationFinanceComponents["schemas"]["ExecutePayoutInput"],
+    ) =>
+      generatedOrganizationFinanceClient
+        .POST("/v1/admin/finance/payouts/{payoutId}/execute", {
           body,
           params: { header: financeRequestHeader(), path: { payoutId } },
         })

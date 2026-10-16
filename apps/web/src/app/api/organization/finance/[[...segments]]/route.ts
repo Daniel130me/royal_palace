@@ -4,9 +4,10 @@ import { proxyAuthenticatedOrganizationApi } from "@/lib/auth/bff";
 
 export function GET(request: NextRequest, context: { params: Promise<{ segments?: string[] }> }) {
   return context.params.then(({ segments = [] }) => {
-    const path = segments.length === 1 && ["settlements", "payouts"].includes(segments[0] ?? "")
-      ? `/v1/organization/finance/${segments[0]}${request.nextUrl.search}`
-      : null;
+    const path =
+      segments.length === 1 && ["settlements", "statements", "payouts"].includes(segments[0] ?? "")
+        ? `/v1/organization/finance/${segments[0]}${request.nextUrl.search}`
+        : null;
     return path === null
       ? Response.json({ error: "not_found", message: "Route not found" }, { status: 404 })
       : proxyAuthenticatedOrganizationApi(request, path, "GET");

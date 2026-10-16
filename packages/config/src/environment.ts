@@ -12,6 +12,7 @@ const paymentGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 const notificationDeliveryModeSchema = z.enum(["disabled", "synthetic"]);
 const clinicalWorkflowModeSchema = z.enum(["disabled", "synthetic"]);
 const inventoryGatewayModeSchema = z.enum(["disabled", "synthetic", "internal"]);
+const payoutGatewayModeSchema = z.enum(["disabled", "synthetic"]);
 
 const portSchema = z.coerce.number().int().min(1).max(65_535);
 const positiveTimeoutSchema = z.coerce.number().int().min(100).max(30_000);
@@ -210,6 +211,7 @@ const serviceEnvironmentSchema = z
     PAYMENT_CHECKOUT_BASE_URL: z.url().optional(),
     PAYMENT_CHECKOUT_TTL_SECONDS: paymentDurationSchema.default(900),
     PAYMENT_GATEWAY_MODE: paymentGatewayModeSchema.default("disabled"),
+    PAYOUT_GATEWAY_MODE: payoutGatewayModeSchema.default("disabled"),
     PAYMENT_RESERVATION_TTL_SECONDS: paymentDurationSchema.default(900),
     PAYMENT_WEBHOOK_ACTIVE_KEY_ID: z.string().trim().min(1).max(64).optional(),
     PAYMENT_WEBHOOK_SIGNING_KEYS: keyRingSchema.optional(),
@@ -323,6 +325,14 @@ const serviceEnvironmentSchema = z
       });
     }
 
+    if (value.PAYOUT_GATEWAY_MODE !== "disabled") {
+      context.addIssue({
+        code: "custom",
+        message: "must remain disabled until a production payout provider is approved",
+        path: ["PAYOUT_GATEWAY_MODE"],
+      });
+    }
+
     if (value.NOTIFICATION_DELIVERY_MODE !== "disabled") {
       context.addIssue({
         code: "custom",
@@ -425,6 +435,9 @@ interface BaseServiceConfig {
     mode: z.infer<typeof paymentGatewayModeSchema>;
     reservationTtlSeconds: number;
     webhookSigningKeys: Readonly<Record<string, string>>;
+  };
+  payoutGateway: {
+    mode: z.infer<typeof payoutGatewayModeSchema>;
   };
   port: number;
   queueNamespace: string;
@@ -610,6 +623,7 @@ export function loadServiceConfig(
       reservationTtlSeconds: values.PAYMENT_RESERVATION_TTL_SECONDS,
       webhookSigningKeys: Object.freeze(values.PAYMENT_WEBHOOK_SIGNING_KEYS ?? {}),
     }),
+    payoutGateway: Object.freeze({ mode: values.PAYOUT_GATEWAY_MODE }),
     port: values.PORT ?? DEFAULT_PORTS[serviceName],
     queueNamespace: values.QUEUE_NAMESPACE,
     redisUrl: values.REDIS_URL,

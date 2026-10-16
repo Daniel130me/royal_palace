@@ -201,6 +201,29 @@ describe("loadServiceConfig", () => {
     ).toThrow(/PAYMENT_GATEWAY_MODE/);
   });
 
+  it("keeps synthetic payout execution outside protected environments", () => {
+    expect(
+      loadServiceConfig("api", { ...validEnvironment, PAYOUT_GATEWAY_MODE: "synthetic" })
+        .payoutGateway.mode,
+    ).toBe("synthetic");
+    expect(() =>
+      loadServiceConfig("api", {
+        ...validEnvironment,
+        APP_ENV: "production",
+        AWS_REGION: "approved-region-1",
+        DATABASE_URL:
+          "postgresql://test-user:test-password@database.example.test:5432/test-db?sslmode=verify-full",
+        OBJECT_STORAGE_ENDPOINT: "https://objects.example.test",
+        OIDC_CLIENT_AUTH_METHOD: "client_secret_basic",
+        OIDC_CLIENT_SECRET: "test-client-secret",
+        OIDC_ISSUER_URL: "https://identity.example.test",
+        OIDC_REDIRECT_URI: "https://app.example.test/api/bff/auth/callback",
+        PAYOUT_GATEWAY_MODE: "synthetic",
+        REDIS_URL: "rediss://redis.example.test:6379/0",
+      }),
+    ).toThrow(/PAYOUT_GATEWAY_MODE/);
+  });
+
   it("keeps synthetic notification delivery outside protected environments", () => {
     expect(
       loadServiceConfig("worker", {

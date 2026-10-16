@@ -383,7 +383,15 @@ that completes an increment.
     indexes, clean/upgrade migration paths, zero drift, and repeatable synthetic seed. Visual
     comparison, stakeholder UAT, governed commercial policy, provider qualification, and real
     activation remain open; no real logistics use is enabled.
-  - `[ ]` Remaining settlement/payout and advanced-reporting slices remain after logistics.
+  - `[~]` 11G settlement/payout and advanced-finance reporting now persists immutable
+    currency-separated statements, snapshots each included earning exactly once, marks finalized
+    statements for reconciliation after negative payment events, enforces requester/reviewer/executor
+    separation, and provides a vendor-neutral payout gateway that remains disabled in protected
+    environments. The admin Settlements and Reports screens are connected to these production
+    boundaries. Pharmacy, practitioner, logistics, hospital, manager, tax, and platform-revenue
+    formulas remain deliberately uncreated until their commercial rules are approved; corresponding
+    signed-prototype report sections remain tracked rather than removed. See
+    [`increments/11g-settlements-payouts-and-reporting.md`](./increments/11g-settlements-payouts-and-reporting.md).
     - `[~]` 11F clinical encounters and patient records has completed its production encounter
       foundation, related clinical actions, and signed-prototype screen connection. Controlled
       visual comparison and stakeholder UAT remain open and are tracked in

@@ -157,15 +157,24 @@
         {
           "id": "reports",
           "file": "pages/reports.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-reporting"
+          "status": "IN_PROGRESS",
+          "checkpoint": "11G3",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/reports.tsx",
+            "apps/api/src/finance/infrastructure/prisma-organization-finance.repository.ts"
+          ]
         },
         { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
         {
           "id": "settlements",
           "file": "pages/settlements.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-settlements"
+          "status": "IN_PROGRESS",
+          "checkpoint": "11G1-11G2",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/settlements.tsx",
+            "apps/api/src/finance/application/organization-finance.service.ts",
+            "apps/api/src/finance/infrastructure/prisma-organization-finance.repository.ts"
+          ]
         },
         {
           "id": "users",
@@ -314,8 +323,12 @@
         {
           "id": "settlements",
           "file": "pages/settlements.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-settlements"
+          "status": "CONNECTED",
+          "checkpoint": "11G1",
+          "productionFiles": [
+            "apps/web/src/features/laboratory/pages/settlements.tsx",
+            "apps/api/src/finance/application/organization-finance.service.ts"
+          ]
         }
       ]
     },
