@@ -23,7 +23,10 @@ export function PublicPricing() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    serviceService.list().then((s) => { setServices(s); setLoading(false); });
+    serviceService.list().then((s) => {
+      setServices(s);
+      setLoading(false);
+    });
   }, []);
 
   const byCategory = services.reduce<Record<string, Service[]>>((acc, s) => {
@@ -33,8 +36,13 @@ export function PublicPricing() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <PageHeader title="Service costs" description="See the total amount payable for consultations, laboratory services, delivery and more." />
-      {loading ? <LoadingState /> : (
+      <PageHeader
+        title="Service costs"
+        description="See the total amount payable for consultations, laboratory services, delivery and more."
+      />
+      {loading ? (
+        <LoadingState />
+      ) : (
         <div className="space-y-8">
           {Object.entries(byCategory).map(([cat, list]) => (
             <div key={cat}>
@@ -50,7 +58,9 @@ export function PublicPricing() {
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-muted-foreground">Total payable</p>
-                          <p className="font-semibold tabular-nums">{price ? formatCurrency(price.patientPrice) : "—"}</p>
+                          <p className="font-semibold tabular-nums">
+                            {price ? formatCurrency(price.patientPrice) : "—"}
+                          </p>
                         </div>
                       </div>
                     );

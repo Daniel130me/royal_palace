@@ -522,7 +522,17 @@
           "status": "IN_PROGRESS",
           "checkpoint": "11"
         },
-        { "id": "doctors", "file": "pages/doctors.tsx", "status": "CONNECTED", "checkpoint": "06" },
+        {
+          "id": "doctors",
+          "file": "pages/doctors.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11H2",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/doctors.tsx",
+            "apps/web/src/features/shared/practitioner-directory.tsx",
+            "apps/api/src/discovery/application/public-practitioner-discovery.service.ts"
+          ]
+        },
         {
           "id": "family",
           "file": "pages/family.tsx",
@@ -887,7 +897,16 @@
           "status": "IN_PROGRESS",
           "checkpoint": "06-parity"
         },
-        { "id": "home", "file": "pages/home.tsx", "status": "PENDING", "checkpoint": "06-parity" },
+        {
+          "id": "home",
+          "file": "pages/home.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11H1",
+          "productionFiles": [
+            "apps/web/src/features/public/pages/home.tsx",
+            "apps/api/src/discovery/application/public-practitioner-discovery.service.ts"
+          ]
+        },
         { "id": "help", "file": "pages/help.tsx", "status": "PENDING", "checkpoint": "06-parity" },
         {
           "id": "how-it-works",
@@ -917,13 +936,23 @@
           "id": "provider-profile",
           "file": "pages/provider-profile.tsx",
           "status": "CONNECTED",
-          "checkpoint": "06"
+          "checkpoint": "11H3",
+          "productionFiles": [
+            "apps/web/src/features/public/pages/provider-profile.tsx",
+            "apps/api/src/discovery/application/public-practitioner-discovery.service.ts",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts"
+          ]
         },
         {
           "id": "providers",
           "file": "pages/providers.tsx",
           "status": "CONNECTED",
-          "checkpoint": "06"
+          "checkpoint": "11H2",
+          "productionFiles": [
+            "apps/web/src/features/public/pages/providers.tsx",
+            "apps/web/src/features/shared/practitioner-directory.tsx",
+            "apps/api/src/discovery/application/public-practitioner-discovery.service.ts"
+          ]
         },
         {
           "id": "services",

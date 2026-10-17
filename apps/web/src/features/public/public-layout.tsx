@@ -19,7 +19,7 @@ const NAV = [
 ];
 
 export function PublicLayout({ children }: { children: React.ReactNode }) {
-  const { view, session, sessionName, logout } = useNav();
+  const { view, session } = useNav();
   const [open, setOpen] = useState(false);
   const page = view.page;
 
@@ -41,7 +41,9 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
                 onClick={() => navigate("public", n.page)}
                 className={cn(
                   "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  page === n.page ? "bg-emerald-50 text-emerald-700" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  page === n.page
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent",
                 )}
               >
                 {n.label}
@@ -51,15 +53,35 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             {session ? (
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate(useNav.getState().session?.role === "doctor" ? "provider" : (useNav.getState().session?.role as any) ?? "public", "dashboard")}>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() =>
+                  navigate(
+                    useNav.getState().session?.role === "doctor"
+                      ? "provider"
+                      : ((useNav.getState().session?.role as any) ?? "public"),
+                    "dashboard",
+                  )
+                }
+              >
                 Go to dashboard
               </Button>
             ) : (
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate("login", "login")}>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => navigate("login", "login")}
+              >
                 Sign in
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen((o) => !o)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setOpen((o) => !o)}
+            >
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </div>
@@ -70,8 +92,16 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
               {NAV.map((n) => (
                 <button
                   key={n.page}
-                  onClick={() => { navigate("public", n.page); setOpen(false); }}
-                  className={cn("rounded-md px-3 py-2 text-sm text-left", page === n.page ? "bg-emerald-50 text-emerald-700" : "text-muted-foreground hover:bg-accent")}
+                  onClick={() => {
+                    navigate("public", n.page);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm text-left",
+                    page === n.page
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "text-muted-foreground hover:bg-accent",
+                  )}
                 >
                   {n.label}
                 </button>
@@ -93,34 +123,91 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
               <span className="font-bold">Royal Palace Health Care</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              A managed healthcare platform connecting consultations, records, laboratory, pharmacy and delivery.
+              A managed healthcare platform connecting consultations, records, laboratory, pharmacy
+              and delivery.
             </p>
           </div>
           <div>
             <p className="font-semibold text-sm mb-2">Services</p>
             <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "services")}>All services</button></li>
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "providers")}>Find a doctor</button></li>
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "laboratories")}>Laboratory tests</button></li>
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "pharmacies")}>Pharmacy</button></li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "services")}
+                >
+                  All services
+                </button>
+              </li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "providers")}
+                >
+                  Find a doctor
+                </button>
+              </li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "laboratories")}
+                >
+                  Laboratory tests
+                </button>
+              </li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "pharmacies")}
+                >
+                  Pharmacy
+                </button>
+              </li>
             </ul>
           </div>
           <div>
             <p className="font-semibold text-sm mb-2">Platform</p>
             <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "how-it-works")}>How it works</button></li>
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "pricing")}>Pricing</button></li>
-              <li><button className="hover:text-foreground" onClick={() => navigate("public", "help")}>Help & support</button></li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "how-it-works")}
+                >
+                  How it works
+                </button>
+              </li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "pricing")}
+                >
+                  Pricing
+                </button>
+              </li>
+              <li>
+                <button
+                  className="hover:text-foreground"
+                  onClick={() => navigate("public", "help")}
+                >
+                  Help & support
+                </button>
+              </li>
             </ul>
           </div>
           <div>
             <p className="font-semibold text-sm mb-2">Get started</p>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 w-full" onClick={() => navigate("login", "login")}>Sign in</Button>
-            <p className="mt-3 text-xs text-muted-foreground">Synthetic data · Simulated services · Prototype only</p>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 w-full"
+              onClick={() => navigate("login", "login")}
+            >
+              Sign in
+            </Button>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Service availability and supported payment methods vary by region.
+            </p>
           </div>
         </div>
         <div className="border-t py-4 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Royal Palace Health Care — Prototype. All data is fictional.
+          © {new Date().getFullYear()} Royal Palace Health Care. All rights reserved.
         </div>
       </footer>
     </div>

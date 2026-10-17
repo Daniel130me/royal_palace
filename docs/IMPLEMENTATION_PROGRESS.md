@@ -392,6 +392,15 @@ that completes an increment.
     formulas remain deliberately uncreated until their commercial rules are approved; corresponding
     signed-prototype report sections remain tracked rather than removed. See
     [`increments/11g-settlements-payouts-and-reporting.md`](./increments/11g-settlements-payouts-and-reporting.md).
+  - `[x]` 11H public care discovery parity replaces the public home, practitioner directory,
+    and practitioner-profile prototype data paths with the bounded generated discovery and
+    scheduling contracts. Public pages now show only independently verified projections and
+    server-published availability/pricing facts; invented metrics, fabricated appointment slots,
+    generic resource access, Nigeria-only presentation assumptions, and demo-only production copy
+    are removed while preserving the signed visual capabilities. Patient and public practitioner
+    lists share one extendable directory surface rather than duplicating security and pagination
+    behavior. See
+    [`increments/11h-public-care-discovery-parity.md`](./increments/11h-public-care-discovery-parity.md).
     - `[~]` 11F clinical encounters and patient records has completed its production encounter
       foundation, related clinical actions, and signed-prototype screen connection. Controlled
       visual comparison and stakeholder UAT remain open and are tracked in
