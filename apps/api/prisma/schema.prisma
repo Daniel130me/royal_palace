@@ -1038,6 +1038,7 @@ model ServicePrice {
   laboratoryBookings    LaboratoryBooking[]
 
   @@index([serviceId, status, effectiveFrom, id], map: "service_prices_active_lookup_idx")
+  @@index([status, effectiveFrom, id], map: "service_prices_public_effective_idx")
   @@map("service_prices")
 }
 

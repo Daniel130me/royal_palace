@@ -4,6 +4,7 @@ import type {
   PublicOrganizationListResponse,
   PublicOrganizationType,
   PublicService,
+  PublicServicePriceListResponse,
 } from "@royal-palace/contracts";
 
 import type { DiscoveryCursor } from "../application/discovery-cursor.js";
@@ -14,12 +15,19 @@ export interface ListOrganizationsQuery extends PublicHospitalFilters {
   organizationType: PublicOrganizationType;
 }
 
+export interface ListPublicServicePricesQuery {
+  cursor?: DiscoveryCursor;
+  effectiveAt: Date;
+  limit: number;
+}
+
 export interface PublicDiscoveryRepository {
   findOrganizationById(
     id: string,
     organizationType: PublicOrganizationType,
   ): Promise<PublicOrganizationDetail | null>;
   listOrganizations(query: ListOrganizationsQuery): Promise<PublicOrganizationListResponse>;
+  listServicePrices(query: ListPublicServicePricesQuery): Promise<PublicServicePriceListResponse>;
   listServices(organizationType: PublicOrganizationType): Promise<readonly PublicService[]>;
 }
 

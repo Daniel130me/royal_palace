@@ -10,37 +10,37 @@ const STEPS = [
     n: 1,
     icon: Search,
     title: "Discover a provider",
-    desc: "Search verified doctors by specialty and online consultation mode, plus pharmacies and laboratories by service.",
+    desc: "Search independently verified practitioners by specialty and consultation mode, and verified healthcare organizations by service and location.",
   },
   {
     n: 2,
     icon: Video,
     title: "Book & consult",
-    desc: "Pick a slot, complete a quick intake, pay securely and join your consultation.",
+    desc: "Choose a published slot, review the server-confirmed amount and complete the authorized checkout flow before joining a consultation.",
   },
   {
     n: 3,
     icon: FileText,
     title: "Structured clinical record",
-    desc: "Your doctor documents the consultation using a structured SOAP-based template. The record is locked & signed.",
+    desc: "The practitioner records the encounter using the controlled clinical workflow. Completed records and related actions are retained with their audit history.",
   },
   {
     n: 4,
     icon: FlaskConical,
     title: "Laboratory & results",
-    desc: "Your doctor can request tests. You book a lab, samples are collected, results return to your timeline.",
+    desc: "An eligible request can be routed to a verified laboratory. Collection, processing, publication and result access follow explicit authorization rules.",
   },
   {
     n: 5,
     icon: Pill,
     title: "Prescription to pharmacy",
-    desc: "Send your prescription to a pharmacy, order medicines and pay — all from your patient portal.",
+    desc: "Route an eligible prescription to a verified pharmacy, review its exact quote and approve the order before payment.",
   },
   {
     n: 6,
     icon: Truck,
     title: "Delivery to your door",
-    desc: "A verified rider picks up your order and delivers it with a verification code.",
+    desc: "Where qualified delivery is available, controlled pickup, tracking and recipient verification complete the handoff.",
   },
 ];
 
@@ -68,15 +68,15 @@ export function PublicHowItWorks() {
         ))}
       </div>
       <div className="mt-8 rounded-xl bg-emerald-50 border border-emerald-100 p-6 text-center">
-        <p className="font-semibold text-emerald-800">Ready to try it?</p>
+        <p className="font-semibold text-emerald-800">Ready to get started?</p>
         <p className="text-sm text-emerald-700 mt-1">
-          Sign in as any demo persona to explore the full journey.
+          Sign in to access the capabilities available to your verified role and region.
         </p>
         <button
           onClick={() => navigate("login", "login")}
           className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-700"
         >
-          Explore the demo <ArrowRight className="h-4 w-4" />
+          Sign in securely <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     </div>

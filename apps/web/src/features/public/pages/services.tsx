@@ -2,7 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { navigate } from "@/lib/nav";
-import { formatCurrency } from "@/lib/format";
 import {
   Stethoscope,
   HeartPulse,
@@ -20,7 +19,6 @@ const SERVICES = [
     icon: Stethoscope,
     title: "Doctor Consultation",
     desc: "General practitioners and specialists available online by video, voice or chat.",
-    price: 15000,
     page: "providers",
     color: "bg-emerald-100 text-emerald-700",
   },
@@ -28,7 +26,6 @@ const SERVICES = [
     icon: HeartPulse,
     title: "Dental Care",
     desc: "Check-ups, scaling, fillings and specialist dental procedures.",
-    price: 20000,
     page: "providers",
     color: "bg-rose-100 text-rose-700",
   },
@@ -36,7 +33,6 @@ const SERVICES = [
     icon: FlaskConical,
     title: "Laboratory Tests",
     desc: "Book tests at a facility or request home sample collection.",
-    price: 3000,
     page: "laboratories",
     color: "bg-violet-100 text-violet-700",
   },
@@ -44,7 +40,6 @@ const SERVICES = [
     icon: Pill,
     title: "Pharmacy",
     desc: "Order prescription and over-the-counter medicines with delivery.",
-    price: 1500,
     page: "pharmacies",
     color: "bg-amber-100 text-amber-700",
   },
@@ -52,7 +47,6 @@ const SERVICES = [
     icon: Activity,
     title: "Chronic Care",
     desc: "Ongoing management of hypertension, diabetes and other conditions.",
-    price: 30000,
     page: "pricing",
     color: "bg-sky-100 text-sky-700",
   },
@@ -60,7 +54,6 @@ const SERVICES = [
     icon: Brain,
     title: "Preventive Healthcare",
     desc: "Wellness screening packages to stay ahead of disease.",
-    price: 60000,
     page: "pricing",
     color: "bg-indigo-100 text-indigo-700",
   },
@@ -68,7 +61,6 @@ const SERVICES = [
     icon: Baby,
     title: "Home Healthcare",
     desc: "Qualified practitioners visiting you at home.",
-    price: 40000,
     page: "pricing",
     color: "bg-teal-100 text-teal-700",
   },
@@ -90,11 +82,7 @@ export function PublicServices() {
               </div>
               <h3 className="font-semibold">{s.title}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  From{" "}
-                  <span className="font-semibold text-foreground">{formatCurrency(s.price)}</span>
-                </span>
+              <div className="mt-4 flex items-center justify-end">
                 <button
                   onClick={() => navigate("public", s.page as any)}
                   className="text-sm text-emerald-600 font-medium flex items-center gap-1 hover:gap-2 transition-all"

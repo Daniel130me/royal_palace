@@ -1,71 +1,137 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
+import type { PublicSupportConfigResponse } from "@royal-palace/contracts";
+import { LifeBuoy, Mail, Phone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Mail, Phone, MessageCircle, LifeBuoy } from "lucide-react";
 import { PageHeader } from "@/components/healthcare/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { publicDiscoveryService } from "@/lib/services";
+
+const FAQS = [
+  {
+    question: "How do I book a consultation?",
+    answer:
+      "Sign in as a patient, open Find Care, choose a verified practitioner and select one of their published appointment slots. The payable amount is shown before checkout.",
+  },
+  {
+    question: "How do prescriptions reach a pharmacy?",
+    answer:
+      "An eligible prescription can be routed to a verified pharmacy. The pharmacy reviews it, prepares an exact quote and asks for your approval before an order or payment is created.",
+  },
+  {
+    question: "How do laboratory bookings and results work?",
+    answer:
+      "Eligible requests can be booked with a verified laboratory. Published results and clean attachments are available only to authorized participants in the care journey.",
+  },
+  {
+    question: "Is clinical information included in external messages?",
+    answer:
+      "No. External notifications contain only the minimum operational information needed to direct a verified recipient back to the secure platform.",
+  },
+  {
+    question: "When is delivery available?",
+    answer:
+      "Delivery is offered only when the selected organization, order, destination and qualified logistics workflow support it. Eligibility is confirmed inside the order flow.",
+  },
+] as const;
 
 export function PublicHelp() {
+  const [config, setConfig] = useState<PublicSupportConfigResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const retry = useCallback(() => setReloadToken((value) => value + 1), []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setError(null);
+    publicDiscoveryService
+      .supportConfig(controller.signal)
+      .then(setConfig)
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(
+          requestError instanceof Error ? requestError.message : "Support contacts unavailable",
+        );
+      });
+    return () => controller.abort();
+  }, [reloadToken]);
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <PageHeader title="Help & support" description="Find answers and reach our support team." />
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
+      <PageHeader
+        title="Help & support"
+        description="Find answers and qualified support channels."
+      />
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-5 text-center">
-            <LifeBuoy className="h-6 w-6 mx-auto text-emerald-600 mb-2" />
-            <p className="font-medium text-sm">24/7 Support</p>
-            <p className="text-xs text-muted-foreground">Always here to help</p>
+            <LifeBuoy className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+            <p className="text-sm font-medium">Support availability</p>
+            <p className="text-xs text-muted-foreground">
+              {config?.availability ?? "Hours are published for each deployment"}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 text-center">
-            <Mail className="h-6 w-6 mx-auto text-emerald-600 mb-2" />
-            <p className="font-medium text-sm">Email</p>
-            <p className="text-xs text-muted-foreground">support@royalpalace.ng</p>
+            <Mail className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+            <p className="text-sm font-medium">Email</p>
+            {config?.email ? (
+              <a
+                className="text-xs text-emerald-700 hover:underline"
+                href={`mailto:${config.email}`}
+              >
+                {config.email}
+              </a>
+            ) : (
+              <p className="text-xs text-muted-foreground">Not published for this environment</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 text-center">
-            <Phone className="h-6 w-6 mx-auto text-emerald-600 mb-2" />
-            <p className="font-medium text-sm">Hotline</p>
-            <p className="text-xs text-muted-foreground">0800 ROYAL PALACE</p>
+            <Phone className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
+            <p className="text-sm font-medium">Hotline</p>
+            {config?.phoneE164 ? (
+              <a
+                className="text-xs text-emerald-700 hover:underline"
+                href={`tel:${config.phoneE164}`}
+              >
+                {config.phoneE164}
+              </a>
+            ) : (
+              <p className="text-xs text-muted-foreground">Not published for this environment</p>
+            )}
           </CardContent>
         </Card>
       </div>
+      {error ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p>Support contact details could not be loaded. No fallback address is being guessed.</p>
+          <Button className="mt-3" onClick={retry} size="sm" variant="outline">
+            Retry
+          </Button>
+        </div>
+      ) : null}
       <Card>
         <CardContent className="p-4">
-          <h2 className="font-semibold mb-3">Common questions</h2>
-          <Accordion type="single" collapsible>
-            {[
-              {
-                q: "How do I book a consultation?",
-                a: "Sign in as a patient, go to Find Care → Doctors, pick a provider and complete the booking flow. Mock payment confirms your slot instantly.",
-              },
-              {
-                q: "Can I manage my family's health?",
-                a: "Yes. Add dependants in the Family section and switch between profiles to manage their appointments, prescriptions and records.",
-              },
-              {
-                q: "How do prescriptions reach the pharmacy?",
-                a: "When your doctor issues a prescription it appears in your Prescriptions tab. From there you can send it to a pharmacy and order medicines.",
-              },
-              {
-                q: "Is my medical data shared without consent?",
-                a: "No. Doctors, pharmacies and labs only see the minimum information necessary, and you can review and revoke access grants at any time.",
-              },
-              {
-                q: "How are medicines delivered?",
-                a: "Once your pharmacy order is ready, a logistics rider is assigned. They confirm pickup, travel to your address, and complete delivery using a verification code.",
-              },
-            ].map((f, i) => (
-              <AccordionItem key={i} value={`q-${i}`}>
-                <AccordionTrigger className="text-sm">{f.q}</AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground">{f.a}</AccordionContent>
+          <h2 className="mb-3 font-semibold">Common questions</h2>
+          <Accordion collapsible type="single">
+            {FAQS.map((faq) => (
+              <AccordionItem key={faq.question} value={faq.question}>
+                <AccordionTrigger className="text-sm">{faq.question}</AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground">
+                  {faq.answer}
+                </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>

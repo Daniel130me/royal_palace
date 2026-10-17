@@ -401,10 +401,16 @@ that completes an increment.
     lists share one extendable directory surface rather than duplicating security and pagination
     behavior. See
     [`increments/11h-public-care-discovery-parity.md`](./increments/11h-public-care-discovery-parity.md).
-    - `[~]` 11F clinical encounters and patient records has completed its production encounter
-      foundation, related clinical actions, and signed-prototype screen connection. Controlled
-      visual comparison and stakeholder UAT remain open and are tracked in
-      [`increments/11f-clinical-encounters-and-records.md`](./increments/11f-clinical-encounters-and-records.md).
+  - `[x]` 11I public information and pricing parity connects Help to deployment-qualified
+    support configuration, replaces demo copy in How It Works with the implemented secure
+    journey, and replaces generic prototype pricing with a bounded current-price projection.
+    Only active effective patient prices are public; payout, actor, draft, and retired data stay
+    private. See
+    [`increments/11i-public-information-and-pricing.md`](./increments/11i-public-information-and-pricing.md).
+  - `[~]` 11F clinical encounters and patient records has completed its production encounter
+    foundation, related clinical actions, and signed-prototype screen connection. Controlled
+    visual comparison and stakeholder UAT remain open and are tracked in
+    [`increments/11f-clinical-encounters-and-records.md`](./increments/11f-clinical-encounters-and-records.md).
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open

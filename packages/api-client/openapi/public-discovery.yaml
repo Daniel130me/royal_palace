@@ -6,6 +6,33 @@ info:
 servers:
   - url: /
 paths:
+  /api/public/prices:
+    get:
+      operationId: listPublicServicePrices
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Currently effective administrator-approved patient prices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicServicePriceListResponse"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/public/support-config:
+    get:
+      operationId: getPublicSupportConfig
+      responses:
+        "200":
+          description: Deployment-qualified public support contact channels.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSupportConfig"
+        default:
+          $ref: "#/components/responses/Error"
   /api/public/services:
     get:
       operationId: listPublicServices
@@ -346,6 +373,33 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/PublicService" }
+    PublicServicePrice:
+      type: object
+      additionalProperties: false
+      required: [currency, effectiveFrom, effectiveUntil, patientPriceMinor, service]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveUntil: { type: [string, "null"], format: date-time }
+        patientPriceMinor: { type: string, pattern: "^[0-9]+$" }
+        service: { $ref: "#/components/schemas/PublicService" }
+    PublicServicePriceListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicServicePrice" }
+        pageInfo: { $ref: "#/components/schemas/CursorPageInfo" }
+    PublicSupportConfig:
+      type: object
+      additionalProperties: false
+      required: [availability, email, phoneE164]
+      properties:
+        availability: { type: [string, "null"] }
+        email: { type: [string, "null"], format: email }
+        phoneE164: { type: [string, "null"], pattern: "^\\+[1-9][0-9]{7,14}$" }
     PublicProfession:
       type: object
       additionalProperties: false

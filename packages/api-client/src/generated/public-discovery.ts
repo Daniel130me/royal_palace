@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/public/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPublicServicePrices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/support-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPublicSupportConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/services": {
         parameters: {
             query?: never;
@@ -245,6 +277,25 @@ export interface components {
         PublicServiceListResponse: {
             data: components["schemas"]["PublicService"][];
         };
+        PublicServicePrice: {
+            currency: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveUntil: string | null;
+            patientPriceMinor: string;
+            service: components["schemas"]["PublicService"];
+        };
+        PublicServicePriceListResponse: {
+            data: components["schemas"]["PublicServicePrice"][];
+            pageInfo: components["schemas"]["CursorPageInfo"];
+        };
+        PublicSupportConfig: {
+            availability: string | null;
+            /** Format: email */
+            email: string | null;
+            phoneE164: string | null;
+        };
         PublicProfession: {
             code: string;
             /** Format: uuid */
@@ -333,6 +384,51 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listPublicServicePrices: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Currently effective administrator-approved patient prices. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicServicePriceListResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getPublicSupportConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deployment-qualified public support contact channels. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSupportConfig"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     listPublicServices: {
         parameters: {
             query?: {

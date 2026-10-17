@@ -181,6 +181,26 @@ export interface PublicService {
   name: string;
 }
 
+/** Public-safe projection of one currently effective, administrator-approved service price. */
+export interface PublicServicePrice {
+  currency: string;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  patientPriceMinor: string;
+  service: PublicService;
+}
+
+export interface PublicServicePriceListResponse {
+  data: readonly PublicServicePrice[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface PublicSupportConfigResponse {
+  availability: string | null;
+  email: string | null;
+  phoneE164: string | null;
+}
+
 export interface LaboratoryWorkspacePriceResponse {
   currency: string;
   laboratoryPayoutMinor: string;

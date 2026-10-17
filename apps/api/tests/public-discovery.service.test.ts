@@ -30,11 +30,45 @@ function createRepository(): PublicDiscoveryRepository {
       data: [hospital],
       pageInfo: { endCursor: "pending", hasNextPage: true },
     }),
+    listServicePrices: vi.fn().mockResolvedValue({
+      data: [
+        {
+          currency: "CAD",
+          effectiveFrom: "2026-01-01T00:00:00.000Z",
+          effectiveUntil: null,
+          patientPriceMinor: "12500",
+          service: {
+            category: "Laboratory",
+            code: "diagnostic-testing",
+            id: "0199a18e-a400-7000-8000-000000000101",
+            name: "Diagnostic Testing",
+          },
+        },
+      ],
+      pageInfo: {
+        endCursor: "0199a18e-a400-7000-8000-000000000301",
+        hasNextPage: true,
+      },
+    }),
     listServices: vi.fn(),
   };
 }
 
 describe("PublicDiscoveryService", () => {
+  it("caps public price pages and replaces repository identifiers with opaque cursors", async () => {
+    const repository = createRepository();
+    const service = new PublicDiscoveryService(repository);
+
+    const page = await service.listServicePrices({ limit: 10_000 });
+
+    expect(repository.listServicePrices).toHaveBeenCalledWith({
+      effectiveAt: expect.any(Date),
+      limit: MAX_PAGE_SIZE,
+    });
+    expect(page.pageInfo.endCursor).toEqual(expect.any(String));
+    expect(page.pageInfo.endCursor).not.toContain("0199a18e-a400");
+  });
+
   it("caps page size and emits a filter-bound opaque cursor", async () => {
     const repository = createRepository();
     const service = new PublicDiscoveryService(repository);

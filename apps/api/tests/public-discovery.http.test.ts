@@ -16,6 +16,10 @@ const repository: PublicDiscoveryRepository = {
     data: [],
     pageInfo: { endCursor: null, hasNextPage: false },
   }),
+  listServicePrices: vi.fn().mockResolvedValue({
+    data: [],
+    pageInfo: { endCursor: null, hasNextPage: false },
+  }),
   listServices: vi.fn().mockResolvedValue([]),
 };
 
@@ -59,6 +63,16 @@ describe("public discovery HTTP boundary", () => {
     });
   });
 
+  it("exposes bounded public pricing without authentication", async () => {
+    const response = await app.inject({ method: "GET", url: "/v1/public/prices?limit=25" });
+
+    expect(response.statusCode).toBe(200);
+    expect(repository.listServicePrices).toHaveBeenCalledWith({
+      effectiveAt: expect.any(Date),
+      limit: 25,
+    });
+  });
+
   it.each([
     ["pharmacies", "PHARMACY"],
     ["laboratories", "LABORATORY"],
@@ -83,8 +97,9 @@ describe("public discovery HTTP boundary", () => {
       app.inject({ method: "GET", url: "/v1/public/hospitals?emergencyAvailable=maybe" }),
       app.inject({ method: "GET", url: "/v1/public/hospitals?limit=51" }),
       app.inject({ method: "GET", url: "/v1/public/hospitals?country=NGA" }),
+      app.inject({ method: "GET", url: "/v1/public/prices?limit=51" }),
     ]);
 
-    expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400]);
+    expect(responses.map((response) => response.statusCode)).toEqual([400, 400, 400, 400, 400]);
   });
 });

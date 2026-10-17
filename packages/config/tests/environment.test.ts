@@ -361,9 +361,32 @@ describe("loadWebConfig", () => {
   });
 
   it("normalizes the BFF trust-boundary configuration", () => {
-    expect(loadWebConfig(validWebEnvironment)).toMatchObject({
+    expect(
+      loadWebConfig({
+        ...validWebEnvironment,
+        PUBLIC_SUPPORT_AVAILABILITY: "Monday-Friday, 09:00-17:00 UTC",
+        PUBLIC_SUPPORT_EMAIL: "support@example.test",
+        PUBLIC_SUPPORT_PHONE_E164: "+15551234567",
+      }),
+    ).toMatchObject({
       apiBaseUrl: "http://127.0.0.1:4000",
+      publicSupport: {
+        availability: "Monday-Friday, 09:00-17:00 UTC",
+        email: "support@example.test",
+        phoneE164: "+15551234567",
+      },
       webOrigin: "http://127.0.0.1:3000",
     });
+  });
+
+  it("requires a qualified public support contact in protected environments", () => {
+    expect(() =>
+      loadWebConfig({
+        ...validWebEnvironment,
+        API_BASE_URL: "https://api.example.test",
+        APP_ENV: "production",
+        WEB_ORIGIN: "https://web.example.test",
+      }),
+    ).toThrow(/PUBLIC_SUPPORT_EMAIL/);
   });
 });

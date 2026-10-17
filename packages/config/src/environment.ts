@@ -487,6 +487,12 @@ const webEnvironmentSchema = z
     BFF_INTERNAL_SECRET: keyMaterialSchema,
     BFF_API_TIMEOUT_MS: positiveTimeoutSchema,
     LOG_LEVEL: logLevelSchema,
+    PUBLIC_SUPPORT_AVAILABILITY: z.string().trim().min(1).max(160).optional(),
+    PUBLIC_SUPPORT_EMAIL: z.email().max(320).optional(),
+    PUBLIC_SUPPORT_PHONE_E164: z
+      .string()
+      .regex(/^\+[1-9]\d{6,14}$/)
+      .optional(),
     WEB_ORIGIN: z.url(),
   })
   .superRefine((value, context) => {
@@ -515,6 +521,17 @@ const webEnvironmentSchema = z
         path: ["BFF_ACTIVE_COOKIE_KEY_ID"],
       });
     }
+    if (
+      protectedEnvironments.has(value.APP_ENV) &&
+      value.PUBLIC_SUPPORT_EMAIL === undefined &&
+      value.PUBLIC_SUPPORT_PHONE_E164 === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "at least one qualified public support contact is required",
+        path: ["PUBLIC_SUPPORT_EMAIL"],
+      });
+    }
     if (protectedEnvironments.has(value.APP_ENV)) {
       requireProtocol(value.API_BASE_URL, "https:", "API_BASE_URL", context);
       requireProtocol(value.WEB_ORIGIN, "https:", "WEB_ORIGIN", context);
@@ -530,6 +547,11 @@ export interface WebConfig {
   bffInternalSecret: string;
   bffApiTimeoutMs: number;
   logLevel: LogLevel;
+  publicSupport: {
+    availability: string | null;
+    email: string | null;
+    phoneE164: string | null;
+  };
   webOrigin: string;
 }
 
@@ -656,6 +678,11 @@ export function loadWebConfig(environment: NodeJS.ProcessEnv = process.env): Web
     bffInternalSecret: result.data.BFF_INTERNAL_SECRET,
     bffApiTimeoutMs: result.data.BFF_API_TIMEOUT_MS,
     logLevel: result.data.LOG_LEVEL,
+    publicSupport: Object.freeze({
+      availability: result.data.PUBLIC_SUPPORT_AVAILABILITY ?? null,
+      email: result.data.PUBLIC_SUPPORT_EMAIL ?? null,
+      phoneE164: result.data.PUBLIC_SUPPORT_PHONE_E164 ?? null,
+    }),
     webOrigin: result.data.WEB_ORIGIN,
   });
 }

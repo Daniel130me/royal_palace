@@ -13,6 +13,7 @@ import { requireDisposableDatabase } from "./database-safety.js";
 // harmless metadata statements emitted by a future driver version.
 const MAX_LIST_QUERY_COUNT = 2;
 const MAX_PRACTITIONER_LIST_QUERY_COUNT = 2;
+const MAX_PRICE_LIST_QUERY_COUNT = 1;
 
 async function main(): Promise<void> {
   const databaseUrl = requireDisposableDatabase().toString();
@@ -80,6 +81,15 @@ async function main(): Promise<void> {
       "Laboratory type was not preserved",
     );
 
+    queryCount = 0;
+    const prices = await discovery.listServicePrices({ limit: 25 });
+    assert(prices.data.length > 0, "Public service pricing returned no effective prices");
+    const priceListQueryCount = queryCount;
+    assert(
+      priceListQueryCount <= MAX_PRICE_LIST_QUERY_COUNT,
+      `Public pricing used ${priceListQueryCount} database queries; limit is ${MAX_PRICE_LIST_QUERY_COUNT}`,
+    );
+
     const firstPage = await discovery.listOrganizations({
       filters: {},
       limit: 1,
@@ -129,6 +139,7 @@ async function main(): Promise<void> {
       ...maternalCare.data,
       ...pharmacies.data,
       ...laboratories.data,
+      ...prices.data,
       ...practitioners.data,
     ]);
     for (const privateField of [
@@ -138,11 +149,14 @@ async function main(): Promise<void> {
       "principalId",
       "givenName",
       "familyName",
+      "providerPayoutMinor",
+      "approvedByPrincipalId",
+      "createdByPrincipalId",
     ] as const) {
       assert(!serialized.includes(privateField), `Public projection leaked ${privateField}`);
     }
     process.stdout.write(
-      `Public discovery verification passed with ${listQueryCount} organization queries and ${practitionerListQueryCount} practitioner queries per list request.\n`,
+      `Public discovery verification passed with ${listQueryCount} organization queries, ${practitionerListQueryCount} practitioner queries, and ${priceListQueryCount} pricing queries per list request.\n`,
     );
   } finally {
     await database.$disconnect();

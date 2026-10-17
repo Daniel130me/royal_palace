@@ -5,6 +5,7 @@ import type {
   PublicOrganizationListResponse,
   PublicOrganizationType,
   PublicServiceListResponse,
+  PublicServicePriceListResponse,
 } from "@royal-palace/contracts";
 
 import {
@@ -27,6 +28,38 @@ export class PublicDiscoveryService {
 
   listServices(organizationType: PublicOrganizationType): Promise<PublicServiceListResponse> {
     return this.repository.listServices(organizationType).then((data) => ({ data }));
+  }
+
+  async listServicePrices(input: {
+    cursor?: string;
+    limit?: number;
+  }): Promise<PublicServicePriceListResponse> {
+    const filterHash = hashFilters({ resource: "public-service-prices", version: 1 });
+    const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filterHash);
+    const response = await this.repository.listServicePrices({
+      ...(cursor === undefined ? {} : { cursor }),
+      effectiveAt: new Date(),
+      limit: Math.min(input.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE),
+    });
+
+    if (!response.pageInfo.hasNextPage) return response;
+    const last = response.data.at(-1);
+    const rawEndCursor = response.pageInfo.endCursor;
+    if (last === undefined || rawEndCursor === null) {
+      return { ...response, pageInfo: { endCursor: null, hasNextPage: false } };
+    }
+    return {
+      ...response,
+      pageInfo: {
+        endCursor: encodeCursor({
+          displayName: last.service.name,
+          filterHash,
+          id: rawEndCursor,
+          version: 1,
+        }),
+        hasNextPage: true,
+      },
+    };
   }
 
   async listOrganizations(input: {

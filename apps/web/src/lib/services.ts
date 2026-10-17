@@ -1536,6 +1536,14 @@ function listPublicOrganizations(
 
 export const publicDiscoveryService = {
   organizations: listPublicOrganizations,
+  prices: (params: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/prices", { params: { query: params }, signal })
+      .then(unwrapGeneratedResponse),
+  supportConfig: (signal?: AbortSignal) =>
+    generatedPublicDiscoveryClient
+      .GET("/api/public/support-config", { signal })
+      .then(unwrapGeneratedResponse),
   hospitals: (params: PublicOrganizationQuery, signal?: AbortSignal) =>
     listPublicOrganizations("hospitals", params, signal),
   pharmacies: (params: PublicOrganizationQuery, signal?: AbortSignal) =>

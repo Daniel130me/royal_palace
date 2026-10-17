@@ -43,6 +43,50 @@ const publicRecord = {
 };
 
 describe("PrismaPublicDiscoveryRepository", () => {
+  it("returns only current patient-facing prices through a bounded projection", async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      {
+        currency: "CAD",
+        effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+        effectiveUntil: null,
+        id: "0199a18e-a400-7000-8000-000000000301",
+        patientPriceMinor: 12500n,
+        service: {
+          category: "Laboratory",
+          code: "diagnostic-testing",
+          id: "0199a18e-a400-7000-8000-000000000101",
+          name: "Diagnostic Testing",
+        },
+      },
+    ]);
+    const repository = new PrismaPublicDiscoveryRepository({
+      servicePrice: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await repository.listServicePrices({
+      effectiveAt: new Date("2026-10-17T00:00:00.000Z"),
+      limit: 20,
+    });
+
+    const query = findMany.mock.calls[0]?.[0] as {
+      select: Record<string, unknown>;
+      take: number;
+      where: unknown;
+    };
+    expect(query.take).toBe(21);
+    expect(query.select).not.toHaveProperty("providerPayoutMinor");
+    expect(query.select).not.toHaveProperty("createdByPrincipalId");
+    expect(query.where).toMatchObject({
+      effectiveFrom: { lte: new Date("2026-10-17T00:00:00.000Z") },
+      service: { status: "ACTIVE" },
+      status: "ACTIVE",
+    });
+    expect(result.data).toEqual([
+      expect.objectContaining({ currency: "CAD", patientPriceMinor: "12500" }),
+    ]);
+    expect(result.data[0]).not.toHaveProperty("providerPayoutMinor");
+  });
+
   it("uses a bounded public projection and server-side service/location filters", async () => {
     const findMany = vi.fn().mockResolvedValue([publicRecord]);
     const repository = new PrismaPublicDiscoveryRepository({

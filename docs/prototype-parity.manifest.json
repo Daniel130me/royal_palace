@@ -907,12 +907,23 @@
             "apps/api/src/discovery/application/public-practitioner-discovery.service.ts"
           ]
         },
-        { "id": "help", "file": "pages/help.tsx", "status": "PENDING", "checkpoint": "06-parity" },
+        {
+          "id": "help",
+          "file": "pages/help.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11I1",
+          "productionFiles": [
+            "apps/web/src/features/public/pages/help.tsx",
+            "apps/web/src/app/api/public/support-config/route.ts",
+            "packages/config/src/environment.ts"
+          ]
+        },
         {
           "id": "how-it-works",
           "file": "pages/how-it-works.tsx",
-          "status": "PENDING",
-          "checkpoint": "06-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11I2",
+          "productionFiles": ["apps/web/src/features/public/pages/how-it-works.tsx"]
         },
         {
           "id": "laboratories",
@@ -929,8 +940,13 @@
         {
           "id": "pricing",
           "file": "pages/pricing.tsx",
-          "status": "PENDING",
-          "checkpoint": "06-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11I3",
+          "productionFiles": [
+            "apps/web/src/features/public/pages/pricing.tsx",
+            "apps/api/src/discovery/application/public-discovery.service.ts",
+            "apps/api/src/discovery/infrastructure/prisma-public-discovery.repository.ts"
+          ]
         },
         {
           "id": "provider-profile",

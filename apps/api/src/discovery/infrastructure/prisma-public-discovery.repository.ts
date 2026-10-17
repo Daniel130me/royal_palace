@@ -6,6 +6,8 @@ import type {
   PublicOrganizationSummary,
   PublicOrganizationType,
   PublicService,
+  PublicServicePrice,
+  PublicServicePriceListResponse,
 } from "@royal-palace/contracts";
 
 import type { Prisma } from "../../generated/prisma/client.js";
@@ -13,6 +15,7 @@ import { PrismaService } from "../../platform/database/prisma.service.js";
 import { requirePublicOrganizationType } from "../../platform/organization-types.js";
 import type {
   ListOrganizationsQuery,
+  ListPublicServicePricesQuery,
   PublicDiscoveryRepository,
 } from "../domain/public-discovery.types.js";
 
@@ -79,6 +82,53 @@ export class PrismaPublicDiscoveryRepository implements PublicDiscoveryRepositor
     });
   }
 
+  async listServicePrices(
+    query: ListPublicServicePricesQuery,
+  ): Promise<PublicServicePriceListResponse> {
+    const records = await this.database.servicePrice.findMany({
+      orderBy: [{ service: { name: "asc" } }, { id: "asc" }],
+      select: {
+        currency: true,
+        effectiveFrom: true,
+        effectiveUntil: true,
+        id: true,
+        patientPriceMinor: true,
+        service: { select: { category: true, code: true, id: true, name: true } },
+      },
+      take: query.limit + 1,
+      where: {
+        effectiveFrom: { lte: query.effectiveAt },
+        OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: query.effectiveAt } }],
+        service: { status: "ACTIVE" },
+        status: "ACTIVE",
+        ...(query.cursor === undefined
+          ? {}
+          : {
+              AND: [
+                {
+                  OR: [
+                    { service: { name: { gt: query.cursor.displayName } } },
+                    {
+                      id: { gt: query.cursor.id },
+                      service: { name: query.cursor.displayName },
+                    },
+                  ],
+                },
+              ],
+            }),
+      },
+    });
+    const hasNextPage = records.length > query.limit;
+    const page = hasNextPage ? records.slice(0, query.limit) : records;
+    return {
+      data: page.map(mapPublicServicePrice),
+      pageInfo: {
+        endCursor: hasNextPage ? (page.at(-1)?.id ?? null) : null,
+        hasNextPage,
+      },
+    };
+  }
+
   async listOrganizations(query: ListOrganizationsQuery): Promise<PublicOrganizationListResponse> {
     const records = await this.database.organization.findMany({
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
@@ -106,6 +156,22 @@ export class PrismaPublicDiscoveryRepository implements PublicDiscoveryRepositor
     });
     return record === null ? null : mapOrganizationDetail(record);
   }
+}
+
+function mapPublicServicePrice(record: {
+  currency: string;
+  effectiveFrom: Date;
+  effectiveUntil: Date | null;
+  patientPriceMinor: bigint;
+  service: PublicService;
+}): PublicServicePrice {
+  return {
+    currency: record.currency,
+    effectiveFrom: record.effectiveFrom.toISOString(),
+    effectiveUntil: record.effectiveUntil?.toISOString() ?? null,
+    patientPriceMinor: record.patientPriceMinor.toString(),
+    service: record.service,
+  };
 }
 
 function basePublicOrganizationWhere(organizationType: PublicOrganizationType) {

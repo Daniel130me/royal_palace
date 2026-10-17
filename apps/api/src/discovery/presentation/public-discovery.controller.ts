@@ -4,6 +4,7 @@ import type {
   PublicOrganizationListResponse,
   PublicOrganizationType,
   PublicServiceListResponse,
+  PublicServicePriceListResponse,
 } from "@royal-palace/contracts";
 import { z } from "zod";
 
@@ -43,6 +44,12 @@ const hospitalIdSchema = z.uuid();
 const serviceQuerySchema = z
   .object({ organizationType: z.enum(["HOSPITAL", "PHARMACY", "LABORATORY"]).default("HOSPITAL") })
   .strict();
+const priceQuerySchema = z
+  .object({
+    cursor: z.string().min(1).max(2048).optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+  })
+  .strict();
 
 @Controller("v1/public")
 export class PublicDiscoveryController {
@@ -52,6 +59,12 @@ export class PublicDiscoveryController {
   listServices(@Query() rawQuery: unknown): Promise<PublicServiceListResponse> {
     const query = parse(serviceQuerySchema, rawQuery);
     return this.discovery.listServices(query.organizationType);
+  }
+
+  @Get("prices")
+  listServicePrices(@Query() rawQuery: unknown): Promise<PublicServicePriceListResponse> {
+    const query = parse(priceQuerySchema, rawQuery);
+    return this.execute(() => this.discovery.listServicePrices(query));
   }
 
   @Get("hospitals")

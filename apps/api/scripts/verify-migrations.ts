@@ -22,6 +22,10 @@ const PINNED_NON_ATOMIC_MIGRATIONS = new Map([
     "20261012170000_scanned_prescription_uploads",
     "0a8737430331f872aca92f36a86b0961cd1775e9fb3f65c085a8b690eadef3d8",
   ],
+  [
+    "20261017000000_finance_settlements_and_payout_execution",
+    "f74901c36703f847f01ba09aea13e3d68b55d222e9780c24eb32a82e88f0b4d8",
+  ],
 ]);
 
 async function main(): Promise<void> {
