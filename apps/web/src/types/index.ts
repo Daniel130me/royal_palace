@@ -34,6 +34,7 @@ export interface Session {
   }[];
   userId: string;
   role: UserRole;
+  platformRoles: readonly import("@royal-palace/contracts").PlatformRole[];
   profileId?: string;
 }
 

@@ -417,7 +417,20 @@ async function main(): Promise<void> {
           ORDER BY "occurred_at" DESC, "id" DESC
           LIMIT 100`,
         [targetOrganizationId],
-        "audit_events_org_occurred_id_idx",
+        ["audit_events_org_occurred_id_idx", "audit_events_occurred_id_idx"],
+      ),
+      await reviewPlan(
+        client,
+        "administrator audit cursor",
+        `SELECT "id", "occurred_at", "actor_principal_id", "effective_role",
+                "action", "resource_type", "resource_id", "result", "reason_code"
+           FROM "audit_events"
+          WHERE "occurred_at" < $1
+          ORDER BY "occurred_at" DESC, "id" DESC
+          LIMIT 50`,
+        [new Date("9999-12-31T23:59:59.999Z")],
+        "audit_events_occurred_id_idx",
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
       ),
       await reviewPlan(
         client,
@@ -483,6 +496,19 @@ async function main(): Promise<void> {
           LIMIT 100`,
         [],
         "appointments_payment_timeout_idx",
+      ),
+      await reviewPlan(
+        client,
+        "administrator appointment status cursor",
+        `SELECT "id", "patient_id", "practitioner_id", "starts_at", "status"
+           FROM "appointments"
+          WHERE "status" = 'CONFIRMED'
+            AND ("starts_at", "id") < ($1, $2)
+          ORDER BY "starts_at" DESC, "id" DESC
+          LIMIT 50`,
+        [new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        ["appointments_status_starts_id_idx", "appointments_starts_id_idx"],
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
       ),
       await reviewPlan(
         client,

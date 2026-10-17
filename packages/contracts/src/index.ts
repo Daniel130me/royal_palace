@@ -174,6 +174,51 @@ export interface CursorPageInfo {
   hasNextPage: boolean;
 }
 
+export type AdminAppointmentScope = "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+
+export interface AdminAppointmentListItem {
+  amountMinor: string;
+  currency: string;
+  endsAt: string;
+  id: string;
+  mode: PublicConsultationMode;
+  patient: { id: string; displayName: string };
+  practitioner: { id: string; displayName: string };
+  startsAt: string;
+  status: AppointmentStatus;
+}
+
+export interface AdminAppointmentSummary {
+  all: number;
+  completed: number;
+  today: number;
+  unsuccessful: number;
+  upcoming: number;
+}
+
+export interface AdminAppointmentListResponse {
+  data: readonly AdminAppointmentListItem[];
+  pageInfo: CursorPageInfo;
+  summary: AdminAppointmentSummary;
+}
+
+export interface AdminAuditEventListItem {
+  action: string;
+  actorPrincipalId: string | null;
+  effectiveRole: PlatformRole | null;
+  id: string;
+  occurredAt: string;
+  reasonCode: string | null;
+  resourceId: string;
+  resourceType: string;
+  result: "DENIED" | "FAILED" | "SUCCEEDED";
+}
+
+export interface AdminAuditEventListResponse {
+  data: readonly AdminAuditEventListItem[];
+  pageInfo: CursorPageInfo;
+}
+
 export interface PublicService {
   category: string;
   code: string;

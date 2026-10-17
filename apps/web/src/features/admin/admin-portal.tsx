@@ -47,10 +47,12 @@ import { AdminReviewModeration } from "./pages/review-moderation";
 import { ApplicationReviewPage } from "@/features/shared/application-review-page";
 
 export function AdminPortal() {
-  const { view } = useNav();
-  const page = view.page;
+  const { session, view } = useNav();
+  const isAdministrator = session?.platformRoles.includes("ADMINISTRATOR") === true;
+  const financePages = new Set(["payments", "settlements", "reports"]);
+  const page = isAdministrator || financePages.has(view.page) ? view.page : "payments";
 
-  const navItems = [
+  const allNavItems = [
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
     { label: "Managers", page: "managers", icon: UserCog },
     { label: "Providers", page: "providers", icon: Stethoscope },
@@ -70,6 +72,9 @@ export function AdminPortal() {
     { label: "Reports", page: "reports", icon: BarChart3 },
     { label: "Settings", page: "settings", icon: Settings },
   ];
+  const navItems = isAdministrator
+    ? allNavItems
+    : allNavItems.filter((item) => financePages.has(item.page));
 
   return (
     <AppShell portal="admin" brand="Royal Palace" navItems={navItems} notifications={0}>

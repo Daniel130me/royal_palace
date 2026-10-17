@@ -4,6 +4,7 @@
 
 import {
   createManagerClient,
+  createAdministrationClient,
   createClinicalEncounterClient,
   createLaboratoryClient,
   createLogisticsClient,
@@ -46,6 +47,8 @@ import type {
   PaymentStatusResponse,
   PractitionerAvailabilityResponse,
   ServicePriceResponse,
+  AdminAppointmentScope,
+  PlatformRole,
 } from "@royal-palace/contracts";
 import {
   api,
@@ -168,6 +171,9 @@ const generatedOrganizationFinanceClient = createOrganizationFinanceClient({
   fetch: versionedBffFetch,
 });
 const generatedOrganizationTeamClient = createOrganizationTeamClient({ fetch: versionedBffFetch });
+const generatedAdministrationClient = createAdministrationClient({
+  fetch: authenticatedGeneratedFetch,
+});
 
 type LogisticsListInput = {
   cursor?: string;
@@ -1701,6 +1707,32 @@ export const appointmentService = {
     action("progress-appointment", { appointmentId, status, actorId, actorRole }).then(
       (r) => r.data as Appointment,
     ),
+};
+
+export const administrationService = {
+  appointments: (input: {
+    cursor?: string;
+    dayFrom: string;
+    dayTo: string;
+    limit?: number;
+    query?: string;
+    scope: AdminAppointmentScope;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/appointments", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  auditEvents: (input: {
+    action?: string;
+    cursor?: string;
+    effectiveRole?: PlatformRole;
+    from?: string;
+    limit?: number;
+    query?: string;
+    to?: string;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/audit-events", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
 };
 
 type ClinicalRelatedActionInput = ClinicalEncounterComponents["schemas"]["RelatedActionInput"];

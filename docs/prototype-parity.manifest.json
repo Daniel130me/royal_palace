@@ -47,16 +47,35 @@
         {
           "id": "portal",
           "file": "admin-portal.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11C4P"
+          "status": "CONNECTED",
+          "checkpoint": "11J1",
+          "productionFiles": [
+            "apps/web/src/features/admin/admin-portal.tsx",
+            "apps/web/src/lib/nav.ts"
+          ]
         },
         {
           "id": "appointments",
           "file": "pages/appointments.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11J2",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/appointments.tsx",
+            "apps/api/src/administration/application/administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
         },
-        { "id": "audit", "file": "pages/audit.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "audit",
+          "file": "pages/audit.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11J3",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/audit.tsx",
+            "apps/api/src/administration/application/administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
+        },
         {
           "id": "clinical-catalogue",
           "file": "pages/clinical-catalogue.tsx",

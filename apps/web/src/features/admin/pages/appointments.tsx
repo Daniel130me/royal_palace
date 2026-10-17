@@ -1,156 +1,226 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { appointmentService } from "@/lib/services";
-import type { Appointment } from "@/types";
-import { Input } from "@/components/ui/input";
-import { StatusBadge } from "@/components/healthcare/status-badge";
+import type {
+  AdminAppointmentListItem,
+  AdminAppointmentScope,
+  AdminAppointmentSummary,
+} from "@royal-palace/contracts";
 import {
-  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  MessageSquare,
+  Phone,
+  Search,
+  Video,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
 } from "@/components/healthcare/page-header";
 import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
-import { formatCurrency, formatDate, formatTime } from "@/lib/format";
-import { CalendarDays, Search, Video, Phone, MessageSquare, CheckCircle2, Clock } from "lucide-react";
+import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { formatDate, formatMinorCurrency, formatTime } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { administrationService } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 const CHANNEL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  video: Video,
-  audio: Phone,
-  chat: MessageSquare,
+  AUDIO: Phone,
+  CHAT: MessageSquare,
+  VIDEO: Video,
+};
+const EMPTY_SUMMARY: AdminAppointmentSummary = {
+  all: 0,
+  completed: 0,
+  today: 0,
+  unsuccessful: 0,
+  upcoming: 0,
 };
 
-type StatusFilter = "all" | "today" | "upcoming" | "completed" | "cancelled";
-
 export function AdminAppointments() {
-  const [appts, setAppts] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<readonly AdminAppointmentListItem[]>([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [scope, setScope] = useState<AdminAppointmentScope>("ALL");
+  const dayRange = useMemo(() => localDayRange(), []);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    appointmentService.list()
-      .then(setAppts)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load appointments"))
-      .finally(() => setLoading(false));
-  };
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
 
-  useEffect(() => { load(); }, []);
+  const load = useCallback(
+    async (nextCursor?: string) => {
+      if (nextCursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const response = await administrationService.appointments({
+          cursor: nextCursor,
+          dayFrom: dayRange.from,
+          dayTo: dayRange.to,
+          limit: 25,
+          query: debouncedSearch || undefined,
+          scope,
+        });
+        setAppointments((current) =>
+          nextCursor === undefined ? response.data : [...current, ...response.data],
+        );
+        setSummary(response.summary);
+        setCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Failed to load appointments");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [dayRange, debouncedSearch, scope],
+  );
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const counts = useMemo(() => ({
-    all: appts.length,
-    today: appts.filter((a) => a.date === todayStr).length,
-    upcoming: appts.filter((a) => ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status)).length,
-    completed: appts.filter((a) => a.status === "completed").length,
-    cancelled: appts.filter((a) => ["cancelled", "no_show"].includes(a.status)).length,
-  }), [appts, todayStr]);
-
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return appts
-      .filter((a) => {
-        if (filter === "today" && a.date !== todayStr) return false;
-        if (filter === "upcoming" && !["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status)) return false;
-        if (filter === "completed" && a.status !== "completed") return false;
-        if (filter === "cancelled" && !["cancelled", "no_show"].includes(a.status)) return false;
-        if (!q) return true;
-        const providerName = a.provider ? `${a.provider.firstName} ${a.provider.lastName}` : "";
-        const patientName = a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : "";
-        return `${a.id} ${a.providerId} ${a.patientId} ${providerName} ${patientName}`.toLowerCase().includes(q);
-      })
-      .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
-  }, [appts, search, filter, todayStr]);
-
-  if (loading) {
+  if (loading)
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
         <SkeletonGrid count={4} />
       </div>
     );
-  }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error !== null && appointments.length === 0)
+    return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Appointments"
-        description="Read-only overview of every consultation booked."
-        breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Appointments" }]}
+        description="Read-only, privacy-minimized oversight of every consultation booked."
+        breadcrumbs={[
+          { label: "Admin", onClick: () => navigate("admin", "dashboard") },
+          { label: "Appointments" },
+        ]}
       />
-
-      {/* StatTiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatTile label="Total" value={counts.all} icon={CalendarDays} />
-        <StatTile label="Today" value={counts.today} icon={Clock} tone="info" />
-        <StatTile label="Upcoming" value={counts.upcoming} icon={CalendarDays} tone="violet" />
-        <StatTile label="Completed" value={counts.completed} icon={CheckCircle2} tone="success" />
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <StatTile label="Total" value={summary.all} icon={CalendarDays} />
+        <StatTile label="Today" value={summary.today} icon={Clock} tone="info" />
+        <StatTile label="Upcoming" value={summary.upcoming} icon={CalendarDays} tone="violet" />
+        <StatTile label="Completed" value={summary.completed} icon={CheckCircle2} tone="success" />
       </div>
-
-      {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Appointment ID, patient, provider…" className="pl-9" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Appointment ID, patient, provider…"
+          className="pl-9"
+        />
       </div>
-
-      {/* SegmentedControl filter */}
       <SegmentedControl
         options={[
-          { value: "all" as StatusFilter, label: "All", badge: counts.all },
-          { value: "today" as StatusFilter, label: "Today", badge: counts.today },
-          { value: "upcoming" as StatusFilter, label: "Upcoming", badge: counts.upcoming },
-          { value: "completed" as StatusFilter, label: "Done", badge: counts.completed },
-          { value: "cancelled" as StatusFilter, label: "Cancelled", badge: counts.cancelled },
+          { value: "ALL" as const, label: "All", badge: summary.all },
+          { value: "TODAY" as const, label: "Today", badge: summary.today },
+          { value: "UPCOMING" as const, label: "Upcoming", badge: summary.upcoming },
+          { value: "COMPLETED" as const, label: "Done", badge: summary.completed },
+          { value: "UNSUCCESSFUL" as const, label: "Unsuccessful", badge: summary.unsuccessful },
         ]}
-        value={filter}
-        onChange={setFilter}
+        value={scope}
+        onChange={setScope}
         size="sm"
       />
-
-      {visible.length === 0 ? (
-        <EmptyState icon={CalendarDays} title="No appointments" description="No appointments match your filters." compact />
+      {error !== null && <ErrorState message={error} onRetry={() => void load()} />}
+      {appointments.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title="No appointments"
+          description="No appointments match your filters."
+          compact
+        />
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-          {visible.map((a) => {
-            const ChannelIcon = CHANNEL_ICONS[a.consultationChannel] ?? Video;
-            const patientName = a.patient ? `${a.patient.firstName} ${a.patient.lastName}` : a.patientId;
-            const providerName = a.provider ? `${a.provider.title} ${a.provider.lastName}` : a.providerId;
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-card divide-y divide-border/40">
+          {appointments.map((appointment) => {
+            const ChannelIcon = CHANNEL_ICONS[appointment.mode] ?? Video;
+            const unsuccessful = ["CANCELLED", "EXPIRED", "PAYMENT_FAILED"].includes(
+              appointment.status,
+            );
+            const isToday =
+              appointment.startsAt >= dayRange.from && appointment.startsAt < dayRange.to;
             return (
               <CompactListItem
-                key={a.id}
+                key={appointment.id}
                 leading={
-                  <div className={cn("rounded-lg p-2 ring-1",
-                    a.status === "completed" ? "bg-emerald-50 ring-emerald-100" :
-                    ["cancelled", "no_show"].includes(a.status) ? "bg-rose-50 ring-rose-100" :
-                    a.date === todayStr ? "bg-sky-50 ring-sky-100" : "bg-muted ring-border"
-                  )}>
-                    <ChannelIcon className={cn("h-4 w-4",
-                      a.status === "completed" ? "text-emerald-600" :
-                      ["cancelled", "no_show"].includes(a.status) ? "text-rose-600" :
-                      a.date === todayStr ? "text-sky-600" : "text-muted-foreground"
-                    )} />
+                  <div
+                    className={cn(
+                      "rounded-lg p-2 ring-1",
+                      appointment.status === "COMPLETED"
+                        ? "bg-emerald-50 ring-emerald-100"
+                        : unsuccessful
+                          ? "bg-rose-50 ring-rose-100"
+                          : isToday
+                            ? "bg-sky-50 ring-sky-100"
+                            : "bg-muted ring-border",
+                    )}
+                  >
+                    <ChannelIcon
+                      className={cn(
+                        "h-4 w-4",
+                        appointment.status === "COMPLETED"
+                          ? "text-emerald-600"
+                          : unsuccessful
+                            ? "text-rose-600"
+                            : isToday
+                              ? "text-sky-600"
+                              : "text-muted-foreground",
+                      )}
+                    />
                   </div>
                 }
-                title={`${patientName} · ${providerName}`}
-                subtitle={`${formatDate(a.date)} · ${formatTime(a.time)} · ${a.consultationChannel.replace("_", " ")} · ${a.id}`}
+                title={`${appointment.patient.displayName} · ${appointment.practitioner.displayName}`}
+                subtitle={`${formatDate(appointment.startsAt)} · ${formatTime(appointment.startsAt)} · ${appointment.mode.replaceAll("_", " ").toLowerCase()} · ${appointment.id}`}
                 trailing={
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-semibold tabular-nums">{formatCurrency(a.price)}</span>
-                    <StatusBadge status={a.status} size="sm" />
+                    <span className="text-sm font-semibold tabular-nums">
+                      {formatMinorCurrency(appointment.amountMinor, appointment.currency)}
+                    </span>
+                    <StatusBadge status={appointment.status.toLowerCase()} size="sm" />
                   </div>
                 }
-                onClick={undefined}
               />
             );
           })}
         </div>
       )}
+      {hasNextPage && cursor !== null && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => void load(cursor)} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Load more"}
+          </Button>
+        </div>
+      )}
     </div>
   );
+}
+
+function localDayRange(): { from: string; to: string } {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+  return { from: from.toISOString(), to: to.toISOString() };
 }

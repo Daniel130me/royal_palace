@@ -86,6 +86,7 @@ function toLegacySession(session: CurrentSession): Session | null {
             : session.memberships.find(
                 (membership) => organizationPortalRole(membership.organizationType) === role,
               )?.organizationId,
+        platformRoles: session.roles,
         role,
         userId: session.principalId,
       };

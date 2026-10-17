@@ -407,6 +407,13 @@ that completes an increment.
     Only active effective patient prices are public; payout, actor, draft, and retired data stay
     private. See
     [`increments/11i-public-information-and-pricing.md`](./increments/11i-public-information-and-pricing.md).
+  - `[x]` 11J administrator oversight parity connects the approved admin portal shell,
+    appointment oversight, and audit trail to bounded PostgreSQL projections. Administrator-only
+    policies, exact BFF allowlists, filter-bound keyset cursors, privacy-minimized selects,
+    server-side filtering, currency-neutral display, and supporting indexes replace the unbounded
+    generic prototype reads. Finance users sharing the admin shell now see only their authorized
+    finance navigation; the backend remains the final authorization boundary. See
+    [`increments/11j-admin-oversight-and-portal.md`](./increments/11j-admin-oversight-and-portal.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

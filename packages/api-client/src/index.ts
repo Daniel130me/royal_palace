@@ -11,6 +11,7 @@ import type { paths as ClinicalEncounterPaths } from "./generated/clinical-encou
 import type { paths as OrganizationFinancePaths } from "./generated/organization-finance.js";
 import type { paths as OrganizationTeamPaths } from "./generated/organization-team.js";
 import type { paths as LogisticsPaths } from "./generated/logistics.js";
+import type { paths as AdministrationPaths } from "./generated/administration.js";
 
 export type { components, paths } from "./generated/public-discovery.js";
 export type {
@@ -53,6 +54,10 @@ export type {
   components as LogisticsComponents,
   paths as LogisticsPaths,
 } from "./generated/logistics.js";
+export type {
+  components as AdministrationComponents,
+  paths as AdministrationPaths,
+} from "./generated/administration.js";
 
 export function createPublicDiscoveryClient(options: {
   baseUrl?: string;
@@ -169,6 +174,17 @@ export function createLogisticsClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<LogisticsPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createAdministrationClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<AdministrationPaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

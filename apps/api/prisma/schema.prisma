@@ -788,6 +788,8 @@ model Patient {
   clinicalAllergies    ClinicalAllergy[]
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
+  @@index([givenName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_given_name_trgm_idx")
+  @@index([familyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_family_name_trgm_idx")
   @@map("patients")
 }
 
@@ -1623,6 +1625,8 @@ model AuditEvent {
   organization     Organization?      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_org_occurred_id_idx")
+  @@index([occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_occurred_id_idx")
+  @@index([effectiveRole, occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_role_occurred_id_idx")
   @@index([actorPrincipalId, occurredAt(sort: Desc), id(sort: Desc)], map: "audit_events_actor_occurred_id_idx")
   @@index([resourceType, resourceId, occurredAt(sort: Desc)], map: "audit_events_resource_occurred_idx")
   @@map("audit_events")
@@ -2079,6 +2083,8 @@ model Appointment {
   clinicalEncounter  ClinicalEncounter?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
+  @@index([startsAt(sort: Desc), id(sort: Desc)], map: "appointments_starts_id_idx")
+  @@index([status, startsAt(sort: Desc), id(sort: Desc)], map: "appointments_status_starts_id_idx")
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
   @@index([status, paymentDueAt, id], map: "appointments_payment_timeout_idx")
   @@map("appointments")

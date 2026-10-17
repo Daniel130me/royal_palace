@@ -1,0 +1,130 @@
+import { Controller, Get, HttpException, Inject, Query, Req, UseGuards } from "@nestjs/common";
+import { z } from "zod";
+
+import { AuthorizationDeniedError } from "../../authorization/application/authorization.service.js";
+import type { AuthenticatedInternalRequest } from "../../identity/presentation/authenticated-internal-request.guard.js";
+import { AuthenticatedInternalRequestGuard } from "../../identity/presentation/authenticated-internal-request.guard.js";
+import {
+  ADMINISTRATION_MAX_PAGE_SIZE,
+  AdministrationService,
+} from "../application/administration.service.js";
+import { InvalidAdministrationCursorError } from "../application/administration-cursor.js";
+
+const instantSchema = z.iso.datetime({ offset: true });
+const platformRoleSchema = z.enum([
+  "PATIENT",
+  "MANAGER",
+  "ORGANIZATION_APPLICANT",
+  "ORGANIZATION_ADMIN",
+  "ORGANIZATION_STAFF",
+  "PROVIDER",
+  "SUPPORT",
+  "ADMINISTRATOR",
+  "FINANCE",
+  "LOGISTICS",
+  "SYSTEM_WORKER",
+]);
+const commonListFields = {
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(ADMINISTRATION_MAX_PAGE_SIZE).optional(),
+  q: z.string().trim().min(1).max(100).optional(),
+};
+const appointmentQuerySchema = z
+  .object({
+    ...commonListFields,
+    dayFrom: instantSchema,
+    dayTo: instantSchema,
+    scope: z.enum(["ALL", "TODAY", "UPCOMING", "COMPLETED", "UNSUCCESSFUL"]).default("ALL"),
+  })
+  .strict()
+  .refine((value) => new Date(value.dayTo) > new Date(value.dayFrom), {
+    message: "Invalid day range",
+  });
+const auditQuerySchema = z
+  .object({
+    ...commonListFields,
+    action: z.string().trim().min(1).max(160).optional(),
+    effectiveRole: platformRoleSchema.optional(),
+    from: instantSchema.optional(),
+    to: instantSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.from === undefined ||
+      value.to === undefined ||
+      new Date(value.to) > new Date(value.from),
+    { message: "Invalid audit range" },
+  );
+
+@Controller("v1/admin")
+@UseGuards(AuthenticatedInternalRequestGuard)
+export class AdministrationController {
+  constructor(
+    @Inject(AdministrationService) private readonly administration: AdministrationService,
+  ) {}
+
+  @Get("appointments")
+  listAppointments(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(appointmentQuerySchema, rawQuery);
+    return execute(() =>
+      this.administration.listAppointments(requestContext(request), {
+        cursor: query.cursor,
+        dayFrom: query.dayFrom,
+        dayTo: query.dayTo,
+        limit: query.limit,
+        query: query.q,
+        scope: query.scope,
+      }),
+    );
+  }
+
+  @Get("audit-events")
+  listAuditEvents(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(auditQuerySchema, rawQuery);
+    return execute(() =>
+      this.administration.listAuditEvents(requestContext(request), {
+        action: query.action,
+        cursor: query.cursor,
+        effectiveRole: query.effectiveRole,
+        from: query.from,
+        limit: query.limit,
+        query: query.q,
+        to: query.to,
+      }),
+    );
+  }
+}
+
+function requestContext(request: AuthenticatedInternalRequest) {
+  const requestId = request.headers["x-request-id"];
+  if (typeof requestId !== "string") {
+    throw new HttpException(
+      { error: "missing_request_id", message: "Request ID is required" },
+      400,
+    );
+  }
+  return { actor: request.currentSession, requestId };
+}
+
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw new HttpException({ error: "invalid_request", message: "Request is invalid" }, 400);
+  }
+  return result.data;
+}
+
+async function execute<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof AuthorizationDeniedError) {
+      throw new HttpException({ error: "access_denied", message: "Access is denied" }, 403);
+    }
+    if (error instanceof InvalidAdministrationCursorError) {
+      throw new HttpException({ error: "invalid_cursor", message: error.message }, 400);
+    }
+    throw error;
+  }
+}

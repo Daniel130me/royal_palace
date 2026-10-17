@@ -1,0 +1,149 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Administration Oversight API
+  version: 1.0.0
+paths:
+  /api/admin/appointments:
+    get:
+      operationId: listAdminAppointments
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: dayFrom, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: dayTo, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - name: scope
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/AppointmentScope" }
+      responses:
+        "200":
+          description: Bounded administrator appointment projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppointmentList" }
+  /api/admin/audit-events:
+    get:
+      operationId: listAdminAuditEvents
+      parameters:
+        - { name: action, in: query, schema: { type: string, minLength: 1, maxLength: 160 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: effectiveRole, in: query, schema: { $ref: "#/components/schemas/PlatformRole" } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Bounded, privacy-minimized administrator audit projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEventList" }
+components:
+  schemas:
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [endCursor, hasNextPage]
+      properties:
+        endCursor: { type: [string, "null"] }
+        hasNextPage: { type: boolean }
+    AppointmentScope:
+      type: string
+      enum: [ALL, TODAY, UPCOMING, COMPLETED, UNSUCCESSFUL]
+    AppointmentStatus:
+      type: string
+      enum: [PENDING_PAYMENT, CONFIRMED, PAYMENT_FAILED, EXPIRED, CANCELLED, COMPLETED]
+    ConsultationMode:
+      type: string
+      enum: [VIDEO, AUDIO, CHAT, IN_PERSON, HOME_VISIT]
+    AppointmentParty:
+      type: object
+      additionalProperties: false
+      required: [id, displayName]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+    Appointment:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency, endsAt, id, mode, patient, practitioner, startsAt, status]
+      properties:
+        amountMinor: { type: string, pattern: "^[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        endsAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        mode: { $ref: "#/components/schemas/ConsultationMode" }
+        patient: { $ref: "#/components/schemas/AppointmentParty" }
+        practitioner: { $ref: "#/components/schemas/AppointmentParty" }
+        startsAt: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+    AppointmentSummary:
+      type: object
+      additionalProperties: false
+      required: [all, completed, today, unsuccessful, upcoming]
+      properties:
+        all: { type: integer, minimum: 0 }
+        completed: { type: integer, minimum: 0 }
+        today: { type: integer, minimum: 0 }
+        unsuccessful: { type: integer, minimum: 0 }
+        upcoming: { type: integer, minimum: 0 }
+    AppointmentList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, summary]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Appointment" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        summary: { $ref: "#/components/schemas/AppointmentSummary" }
+    PlatformRole:
+      type: string
+      enum:
+        [
+          PATIENT,
+          MANAGER,
+          ORGANIZATION_APPLICANT,
+          ORGANIZATION_ADMIN,
+          ORGANIZATION_STAFF,
+          PROVIDER,
+          SUPPORT,
+          ADMINISTRATOR,
+          FINANCE,
+          LOGISTICS,
+          SYSTEM_WORKER,
+        ]
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          action,
+          actorPrincipalId,
+          effectiveRole,
+          id,
+          occurredAt,
+          reasonCode,
+          resourceId,
+          resourceType,
+          result,
+        ]
+      properties:
+        action: { type: string }
+        actorPrincipalId: { type: [string, "null"], format: uuid }
+        effectiveRole:
+          oneOf:
+            - { $ref: "#/components/schemas/PlatformRole" }
+            - { type: "null" }
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        reasonCode: { type: [string, "null"] }
+        resourceId: { type: string, format: uuid }
+        resourceType: { type: string }
+        result: { type: string, enum: [DENIED, FAILED, SUCCEEDED] }
+    AuditEventList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
