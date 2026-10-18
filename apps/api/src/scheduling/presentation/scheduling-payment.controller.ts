@@ -57,6 +57,16 @@ const availabilityQuerySchema = z.object({ from: instantSchema, to: instantSchem
 const expirationQuerySchema = z
   .object({ limit: z.coerce.number().int().min(1).max(100).default(100) })
   .strict();
+const appointmentListQuerySchema = z
+  .object({
+    cursor: z.string().min(1).max(1024).optional(),
+    dayFrom: instantSchema.optional(),
+    dayTo: instantSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+    q: z.string().trim().min(2).max(100).optional(),
+    scope: z.enum(["ALL", "TODAY", "UPCOMING", "COMPLETED", "UNSUCCESSFUL"]),
+  })
+  .strict();
 
 @Controller("v1/public/practitioners")
 export class PublicSchedulingController {
@@ -160,6 +170,12 @@ export class PatientSchedulingPaymentController {
     );
   }
 
+  @Get("patient/appointments")
+  patientAppointments(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const input = parse(appointmentListQuerySchema.omit({ q: true }), query);
+    return execute(() => this.scheduling.listPatientAppointments(requestContext(request), input));
+  }
+
   @Get("appointments/:appointmentId")
   appointment(
     @Param("appointmentId") appointmentId: string,
@@ -193,6 +209,38 @@ export class PatientSchedulingPaymentController {
   ) {
     return execute(() =>
       this.scheduling.getPaymentStatus(requestContext(request), parse(idSchema, paymentId)),
+    );
+  }
+}
+
+@Controller("v1/provider")
+@UseGuards(AuthenticatedInternalRequestGuard)
+export class ProviderSchedulingController {
+  constructor(
+    @Inject(SchedulingPaymentService) private readonly scheduling: SchedulingPaymentService,
+  ) {}
+
+  @Get("appointments")
+  appointments(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const input = parse(appointmentListQuerySchema, query);
+    return execute(() =>
+      this.scheduling.listProviderAppointments(requestContext(request), {
+        ...input,
+        ...(input.q === undefined ? {} : { query: input.q }),
+      }),
+    );
+  }
+
+  @Get("appointments/:appointmentId")
+  appointment(
+    @Param("appointmentId") appointmentId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.scheduling.getProviderAppointment(
+        requestContext(request),
+        parse(idSchema, appointmentId),
+      ),
     );
   }
 }

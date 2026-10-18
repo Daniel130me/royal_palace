@@ -993,6 +993,27 @@ export interface AppointmentResponse {
   version: number;
 }
 
+export type AppointmentListScope = "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+
+export interface AppointmentListPageInfo {
+  endCursor: string | null;
+  hasNextPage: boolean;
+}
+
+export interface PatientAppointmentListResponse {
+  data: readonly AppointmentResponse[];
+  pageInfo: AppointmentListPageInfo;
+}
+
+export interface ProviderAppointmentResponse extends AppointmentResponse {
+  patient: { displayName: string; id: string };
+}
+
+export interface ProviderAppointmentListResponse {
+  data: readonly ProviderAppointmentResponse[];
+  pageInfo: AppointmentListPageInfo;
+}
+
 export interface HostedCheckoutResponse {
   checkoutUrl: string;
   expiresAt: string;

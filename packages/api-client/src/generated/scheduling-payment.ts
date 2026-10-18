@@ -52,6 +52,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/patient/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientAppointments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/provider/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProviderAppointments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/provider/appointments/{appointmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getProviderAppointment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payments/checkout-sessions": {
         parameters: {
             query?: never;
@@ -222,6 +270,25 @@ export interface components {
             status: "PENDING_PAYMENT" | "CONFIRMED" | "PAYMENT_FAILED" | "EXPIRED" | "CANCELLED" | "COMPLETED";
             version: number;
         };
+        ProviderAppointment: components["schemas"]["Appointment"] & {
+            patient: {
+                displayName: string;
+                /** Format: uuid */
+                id: string;
+            };
+        };
+        PageInfo: {
+            endCursor: string | null;
+            hasNextPage: boolean;
+        };
+        PatientAppointmentList: {
+            data: components["schemas"]["Appointment"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
+        ProviderAppointmentList: {
+            data: components["schemas"]["ProviderAppointment"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
         HostedCheckout: {
             /** Format: uri */
             checkoutUrl: string;
@@ -322,6 +389,11 @@ export interface components {
         Csrf: string;
         IdempotencyKey: string;
         PractitionerId: string;
+        AppointmentScope: "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+        Cursor: string;
+        Limit: number;
+        DayFrom: string;
+        DayTo: string;
     };
     requestBodies: never;
     headers: never;
@@ -402,6 +474,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Appointment"];
+                };
+            };
+        };
+    };
+    listPatientAppointments: {
+        parameters: {
+            query: {
+                scope: components["parameters"]["AppointmentScope"];
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                dayFrom?: components["parameters"]["DayFrom"];
+                dayTo?: components["parameters"]["DayTo"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated patient's bounded appointment list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientAppointmentList"];
+                };
+            };
+        };
+    };
+    listProviderAppointments: {
+        parameters: {
+            query: {
+                scope: components["parameters"]["AppointmentScope"];
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                dayFrom?: components["parameters"]["DayFrom"];
+                dayTo?: components["parameters"]["DayTo"];
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated practitioner's bounded appointment list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAppointmentList"];
+                };
+            };
+        };
+    };
+    getProviderAppointment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appointmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practitioner-owned appointment with minimal patient identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAppointment"];
                 };
             };
         };

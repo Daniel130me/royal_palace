@@ -2166,6 +2166,7 @@ model Appointment {
   clinicalEncounter  ClinicalEncounter?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
+  @@index([patientId, startsAt, id], map: "appointments_patient_starts_idx")
   @@index([startsAt(sort: Desc), id(sort: Desc)], map: "appointments_starts_id_idx")
   @@index([status, startsAt(sort: Desc), id(sort: Desc)], map: "appointments_status_starts_id_idx")
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")

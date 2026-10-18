@@ -568,7 +568,12 @@
           "id": "appointments",
           "file": "pages/appointments.tsx",
           "status": "CONNECTED",
-          "checkpoint": "09"
+          "checkpoint": "11U",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/appointments.tsx",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts",
+            "apps/api/src/scheduling/infrastructure/prisma-scheduling-payment.repository.ts"
+          ]
         },
         { "id": "booking", "file": "pages/book.tsx", "status": "CONNECTED", "checkpoint": "09" },
         {
@@ -854,14 +859,23 @@
         {
           "id": "appointment-detail",
           "file": "pages/appointment.tsx",
-          "status": "CONNECTED",
-          "checkpoint": "09"
+          "status": "IN_PROGRESS",
+          "checkpoint": "11U",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/appointment.tsx",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts"
+          ]
         },
         {
           "id": "appointments",
           "file": "pages/appointments.tsx",
           "status": "CONNECTED",
-          "checkpoint": "09"
+          "checkpoint": "11U",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/appointments.tsx",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts",
+            "apps/api/src/scheduling/infrastructure/prisma-scheduling-payment.repository.ts"
+          ]
         },
         {
           "id": "availability",

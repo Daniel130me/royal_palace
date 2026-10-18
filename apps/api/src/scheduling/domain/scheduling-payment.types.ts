@@ -1,17 +1,39 @@
 import type {
   AppointmentResponse,
+  AppointmentListScope,
   ConsultationFeeResponse,
   HostedCheckoutResponse,
   PaymentReconciliationResponse,
   PaymentStatus,
   PaymentStatusResponse,
   PractitionerAvailabilityResponse,
+  ProviderAppointmentResponse,
   PublicConsultationMode,
 } from "@royal-palace/contracts";
 
 export interface AppointmentAccessRecord extends AppointmentResponse {
   patientPrincipalId: string;
   practitionerPrincipalId: string | null;
+}
+
+export interface AppointmentListCursor {
+  id: string;
+  startsAt: Date;
+}
+
+export interface AppointmentListQuery {
+  cursor?: AppointmentListCursor;
+  dayFrom?: Date;
+  dayTo?: Date;
+  limit: number;
+  principalId: string;
+  query?: string;
+  scope: AppointmentListScope;
+}
+
+export interface AppointmentListResult<T> {
+  cursor: AppointmentListCursor | null;
+  data: readonly T[];
 }
 
 export interface PaymentAccessRecord extends PaymentStatusResponse {
@@ -120,6 +142,16 @@ export interface SchedulingPaymentRepository {
     practitionerId: string;
     to: Date;
   }): Promise<PractitionerAvailabilityResponse[]>;
+  listPatientAppointments(
+    input: AppointmentListQuery,
+  ): Promise<AppointmentListResult<AppointmentResponse>>;
+  listProviderAppointments(
+    input: AppointmentListQuery,
+  ): Promise<AppointmentListResult<ProviderAppointmentResponse>>;
+  findProviderAppointment(input: {
+    appointmentId: string;
+    principalId: string;
+  }): Promise<ProviderAppointmentResponse | null>;
   processVerifiedWebhook(input: {
     event: VerifiedPaymentEvent;
     payloadHash: string;

@@ -287,6 +287,17 @@ function baselineRequest(
           resourceType: "appointment",
         },
       };
+    case AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS:
+    case AUTHORIZATION_POLICY.VIEW_PROVIDER_APPOINTMENTS:
+      return {
+        ...base,
+        policy,
+        context: {
+          ownerPrincipalId: targetPrincipalId,
+          resourceId,
+          resourceType: "appointment_list",
+        },
+      };
     case AUTHORIZATION_POLICY.ADMINISTER_CONSULTATION_FEES:
     case AUTHORIZATION_POLICY.ADMINISTER_ROLE_ASSIGNMENT:
     case AUTHORIZATION_POLICY.ADMINISTER_CATALOGUE:
@@ -393,6 +404,8 @@ describe("PolicyEngine", () => {
     EXECUTE_ORGANIZATION_PAYOUT: ["FINANCE"],
     FINALIZE_ORGANIZATION_SETTLEMENT: ["FINANCE", "ADMINISTRATOR"],
     VIEW_APPOINTMENT: ["SUPPORT", "ADMINISTRATOR"],
+    VIEW_PATIENT_APPOINTMENTS: [],
+    VIEW_PROVIDER_APPOINTMENTS: [],
     VIEW_PLATFORM_APPOINTMENTS: ["ADMINISTRATOR"],
     VIEW_PLATFORM_AUDIT_TRAIL: ["ADMINISTRATOR"],
     VIEW_PLATFORM_DASHBOARD: ["ADMINISTRATOR"],
@@ -472,6 +485,29 @@ describe("PolicyEngine", () => {
       }).allowed,
     ).toBe(true);
     expect(engine.evaluate(request).allowed).toBe(false);
+  });
+
+  it("restricts appointment lists to the exact patient or provider owner", () => {
+    for (const [policy, role] of [
+      [AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS, "PATIENT"],
+      [AUTHORIZATION_POLICY.VIEW_PROVIDER_APPOINTMENTS, "PROVIDER"],
+    ] as const) {
+      const owner = actor([role]);
+      const request = baselineRequest(policy, owner);
+      if (
+        request.policy !== AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS &&
+        request.policy !== AUTHORIZATION_POLICY.VIEW_PROVIDER_APPOINTMENTS
+      ) {
+        throw new Error();
+      }
+      expect(
+        engine.evaluate({
+          ...request,
+          context: { ...request.context, ownerPrincipalId: owner.principalId },
+        }).allowed,
+      ).toBe(true);
+      expect(engine.evaluate(request).allowed).toBe(false);
+    }
   });
 
   it("requires the matching organization membership rather than a platform role", () => {

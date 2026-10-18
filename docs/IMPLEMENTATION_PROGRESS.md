@@ -479,6 +479,14 @@ that completes an increment.
     session revocation, immutable audit evidence, strict BFF allowlists, and generated contracts
     replace prototype account data without exposing identity-provider credentials. See
     [`increments/11t-identity-administration.md`](./increments/11t-identity-administration.md).
+  - `[~]` 11U replaces patient and practitioner appointment-list prototype reads with
+    authenticated owner-derived production queries. Indexed keyset pagination, filter-bound
+    cursors, exact role policies, minimal practitioner-facing patient identity, strict BFF
+    allowlists, and generated contracts remove caller-selected principal IDs and unbounded
+    legacy reads. The patient and practitioner appointment-list screens are connected. The
+    practitioner detail remains `IN_PROGRESS` until the signed intake presentation is backed by
+    a governed intake record rather than the legacy generic resource store. See
+    [`increments/11u-owner-appointment-queries.md`](./increments/11u-owner-appointment-queries.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

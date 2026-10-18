@@ -43,6 +43,43 @@ function createService(
 }
 
 describe("SchedulingPaymentService", () => {
+  it("derives patient appointment ownership and binds cursors to the query", async () => {
+    const principalId = createOpaqueId();
+    const cursor = { id: createOpaqueId(), startsAt: new Date("2026-10-18T10:00:00.000Z") };
+    const listPatientAppointments = vi.fn(async () => ({ cursor, data: [] }));
+    const scheduling = createService({ listPatientAppointments });
+
+    const first = await scheduling.listPatientAppointments(
+      { actor: session("PATIENT", principalId), requestId: "request-patient-list" },
+      { limit: 25, scope: "UPCOMING" },
+    );
+
+    expect(listPatientAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 25, principalId, scope: "UPCOMING" }),
+    );
+    expect(first.pageInfo.endCursor).not.toBeNull();
+    await expect(
+      scheduling.listPatientAppointments(
+        { actor: session("PATIENT", principalId), requestId: "request-patient-list-next" },
+        { cursor: first.pageInfo.endCursor ?? undefined, limit: 25, scope: "COMPLETED" },
+      ),
+    ).rejects.toMatchObject<Partial<SchedulingPaymentFlowError>>({
+      code: "invalid_cursor",
+      status: 400,
+    });
+  });
+
+  it("does not allow a patient to use the practitioner appointment list", async () => {
+    const listProviderAppointments = vi.fn(async () => ({ cursor: null, data: [] }));
+    await expect(
+      createService({ listProviderAppointments }).listProviderAppointments(
+        { actor: session("PATIENT"), requestId: "request-cross-role-list" },
+        { limit: 25, scope: "ALL" },
+      ),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    expect(listProviderAppointments).not.toHaveBeenCalled();
+  });
+
   it("returns a controlled conflict for a reused idempotency key", async () => {
     const repository = {
       bookAppointment: vi.fn<SchedulingPaymentRepository["bookAppointment"]>(async () => {

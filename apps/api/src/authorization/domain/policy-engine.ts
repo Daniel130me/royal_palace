@@ -240,6 +240,16 @@ export class PolicyEngine {
           return this.allow(request.policy, "PROVIDER", ALLOW.OWNER);
         }
         return this.allowPlatformRole(request.actor, request.policy, ["SUPPORT", "ADMINISTRATOR"]);
+      case AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS:
+        return request.actor.roles.includes("PATIENT") &&
+          request.actor.principalId === request.context.ownerPrincipalId
+          ? this.allow(request.policy, "PATIENT", ALLOW.OWNER)
+          : this.deny(request.policy, "OWNER_SCOPE_REQUIRED");
+      case AUTHORIZATION_POLICY.VIEW_PROVIDER_APPOINTMENTS:
+        return request.actor.roles.includes("PROVIDER") &&
+          request.actor.principalId === request.context.ownerPrincipalId
+          ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
+          : this.deny(request.policy, "OWNER_SCOPE_REQUIRED");
       default:
         return this.denyUnknownPolicy(request);
     }

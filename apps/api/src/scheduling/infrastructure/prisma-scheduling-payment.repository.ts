@@ -3,12 +3,15 @@ import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import type {
+  AppointmentListScope,
+  AppointmentResponse,
   ConsultationFeeResponse,
   HostedCheckoutResponse,
   PaymentReconciliationResponse,
   PaymentStatus,
   PractitionerAvailabilityResponse,
   PublicConsultationMode,
+  ProviderAppointmentResponse,
 } from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
@@ -312,6 +315,64 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
   async findAppointment(appointmentId: string): Promise<AppointmentAccessRecord | null> {
     const record = await findAppointmentRecord(this.database, appointmentId);
     return record === null ? null : mapAppointment(record);
+  }
+
+  async listPatientAppointments(input: {
+    cursor?: { id: string; startsAt: Date };
+    dayFrom?: Date;
+    dayTo?: Date;
+    limit: number;
+    principalId: string;
+    scope: AppointmentListScope;
+  }) {
+    const ascending = isAscendingAppointmentScope(input.scope);
+    const rows = await this.database.appointment.findMany({
+      orderBy: [{ startsAt: ascending ? "asc" : "desc" }, { id: ascending ? "asc" : "desc" }],
+      select: appointmentListSelect,
+      take: input.limit + 1,
+      where: {
+        patient: { principalId: input.principalId },
+        AND: [appointmentScopeWhere(input), appointmentCursorWhere(input.cursor, ascending)],
+      },
+    });
+    return appointmentPage(rows, input.limit, mapPublicAppointment);
+  }
+
+  async listProviderAppointments(input: {
+    cursor?: { id: string; startsAt: Date };
+    dayFrom?: Date;
+    dayTo?: Date;
+    limit: number;
+    principalId: string;
+    query?: string;
+    scope: AppointmentListScope;
+  }) {
+    const ascending = isAscendingAppointmentScope(input.scope);
+    const rows = await this.database.appointment.findMany({
+      orderBy: [{ startsAt: ascending ? "asc" : "desc" }, { id: ascending ? "asc" : "desc" }],
+      select: providerAppointmentSelect,
+      take: input.limit + 1,
+      where: {
+        practitioner: { principalId: input.principalId },
+        AND: [
+          appointmentScopeWhere(input),
+          appointmentCursorWhere(input.cursor, ascending),
+          providerAppointmentSearchWhere(input.query),
+        ],
+      },
+    });
+    return appointmentPage(rows, input.limit, mapProviderAppointment);
+  }
+
+  async findProviderAppointment(input: {
+    appointmentId: string;
+    principalId: string;
+  }): Promise<ProviderAppointmentResponse | null> {
+    const row = await this.database.appointment.findFirst({
+      select: providerAppointmentSelect,
+      where: { id: input.appointmentId, practitioner: { principalId: input.principalId } },
+    });
+    return row === null ? null : mapProviderAppointment(row);
   }
 
   async findPayment(paymentId: string): Promise<PaymentAccessRecord | null> {
@@ -918,6 +979,119 @@ async function findAppointmentRecord(
     },
     where: { id },
   });
+}
+
+const appointmentListSelect = {
+  amountMinor: true,
+  currency: true,
+  endsAt: true,
+  id: true,
+  mode: true,
+  payment: { select: { id: true } },
+  practitioner: { select: { displayName: true, id: true } },
+  startsAt: true,
+  status: true,
+  version: true,
+} satisfies Prisma.AppointmentSelect;
+
+const providerAppointmentSelect = {
+  ...appointmentListSelect,
+  patient: { select: { familyName: true, givenName: true, id: true } },
+} satisfies Prisma.AppointmentSelect;
+
+function appointmentScopeWhere(input: {
+  dayFrom?: Date;
+  dayTo?: Date;
+  scope: AppointmentListScope;
+}): Prisma.AppointmentWhereInput {
+  switch (input.scope) {
+    case "TODAY":
+      if (input.dayFrom === undefined || input.dayTo === undefined) {
+        throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+      }
+      return { startsAt: { gte: input.dayFrom, lt: input.dayTo } };
+    case "UPCOMING":
+      return { startsAt: { gte: new Date() }, status: { in: ["PENDING_PAYMENT", "CONFIRMED"] } };
+    case "COMPLETED":
+      return { status: "COMPLETED" };
+    case "UNSUCCESSFUL":
+      return { status: { in: ["PAYMENT_FAILED", "EXPIRED", "CANCELLED"] } };
+    case "ALL":
+      return {};
+  }
+}
+
+function appointmentCursorWhere(
+  cursor: { id: string; startsAt: Date } | undefined,
+  ascending: boolean,
+): Prisma.AppointmentWhereInput {
+  if (cursor === undefined) return {};
+  return {
+    OR: [
+      { startsAt: ascending ? { gt: cursor.startsAt } : { lt: cursor.startsAt } },
+      { id: ascending ? { gt: cursor.id } : { lt: cursor.id }, startsAt: cursor.startsAt },
+    ],
+  };
+}
+
+function providerAppointmentSearchWhere(query: string | undefined): Prisma.AppointmentWhereInput {
+  if (query === undefined) return {};
+  const names: Prisma.AppointmentWhereInput[] = [
+    { patient: { givenName: { contains: query, mode: "insensitive" } } },
+    { patient: { familyName: { contains: query, mode: "insensitive" } } },
+  ];
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query)) {
+    names.unshift({ id: query });
+  }
+  return { OR: names };
+}
+
+function isAscendingAppointmentScope(scope: AppointmentListScope): boolean {
+  return scope === "TODAY" || scope === "UPCOMING";
+}
+
+function appointmentPage<Row extends { id: string; startsAt: Date }, Result>(
+  rows: readonly Row[],
+  limit: number,
+  mapper: (row: Row) => Result,
+) {
+  const hasNextPage = rows.length > limit;
+  const page = hasNextPage ? rows.slice(0, limit) : rows;
+  const last = page.at(-1);
+  return {
+    cursor: hasNextPage && last !== undefined ? { id: last.id, startsAt: last.startsAt } : null,
+    data: page.map(mapper),
+  };
+}
+
+function mapPublicAppointment(
+  row: Prisma.AppointmentGetPayload<{ select: typeof appointmentListSelect }>,
+): AppointmentResponse {
+  if (row.payment === null) throw new SchedulingPaymentConflictError("INVARIANT_VIOLATION");
+  return {
+    amountMinor: row.amountMinor.toString(),
+    currency: row.currency,
+    endsAt: row.endsAt.toISOString(),
+    id: row.id,
+    mode: row.mode,
+    paymentId: row.payment.id,
+    practitioner: row.practitioner,
+    startsAt: row.startsAt.toISOString(),
+    status: row.status,
+    version: row.version,
+  };
+}
+
+function mapProviderAppointment(
+  row: Prisma.AppointmentGetPayload<{ select: typeof providerAppointmentSelect }>,
+): ProviderAppointmentResponse {
+  return {
+    ...mapPublicAppointment(row),
+    patient: {
+      displayName: `${row.patient.givenName} ${row.patient.familyName}`.trim(),
+      id: row.patient.id,
+    },
+  };
 }
 
 function mapAppointment(

@@ -20,6 +20,7 @@ import {
   PatientSchedulingPaymentController,
   PaymentWebhookController,
   ProviderAvailabilityController,
+  ProviderSchedulingController,
   PublicSchedulingController,
 } from "./presentation/scheduling-payment.controller.js";
 
@@ -31,6 +32,7 @@ import {
     PatientSchedulingPaymentController,
     PaymentWebhookController,
     ProviderAvailabilityController,
+    ProviderSchedulingController,
     PublicSchedulingController,
   ],
   providers: [

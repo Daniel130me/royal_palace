@@ -1654,6 +1654,40 @@ export const schedulingPaymentService = {
         signal,
       })
       .then(unwrapGeneratedResponse),
+  patientAppointments: (
+    input: {
+      cursor?: string;
+      dayFrom?: string;
+      dayTo?: string;
+      limit?: number;
+      scope: "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+    },
+    signal?: AbortSignal,
+  ) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/patient/appointments", { params: { query: input }, signal })
+      .then(unwrapGeneratedResponse),
+  providerAppointments: (
+    input: {
+      cursor?: string;
+      dayFrom?: string;
+      dayTo?: string;
+      limit?: number;
+      q?: string;
+      scope: "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+    },
+    signal?: AbortSignal,
+  ) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/provider/appointments", { params: { query: input }, signal })
+      .then(unwrapGeneratedResponse),
+  providerAppointment: (appointmentId: string, signal?: AbortSignal) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/provider/appointments/{appointmentId}", {
+        params: { path: { appointmentId } },
+        signal,
+      })
+      .then(unwrapGeneratedResponse),
   createCheckout: (paymentId: string, idempotencyKey: string) =>
     generatedSchedulingPaymentClient
       .POST("/api/payments/checkout-sessions", {

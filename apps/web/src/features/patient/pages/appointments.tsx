@@ -1,49 +1,75 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { appointmentService } from "@/lib/services";
-import type { Appointment, AppointmentStatus } from "@/types";
-import { PageHeader, EmptyState, SkeletonGrid } from "@/components/healthcare/page-header";
-import { StatusBadge } from "@/components/healthcare/status-badge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import type { AppointmentListScope, AppointmentResponse } from "@royal-palace/contracts";
+import { CalendarDays, MessageSquare, Phone, Plus, Video } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { CompactListItem } from "@/components/healthcare/compact-list";
-import { CalendarDays, Plus, Video, Phone, MessageSquare } from "lucide-react";
-import { formatDate, formatTime, fullName, initials, relativeDay } from "@/lib/format";
-import { usePatientContext } from "../use-patient-context";
-import { consultationActionLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { consultationActionLabel } from "@/lib/consultation-policy";
+import { formatDate, formatTime, initials, relativeDay } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { schedulingPaymentService } from "@/lib/services";
 
-const UPCOMING: AppointmentStatus[] = ["scheduled", "checked_in", "waiting_for_provider", "in_progress", "awaiting_documentation"];
-const COMPLETED: AppointmentStatus[] = ["completed"];
-const CANCELLED: AppointmentStatus[] = ["cancelled", "no_show"];
+type AppointmentTab = "upcoming" | "completed" | "unsuccessful";
 
-type ApptTab = "upcoming" | "completed" | "cancelled";
+const TAB_SCOPE: Record<AppointmentTab, AppointmentListScope> = {
+  completed: "COMPLETED",
+  unsuccessful: "UNSUCCESSFUL",
+  upcoming: "UPCOMING",
+};
 
 export function PatientAppointments() {
-  const { profile } = usePatientContext();
-  const [all, setAll] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<ApptTab>("upcoming");
+  const [tab, setTab] = useState<AppointmentTab>("upcoming");
+  const requestSequence = useRef(0);
+
+  const load = useCallback(
+    async (nextCursor?: string) => {
+      const requestId = ++requestSequence.current;
+      if (nextCursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const page = await schedulingPaymentService.patientAppointments({
+          ...(nextCursor === undefined ? {} : { cursor: nextCursor }),
+          limit: 25,
+          scope: TAB_SCOPE[tab],
+        });
+        if (requestId !== requestSequence.current) return;
+        setAppointments((current) =>
+          nextCursor === undefined ? [...page.data] : [...current, ...page.data],
+        );
+        setCursor(page.pageInfo.endCursor);
+      } catch (reason) {
+        if (requestId !== requestSequence.current) return;
+        setError(reason instanceof Error ? reason.message : "Appointments could not be loaded");
+      } finally {
+        if (requestId === requestSequence.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [tab],
+  );
 
   useEffect(() => {
-    if (!profile) return;
-    let cancelled = false;
-    setLoading(true);
-    appointmentService.list({ patientId: profile.id })
-      .then((rows) => { if (!cancelled) setAll(rows); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load appointments"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [profile?.id]);
-
-  const upcoming = useMemo(() => all.filter((a) => UPCOMING.includes(a.status)).sort((a, b) => a.date.localeCompare(b.date)), [all]);
-  const completed = useMemo(() => all.filter((a) => COMPLETED.includes(a.status)).sort((a, b) => b.date.localeCompare(a.date)), [all]);
-  const cancelled = useMemo(() => all.filter((a) => CANCELLED.includes(a.status)).sort((a, b) => b.date.localeCompare(a.date)), [all]);
-
-  const rows = tab === "upcoming" ? upcoming : tab === "completed" ? completed : cancelled;
+    void load();
+  }, [load]);
 
   return (
     <div className="space-y-4">
@@ -57,80 +83,92 @@ export function PatientAppointments() {
         }
       />
 
-      <SegmentedControl<ApptTab>
+      <SegmentedControl<AppointmentTab>
         value={tab}
         onChange={setTab}
         options={[
-          { value: "upcoming", label: "Upcoming", badge: upcoming.length || undefined },
+          { value: "upcoming", label: "Upcoming" },
           { value: "completed", label: "Completed" },
-          { value: "cancelled", label: "Cancelled" },
+          { value: "unsuccessful", label: "Cancelled" },
         ]}
       />
 
       {loading ? (
         <SkeletonGrid count={3} />
-      ) : error ? (
-        <EmptyState title="Could not load appointments" description={error} />
-      ) : rows.length === 0 ? (
-        tab === "upcoming" ? (
-          <EmptyState
-            icon={CalendarDays}
-            title="No upcoming appointments"
-            description="Book a consultation with one of our verified doctors."
-            action={<Button onClick={() => navigate("patient", "doctors")}>Find a doctor</Button>}
-          />
-        ) : (
-          <EmptyState
-            icon={CalendarDays}
-            title={tab === "completed" ? "No completed appointments yet" : "No cancelled appointments"}
-            description={tab === "completed" ? "Your past consultations will appear here." : "You have a clean record."}
-            compact
-          />
-        )
+      ) : error !== null ? (
+        <ErrorState message={error} onRetry={() => void load()} />
+      ) : appointments.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title={
+            tab === "upcoming" ? "No upcoming appointments" : "No appointments in this category"
+          }
+          description={
+            tab === "upcoming"
+              ? "Book a consultation with a verified practitioner."
+              : "Appointments will appear here when available."
+          }
+          action={
+            tab === "upcoming" ? (
+              <Button onClick={() => navigate("patient", "doctors")}>Find a practitioner</Button>
+            ) : undefined
+          }
+          compact={tab !== "upcoming"}
+        />
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-          {rows.map((a) => (
-            <AppointmentRow key={a.id} appt={a} />
-          ))}
-        </div>
+        <>
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-card divide-y divide-border/40">
+            {appointments.map((appointment) => (
+              <AppointmentRow key={appointment.id} appointment={appointment} />
+            ))}
+          </div>
+          {cursor !== null && (
+            <div className="flex justify-center">
+              <Button variant="outline" disabled={loadingMore} onClick={() => void load(cursor)}>
+                {loadingMore ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function AppointmentRow({ appt: a }: { appt: Appointment }) {
-  const provider = a.provider;
-  const isUpcoming = ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status);
-  const channel = isOnlineConsultationChannel(a.consultationChannel) ? a.consultationChannel : "video";
+function AppointmentRow({ appointment }: { appointment: AppointmentResponse }) {
+  const channel =
+    appointment.mode === "AUDIO" ? "audio" : appointment.mode === "CHAT" ? "chat" : "video";
   const ChannelIcon = channel === "audio" ? Phone : channel === "chat" ? MessageSquare : Video;
-  const canJoin = isUpcoming;
-
+  const canJoin = appointment.status === "CONFIRMED" && appointment.mode !== "IN_PERSON";
   return (
     <CompactListItem
       leading={
         <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-            {provider ? initials(`${provider.firstName} ${provider.lastName}`) : "?"}
+          <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+            {initials(appointment.practitioner.displayName)}
           </AvatarFallback>
         </Avatar>
       }
-      title={provider ? fullName(provider) : "Provider"}
-      subtitle={`${provider?.specialty ?? "Consultation"} · ${relativeDay(a.date)}, ${formatDate(a.date)} · ${formatTime(a.time)}`}
+      title={appointment.practitioner.displayName}
+      subtitle={`${relativeDay(appointment.startsAt)}, ${formatDate(appointment.startsAt)} · ${formatTime(appointment.startsAt)} · ${appointment.mode.replaceAll("_", " ").toLowerCase()}`}
       trailing={
         <div className="flex flex-col items-end gap-1.5">
-          <StatusBadge status={a.status} size="sm" />
+          <StatusBadge status={appointment.status.toLowerCase()} size="sm" />
           {canJoin && (
             <Button
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={(e) => { e.stopPropagation(); navigate("patient", "consultation", { id: a.id }); }}
+              onClick={(event) => {
+                event.stopPropagation();
+                navigate("patient", "consultation", { id: appointment.id });
+              }}
             >
               <ChannelIcon className="h-3 w-3" /> {consultationActionLabel(channel)}
             </Button>
           )}
         </div>
       }
-      onClick={() => navigate("patient", "appointment", { id: a.id })}
+      onClick={() => navigate("patient", "appointment", { id: appointment.id })}
       chevron
     />
   );

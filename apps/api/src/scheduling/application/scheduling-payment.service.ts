@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import type {
+  AppointmentListScope,
   CurrentSession,
   PaymentStatusResponse,
   PublicConsultationMode,
@@ -19,12 +20,36 @@ import {
   type SchedulingPaymentRepository,
 } from "../domain/scheduling-payment.types.js";
 import { PaymentGatewayError } from "../infrastructure/payment-gateway.adapters.js";
+import {
+  appointmentListFilterHash,
+  decodeAppointmentListCursor,
+  encodeAppointmentListCursor,
+  InvalidAppointmentListCursorError,
+} from "./appointment-list-cursor.js";
 
 const MAX_AVAILABILITY_WINDOW_MS = 31 * 24 * 60 * 60 * 1000;
+const MAX_LOCAL_DAY_WINDOW_MS = 26 * 60 * 60 * 1000;
 
 export interface SchedulingRequestContext {
   actor: CurrentSession;
   requestId: string;
+}
+
+export interface AppointmentListInput {
+  cursor?: string;
+  dayFrom?: string;
+  dayTo?: string;
+  limit: number;
+  query?: string;
+  scope: AppointmentListScope;
+}
+
+function appointmentPageInfo(cursor: { id: string; startsAt: Date } | null, filterHash: string) {
+  const hasNextPage = cursor !== null;
+  return {
+    endCursor: hasNextPage ? encodeAppointmentListCursor(cursor, filterHash) : null,
+    hasNextPage,
+  };
 }
 
 export class SchedulingPaymentFlowError extends Error {
@@ -234,6 +259,120 @@ export class SchedulingPaymentService {
       requestId: context.requestId,
     });
     return publicAppointment(appointment);
+  }
+
+  async listPatientAppointments(context: SchedulingRequestContext, input: AppointmentListInput) {
+    await this.authorizeAppointmentList(context, "PATIENT");
+    const query = this.prepareAppointmentList(context, input, false);
+    const result = await this.repository.listPatientAppointments(query.repositoryInput);
+    return {
+      data: result.data,
+      pageInfo: appointmentPageInfo(result.cursor, query.filterHash),
+    };
+  }
+
+  async listProviderAppointments(context: SchedulingRequestContext, input: AppointmentListInput) {
+    await this.authorizeAppointmentList(context, "PROVIDER");
+    const query = this.prepareAppointmentList(context, input, true);
+    const result = await this.repository.listProviderAppointments(query.repositoryInput);
+    return {
+      data: result.data,
+      pageInfo: appointmentPageInfo(result.cursor, query.filterHash),
+    };
+  }
+
+  async getProviderAppointment(context: SchedulingRequestContext, appointmentId: string) {
+    await this.authorizeAppointmentList(context, "PROVIDER");
+    const appointment = await this.repository.findProviderAppointment({
+      appointmentId,
+      principalId: context.actor.principalId,
+    });
+    if (appointment === null) {
+      throw new SchedulingPaymentFlowError(
+        "appointment_not_found",
+        404,
+        "Appointment was not found",
+      );
+    }
+    return appointment;
+  }
+
+  private async authorizeAppointmentList(
+    context: SchedulingRequestContext,
+    role: "PATIENT" | "PROVIDER",
+  ) {
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        ownerPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: role === "PATIENT" ? "patient_appointments" : "provider_appointments",
+      },
+      policy:
+        role === "PATIENT"
+          ? AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS
+          : AUTHORIZATION_POLICY.VIEW_PROVIDER_APPOINTMENTS,
+      requestId: context.requestId,
+    });
+  }
+
+  private prepareAppointmentList(
+    context: SchedulingRequestContext,
+    input: AppointmentListInput,
+    allowQuery: boolean,
+  ) {
+    const dayFrom = input.dayFrom === undefined ? undefined : parseInstant(input.dayFrom);
+    const dayTo = input.dayTo === undefined ? undefined : parseInstant(input.dayTo);
+    if (input.scope === "TODAY") {
+      if (
+        dayFrom === undefined ||
+        dayTo === undefined ||
+        dayTo <= dayFrom ||
+        dayTo.getTime() - dayFrom.getTime() > MAX_LOCAL_DAY_WINDOW_MS
+      ) {
+        throw new SchedulingPaymentFlowError(
+          "invalid_day_range",
+          400,
+          "A valid local-day range is required",
+        );
+      }
+    } else if (dayFrom !== undefined || dayTo !== undefined) {
+      throw new SchedulingPaymentFlowError(
+        "unexpected_day_range",
+        400,
+        "Day bounds are only valid for the TODAY scope",
+      );
+    }
+    const query = allowQuery ? input.query?.trim() || undefined : undefined;
+    const filters = {
+      dayFrom: dayFrom?.toISOString(),
+      dayTo: dayTo?.toISOString(),
+      principalId: context.actor.principalId,
+      query,
+      scope: input.scope,
+    };
+    const filterHash = appointmentListFilterHash(filters);
+    try {
+      return {
+        filterHash,
+        repositoryInput: {
+          ...(input.cursor === undefined
+            ? {}
+            : { cursor: decodeAppointmentListCursor(input.cursor, filterHash) }),
+          ...(dayFrom === undefined ? {} : { dayFrom }),
+          ...(dayTo === undefined ? {} : { dayTo }),
+          limit: input.limit,
+          principalId: context.actor.principalId,
+          ...(query === undefined ? {} : { query }),
+          scope: input.scope,
+        },
+      };
+    } catch (error) {
+      if (error instanceof InvalidAppointmentListCursorError) {
+        throw new SchedulingPaymentFlowError("invalid_cursor", 400, error.message);
+      }
+      throw error;
+    }
   }
 
   async createHostedCheckout(
