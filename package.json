@@ -12,7 +12,7 @@
     "pnpm": "11.19.0"
   },
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev",
     "build": "turbo run build",
     "build:api-runtime-dependencies": "corepack pnpm --filter \"@royal-palace/api...\" --filter \"!@royal-palace/api\" build",
     "typecheck": "turbo run typecheck",

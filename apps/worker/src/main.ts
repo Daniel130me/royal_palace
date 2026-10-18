@@ -13,7 +13,7 @@ import {
 } from "@royal-palace/config/observability";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
-import type { FastifyInstance } from "fastify";
+import { LogController, type FastifyInstance } from "fastify";
 
 import { AppModule } from "./app.module.js";
 
@@ -23,10 +23,10 @@ async function bootstrap(): Promise<void> {
   const config = loadServiceConfig("worker");
   const serviceLogger = createServiceLogger(config);
   const adapter = new FastifyAdapter({
-    disableRequestLogging: true,
     genReqId(request: IncomingMessage) {
       return resolveRequestContext(request.headers).requestId;
     },
+    logController: new LogController({ disableRequestLogging: true }),
     logger: createLoggerOptions(config),
   });
   const app = await NestFactory.create<NestFastifyApplication>(
