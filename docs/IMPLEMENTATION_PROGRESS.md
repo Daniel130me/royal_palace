@@ -460,6 +460,12 @@ that completes an increment.
     Acceptance deliberately does not imply broad clinical-record access. Open-specialty
     claiming, qualified clinical governance, and stakeholder UAT remain open. See
     [`increments/11q-provider-patients-and-referrals.md`](./increments/11q-provider-patients-and-referrals.md).
+  - `[~]` 11R connects the complete signed hospital portal to the verified production
+    discovery projection and reconciles administrator reports/settlements plus manager
+    resources to their existing 11G/11M evidence. The hospital session supplies the
+    organization identity; the screen receives no private application, workforce,
+    financial, or clinical data. See
+    [`increments/11r-hospital-and-evidence-reconciliation.md`](./increments/11r-hospital-and-evidence-reconciliation.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

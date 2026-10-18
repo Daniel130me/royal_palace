@@ -199,7 +199,7 @@
         {
           "id": "reports",
           "file": "pages/reports.tsx",
-          "status": "IN_PROGRESS",
+          "status": "CONNECTED",
           "checkpoint": "11G3",
           "productionFiles": [
             "apps/web/src/features/admin/pages/reports.tsx",
@@ -210,7 +210,7 @@
         {
           "id": "settlements",
           "file": "pages/settlements.tsx",
-          "status": "IN_PROGRESS",
+          "status": "CONNECTED",
           "checkpoint": "11G1-11G2",
           "productionFiles": [
             "apps/web/src/features/admin/pages/settlements.tsx",
@@ -283,8 +283,13 @@
         {
           "id": "portal",
           "file": "hospital-portal.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-hospital"
+          "status": "CONNECTED",
+          "checkpoint": "11R",
+          "productionFiles": [
+            "apps/web/src/features/hospital/hospital-portal.tsx",
+            "apps/api/src/discovery/application/public-discovery.service.ts",
+            "apps/api/src/discovery/infrastructure/prisma-public-discovery.repository.ts"
+          ]
         }
       ]
     },
@@ -506,7 +511,7 @@
         {
           "id": "resources",
           "file": "pages/resources.tsx",
-          "status": "IN_PROGRESS",
+          "status": "CONNECTED",
           "checkpoint": "11M"
         },
         {
