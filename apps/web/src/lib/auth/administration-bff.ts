@@ -21,6 +21,7 @@ const PLATFORM_ROLES = new Set([
   "SYSTEM_WORKER",
 ]);
 const PRACTITIONER_SCOPES = new Set(["ALL", "PENDING", "VERIFIED", "SUSPENDED", "REVOKED"]);
+const PRINCIPAL_SCOPES = new Set(["ALL", "ACTIVE", "DISABLED"]);
 
 export function proxyAdminAppointmentList(request: NextRequest) {
   return proxyValidated(request, adminAppointmentListPath);
@@ -90,6 +91,23 @@ export function proxyAdminAuditList(request: NextRequest) {
 
 export function proxyAdminPractitionerList(request: NextRequest) {
   return proxyValidated(request, adminPractitionerListPath);
+}
+
+export function proxyAdminPrincipalList(request: NextRequest) {
+  return proxyValidated(request, adminPrincipalListPath);
+}
+
+export function adminPrincipalListPath(url: URL): string {
+  return validatedPath(
+    url,
+    "/v1/admin/principals",
+    ["scope", "role", "cursor", "limit", "q"],
+    (source, output) => {
+      copyEnum(source, output, "scope", PRINCIPAL_SCOPES);
+      copyEnum(source, output, "role", PLATFORM_ROLES);
+      copyCommon(source, output);
+    },
+  );
 }
 
 export function adminPractitionerListPath(url: URL): string {

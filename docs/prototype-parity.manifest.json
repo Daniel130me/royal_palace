@@ -226,8 +226,14 @@
         {
           "id": "users",
           "file": "pages/users.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-identity-admin"
+          "status": "CONNECTED",
+          "checkpoint": "11T",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/users.tsx",
+            "apps/api/src/administration/application/identity-administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-identity-administration.repository.ts",
+            "apps/api/src/administration/presentation/identity-administration.controller.ts"
+          ]
         },
         {
           "id": "provider-verification",

@@ -473,6 +473,12 @@ that completes an increment.
     navigation, and session controls; the signed health-profile and emergency-contact editing
     capabilities remain explicitly open pending their governed records and verification rules.
     See [`increments/11s-account-profile-settings.md`](./increments/11s-account-profile-settings.md).
+  - `[x]` 11T connects the signed administrator users screen to a dedicated identity-principal
+    administration boundary. Bounded indexed reads, administrator-only policy, optimistic and
+    serializable status transitions, final-administrator and self-disable protection, atomic
+    session revocation, immutable audit evidence, strict BFF allowlists, and generated contracts
+    replace prototype account data without exposing identity-provider credentials. See
+    [`increments/11t-identity-administration.md`](./increments/11t-identity-administration.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

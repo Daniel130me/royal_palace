@@ -773,6 +773,8 @@ model IdentityPrincipal {
   practitionerVerificationChanges  PractitionerVerificationHistory[]  @relation("PractitionerVerificationActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
+  @@index([updatedAt(sort: Desc), id(sort: Desc)], map: "identity_principals_updated_id_idx")
+  @@index([status, updatedAt(sort: Desc), id(sort: Desc)], map: "identity_principals_status_updated_id_idx")
   @@map("identity_principals")
 }
 
@@ -1823,6 +1825,7 @@ model NotificationRecipientEndpoint {
   principal          IdentityPrincipal                      @relation(fields: [principalId], references: [id], onDelete: Restrict, map: "notification_endpoints_principal_id_fkey")
 
   @@index([principalId, channel, invalidatedAt, verifiedAt(sort: Desc), id], map: "notification_endpoints_principal_channel_active_idx")
+  @@index([normalizedAddress(ops: raw("gin_trgm_ops"))], type: Gin, map: "notification_endpoints_address_trgm_idx")
   @@map("notification_recipient_endpoints")
 }
 

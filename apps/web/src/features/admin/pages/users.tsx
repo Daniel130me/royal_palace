@@ -1,234 +1,345 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { userService } from "@/lib/services";
-import { resource } from "@/lib/api-client";
-import type { User, UserStatus } from "@/types";
+import type {
+  AdminPrincipalListItem,
+  AdminPrincipalScope,
+  PlatformRole,
+} from "@royal-palace/contracts";
+import { KeyRound, Search, ShieldCheck, UserCheck, UserX, Users } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { StatusBadge } from "@/components/healthcare/status-badge";
-import {
-  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid,
-} from "@/components/healthcare/page-header";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
-import { formatDate } from "@/lib/format";
-import { toast } from "sonner";
-import { Users, Search, UserCheck, UserX, ShieldCheck, KeyRound } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { navigate } from "@/lib/nav";
+import { administrationService } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
-const ROLE_OPTIONS = ["all", "patient", "doctor", "dentist", "pharmacy", "laboratory", "logistics", "admin"];
-
-type StatusFilter = "all" | "active" | "pending" | "suspended";
-
-const ROLE_TONE: Record<string, string> = {
-  patient: "bg-sky-50 text-sky-700 ring-sky-100",
-  doctor: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  dentist: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  pharmacy: "bg-amber-50 text-amber-700 ring-amber-100",
-  laboratory: "bg-violet-50 text-violet-700 ring-violet-100",
-  logistics: "bg-sky-50 text-sky-700 ring-sky-100",
-  admin: "bg-rose-50 text-rose-700 ring-rose-100",
-};
+const ROLES: readonly PlatformRole[] = [
+  "PATIENT",
+  "PROVIDER",
+  "MANAGER",
+  "ORGANIZATION_APPLICANT",
+  "ORGANIZATION_ADMIN",
+  "ORGANIZATION_STAFF",
+  "SUPPORT",
+  "FINANCE",
+  "LOGISTICS",
+  "ADMINISTRATOR",
+];
 
 export function AdminUsers() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminPrincipalListItem[]>([]);
+  const [summary, setSummary] = useState({ active: 0, all: 0, disabled: 0 });
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const query = useDeferredValue(search.trim());
+  const [role, setRole] = useState<PlatformRole | "ALL">("ALL");
+  const [scope, setScope] = useState<AdminPrincipalScope>("ALL");
+  const [editing, setEditing] = useState<AdminPrincipalListItem | null>(null);
+  const [nextStatus, setNextStatus] = useState<"ACTIVE" | "DISABLED">("ACTIVE");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [editing, setEditing] = useState<User | null>(null);
-  const [newStatus, setNewStatus] = useState<UserStatus>("active");
-  const [submitting, setSubmitting] = useState(false);
+  const load = useCallback(
+    async (nextCursor?: string) => {
+      if (nextCursor === undefined) setLoading(true);
+      else setLoadingMore(true);
+      setError(null);
+      try {
+        const page = await administrationService.principals({
+          ...(nextCursor === undefined ? {} : { cursor: nextCursor }),
+          limit: 25,
+          ...(query.length === 0 ? {} : { query }),
+          ...(role === "ALL" ? {} : { role }),
+          scope,
+        });
+        setUsers((current) =>
+          nextCursor === undefined ? [...page.data] : [...current, ...page.data],
+        );
+        setSummary(page.summary);
+        setCursor(page.pageInfo.endCursor);
+        setHasMore(page.pageInfo.hasNextPage);
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Accounts could not be loaded.");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [query, role, scope],
+  );
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    userService.list()
-      .then(setUsers)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load users"))
-      .finally(() => setLoading(false));
-  };
+  useEffect(() => void load(), [load]);
 
-  useEffect(() => { load(); }, []);
+  function openEdit(user: AdminPrincipalListItem) {
+    setEditing(user);
+    setNextStatus(user.status === "ACTIVE" ? "DISABLED" : "ACTIVE");
+    setReason("");
+  }
 
-  const counts = useMemo(() => ({
-    all: users.length,
-    active: users.filter((u) => u.status === "active").length,
-    pending: users.filter((u) => u.status === "pending").length,
-    suspended: users.filter((u) => u.status === "suspended").length,
-  }), [users]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return users.filter((u) => {
-      if (roleFilter !== "all" && u.role !== roleFilter) return false;
-      if (statusFilter !== "all" && u.status !== statusFilter) return false;
-      if (!q) return true;
-      return `${u.name} ${u.email} ${u.id} ${u.profileId ?? ""}`.toLowerCase().includes(q);
-    });
-  }, [users, search, roleFilter, statusFilter]);
-
-  const openEdit = (u: User) => {
-    setEditing(u);
-    setNewStatus(u.status);
-  };
-
-  const submit = async () => {
-    if (!editing) return;
-    setSubmitting(true);
+  async function submit() {
+    if (editing === null || reason.trim().length < 3) return;
+    setSaving(true);
     try {
-      await resource.update<User>("user", editing.id, { status: newStatus });
-      toast.success(`User ${editing.name} status updated to ${newStatus}.`);
+      const updated = await administrationService.transitionPrincipal(editing.id, {
+        expectedVersion: editing.version,
+        reason: reason.trim(),
+        status: nextStatus,
+      });
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+      setSummary((current) => ({
+        active: current.active + (updated.status === "ACTIVE" ? 1 : -1),
+        all: current.all,
+        disabled: current.disabled + (updated.status === "DISABLED" ? 1 : -1),
+      }));
       setEditing(null);
-      load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to update user.");
+      toast.success(
+        updated.status === "ACTIVE"
+          ? "Account activated."
+          : "Account disabled and sessions revoked.",
+      );
+    } catch (failure) {
+      toast.error(
+        failure instanceof Error ? failure.message : "Account status could not be changed.",
+      );
+      await load();
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
-  };
+  }
 
-  if (loading) {
+  if (loading)
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
         <SkeletonGrid count={4} />
       </div>
     );
-  }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error !== null && users.length === 0)
+    return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Users"
-        description="Every account on the platform. Status changes are allowed."
-        breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Users" }]}
+        description="Review platform accounts and control access without handling passwords."
+        breadcrumbs={[
+          { label: "Admin", onClick: () => navigate("admin", "dashboard") },
+          { label: "Users" },
+        ]}
       />
 
-      {/* StatTiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatTile label="Total" value={counts.all} icon={Users} />
-        <StatTile label="Active" value={counts.active} icon={UserCheck} tone="success" />
-        <StatTile label="Pending" value={counts.pending} icon={UserX} tone="warning" />
-        <StatTile label="Suspended" value={counts.suspended} icon={ShieldCheck} tone={counts.suspended > 0 ? "danger" : "default"} />
+      <div className="grid grid-cols-3 gap-2.5">
+        <StatTile label="Total" value={summary.all} icon={Users} />
+        <StatTile label="Active" value={summary.active} icon={UserCheck} tone="success" />
+        <StatTile
+          label="Disabled"
+          value={summary.disabled}
+          icon={UserX}
+          tone={summary.disabled > 0 ? "danger" : "default"}
+        />
       </div>
 
-      {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, email, user ID, profile ID…" className="pl-9" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Name, verified email, or account ID…"
+          className="pl-9"
+        />
       </div>
 
-      {/* SegmentedControl status filter */}
       <SegmentedControl
         options={[
-          { value: "all" as StatusFilter, label: "All", badge: counts.all },
-          { value: "active" as StatusFilter, label: "Active", badge: counts.active },
-          { value: "pending" as StatusFilter, label: "Pending", badge: counts.pending },
-          { value: "suspended" as StatusFilter, label: "Suspended", badge: counts.suspended },
+          { value: "ALL" as AdminPrincipalScope, label: "All", badge: summary.all },
+          { value: "ACTIVE" as AdminPrincipalScope, label: "Active", badge: summary.active },
+          { value: "DISABLED" as AdminPrincipalScope, label: "Disabled", badge: summary.disabled },
         ]}
-        value={statusFilter}
-        onChange={setStatusFilter}
+        value={scope}
+        onChange={setScope}
         size="sm"
       />
 
-      {/* Role filter chips */}
-      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 lg:mx-0 lg:px-0">
-        {ROLE_OPTIONS.map((r) => {
-          const active = roleFilter === r;
-          const count = r === "all" ? users.length : users.filter((u) => u.role === r).length;
-          return (
-            <button
-              key={r}
-              onClick={() => setRoleFilter(r)}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all tap-highlight-none",
-                active ? "bg-primary text-primary-foreground shadow-soft" : "bg-card border border-border/60 text-muted-foreground hover:bg-accent"
-              )}
-            >
-              {r === "all" ? "All roles" : r}
-              <span className={cn("text-[10px] rounded-full px-1", active ? "bg-primary-foreground/20" : "bg-muted")}>{count}</span>
-            </button>
-          );
-        })}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
+        <RoleChip active={role === "ALL"} label="All roles" onClick={() => setRole("ALL")} />
+        {ROLES.map((item) => (
+          <RoleChip
+            key={item}
+            active={role === item}
+            label={formatRole(item)}
+            onClick={() => setRole(item)}
+          />
+        ))}
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState icon={Users} title="No users found" description="Try adjusting filters." compact />
+      {error !== null && <p className="text-sm text-destructive">{error}</p>}
+      {users.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No accounts found"
+          description="Try adjusting the server-side filters."
+          compact
+        />
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-          {filtered.map((u) => (
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-card divide-y divide-border/40">
+          {users.map((user) => (
             <CompactListItem
-              key={u.id}
+              key={user.id}
               leading={
-                <div className={cn("rounded-lg p-2 ring-1", ROLE_TONE[u.role] ?? "bg-muted text-muted-foreground ring-border")}>
+                <div className="rounded-lg bg-primary/10 p-2 text-primary ring-1 ring-primary/10">
                   <Users className="h-4 w-4" />
                 </div>
               }
-              title={u.name}
-              subtitle={`${u.email} · ${u.role} · ${u.id}`}
+              title={user.displayName}
+              subtitle={`${user.email ?? "No verified email"} · ${user.roles.map(formatRole).join(", ") || "No active role"} · ${user.id}`}
               trailing={
                 <div className="flex items-center gap-1.5">
-                  <StatusBadge status={u.status} size="sm" />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEdit(u); }} aria-label="Change status">
+                  <StatusBadge status={user.status.toLowerCase()} size="sm" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEdit(user);
+                    }}
+                    aria-label="Change account status"
+                  >
                     <KeyRound className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               }
-              onClick={() => openEdit(u)}
+              onClick={() => openEdit(user)}
               chevron
             />
           ))}
         </div>
       )}
+      {hasMore && cursor !== null && (
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={loadingMore}
+          onClick={() => void load(cursor)}
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </Button>
+      )}
 
-      {/* Status edit dialog */}
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update user status</DialogTitle>
+            <DialogTitle>Change account access</DialogTitle>
             <DialogDescription>
-              Change the account status for {editing?.name} ({editing?.email}). Password edits are not available in the prototype.
+              {editing?.displayName}. Disabling access revokes every active session; passwords
+              remain with the identity provider.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="status" className="text-xs">New status</Label>
-              <Select value={newStatus} onValueChange={(v) => setNewStatus(v as UserStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="principal-status">New status</Label>
+              <Select
+                value={nextStatus}
+                onValueChange={(value) => setNextStatus(value as "ACTIVE" | "DISABLED")}
+              >
+                <SelectTrigger id="principal-status" className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="DISABLED">Disabled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-              Current status: <span className="font-medium text-foreground">{editing?.status}</span>
-              <br />
-              Last updated: {editing ? formatDate(new Date().toISOString()) : ""}
+            <div>
+              <Label htmlFor="principal-reason">Audit reason</Label>
+              <Textarea
+                id="principal-reason"
+                className="mt-1.5"
+                maxLength={500}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Explain why access is changing…"
+              />
+            </div>
+            <div className="flex gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 shrink-0" /> The platform prevents self-disable and
+              disabling the final active administrator.
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)} disabled={submitting}>Cancel</Button>
-            <Button onClick={() => void submit()} disabled={submitting || !editing || newStatus === editing.status}>
-              {submitting ? "Saving…" : "Update status"}
+            <Button variant="outline" disabled={saving} onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={saving || reason.trim().length < 3 || editing?.status === nextStatus}
+              onClick={() => void submit()}
+            >
+              {saving ? "Saving…" : "Apply status"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function RoleChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "border bg-card text-muted-foreground hover:bg-accent",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function formatRole(role: PlatformRole): string {
+  return role.toLowerCase().replaceAll("_", " ");
 }

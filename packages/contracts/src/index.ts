@@ -219,6 +219,26 @@ export interface AdminAuditEventListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export type AdminPrincipalStatus = "ACTIVE" | "DISABLED";
+export type AdminPrincipalScope = "ALL" | AdminPrincipalStatus;
+
+export interface AdminPrincipalListItem {
+  createdAt: string;
+  displayName: string;
+  email: string | null;
+  id: string;
+  roles: readonly PlatformRole[];
+  status: AdminPrincipalStatus;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminPrincipalListResponse {
+  data: readonly AdminPrincipalListItem[];
+  pageInfo: CursorPageInfo;
+  summary: { active: number; all: number; disabled: number };
+}
+
 export type AdminComplaintStatus = "OPEN" | "INVESTIGATING" | "RESOLVED" | "CLOSED";
 export type AdminComplaintPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type AdminComplaintScope = "ALL" | "OPEN" | "RESOLVED";

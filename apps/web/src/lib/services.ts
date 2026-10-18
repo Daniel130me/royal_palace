@@ -55,6 +55,8 @@ import type {
   AdminDeliveryScope,
   AdminPractitionerDetail,
   AdminPractitionerScope,
+  AdminPrincipalListItem,
+  AdminPrincipalScope,
   PractitionerSettingsResponse,
   PatientProfileResponse,
   PractitionerVerificationStatus,
@@ -1826,6 +1828,36 @@ export const administrationService = {
       .PATCH("/api/admin/practitioners/{practitionerId}/verification", {
         body: input,
         params: { header: csrfHeader(), path: { practitionerId } },
+      })
+      .then(unwrapGeneratedResponse),
+  principals: (input: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    role?: PlatformRole;
+    scope: AdminPrincipalScope;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/principals", {
+        params: {
+          query: {
+            cursor: input.cursor,
+            limit: input.limit,
+            q: input.query,
+            role: input.role,
+            scope: input.scope,
+          },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  transitionPrincipal: (
+    principalId: string,
+    input: { expectedVersion: number; reason: string; status: "ACTIVE" | "DISABLED" },
+  ): Promise<AdminPrincipalListItem> =>
+    generatedAdministrationClient
+      .PATCH("/api/admin/principals/{principalId}/status", {
+        body: input,
+        params: { header: csrfHeader(), path: { principalId } },
       })
       .then(unwrapGeneratedResponse),
 };

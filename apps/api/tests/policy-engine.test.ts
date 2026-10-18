@@ -313,6 +313,12 @@ function baselineRequest(
     case AUTHORIZATION_POLICY.VIEW_PLATFORM_COMPLAINTS:
     case AUTHORIZATION_POLICY.MANAGE_PLATFORM_COMPLAINTS:
       return { ...base, policy, context: { resourceId, resourceType: "role_assignment" } };
+    case AUTHORIZATION_POLICY.ADMINISTER_IDENTITY_PRINCIPALS:
+      return {
+        ...base,
+        policy: AUTHORIZATION_POLICY.ADMINISTER_IDENTITY_PRINCIPALS,
+        context: { resourceId, resourceType: "identity_principal" },
+      };
     case AUTHORIZATION_POLICY.ADMINISTER_PRACTITIONER_VERIFICATION:
       return {
         ...base,
@@ -340,6 +346,7 @@ describe("PolicyEngine", () => {
     ADMINISTER_REVIEW_MODERATION: ["ADMINISTRATOR"],
     ADMINISTER_PRACTITIONER_VERIFICATION: ["ADMINISTRATOR"],
     ADMINISTER_ROLE_ASSIGNMENT: ["ADMINISTRATOR"],
+    ADMINISTER_IDENTITY_PRINCIPALS: ["ADMINISTRATOR"],
     DECIDE_APPLICATION: ["ADMINISTRATOR"],
     CORRECT_REFERRAL_ATTRIBUTION: ["ADMINISTRATOR"],
     BOOK_APPOINTMENT: [],

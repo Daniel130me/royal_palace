@@ -4,6 +4,7 @@ import {
   adminComplaintListPath,
   adminDashboardPath,
   adminDeliveryListPath,
+  adminPrincipalListPath,
 } from "../../src/lib/auth/administration-bff";
 
 describe("administration BFF allowlists", () => {
@@ -41,5 +42,17 @@ describe("administration BFF allowlists", () => {
     expect(() =>
       adminDeliveryListPath(new URL("http://local.test?scope=ALL&includeRecipient=true")),
     ).toThrow();
+  });
+
+  it("allows only bounded principal filters and known platform roles", () => {
+    expect(
+      adminPrincipalListPath(
+        new URL("http://local.test?scope=ACTIVE&role=PROVIDER&limit=25&q=synthetic"),
+      ),
+    ).toBe("/v1/admin/principals?scope=ACTIVE&role=PROVIDER&limit=25&q=synthetic");
+    expect(() =>
+      adminPrincipalListPath(new URL("http://local.test?scope=ACTIVE&includeSessions=true")),
+    ).toThrow();
+    expect(() => adminPrincipalListPath(new URL("http://local.test?role=SUPER_ADMIN"))).toThrow();
   });
 });

@@ -148,6 +148,38 @@ export interface paths {
         patch: operations["transitionAdminPractitionerVerification"];
         trace?: never;
     };
+    "/api/admin/principals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminPrincipals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/principals/{principalId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["transitionAdminPrincipalStatus"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -158,6 +190,38 @@ export interface components {
         };
         /** @enum {string} */
         AppointmentScope: "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
+        /** @enum {string} */
+        PrincipalScope: "ALL" | "ACTIVE" | "DISABLED";
+        Principal: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            /** Format: email */
+            email: string | null;
+            /** Format: uuid */
+            id: string;
+            roles: components["schemas"]["PlatformRole"][];
+            /** @enum {string} */
+            status: "ACTIVE" | "DISABLED";
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        PrincipalList: {
+            data: components["schemas"]["Principal"][];
+            pageInfo: components["schemas"]["PageInfo"];
+            summary: {
+                active: number;
+                all: number;
+                disabled: number;
+            };
+        };
+        PrincipalTransitionInput: {
+            expectedVersion: number;
+            reason: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "DISABLED";
+        };
         /** @enum {string} */
         AppointmentStatus: "PENDING_PAYMENT" | "CONFIRMED" | "PAYMENT_FAILED" | "EXPIRED" | "CANCELLED" | "COMPLETED";
         /** @enum {string} */
@@ -658,6 +722,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PractitionerDetail"];
+                };
+            };
+        };
+    };
+    listAdminPrincipals: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                q?: string;
+                role?: components["schemas"]["PlatformRole"];
+                scope?: components["schemas"]["PrincipalScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded administrator identity-principal list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrincipalList"];
+                };
+            };
+        };
+    };
+    transitionAdminPrincipalStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": string;
+            };
+            path: {
+                principalId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrincipalTransitionInput"];
+            };
+        };
+        responses: {
+            /** @description Updated identity principal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Principal"];
                 };
             };
         };

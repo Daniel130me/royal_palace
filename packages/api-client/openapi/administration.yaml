@@ -164,6 +164,43 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PractitionerDetail" }
+  /api/admin/principals:
+    get:
+      operationId: listAdminPrincipals
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - { name: role, in: query, schema: { $ref: "#/components/schemas/PlatformRole" } }
+        - { name: scope, in: query, schema: { $ref: "#/components/schemas/PrincipalScope" } }
+      responses:
+        "200":
+          description: Bounded administrator identity-principal list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrincipalList" }
+  /api/admin/principals/{principalId}/status:
+    patch:
+      operationId: transitionAdminPrincipalStatus
+      parameters:
+        - { name: principalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: x-rp-csrf-token,
+            in: header,
+            required: true,
+            schema: { type: string, minLength: 1 },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrincipalTransitionInput" }
+      responses:
+        "200":
+          description: Updated identity principal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Principal" }
 components:
   schemas:
     PageInfo:
@@ -176,6 +213,48 @@ components:
     AppointmentScope:
       type: string
       enum: [ALL, TODAY, UPCOMING, COMPLETED, UNSUCCESSFUL]
+    PrincipalScope:
+      type: string
+      enum: [ALL, ACTIVE, DISABLED]
+    Principal:
+      type: object
+      additionalProperties: false
+      required: [createdAt, displayName, email, id, roles, status, updatedAt, version]
+      properties:
+        createdAt: { type: string, format: date-time }
+        displayName: { type: string }
+        email: { type: [string, "null"], format: email }
+        id: { type: string, format: uuid }
+        roles:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/PlatformRole" }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    PrincipalList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, summary]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Principal" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        summary:
+          type: object
+          additionalProperties: false
+          required: [active, all, disabled]
+          properties:
+            active: { type: integer, minimum: 0 }
+            all: { type: integer, minimum: 0 }
+            disabled: { type: integer, minimum: 0 }
+    PrincipalTransitionInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reason, status]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
     AppointmentStatus:
       type: string
       enum: [PENDING_PAYMENT, CONFIRMED, PAYMENT_FAILED, EXPIRED, CANCELLED, COMPLETED]

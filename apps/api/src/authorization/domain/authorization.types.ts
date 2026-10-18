@@ -17,6 +17,7 @@ export const AUTHORIZATION_POLICY = {
   MANAGE_OWN_PROFILE: "MANAGE_OWN_PROFILE",
   MANAGE_ORGANIZATION_TEAM: "MANAGE_ORGANIZATION_TEAM",
   ADMINISTER_ROLE_ASSIGNMENT: "ADMINISTER_ROLE_ASSIGNMENT",
+  ADMINISTER_IDENTITY_PRINCIPALS: "ADMINISTER_IDENTITY_PRINCIPALS",
   DECIDE_APPLICATION: "DECIDE_APPLICATION",
   CORRECT_REFERRAL_ATTRIBUTION: "CORRECT_REFERRAL_ATTRIBUTION",
   ESCALATE_TICKET: "ESCALATE_TICKET",
@@ -77,7 +78,7 @@ export const AUTHORIZATION_POLICY = {
 } as const;
 
 /** Bump whenever an existing policy's access semantics change. */
-export const AUTHORIZATION_POLICY_VERSION = 33;
+export const AUTHORIZATION_POLICY_VERSION = 34;
 
 export type AuthorizationPolicy = (typeof AUTHORIZATION_POLICY)[keyof typeof AUTHORIZATION_POLICY];
 
@@ -113,6 +114,7 @@ export interface AuthorizationPolicyContexts {
   };
   MANAGE_ORGANIZATION_TEAM: ResourceReference & { organizationId: string };
   ADMINISTER_ROLE_ASSIGNMENT: ResourceReference;
+  ADMINISTER_IDENTITY_PRINCIPALS: ResourceReference;
   DECIDE_APPLICATION: ResourceReference & { applicantPrincipalId: string };
   CORRECT_REFERRAL_ATTRIBUTION: ResourceReference;
   BOOK_APPOINTMENT: ResourceReference & { patientPrincipalId: string };

@@ -13,6 +13,8 @@ import type {
   AdminPractitionerDetail,
   AdminPractitionerListResponse,
   AdminPractitionerScope,
+  AdminPrincipalListResponse,
+  AdminPrincipalScope,
   PractitionerVerificationStatus,
   PlatformRole,
 } from "@royal-palace/contracts";
@@ -63,6 +65,33 @@ export interface ListAdminPractitionersQuery {
   scope: AdminPractitionerScope;
 }
 
+export interface ListAdminPrincipalsQuery {
+  cursor?: AdministrationCursor;
+  limit: number;
+  query?: string;
+  role?: PlatformRole;
+  scope: AdminPrincipalScope;
+}
+
+export type TransitionAdminPrincipalResult =
+  | { outcome: "UPDATED"; principal: AdminPrincipalListResponse["data"][number] }
+  | {
+      outcome:
+        "LAST_ADMINISTRATOR" | "NO_CHANGE" | "NOT_FOUND" | "SELF_DISABLE" | "VERSION_CONFLICT";
+    };
+
+export interface IdentityAdministrationRepository {
+  listPrincipals(query: ListAdminPrincipalsQuery): Promise<AdminPrincipalListResponse>;
+  transitionPrincipal(input: {
+    actorPrincipalId: string;
+    expectedVersion: number;
+    principalId: string;
+    reason: string;
+    requestId: string;
+    status: "ACTIVE" | "DISABLED";
+  }): Promise<TransitionAdminPrincipalResult>;
+}
+
 export interface AdminDashboardQuery {
   credentialExpiringBefore: Date;
   dayFrom: Date;
@@ -107,3 +136,4 @@ export interface AdministrationRepository {
 }
 
 export const ADMINISTRATION_REPOSITORY = Symbol("ADMINISTRATION_REPOSITORY");
+export const IDENTITY_ADMINISTRATION_REPOSITORY = Symbol("IDENTITY_ADMINISTRATION_REPOSITORY");
