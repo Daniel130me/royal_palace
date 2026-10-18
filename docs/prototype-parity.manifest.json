@@ -206,7 +206,17 @@
             "apps/api/src/finance/infrastructure/prisma-organization-finance.repository.ts"
           ]
         },
-        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "IN_PROGRESS",
+          "checkpoint": "11S",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/settings.tsx",
+            "apps/api/src/account-profile/application/account-profile.service.ts",
+            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
+          ]
+        },
         {
           "id": "settlements",
           "file": "pages/settlements.tsx",
@@ -675,7 +685,17 @@
           "status": "CONNECTED",
           "checkpoint": "06"
         },
-        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11S",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/settings.tsx",
+            "apps/api/src/account-profile/application/account-profile.service.ts",
+            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
+          ]
+        },
         {
           "id": "upload-prescription",
           "file": "pages/upload-prescription.tsx",

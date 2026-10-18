@@ -74,6 +74,17 @@ function baselineRequest(
           resourceType: "notification_inbox",
         },
       };
+    case AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE:
+      return {
+        ...base,
+        policy,
+        context: {
+          ownerPrincipalId: targetPrincipalId,
+          profileKind: "PRACTITIONER",
+          resourceId,
+          resourceType: "profile",
+        },
+      };
     case AUTHORIZATION_POLICY.VIEW_ORGANIZATION:
     case AUTHORIZATION_POLICY.MANAGE_ORGANIZATION_TEAM:
       return {
@@ -336,6 +347,7 @@ describe("PolicyEngine", () => {
     EXPIRE_APPOINTMENT_RESERVATIONS: ["SYSTEM_WORKER"],
     EXPIRE_PHARMACY_QUOTES: ["SYSTEM_WORKER"],
     MANAGE_PRACTITIONER_AVAILABILITY: [],
+    MANAGE_OWN_PROFILE: [],
     MANAGE_OWN_PRESCRIPTION: [],
     MANAGE_OWN_LABORATORY_REQUEST: [],
     MANAGE_PHARMACY_PRESCRIPTION: [],
@@ -552,6 +564,22 @@ describe("PolicyEngine", () => {
     expect(
       engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT, manager))
         .allowed,
+    ).toBe(false);
+  });
+
+  it("limits profile management to the exact authenticated owner", () => {
+    const provider = actor(["PROVIDER"], { principalId: targetPrincipalId });
+    const unrelated = actor(["PROVIDER"]);
+
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE, provider)).allowed,
+    ).toBe(true);
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE, unrelated)).allowed,
+    ).toBe(false);
+    const wrongRole = actor(["PATIENT"], { principalId: targetPrincipalId });
+    expect(
+      engine.evaluate(baselineRequest(AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE, wrongRole)).allowed,
     ).toBe(false);
   });
 

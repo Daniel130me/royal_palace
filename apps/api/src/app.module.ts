@@ -3,6 +3,7 @@ import type { ApiServiceConfig } from "@royal-palace/config/environment";
 import { type DependencyReadiness, RuntimeDependencies } from "@royal-palace/config/readiness";
 
 import { AuthorizationModule } from "./authorization/authorization.module.js";
+import { AccountProfileModule } from "./account-profile/account-profile.module.js";
 import { AdministrationModule } from "./administration/administration.module.js";
 import { ClinicalModule } from "./clinical/clinical.module.js";
 import { HealthController } from "./health.controller.js";
@@ -30,6 +31,7 @@ export class AppModule {
       module: AppModule,
       imports: [
         DatabaseModule.register(config),
+        AccountProfileModule,
         AdministrationModule,
         AuthorizationModule,
         ClinicalModule,

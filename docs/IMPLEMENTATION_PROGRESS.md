@@ -466,6 +466,13 @@ that completes an increment.
     organization identity; the screen receives no private application, workforce,
     financial, or clinical data. See
     [`increments/11r-hospital-and-evidence-reconciliation.md`](./increments/11r-hospital-and-evidence-reconciliation.md).
+  - `[~]` 11S separates patient and practitioner account profiles from the clinical
+    encounter aggregate and connects owner-scoped settings to bounded PostgreSQL reads and
+    optimistic writes. Practitioner public settings are connected. The patient screen now
+    connects verified identity fields, language preference, notification consent, privacy
+    navigation, and session controls; the signed health-profile and emergency-contact editing
+    capabilities remain explicitly open pending their governed records and verification rules.
+    See [`increments/11s-account-profile-settings.md`](./increments/11s-account-profile-settings.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

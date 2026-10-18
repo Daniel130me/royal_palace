@@ -1,267 +1,205 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { patientService } from "@/lib/services";
-import type { Patient } from "@/types";
-import { PageHeader, LoadingState, SectionCard } from "@/components/healthcare/page-header";
+import type { NotificationComponents } from "@royal-palace/api-client";
+import type { PatientProfileResponse } from "@royal-palace/contracts";
+import { Bell, Globe, Info, LogOut, Mail, Save, ShieldCheck, User } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  BottomActionBar,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  SectionCard,
+} from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { Save, User, Phone, MapPin, Heart, Activity, AlertCircle, ShieldCheck, Pill } from "lucide-react";
-import { toast } from "sonner";
-import { createdAt } from "../lib/runtime-fields";
-import { usePatientContext } from "../use-patient-context";
-import { initials } from "@/lib/format";
+import { Switch } from "@/components/ui/switch";
+import { navigate, useNav } from "@/lib/nav";
+import { productionAccountProfileService, productionNotificationService } from "@/lib/services";
 
-const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const GENOTYPES = ["AA", "AS", "AC", "SS", "SC", "CC"];
-const NIGERIAN_STATES = ["Lagos", "Abuja FCT", "Rivers", "Kano", "Oyo", "Kaduna", "Enugu", "Delta", "Edo", "Ogun"];
+type Preference = NotificationComponents["schemas"]["NotificationPreference"];
 
 export function PatientSettings() {
-  const { profile, primary, refresh } = usePatientContext();
-  const [form, setForm] = useState<Partial<Patient>>({});
-  const [emergency, setEmergency] = useState({ name: "", phone: "", rel: "" });
-  const [busy, setBusy] = useState(false);
+  const { logout, sessionEmail } = useNav();
+  const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [preferredLanguage, setPreferredLanguage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (profile) {
-      setForm({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        phone: profile.phone,
-        email: profile.email,
-        city: profile.city,
-        state: profile.state,
-        bloodGroup: profile.bloodGroup ?? "",
-        genotype: profile.genotype ?? "",
-        height: profile.height ?? null,
-        weight: profile.weight ?? null,
-      });
-      setEmergency({
-        name: profile.emergencyName ?? "",
-        phone: profile.emergencyPhone ?? "",
-        rel: profile.emergencyRel ?? "",
-      });
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [accountProfile, notificationPreferences] = await Promise.all([
+        productionAccountProfileService.patient.get(),
+        productionNotificationService.preferences(),
+      ]);
+      setProfile(accountProfile);
+      setPreferredLanguage(accountProfile.preferredLanguage ?? "");
+      setPreferences([...notificationPreferences.data]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Settings could not be loaded.");
+    } finally {
+      setLoading(false);
     }
-  }, [profile?.id]);
+  }, []);
+
+  useEffect(() => void load(), [load]);
+
+  const marketing = preferences.find(
+    (item) => item.channel === "EMAIL" && item.category === "MARKETING",
+  );
 
   async function save() {
-    if (!profile) return;
-    setBusy(true);
+    if (profile === null) return;
+    setSaving(true);
     try {
-      await patientService.update(profile.id, {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phone: form.phone,
-        email: form.email,
-        city: form.city,
-        state: form.state,
-        bloodGroup: form.bloodGroup || null,
-        genotype: form.genotype || null,
-        height: form.height ? Number(form.height) : null,
-        weight: form.weight ? Number(form.weight) : null,
-        emergencyName: emergency.name || null,
-        emergencyPhone: emergency.phone || null,
-        emergencyRel: emergency.rel || null,
+      const updated = await productionAccountProfileService.patient.update({
+        expectedVersion: profile.version,
+        preferredLanguage: preferredLanguage.trim() || null,
       });
-      toast.success("Profile updated");
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Update failed");
+      setProfile(updated);
+      setPreferredLanguage(updated.preferredLanguage ?? "");
+      toast.success("Patient preferences updated.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Profile could not be updated.");
+      await load();
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }
 
-  if (!profile) return <LoadingState label="Loading profile…" />;
+  async function updateMarketing(enabled: boolean) {
+    if (marketing === undefined) return;
+    try {
+      const updated = await productionNotificationService.updateEmailMarketing({
+        enabled,
+        expectedVersion: marketing.version,
+      });
+      setPreferences((current) =>
+        current.map((item) =>
+          item.channel === "EMAIL" && item.category === "MARKETING" ? updated : item,
+        ),
+      );
+      toast.success(enabled ? "Marketing email enabled." : "Marketing email disabled.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Preference could not be saved.");
+      await load();
+    }
+  }
+
+  if (loading) return <LoadingState label="Loading patient settings…" />;
+  if (error !== null) return <ErrorState message={error} onRetry={() => void load()} />;
+  if (profile === null) return null;
 
   return (
-    <div className="space-y-6 pb-32 lg:pb-0">
+    <div className="space-y-5 pb-28 lg:pb-0">
       <PageHeader
         title="Settings"
-        description="Manage your profile and emergency contact."
+        description="Manage account preferences, communication consent, and privacy access."
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Personal info */}
-          <SectionCard title="Personal information" icon={User}>
-            <div className="flex items-center gap-3 mb-5">
-              <Avatar className="h-12 w-12 shrink-0">
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                  {initials(`${profile.firstName} ${profile.lastName}`)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-semibold leading-tight">{profile.firstName} {profile.lastName}</p>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">{profile.patientNumber}</p>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="First name">
-                <Input value={form.firstName ?? ""} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
-              </Field>
-              <Field label="Last name">
-                <Input value={form.lastName ?? ""} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
-              </Field>
-              <Field label="Email">
-                <Input type="email" value={form.email ?? ""} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </Field>
-              <Field label="Phone">
-                <Input value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              </Field>
-              <Field label="City">
-                <Input value={form.city ?? ""} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
-              </Field>
-              <Field label="State">
-                <Select value={form.state ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, state: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Select state" /></SelectTrigger>
-                  <SelectContent>
-                    {NIGERIAN_STATES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          </SectionCard>
-
-          {/* Health info */}
-          <SectionCard title="Health information" icon={Heart}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Blood group">
-                <Select value={form.bloodGroup ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, bloodGroup: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Unknown" /></SelectTrigger>
-                  <SelectContent>
-                    {BLOOD_GROUPS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Genotype">
-                <Select value={form.genotype ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, genotype: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Unknown" /></SelectTrigger>
-                  <SelectContent>
-                    {GENOTYPES.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Height (cm)">
-                <Input type="number" value={form.height ?? ""} onChange={(e) => setForm((f) => ({ ...f, height: e.target.value ? Number(e.target.value) : null }))} />
-              </Field>
-              <Field label="Weight (kg)">
-                <Input type="number" value={form.weight ?? ""} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value ? Number(e.target.value) : null }))} />
-              </Field>
-            </div>
-          </SectionCard>
-
-          {/* Emergency contact */}
-          <SectionCard title="Emergency contact" icon={Phone}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Name">
-                <Input value={emergency.name} onChange={(e) => setEmergency((s) => ({ ...s, name: e.target.value }))} />
-              </Field>
-              <Field label="Phone">
-                <Input value={emergency.phone} onChange={(e) => setEmergency((s) => ({ ...s, phone: e.target.value }))} />
-              </Field>
-              <Field label="Relationship">
-                <Input value={emergency.rel} onChange={(e) => setEmergency((s) => ({ ...s, rel: e.target.value }))} placeholder="e.g. Spouse" />
-              </Field>
-            </div>
-          </SectionCard>
-
-          {/* Self-reported health */}
-          <SectionCard title="Self-reported health" icon={Activity}>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              Update your conditions, allergies, and medicines from the dashboard. Items you add here are marked as patient-reported and can be confirmed by your provider during a consultation.
+      <SectionCard title="Verified patient profile" icon={User}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ReadOnlyField label="First name" value={profile.givenName} />
+          <ReadOnlyField label="Last name" value={profile.familyName} />
+          <ReadOnlyField label="Date of birth" value={profile.dateOfBirth ?? "Not provided"} />
+          <ReadOnlyField label="Phone" value={profile.phoneE164 ?? "Not provided"} />
+          <ReadOnlyField label="Country" value={profile.countryCode ?? "Not provided"} />
+          <div>
+            <Label htmlFor="preferred-language">Preferred language</Label>
+            <Input
+              id="preferred-language"
+              className="mt-1.5"
+              maxLength={35}
+              placeholder="en, fr, en-GB"
+              value={preferredLanguage}
+              onChange={(event) => setPreferredLanguage(event.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Use a BCP 47 language tag. The server validates and standardizes it.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {(profile.conditions ?? []).map((c, i) => (
-                <Badge key={i} variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 h-6 px-2">
-                  <AlertCircle className="h-3 w-3" /> {c.name}
-                </Badge>
-              ))}
-              {(profile.allergies ?? []).map((c, i) => (
-                <Badge key={`a${i}`} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 gap-1 h-6 px-2">
-                  <AlertCircle className="h-3 w-3" /> {c.name}
-                </Badge>
-              ))}
-              {(profile.medications ?? []).map((c, i) => (
-                <Badge key={`m${i}`} variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 gap-1 h-6 px-2">
-                  <Pill className="h-3 w-3" /> {c.name}
-                </Badge>
-              ))}
-              {profile.conditions.length === 0 && profile.allergies.length === 0 && profile.medications.length === 0 && (
-                <p className="text-xs text-muted-foreground">None recorded yet.</p>
-              )}
-            </div>
-          </SectionCard>
+          </div>
         </div>
-
-        {/* Right column */}
-        <div className="space-y-6">
-          <SectionCard title="Patient profile" icon={User}>
-            <dl className="text-sm space-y-2.5">
-              <div className="flex justify-between items-center gap-3">
-                <dt className="text-muted-foreground">Patient number</dt>
-                <dd className="font-mono text-xs">{profile.patientNumber}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between items-center gap-3">
-                <dt className="text-muted-foreground">Account type</dt>
-                <dd className="font-medium">{primary && profile.id === primary.id ? "Primary account" : "Dependant"}</dd>
-              </div>
-              <div className="flex justify-between items-center gap-3">
-                <dt className="text-muted-foreground">Date of birth</dt>
-                <dd className="font-medium">{profile.dateOfBirth}</dd>
-              </div>
-              <div className="flex justify-between items-center gap-3">
-                <dt className="text-muted-foreground">Gender</dt>
-                <dd className="font-medium">{profile.gender}</dd>
-              </div>
-              <Separator />
-              <div className="flex justify-between items-center gap-3">
-                <dt className="text-muted-foreground">Member since</dt>
-                <dd className="font-medium">{(() => { const c = createdAt(profile); return c ? new Date(c).toLocaleDateString("en-GB") : "—"; })()}</dd>
-              </div>
-            </dl>
-          </SectionCard>
-
-          <SectionCard title="Privacy & access" icon={ShieldCheck}>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              Manage who can see your records.
-            </p>
-            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("patient", "consent")}>
-              Open Record Access Centre
-            </Button>
-          </SectionCard>
-
-          {/* Desktop save action */}
-          <Button className="hidden lg:flex w-full" disabled={busy} onClick={save}>
-            <Save className="h-4 w-4" /> {busy ? "Saving…" : "Save changes"}
+        <div className="mt-4 flex justify-end">
+          <Button disabled={saving} onClick={() => void save()}>
+            <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save preference"}
           </Button>
         </div>
-      </div>
+      </SectionCard>
 
-      {/* Mobile sticky bottom bar — Save */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-md border-t border-border/60 safe-pb px-4 py-3">
-        <Button className="w-full" disabled={busy} onClick={save}>
-          <Save className="h-4 w-4" /> {busy ? "Saving…" : "Save changes"}
+      <SectionCard title="Required notifications" icon={ShieldCheck}>
+        <LockedPreference title="Security alerts" />
+        <LockedPreference title="Transactional and care-workflow references" />
+        <p className="mt-3 flex gap-2 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 shrink-0" /> External messages contain safe references only;
+          no clinical detail is included.
+        </p>
+      </SectionCard>
+
+      <SectionCard title="Optional communication" icon={Mail}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Marketing email</p>
+            <p className="text-xs text-muted-foreground">
+              Product news and optional announcements.
+            </p>
+          </div>
+          <Switch
+            checked={marketing?.enabled ?? false}
+            disabled={marketing === undefined}
+            onCheckedChange={(enabled) => void updateMarketing(enabled)}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Privacy and account security" icon={Globe}>
+        <ReadOnlyField label="Verified email" value={sessionEmail} />
+        <p className="mt-3 text-sm text-muted-foreground">
+          Identity changes, passwords, passkeys, MFA, and recovery are handled through the qualified
+          identity service and may require re-verification.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate("patient", "consent")}>
+            <ShieldCheck className="h-4 w-4" /> Open Record Access Centre
+          </Button>
+          <Button variant="outline" onClick={logout}>
+            <LogOut className="h-4 w-4" /> Sign out
+          </Button>
+        </div>
+      </SectionCard>
+
+      <BottomActionBar>
+        <Button className="w-full" disabled={saving} onClick={() => void save()}>
+          <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save preference"}
         </Button>
-      </div>
+      </BottomActionBar>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {children}
+    <div>
+      <Label className="text-xs uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <Input className="mt-1.5" value={value} disabled />
+    </div>
+  );
+}
+
+function LockedPreference({ title }: { title: string }) {
+  return (
+    <div className="mb-2 flex items-center justify-between gap-4 rounded-xl border p-3 last:mb-0">
+      <div className="flex items-center gap-2">
+        <Bell className="h-4 w-4 text-primary" />
+        <p className="text-sm font-semibold">{title}</p>
+      </div>
+      <Switch checked disabled aria-label={`${title} enabled`} />
     </div>
   );
 }

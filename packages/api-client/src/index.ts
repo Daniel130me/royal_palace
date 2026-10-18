@@ -8,6 +8,7 @@ import type { paths as NotificationPaths } from "./generated/notifications.js";
 import type { paths as PrescriptionPaths } from "./generated/prescriptions.js";
 import type { paths as LaboratoryPaths } from "./generated/laboratory.js";
 import type { paths as ClinicalEncounterPaths } from "./generated/clinical-encounters.js";
+import type { paths as AccountProfilePaths } from "./generated/account-profile.js";
 import type { paths as OrganizationFinancePaths } from "./generated/organization-finance.js";
 import type { paths as OrganizationTeamPaths } from "./generated/organization-team.js";
 import type { paths as LogisticsPaths } from "./generated/logistics.js";
@@ -42,6 +43,10 @@ export type {
   components as ClinicalEncounterComponents,
   paths as ClinicalEncounterPaths,
 } from "./generated/clinical-encounters.js";
+export type {
+  components as AccountProfileComponents,
+  paths as AccountProfilePaths,
+} from "./generated/account-profile.js";
 export type {
   components as OrganizationFinanceComponents,
   paths as OrganizationFinancePaths,
@@ -141,6 +146,17 @@ export function createClinicalEncounterClient(options: {
   fetch?: typeof globalThis.fetch;
 }) {
   return createClient<ClinicalEncounterPaths>({
+    baseUrl: options.baseUrl,
+    credentials: "same-origin",
+    fetch: options.fetch,
+  });
+}
+
+export function createAccountProfileClient(options: {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}) {
+  return createClient<AccountProfilePaths>({
     baseUrl: options.baseUrl,
     credentials: "same-origin",
     fetch: options.fetch,

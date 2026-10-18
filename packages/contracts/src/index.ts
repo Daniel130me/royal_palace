@@ -1815,6 +1815,42 @@ export interface ProviderReferralListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export interface PractitionerSettingsResponse {
+  acceptingPatients: boolean;
+  biography: string | null;
+  displayName: string;
+  headline: string | null;
+  id: string;
+  languageTags: readonly string[];
+  primarySpecialty: string | null;
+  verificationStatus: PractitionerVerificationStatus;
+  version: number;
+}
+
+export interface UpdatePractitionerSettingsInput {
+  acceptingPatients: boolean;
+  biography: string | null;
+  expectedVersion: number;
+  headline: string | null;
+  languageTags: readonly string[];
+}
+
+export interface PatientProfileResponse {
+  countryCode: string | null;
+  dateOfBirth: string | null;
+  familyName: string;
+  givenName: string;
+  id: string;
+  phoneE164: string | null;
+  preferredLanguage: string | null;
+  version: number;
+}
+
+export interface UpdatePatientProfileInput {
+  expectedVersion: number;
+  preferredLanguage: string | null;
+}
+
 export interface ClinicalCarePlanResponse {
   activities: readonly string[];
   endsAt: string | null;

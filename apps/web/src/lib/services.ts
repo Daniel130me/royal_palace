@@ -4,6 +4,7 @@
 
 import {
   createManagerClient,
+  createAccountProfileClient,
   createAdministrationClient,
   createClinicalEncounterClient,
   createLaboratoryClient,
@@ -54,7 +55,11 @@ import type {
   AdminDeliveryScope,
   AdminPractitionerDetail,
   AdminPractitionerScope,
+  PractitionerSettingsResponse,
+  PatientProfileResponse,
   PractitionerVerificationStatus,
+  UpdatePractitionerSettingsInput,
+  UpdatePatientProfileInput,
   PlatformRole,
 } from "@royal-palace/contracts";
 import {
@@ -165,6 +170,9 @@ const generatedManagerClient = createManagerClient({ fetch: authenticatedGenerat
 const generatedLaboratoryClient = createLaboratoryClient({ fetch: versionedBffFetch });
 const generatedClinicalEncounterClient = createClinicalEncounterClient({
   fetch: versionedBffFetch,
+});
+const generatedAccountProfileClient = createAccountProfileClient({
+  fetch: authenticatedGeneratedFetch,
 });
 const generatedLogisticsClient = createLogisticsClient({ fetch: versionedBffFetch });
 const generatedSchedulingPaymentClient = createSchedulingPaymentClient({
@@ -2024,6 +2032,35 @@ export const productionClinicalService = {
           params: { path: { appointmentId } },
         })
         .then(unwrapGeneratedResponse),
+  },
+};
+
+export const productionAccountProfileService = {
+  patient: {
+    get: () =>
+      generatedAccountProfileClient
+        .GET("/api/account/patient-profile")
+        .then(unwrapGeneratedResponse) as Promise<PatientProfileResponse>,
+    update: (body: UpdatePatientProfileInput) =>
+      generatedAccountProfileClient
+        .PATCH("/api/account/patient-profile", {
+          body,
+          params: { header: csrfHeader() },
+        })
+        .then(unwrapGeneratedResponse) as Promise<PatientProfileResponse>,
+  },
+  practitioner: {
+    get: () =>
+      generatedAccountProfileClient
+        .GET("/api/account/practitioner-profile")
+        .then(unwrapGeneratedResponse) as Promise<PractitionerSettingsResponse>,
+    update: (body: UpdatePractitionerSettingsInput) =>
+      generatedAccountProfileClient
+        .PATCH("/api/account/practitioner-profile", {
+          body: { ...body, languageTags: [...body.languageTags] },
+          params: { header: csrfHeader() },
+        })
+        .then(unwrapGeneratedResponse) as Promise<PractitionerSettingsResponse>,
   },
 };
 

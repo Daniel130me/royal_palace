@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: Royal Palace Account Profile API
+  version: 1.0.0
+  description: Owner-scoped patient and practitioner account profile settings.
+paths:
+  /api/account/patient-profile:
+    get:
+      operationId: getPatientProfile
+      responses:
+        "200":
+          description: Authenticated patient's profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PatientProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePatientProfile
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePatientProfile" }
+      responses:
+        "200":
+          description: Updated patient profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PatientProfile" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/account/practitioner-profile:
+    get:
+      operationId: getPractitionerProfile
+      responses:
+        "200":
+          description: Authenticated practitioner's profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updatePractitionerProfile
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePractitionerProfile" }
+      responses:
+        "200":
+          description: Updated practitioner profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerProfile" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+components:
+  parameters:
+    CsrfToken:
+      in: header
+      name: x-rp-csrf-token
+      required: true
+      schema: { type: string, minLength: 1 }
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [error, message]
+            properties:
+              error: { type: string }
+              message: { type: string }
+  schemas:
+    PatientProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [countryCode, dateOfBirth, familyName, givenName, id, phoneE164, preferredLanguage, version]
+      properties:
+        countryCode: { type: [string, "null"] }
+        dateOfBirth: { type: [string, "null"], format: date }
+        familyName: { type: string }
+        givenName: { type: string }
+        id: { type: string, format: uuid }
+        phoneE164: { type: [string, "null"] }
+        preferredLanguage: { type: [string, "null"], maxLength: 35 }
+        version: { type: integer, minimum: 1 }
+    UpdatePatientProfile:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, preferredLanguage]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        preferredLanguage: { type: [string, "null"], maxLength: 35 }
+    PractitionerProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          acceptingPatients,
+          biography,
+          displayName,
+          headline,
+          id,
+          languageTags,
+          primarySpecialty,
+          verificationStatus,
+          version,
+        ]
+      properties:
+        acceptingPatients: { type: boolean }
+        biography: { type: [string, "null"], maxLength: 3000 }
+        displayName: { type: string }
+        headline: { type: [string, "null"], maxLength: 240 }
+        id: { type: string, format: uuid }
+        languageTags:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 2, maxLength: 35 }
+        primarySpecialty: { type: [string, "null"] }
+        verificationStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
+        version: { type: integer, minimum: 1 }
+    UpdatePractitionerProfile:
+      type: object
+      additionalProperties: false
+      required: [acceptingPatients, biography, expectedVersion, headline, languageTags]
+      properties:
+        acceptingPatients: { type: boolean }
+        biography: { type: [string, "null"], maxLength: 3000 }
+        expectedVersion: { type: integer, minimum: 1 }
+        headline: { type: [string, "null"], maxLength: 240 }
+        languageTags:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, minLength: 2, maxLength: 35 }

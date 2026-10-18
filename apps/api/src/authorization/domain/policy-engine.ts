@@ -42,6 +42,22 @@ export class PolicyEngine {
           request.actor.principalId === request.context.practitionerPrincipalId
           ? this.allow(request.policy, "PROVIDER", ALLOW.OWNER)
           : this.deny(request.policy, "practitioner_ownership_required");
+      case AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE:
+        if (request.actor.principalId !== request.context.ownerPrincipalId) {
+          return this.deny(request.policy, "profile_ownership_required");
+        }
+        if (
+          (request.context.profileKind === "PATIENT" && !request.actor.roles.includes("PATIENT")) ||
+          (request.context.profileKind === "PRACTITIONER" &&
+            !request.actor.roles.includes("PROVIDER"))
+        ) {
+          return this.deny(request.policy, "profile_role_required");
+        }
+        return this.allow(
+          request.policy,
+          request.context.profileKind === "PATIENT" ? "PATIENT" : "PROVIDER",
+          ALLOW.OWNER,
+        );
       case AUTHORIZATION_POLICY.MANAGE_OWN_PRESCRIPTION:
         return request.actor.roles.includes("PROVIDER") &&
           request.actor.principalId === request.context.practitionerPrincipalId

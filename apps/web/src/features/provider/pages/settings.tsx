@@ -1,267 +1,249 @@
 "use client";
 
-import { useState } from "react";
-import { useNav } from "@/lib/nav";
-import { useProviderContext } from "../use-provider-context";
+import type { NotificationComponents } from "@royal-palace/api-client";
+import type { PractitionerSettingsResponse } from "@royal-palace/contracts";
+import { Bell, Globe, Info, LogOut, Mail, Save, ShieldCheck, User } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  BottomActionBar,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  SectionCard,
+} from "@/components/healthcare/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PageHeader, SectionCard, BottomActionBar } from "@/components/healthcare/page-header";
-import { toast } from "sonner";
-import { User, Bell, Shield, Globe, Save, LogOut, BadgeCheck } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useNav } from "@/lib/nav";
+import { productionAccountProfileService, productionNotificationService } from "@/lib/services";
+
+type Preference = NotificationComponents["schemas"]["NotificationPreference"];
 
 export function ProviderSettings() {
-  const { sessionName, sessionEmail, logout } = useNav();
-  const { profile } = useProviderContext();
-  const [name, setName] = useState(
-    profile ? `${profile.firstName} ${profile.lastName}` : sessionName,
-  );
-  const [phone, setPhone] = useState(profile ? profile.userId : "");
-  const [email, setEmail] = useState(sessionEmail);
-  const [bio, setBio] = useState(profile?.biography ?? "");
-  const [emailAlerts, setEmailAlerts] = useState(true);
-  const [smsAlerts, setSmsAlerts] = useState(false);
-  const [appointmentReminders, setAppointmentReminders] = useState(true);
+  const { logout, sessionEmail } = useNav();
+  const [settings, setSettings] = useState<PractitionerSettingsResponse | null>(null);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [headline, setHeadline] = useState("");
+  const [biography, setBiography] = useState("");
+  const [languages, setLanguages] = useState("");
+  const [acceptingPatients, setAcceptingPatients] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function save() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [profile, notificationPreferences] = await Promise.all([
+        productionAccountProfileService.practitioner.get(),
+        productionNotificationService.preferences(),
+      ]);
+      setSettings(profile);
+      setHeadline(profile.headline ?? "");
+      setBiography(profile.biography ?? "");
+      setLanguages(profile.languageTags.join(", "));
+      setAcceptingPatients(profile.acceptingPatients);
+      setPreferences([...notificationPreferences.data]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Settings could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => void load(), [load]);
+
+  const languageTags = useMemo(
+    () => [
+      ...new Set(
+        languages
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ],
+    [languages],
+  );
+  const marketing = preferences.find(
+    (item) => item.channel === "EMAIL" && item.category === "MARKETING",
+  );
+
+  async function save() {
+    if (settings === null) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const updated = await productionAccountProfileService.practitioner.update({
+        acceptingPatients,
+        biography: biography.trim() || null,
+        expectedVersion: settings.version,
+        headline: headline.trim() || null,
+        languageTags,
+      });
+      setSettings(updated);
+      setLanguages(updated.languageTags.join(", "));
+      toast.success("Practitioner profile updated.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Profile could not be updated.");
+      await load();
+    } finally {
       setSaving(false);
-      toast.success("Settings saved.", { description: "Your preferences have been updated." });
-    }, 600);
+    }
   }
 
+  async function updateMarketing(enabled: boolean) {
+    if (marketing === undefined) return;
+    try {
+      const updated = await productionNotificationService.updateEmailMarketing({
+        enabled,
+        expectedVersion: marketing.version,
+      });
+      setPreferences((current) =>
+        current.map((item) =>
+          item.channel === "EMAIL" && item.category === "MARKETING" ? updated : item,
+        ),
+      );
+      toast.success(enabled ? "Marketing email enabled." : "Marketing email disabled.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Preference could not be saved.");
+      await load();
+    }
+  }
+
+  if (loading) return <LoadingState label="Loading practitioner settings…" />;
+  if (error !== null) return <ErrorState message={error} onRetry={() => void load()} />;
+  if (settings === null) return null;
+
   return (
-    <div className="pb-28 lg:pb-0">
+    <div className="space-y-5 pb-28 lg:pb-0">
       <PageHeader
         title="Settings"
-        description="Manage your account, notifications and preferences."
+        description="Manage your public profile, communication consent, and account session."
       />
 
-      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Account */}
-          <SectionCard title="Account" icon={User}>
-            <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                    Display name
-                  </Label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                    Email
-                  </Label>
-                  <Input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled
-                    className="mt-1.5"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Email changes require verification.
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                    Phone
-                  </Label>
-                  <Input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+234 …"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                    Specialty
-                  </Label>
-                  <Input value={profile?.specialty ?? ""} disabled className="mt-1.5" />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Set by verification team.
-                  </p>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Biography (shown on your public profile)
-                </Label>
-                <Textarea
-                  rows={4}
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Notification preferences */}
-          <SectionCard
-            title="Notifications"
-            icon={Bell}
-            description="Choose how you want to be alerted"
-          >
-            <div className="space-y-2.5">
-              <PrefRow
-                label="Email alerts"
-                description="Receive notifications by email."
-                checked={emailAlerts}
-                onChange={setEmailAlerts}
-              />
-              <PrefRow
-                label="SMS alerts"
-                description="Receive appointment reminders by SMS."
-                checked={smsAlerts}
-                onChange={setSmsAlerts}
-              />
-              <PrefRow
-                label="Appointment reminders"
-                description="15-min warning before each consultation."
-                checked={appointmentReminders}
-                onChange={setAppointmentReminders}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Security" icon={Shield}>
-            <div className="rounded-lg border bg-muted/30 p-4">
-              <p className="text-sm font-medium">Identity-provider managed security</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Passwords, passkeys, multi-factor authentication, and account recovery are managed
-                by the configured identity provider. This application does not store or reset
-                sign-in credentials.
+      <SectionCard title="Public practitioner profile" icon={User}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ReadOnlyField label="Verified display name" value={settings.displayName} />
+          <ReadOnlyField label="Primary specialty" value={settings.primarySpecialty ?? "Not set"} />
+          <div className="sm:col-span-2">
+            <Label htmlFor="provider-headline">Headline</Label>
+            <Input
+              id="provider-headline"
+              className="mt-1.5"
+              maxLength={240}
+              value={headline}
+              onChange={(event) => setHeadline(event.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="provider-biography">Biography</Label>
+            <Textarea
+              id="provider-biography"
+              className="mt-1.5"
+              maxLength={3000}
+              rows={5}
+              value={biography}
+              onChange={(event) => setBiography(event.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="provider-languages">Languages</Label>
+            <Input
+              id="provider-languages"
+              className="mt-1.5"
+              placeholder="en, fr, yo"
+              value={languages}
+              onChange={(event) => setLanguages(event.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter BCP 47 language tags separated by commas. They are validated by the server.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-xl border p-3 sm:col-span-2">
+            <div>
+              <p className="text-sm font-semibold">Accepting new patients</p>
+              <p className="text-xs text-muted-foreground">
+                Controls availability messaging on your verified public profile.
               </p>
             </div>
-          </SectionCard>
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-5">
-          <div className="lg:sticky lg:top-20 space-y-5">
-            {/* Profile mini card */}
-            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-soft">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                    {profile?.firstName?.[0] ?? "D"}
-                    {profile?.lastName?.[0] ?? ""}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">
-                    {profile
-                      ? `${profile.title} ${profile.firstName} ${profile.lastName}`
-                      : sessionName}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">{profile?.specialty}</p>
-                </div>
-              </div>
-              <Button className="w-full mt-3" disabled={saving} onClick={save}>
-                <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save changes"}
-              </Button>
-              <Separator className="my-3" />
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Provider No.</span>
-                  <span className="font-medium">{profile?.providerNumber}</span>
-                </div>
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-muted-foreground">Verification</span>
-                  {profile?.verificationStatus === "approved" ? (
-                    <Badge
-                      variant="outline"
-                      className="border-emerald-200 bg-emerald-50 text-emerald-700 capitalize h-5 text-[10px]"
-                    >
-                      <BadgeCheck className="h-3 w-3 mr-1" />{" "}
-                      {profile?.verificationStatus.replace(/_/g, " ")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="capitalize h-5 text-[10px]">
-                      {profile?.verificationStatus.replace(/_/g, " ")}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Languages</span>
-                  <span className="font-medium truncate text-right">
-                    {profile?.languages.join(", ") ?? "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground leading-relaxed">
-              <p className="font-medium text-foreground mb-1.5 flex items-center gap-1.5">
-                <Globe className="h-3 w-3" /> Account information
-              </p>
-              <p>
-                Your account is linked to user{" "}
-                <span className="font-mono text-foreground">{profile?.userId ?? "—"}</span>. Account
-                deletion requests must be submitted in writing.
-              </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 mt-2 text-rose-600 hover:text-rose-700"
-                onClick={() => toast.error("Account deletion requires admin approval.")}
-              >
-                Request account deletion
-              </Button>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-              onClick={logout}
-            >
-              <LogOut className="h-4 w-4 mr-2" /> Sign out
-            </Button>
+            <Switch checked={acceptingPatients} onCheckedChange={setAcceptingPatients} />
           </div>
         </div>
-      </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <Badge variant="outline">Verification: {settings.verificationStatus.toLowerCase()}</Badge>
+          <Button disabled={saving} onClick={() => void save()}>
+            <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save profile"}
+          </Button>
+        </div>
+      </SectionCard>
 
-      {/* Mobile sticky save bar */}
+      <SectionCard title="Required notifications" icon={ShieldCheck}>
+        <LockedPreference title="Security alerts" />
+        <LockedPreference title="Transactional and clinical workflow references" />
+        <p className="mt-3 flex gap-2 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 shrink-0" /> External messages contain safe references only;
+          no clinical detail is included.
+        </p>
+      </SectionCard>
+
+      <SectionCard title="Optional communication" icon={Mail}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Marketing email</p>
+            <p className="text-xs text-muted-foreground">
+              Product news and optional announcements.
+            </p>
+          </div>
+          <Switch
+            checked={marketing?.enabled ?? false}
+            disabled={marketing === undefined}
+            onCheckedChange={(enabled) => void updateMarketing(enabled)}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Account and security" icon={Globe}>
+        <ReadOnlyField label="Verified email" value={sessionEmail} />
+        <p className="mt-3 text-sm text-muted-foreground">
+          Passwords, passkeys, MFA, recovery, and verified email changes are managed by the
+          qualified identity provider. Royal Palace does not store passwords.
+        </p>
+        <Button className="mt-4" variant="outline" onClick={logout}>
+          <LogOut className="h-4 w-4" /> Sign out
+        </Button>
+      </SectionCard>
+
       <BottomActionBar>
-        <Button className="w-full" disabled={saving} onClick={save}>
-          <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save changes"}
+        <Button className="w-full" disabled={saving} onClick={() => void save()}>
+          <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save profile"}
         </Button>
       </BottomActionBar>
     </div>
   );
 }
 
-function PrefRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-3.5">
-      <div className="min-w-0 pr-3">
-        <Label className="text-sm font-medium">{label}</Label>
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
+    <div>
+      <Label className="text-xs uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <Input className="mt-1.5" value={value} disabled />
+    </div>
+  );
+}
+
+function LockedPreference({ title }: { title: string }) {
+  return (
+    <div className="mb-2 flex items-center justify-between gap-4 rounded-xl border p-3 last:mb-0">
+      <div className="flex items-center gap-2">
+        <Bell className="h-4 w-4 text-primary" />
+        <p className="text-sm font-semibold">{title}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked disabled aria-label={`${title} enabled`} />
     </div>
   );
 }
