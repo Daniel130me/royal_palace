@@ -84,10 +84,24 @@ components:
       type: object
       additionalProperties: false
       required:
-        [countryCode, dateOfBirth, familyName, givenName, id, phoneE164, preferredLanguage, version]
+        [
+          countryCode,
+          dateOfBirth,
+          emergencyContact,
+          familyName,
+          givenName,
+          id,
+          phoneE164,
+          preferredLanguage,
+          version,
+        ]
       properties:
         countryCode: { type: [string, "null"] }
         dateOfBirth: { type: [string, "null"], format: date }
+        emergencyContact:
+          oneOf:
+            - { $ref: "#/components/schemas/PatientEmergencyContact" }
+            - { type: "null" }
         familyName: { type: string }
         givenName: { type: string }
         id: { type: string, format: uuid }
@@ -97,10 +111,32 @@ components:
     UpdatePatientProfile:
       type: object
       additionalProperties: false
-      required: [expectedVersion, preferredLanguage]
+      required: [emergencyContact, expectedVersion, preferredLanguage]
       properties:
+        emergencyContact:
+          oneOf:
+            - { $ref: "#/components/schemas/PatientEmergencyContactInput" }
+            - { type: "null" }
         expectedVersion: { type: integer, minimum: 1 }
         preferredLanguage: { type: [string, "null"], maxLength: 35 }
+    PatientEmergencyContact:
+      type: object
+      additionalProperties: false
+      required: [displayName, id, phoneE164, relationship, version]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        id: { type: string, format: uuid }
+        phoneE164: { type: string, pattern: "^\\+[1-9][0-9]{1,14}$" }
+        relationship: { type: string, minLength: 1, maxLength: 100 }
+        version: { type: integer, minimum: 1 }
+    PatientEmergencyContactInput:
+      type: object
+      additionalProperties: false
+      required: [displayName, phoneE164, relationship]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        phoneE164: { type: string, pattern: "^\\+[1-9][0-9]{1,14}$" }
+        relationship: { type: string, minLength: 1, maxLength: 100 }
     PractitionerProfile:
       type: object
       additionalProperties: false

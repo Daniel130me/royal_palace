@@ -44,6 +44,7 @@ export interface components {
             countryCode: string | null;
             /** Format: date */
             dateOfBirth: string | null;
+            emergencyContact: components["schemas"]["PatientEmergencyContact"] | null;
             familyName: string;
             givenName: string;
             /** Format: uuid */
@@ -53,8 +54,22 @@ export interface components {
             version: number;
         };
         UpdatePatientProfile: {
+            emergencyContact: components["schemas"]["PatientEmergencyContactInput"] | null;
             expectedVersion: number;
             preferredLanguage: string | null;
+        };
+        PatientEmergencyContact: {
+            displayName: string;
+            /** Format: uuid */
+            id: string;
+            phoneE164: string;
+            relationship: string;
+            version: number;
+        };
+        PatientEmergencyContactInput: {
+            displayName: string;
+            phoneE164: string;
+            relationship: string;
         };
         PractitionerProfile: {
             acceptingPatients: boolean;

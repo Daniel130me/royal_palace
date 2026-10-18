@@ -31,6 +31,7 @@ function actor(role: "PATIENT" | "PROVIDER"): CurrentSession {
 const patient: PatientProfileResponse = {
   countryCode: "CA",
   dateOfBirth: "1990-01-01",
+  emergencyContact: null,
   familyName: "Patient",
   givenName: "Synthetic",
   id: createOpaqueId(),
@@ -92,16 +93,48 @@ describe("AccountProfileService", () => {
     const context = { actor: patientActor, requestId: "request-patient-update" };
     vi.mocked(repository.updatePatient).mockResolvedValue({ outcome: "NOT_FOUND" });
     await expect(
-      service.updatePatient(context, { expectedVersion: 1, preferredLanguage: "fr" }),
+      service.updatePatient(context, {
+        emergencyContact: null,
+        expectedVersion: 1,
+        preferredLanguage: "fr",
+      }),
     ).rejects.toBeInstanceOf(AccountProfileNotFoundError);
 
     vi.mocked(repository.updatePatient).mockResolvedValue({ outcome: "VERSION_CONFLICT" });
     await expect(
-      service.updatePatient(context, { expectedVersion: 1, preferredLanguage: "fr" }),
+      service.updatePatient(context, {
+        emergencyContact: null,
+        expectedVersion: 1,
+        preferredLanguage: "fr",
+      }),
     ).rejects.toBeInstanceOf(AccountProfileConflictError);
   });
 
   it("never accepts a caller-supplied owner identity", async () => {
+    const patientActor = actor("PATIENT");
+    vi.mocked(repository.updatePatient).mockResolvedValue({
+      outcome: "UPDATED",
+      profile: patient,
+    });
+    await service.updatePatient(
+      { actor: patientActor, requestId: "request-patient-owner" },
+      {
+        emergencyContact: {
+          displayName: "Emergency Contact",
+          phoneE164: "+14165550101",
+          relationship: "Friend",
+        },
+        expectedVersion: 1,
+        preferredLanguage: "en-CA",
+      },
+    );
+    expect(repository.updatePatient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principalId: patientActor.principalId,
+        requestId: "request-patient-owner",
+      }),
+    );
+
     const providerActor = actor("PROVIDER");
     vi.mocked(repository.updatePractitioner).mockResolvedValue({
       outcome: "UPDATED",

@@ -2,7 +2,7 @@
 
 import type { NotificationComponents } from "@royal-palace/api-client";
 import type { PatientProfileResponse } from "@royal-palace/contracts";
-import { Bell, Globe, Info, LogOut, Mail, Save, ShieldCheck, User } from "lucide-react";
+import { Bell, Globe, Info, LogOut, Mail, Phone, Save, ShieldCheck, User } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,6 +27,11 @@ export function PatientSettings() {
   const [profile, setProfile] = useState<PatientProfileResponse | null>(null);
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [preferredLanguage, setPreferredLanguage] = useState("");
+  const [emergencyContact, setEmergencyContact] = useState({
+    displayName: "",
+    phoneE164: "",
+    relationship: "",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +46,11 @@ export function PatientSettings() {
       ]);
       setProfile(accountProfile);
       setPreferredLanguage(accountProfile.preferredLanguage ?? "");
+      setEmergencyContact({
+        displayName: accountProfile.emergencyContact?.displayName ?? "",
+        phoneE164: accountProfile.emergencyContact?.phoneE164 ?? "",
+        relationship: accountProfile.emergencyContact?.relationship ?? "",
+      });
       setPreferences([...notificationPreferences.data]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Settings could not be loaded.");
@@ -57,14 +67,31 @@ export function PatientSettings() {
 
   async function save() {
     if (profile === null) return;
+    const normalizedContact = {
+      displayName: emergencyContact.displayName.trim(),
+      phoneE164: emergencyContact.phoneE164.trim(),
+      relationship: emergencyContact.relationship.trim(),
+    };
+    const contactValues = Object.values(normalizedContact);
+    const hasContact = contactValues.some((value) => value.length > 0);
+    if (hasContact && contactValues.some((value) => value.length === 0)) {
+      toast.error("Complete all emergency-contact fields or clear all three fields.");
+      return;
+    }
     setSaving(true);
     try {
       const updated = await productionAccountProfileService.patient.update({
+        emergencyContact: hasContact ? normalizedContact : null,
         expectedVersion: profile.version,
         preferredLanguage: preferredLanguage.trim() || null,
       });
       setProfile(updated);
       setPreferredLanguage(updated.preferredLanguage ?? "");
+      setEmergencyContact({
+        displayName: updated.emergencyContact?.displayName ?? "",
+        phoneE164: updated.emergencyContact?.phoneE164 ?? "",
+        relationship: updated.emergencyContact?.relationship ?? "",
+      });
       toast.success("Patient preferences updated.");
     } catch (reason) {
       toast.error(reason instanceof Error ? reason.message : "Profile could not be updated.");
@@ -131,6 +158,66 @@ export function PatientSettings() {
             <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save preference"}
           </Button>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Emergency contact"
+        icon={Phone}
+        description="Used only for an emergency or an approved care workflow."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="emergency-name">Name</Label>
+            <Input
+              id="emergency-name"
+              className="mt-1.5"
+              maxLength={160}
+              value={emergencyContact.displayName}
+              onChange={(event) =>
+                setEmergencyContact((current) => ({
+                  ...current,
+                  displayName: event.target.value,
+                }))
+              }
+            />
+          </div>
+          <div>
+            <Label htmlFor="emergency-phone">International phone number</Label>
+            <Input
+              id="emergency-phone"
+              className="mt-1.5"
+              maxLength={16}
+              placeholder="+14165550100"
+              value={emergencyContact.phoneE164}
+              onChange={(event) =>
+                setEmergencyContact((current) => ({
+                  ...current,
+                  phoneE164: event.target.value,
+                }))
+              }
+            />
+          </div>
+          <div>
+            <Label htmlFor="emergency-relationship">Relationship</Label>
+            <Input
+              id="emergency-relationship"
+              className="mt-1.5"
+              maxLength={100}
+              placeholder="Parent, spouse, friend"
+              value={emergencyContact.relationship}
+              onChange={(event) =>
+                setEmergencyContact((current) => ({
+                  ...current,
+                  relationship: event.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Enter a full international number beginning with +. Clearing all fields removes the
+          contact.
+        </p>
       </SectionCard>
 
       <SectionCard title="Required notifications" icon={ShieldCheck}>

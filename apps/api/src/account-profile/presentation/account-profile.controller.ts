@@ -24,6 +24,17 @@ import {
 const nullableText = (maximum: number) => z.string().trim().min(1).max(maximum).nullable();
 const patientUpdateSchema = z
   .object({
+    emergencyContact: z
+      .object({
+        displayName: z.string().trim().min(1).max(160),
+        phoneE164: z
+          .string()
+          .trim()
+          .regex(/^\+[1-9]\d{1,14}$/),
+        relationship: z.string().trim().min(1).max(100),
+      })
+      .strict()
+      .nullable(),
     expectedVersion: z.number().int().min(1),
     preferredLanguage: nullableText(35),
   })

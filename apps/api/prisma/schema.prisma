@@ -807,11 +807,26 @@ model Patient {
   clinicalReferrals    ClinicalReferral[]
   clinicalCarePlans    ClinicalCarePlan[]
   clinicalAllergies    ClinicalAllergy[]
+  emergencyContact     PatientEmergencyContact?
 
   @@index([familyName, givenName, id], map: "patients_name_id_idx")
   @@index([givenName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_given_name_trgm_idx")
   @@index([familyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_family_name_trgm_idx")
   @@map("patients")
+}
+
+model PatientEmergencyContact {
+  id           String   @id @db.Uuid
+  patientId    String   @unique @map("patient_id") @db.Uuid
+  displayName  String   @map("display_name") @db.VarChar(160)
+  phoneE164    String   @map("phone_e164") @db.VarChar(16)
+  relationship String   @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version      Int      @default(1)
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@map("patient_emergency_contacts")
 }
 
 model PlatformComplaint {

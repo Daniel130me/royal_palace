@@ -41,9 +41,17 @@ import {
   Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/healthcare/app-shell";
-import { usePatientContext } from "./use-patient-context";
+import { PatientContextProvider, usePatientContext } from "./use-patient-context";
 
 export function PatientPortal() {
+  return (
+    <PatientContextProvider>
+      <PatientPortalContent />
+    </PatientContextProvider>
+  );
+}
+
+function PatientPortalContent() {
   const { view } = useNav();
   const page = view.page;
   const { unread } = usePatientContext();

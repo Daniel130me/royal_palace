@@ -31,6 +31,15 @@ const practitionerSelect = {
 const patientSelect = {
   countryCode: true,
   dateOfBirth: true,
+  emergencyContact: {
+    select: {
+      displayName: true,
+      id: true,
+      phoneE164: true,
+      relationship: true,
+      version: true,
+    },
+  },
   familyName: true,
   givenName: true,
   id: true,
@@ -62,26 +71,70 @@ export class PrismaAccountProfileRepository implements AccountProfileRepository 
   }
 
   async updatePatient(input: {
+    emergencyContact: {
+      displayName: string;
+      phoneE164: string;
+      relationship: string;
+    } | null;
     expectedVersion: number;
     preferredLanguage: string | null;
     principalId: string;
+    requestId: string;
   }): Promise<ProfileUpdateResult<PatientProfileResponse>> {
-    const changed = await this.database.patient.updateMany({
-      data: { preferredLanguage: input.preferredLanguage, version: { increment: 1 } },
-      where: { principalId: input.principalId, version: input.expectedVersion },
-    });
-    if (changed.count !== 1) {
-      const exists = await this.database.patient.findUnique({
+    return this.database.$transaction(async (transaction) => {
+      const current = await transaction.patient.findUnique({
         select: { id: true },
         where: { principalId: input.principalId },
       });
-      return exists === null ? { outcome: "NOT_FOUND" } : { outcome: "VERSION_CONFLICT" };
-    }
-    const patient = await this.database.patient.findUniqueOrThrow({
-      select: patientSelect,
-      where: { principalId: input.principalId },
+      if (current === null) return { outcome: "NOT_FOUND" };
+
+      const changed = await transaction.patient.updateMany({
+        data: { preferredLanguage: input.preferredLanguage, version: { increment: 1 } },
+        where: { id: current.id, version: input.expectedVersion },
+      });
+      if (changed.count !== 1) return { outcome: "VERSION_CONFLICT" };
+
+      if (input.emergencyContact === null) {
+        await transaction.patientEmergencyContact.deleteMany({
+          where: { patientId: current.id },
+        });
+      } else {
+        await transaction.patientEmergencyContact.upsert({
+          create: {
+            ...input.emergencyContact,
+            id: createOpaqueId(),
+            patientId: current.id,
+          },
+          update: {
+            ...input.emergencyContact,
+            version: { increment: 1 },
+          },
+          where: { patientId: current.id },
+        });
+      }
+      await transaction.auditEvent.create({
+        data: {
+          action: "patient.account_profile.updated",
+          actorPrincipalId: input.principalId,
+          effectiveRole: "PATIENT",
+          id: createOpaqueId(),
+          metadata: {
+            emergencyContactPresent: input.emergencyContact !== null,
+            preferredLanguagePresent: input.preferredLanguage !== null,
+          },
+          patientScopeId: current.id,
+          requestId: input.requestId,
+          resourceId: current.id,
+          resourceType: "patient_account_profile",
+          result: "SUCCEEDED",
+        },
+      });
+      const patient = await transaction.patient.findUniqueOrThrow({
+        select: patientSelect,
+        where: { id: current.id },
+      });
+      return { outcome: "UPDATED", profile: mapPatient(patient) };
     });
-    return { outcome: "UPDATED", profile: mapPatient(patient) };
   }
 
   async updatePractitioner(input: {
@@ -135,6 +188,13 @@ export class PrismaAccountProfileRepository implements AccountProfileRepository 
 function mapPatient(patient: {
   countryCode: string | null;
   dateOfBirth: Date | null;
+  emergencyContact: {
+    displayName: string;
+    id: string;
+    phoneE164: string;
+    relationship: string;
+    version: number;
+  } | null;
   familyName: string;
   givenName: string;
   id: string;

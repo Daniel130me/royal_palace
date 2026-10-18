@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
 import { productionNotificationService } from "@/lib/services";
+import {
+  announceNotificationsUpdated,
+  notificationTitle,
+} from "@/features/shared/notification-summary";
 
 type InboxItem = NotificationComponents["schemas"]["NotificationInboxItem"];
 
@@ -58,6 +62,7 @@ export function ProductionNotificationInbox({
           candidate.id === item.id ? { ...candidate, readAt: updated.readAt } : candidate,
         ),
       );
+      announceNotificationsUpdated();
     } catch (reason) {
       toast.error(reason instanceof Error ? reason.message : "Notification could not be updated.");
     }
@@ -67,6 +72,7 @@ export function ProductionNotificationInbox({
     try {
       const response = await productionNotificationService.markAllRead();
       await load();
+      announceNotificationsUpdated();
       toast.success(
         `${response.markedCount} notification${response.markedCount === 1 ? "" : "s"} marked read.`,
       );
@@ -143,11 +149,4 @@ export function ProductionNotificationInbox({
       )}
     </div>
   );
-}
-
-function notificationTitle(templateKey: InboxItem["templateKey"]): string {
-  return templateKey
-    .replaceAll("_", " ")
-    .toLowerCase()
-    .replace(/^./, (letter) => letter.toUpperCase());
 }

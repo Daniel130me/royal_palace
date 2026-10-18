@@ -62,7 +62,7 @@ Approve:
 Appointment-specific intake consent is already implemented; this decision concerns broader record
 sharing.
 
-## 5. Patient health profile and emergency-contact governance
+## 5. Patient clinical health profile and emergency-contact use
 
 Unblocks: the remaining patient settings fields.
 
@@ -70,8 +70,12 @@ Approve:
 
 - which facts are patient-entered versus clinician-confirmed;
 - provenance, correction, conflict, verification, and stale-data rules;
-- who may view and update emergency contacts and when those contacts may be used;
+- when a patient-managed emergency contact may be used for outbound communication and which
+  operational roles may initiate it;
 - terminology/value sets for blood group, genotype, conditions, allergies, and other clinical facts.
+
+The owner-scoped emergency-contact storage and editing flow is implemented. This decision governs
+downstream use, not whether the signed screen remains available.
 
 ## 6. Administrator platform policy settings
 

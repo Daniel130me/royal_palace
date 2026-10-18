@@ -498,6 +498,17 @@ that completes an increment.
     practitioner detail now includes bounded effective-dated consultation-fee history without
     inventing provider earnings or payout rules. See
     [`increments/11w-appointment-intake-and-practitioner-fees.md`](./increments/11w-appointment-intake-and-practitioner-fees.md).
+  - `[~]` 11X connects the signed patient-settings emergency-contact capability to a dedicated,
+    owner-scoped, E.164-validated and versioned record. Updates are transactional and append a
+    privacy-minimized audit event. Clinical health-profile fields remain open for approved
+    terminology, provenance, verification, and access rules. See
+    [`increments/11x-patient-emergency-contact.md`](./increments/11x-patient-emergency-contact.md).
+  - `[x]` 11Y consolidates patient and practitioner portal context and replaces prototype
+    notification reads used by shell badges and patient recent updates with bounded, owner-derived
+    production inbox summaries. Read actions synchronize badges without polling, subject changes
+    clear stale state, and external summaries remain clinical-detail-free. Family/dependant and
+    practitioner profile aggregates remain explicit migration boundaries. See
+    [`increments/11y-portal-notification-context.md`](./increments/11y-portal-notification-context.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

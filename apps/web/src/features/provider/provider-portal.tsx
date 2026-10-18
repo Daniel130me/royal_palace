@@ -2,7 +2,7 @@
 
 import { useNav } from "@/lib/nav";
 import { AppShell } from "@/components/healthcare/app-shell";
-import { useProviderContext } from "./use-provider-context";
+import { ProviderContextProvider, useProviderContext } from "./use-provider-context";
 import { ProviderDashboard } from "./pages/dashboard";
 import { ProviderAppointments } from "./pages/appointments";
 import { ProviderAppointmentDetail } from "./pages/appointment";
@@ -35,6 +35,14 @@ import {
 } from "lucide-react";
 
 export function ProviderPortal() {
+  return (
+    <ProviderContextProvider>
+      <ProviderPortalContent />
+    </ProviderContextProvider>
+  );
+}
+
+function ProviderPortalContent() {
   const { view } = useNav();
   const { unread } = useProviderContext();
   const page = view.page;
@@ -57,23 +65,41 @@ export function ProviderPortal() {
 
   return (
     <AppShell portal="provider" brand="Royal Palace" navItems={navItems} notifications={unread}>
-      {page === "dashboard" ? <ProviderDashboard /> :
-       page === "appointments" ? <ProviderAppointments /> :
-       page === "appointment" ? <ProviderAppointmentDetail /> :
-       page === "encounter" ? <ProviderEncounter /> :
-       page === "patients" ? <ProviderPatients /> :
-       page === "patient" ? <ProviderPatientDetail /> :
-       page === "prescriptions" ? <ProviderPrescriptions /> :
-       page === "laboratory-requests" ? <ProviderLabRequests /> :
-       page === "results" ? <ProviderResults /> :
-       page === "referrals" ? <ProviderReferrals /> :
-       page === "earnings" ? <ProviderEarnings /> :
-       page === "payouts" ? <ProviderPayouts /> :
-       page === "availability" ? <ProviderAvailability /> :
-       page === "verification" ? <ProviderVerification /> :
-       page === "notifications" ? <ProviderNotifications /> :
-       page === "settings" ? <ProviderSettings /> :
-       <ProviderDashboard />}
+      {page === "dashboard" ? (
+        <ProviderDashboard />
+      ) : page === "appointments" ? (
+        <ProviderAppointments />
+      ) : page === "appointment" ? (
+        <ProviderAppointmentDetail />
+      ) : page === "encounter" ? (
+        <ProviderEncounter />
+      ) : page === "patients" ? (
+        <ProviderPatients />
+      ) : page === "patient" ? (
+        <ProviderPatientDetail />
+      ) : page === "prescriptions" ? (
+        <ProviderPrescriptions />
+      ) : page === "laboratory-requests" ? (
+        <ProviderLabRequests />
+      ) : page === "results" ? (
+        <ProviderResults />
+      ) : page === "referrals" ? (
+        <ProviderReferrals />
+      ) : page === "earnings" ? (
+        <ProviderEarnings />
+      ) : page === "payouts" ? (
+        <ProviderPayouts />
+      ) : page === "availability" ? (
+        <ProviderAvailability />
+      ) : page === "verification" ? (
+        <ProviderVerification />
+      ) : page === "notifications" ? (
+        <ProviderNotifications />
+      ) : page === "settings" ? (
+        <ProviderSettings />
+      ) : (
+        <ProviderDashboard />
+      )}
     </AppShell>
   );
 }

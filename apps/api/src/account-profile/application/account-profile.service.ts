@@ -38,7 +38,11 @@ export class AccountProfileService {
   async updatePatient(context: RequestContext, input: UpdatePatientProfileInput) {
     await this.authorize(context, "PATIENT");
     return this.resolve(
-      await this.repository.updatePatient({ ...input, principalId: context.actor.principalId }),
+      await this.repository.updatePatient({
+        ...input,
+        principalId: context.actor.principalId,
+        requestId: context.requestId,
+      }),
     );
   }
 

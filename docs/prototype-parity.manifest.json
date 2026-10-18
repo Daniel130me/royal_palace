@@ -556,7 +556,11 @@
           "id": "portal",
           "file": "patient-portal.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "11"
+          "checkpoint": "11Y",
+          "productionFiles": [
+            "apps/web/src/features/patient/patient-portal.tsx",
+            "apps/web/src/features/patient/use-patient-context.tsx"
+          ]
         },
         {
           "id": "appointment-detail",
@@ -597,9 +601,10 @@
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "11V",
+          "checkpoint": "11V,11Y",
           "productionFiles": [
             "apps/web/src/features/patient/pages/dashboard.tsx",
+            "apps/web/src/features/patient/use-patient-context.tsx",
             "apps/api/src/scheduling/application/scheduling-payment.service.ts",
             "apps/api/src/laboratory/application/laboratory.service.ts"
           ]
@@ -645,7 +650,12 @@
           "id": "notifications",
           "file": "pages/notifications.tsx",
           "status": "CONNECTED",
-          "checkpoint": "11N"
+          "checkpoint": "11N,11Y",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/notifications.tsx",
+            "apps/web/src/features/shared/production-notification-inbox.tsx",
+            "apps/web/src/features/patient/use-patient-context.tsx"
+          ]
         },
         {
           "id": "order-detail",
@@ -705,11 +715,12 @@
           "id": "settings",
           "file": "pages/settings.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "11S",
+          "checkpoint": "11S,11X",
           "productionFiles": [
             "apps/web/src/features/patient/pages/settings.tsx",
             "apps/api/src/account-profile/application/account-profile.service.ts",
-            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
+            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts",
+            "apps/api/prisma/migrations/20261018230000_patient_emergency_contact/migration.sql"
           ]
         },
         {
@@ -864,7 +875,11 @@
           "id": "portal",
           "file": "provider-portal.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "11"
+          "checkpoint": "11Y",
+          "productionFiles": [
+            "apps/web/src/features/provider/provider-portal.tsx",
+            "apps/web/src/features/provider/use-provider-context.tsx"
+          ]
         },
         {
           "id": "appointment-detail",
@@ -922,7 +937,12 @@
           "id": "notifications",
           "file": "pages/notifications.tsx",
           "status": "CONNECTED",
-          "checkpoint": "11N"
+          "checkpoint": "11N,11Y",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/notifications.tsx",
+            "apps/web/src/features/shared/production-notification-inbox.tsx",
+            "apps/web/src/features/provider/use-provider-context.tsx"
+          ]
         },
         {
           "id": "patient-detail",

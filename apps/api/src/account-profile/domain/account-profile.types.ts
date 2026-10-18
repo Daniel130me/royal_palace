@@ -7,9 +7,15 @@ export interface AccountProfileRepository {
   findPatient(principalId: string): Promise<PatientProfileResponse | null>;
   findPractitioner(principalId: string): Promise<PractitionerSettingsResponse | null>;
   updatePatient(input: {
+    emergencyContact: {
+      displayName: string;
+      phoneE164: string;
+      relationship: string;
+    } | null;
     expectedVersion: number;
     preferredLanguage: string | null;
     principalId: string;
+    requestId: string;
   }): Promise<ProfileUpdateResult<PatientProfileResponse>>;
   updatePractitioner(input: {
     acceptingPatients: boolean;

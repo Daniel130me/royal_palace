@@ -1898,6 +1898,7 @@ export interface UpdatePractitionerSettingsInput {
 export interface PatientProfileResponse {
   countryCode: string | null;
   dateOfBirth: string | null;
+  emergencyContact: PatientEmergencyContactResponse | null;
   familyName: string;
   givenName: string;
   id: string;
@@ -1906,7 +1907,20 @@ export interface PatientProfileResponse {
   version: number;
 }
 
+export interface PatientEmergencyContactResponse {
+  displayName: string;
+  id: string;
+  phoneE164: string;
+  relationship: string;
+  version: number;
+}
+
 export interface UpdatePatientProfileInput {
+  emergencyContact: {
+    displayName: string;
+    phoneE164: string;
+    relationship: string;
+  } | null;
   expectedVersion: number;
   preferredLanguage: string | null;
 }
