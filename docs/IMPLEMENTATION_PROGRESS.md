@@ -435,6 +435,13 @@ that completes an increment.
     boundary. Laboratory and logistics parity rows were reconciled to their already-completed
     11D/11E evidence. Manager payout destinations and governed programme documents remain open.
     See [`increments/11m-manager-privacy-parity.md`](./increments/11m-manager-privacy-parity.md).
+  - `[~]` 11N personal-role notification parity connects the patient, practitioner,
+    and manager signed inbox screens to one session-derived, cursor-bounded production
+    notification component. It removes caller-selected recipient IDs and generic collection
+    reads while preserving privacy-safe references and durable read receipts. The parity
+    register also reconciles signed patient/practitioner clinical and laboratory screens to
+    their already-completed 11D/11F evidence; stakeholder UAT remains open. See
+    [`increments/11n-personal-role-notification-parity.md`](./increments/11n-personal-role-notification-parity.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

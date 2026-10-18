@@ -564,8 +564,8 @@
         {
           "id": "consultation",
           "file": "pages/consultation.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11F4"
         },
         {
           "id": "dashboard",
@@ -607,14 +607,14 @@
         {
           "id": "laboratory-detail",
           "file": "pages/laboratory.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4"
         },
         {
           "id": "notifications",
           "file": "pages/notifications.tsx",
-          "status": "PENDING",
-          "checkpoint": "10"
+          "status": "CONNECTED",
+          "checkpoint": "11N"
         },
         {
           "id": "order-detail",
@@ -661,8 +661,8 @@
         {
           "id": "records",
           "file": "pages/records.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11F4"
         },
         {
           "id": "services",
@@ -846,8 +846,8 @@
         {
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11"
+          "status": "CONNECTED",
+          "checkpoint": "11F4"
         },
         {
           "id": "earnings",
@@ -858,26 +858,26 @@
         {
           "id": "encounter",
           "file": "pages/encounter.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11F4"
         },
         {
           "id": "laboratory-requests",
           "file": "pages/laboratory-requests.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D2B"
         },
         {
           "id": "notifications",
           "file": "pages/notifications.tsx",
-          "status": "PENDING",
-          "checkpoint": "10"
+          "status": "CONNECTED",
+          "checkpoint": "11N"
         },
         {
           "id": "patient-detail",
           "file": "pages/patient.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11F4"
         },
         {
           "id": "patients",
@@ -906,8 +906,8 @@
         {
           "id": "results",
           "file": "pages/results.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D3D"
         },
         { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
         {
@@ -919,8 +919,8 @@
         {
           "id": "lab-request-dialog",
           "file": "lab-request-dialog.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D2B"
         },
         {
           "id": "prescription-dialog",
@@ -931,8 +931,8 @@
         {
           "id": "referral-dialog",
           "file": "referral-dialog.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11F3"
         }
       ]
     },
