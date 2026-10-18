@@ -209,13 +209,8 @@
         {
           "id": "settings",
           "file": "pages/settings.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11S",
-          "productionFiles": [
-            "apps/web/src/features/patient/pages/settings.tsx",
-            "apps/api/src/account-profile/application/account-profile.service.ts",
-            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
-          ]
+          "status": "PENDING",
+          "checkpoint": "12"
         },
         {
           "id": "settlements",
@@ -688,10 +683,10 @@
         {
           "id": "settings",
           "file": "pages/settings.tsx",
-          "status": "CONNECTED",
+          "status": "IN_PROGRESS",
           "checkpoint": "11S",
           "productionFiles": [
-            "apps/web/src/features/provider/pages/settings.tsx",
+            "apps/web/src/features/patient/pages/settings.tsx",
             "apps/api/src/account-profile/application/account-profile.service.ts",
             "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
           ]
@@ -945,7 +940,17 @@
           "status": "CONNECTED",
           "checkpoint": "11D3D"
         },
-        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11S",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/settings.tsx",
+            "apps/api/src/account-profile/application/account-profile.service.ts",
+            "apps/api/src/account-profile/infrastructure/prisma-account-profile.repository.ts"
+          ]
+        },
         {
           "id": "verification",
           "file": "pages/verification.tsx",
