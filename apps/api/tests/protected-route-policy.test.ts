@@ -18,7 +18,17 @@ import {
 } from "../src/pharmacy/presentation/scanned-prescription.controller.js";
 
 describe("protected route policy inventory", () => {
-  it.each(["open", "list", "get", "saveDraft", "sign", "addAddendum"] as const)(
+  it.each([
+    "open",
+    "list",
+    "listPatients",
+    "listReferrals",
+    "decideReferral",
+    "get",
+    "saveDraft",
+    "sign",
+    "addAddendum",
+  ] as const)(
     "maps provider clinical encounter %s to exact clinical-record policy",
     (handlerName) => {
       expect(

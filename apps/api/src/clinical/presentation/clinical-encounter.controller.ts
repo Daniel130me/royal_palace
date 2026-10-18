@@ -134,6 +134,7 @@ const relatedActionSchema = z.discriminatedUnion("kind", [
       priority: z.enum(["ROUTINE", "URGENT", "EMERGENCY"]),
       reason: z.string().trim().min(1).max(2000),
       recipientName: z.string().trim().min(1).max(200).optional(),
+      recipientPractitionerId: idSchema.optional(),
       specialtyCode: z.string().trim().min(1).max(120),
     })
     .strict(),
@@ -182,6 +183,26 @@ const listSchema = z
     patientId: idSchema.optional(),
   })
   .strict();
+const patientRosterListSchema = z
+  .object({
+    cursor: z.string().min(1).max(1024).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    q: z.string().trim().min(2).max(100).optional(),
+  })
+  .strict();
+const referralListSchema = z
+  .object({
+    cursor: z.string().min(1).max(1024).optional(),
+    direction: z.enum(["RECEIVED", "SENT"]),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+const referralDecisionSchema = z
+  .object({
+    decision: z.enum(["ACCEPTED", "DECLINED"]),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
 
 @Controller("v1/provider/clinical-encounters")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -211,6 +232,47 @@ export class ProviderClinicalEncounterController {
   list(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     return execute(() =>
       this.encounters.listForPractitioner(requestContext(request), parse(listSchema, query)),
+    );
+  }
+
+  @Get("patients")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  listPatients(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const input = parse(patientRosterListSchema, query);
+    return execute(() =>
+      this.encounters.listPatientsForPractitioner(requestContext(request), {
+        ...input,
+        ...(input.q === undefined ? {} : { query: input.q }),
+      }),
+    );
+  }
+
+  @Get("referrals")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  listReferrals(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.encounters.listReferralsForPractitioner(
+        requestContext(request),
+        parse(referralListSchema, query),
+      ),
+    );
+  }
+
+  @Post("referrals/:referralId/decision")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  decideReferral(
+    @Param("referralId") referralId: string,
+    @Body() body: unknown,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.encounters.decideReceivedReferral(
+        requestContext(request),
+        parse(idSchema, referralId),
+        parse(referralDecisionSchema, body),
+        parse(idempotencyKeySchema, idempotencyKey),
+      ),
     );
   }
 

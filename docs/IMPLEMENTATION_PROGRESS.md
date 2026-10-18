@@ -452,6 +452,14 @@ that completes an increment.
     corrective UI removes ambiguous commission assumptions, keeps currencies separate,
     and leaves real transfer execution disabled until provider and regional qualification.
     See [`increments/11p-pharmacy-finance-parity.md`](./increments/11p-pharmacy-finance-parity.md).
+  - `[~]` 11Q provider patient and referral parity replaces the provider roster's
+    appointment scan and per-patient requests with one privacy-minimized, indexed,
+    keyset-paginated projection. Referral inboxes are now exact-sender/exact-recipient
+    views, named recipients resolve from verified practitioner data, and accept/decline
+    decisions use idempotency, optimistic concurrency, immutable history, and audit.
+    Acceptance deliberately does not imply broad clinical-record access. Open-specialty
+    claiming, qualified clinical governance, and stakeholder UAT remain open. See
+    [`increments/11q-provider-patients-and-referrals.md`](./increments/11q-provider-patients-and-referrals.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

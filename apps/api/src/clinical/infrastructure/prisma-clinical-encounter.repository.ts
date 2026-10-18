@@ -14,6 +14,8 @@ import {
   type ClinicalEncounterRepository,
   type ClinicalMutationEnvelope,
   type ClinicalObservationDraft,
+  type ProviderPatientRosterList,
+  type ProviderReferralAccessList,
 } from "../domain/clinical-encounter.types.js";
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000;
@@ -43,11 +45,20 @@ const encounterInclude = {
     orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
     select: { id: true },
   },
-  referrals: { orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }] },
+  referrals: {
+    include: { recipientPractitioner: { select: { displayName: true, id: true } } },
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+  },
 } satisfies Prisma.ClinicalEncounterInclude;
 
 type EncounterRow = Prisma.ClinicalEncounterGetPayload<{ include: typeof encounterInclude }>;
 type Transaction = Prisma.TransactionClient;
+const referralInclude = {
+  patient: { select: { familyName: true, givenName: true, id: true } },
+  practitioner: { select: { displayName: true, id: true } },
+  recipientPractitioner: { select: { displayName: true, id: true } },
+} satisfies Prisma.ClinicalReferralInclude;
+type ReferralRow = Prisma.ClinicalReferralGetPayload<{ include: typeof referralInclude }>;
 
 @Injectable()
 export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepository {
@@ -63,6 +74,19 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
       id: practitioner.id,
       principalId: practitioner.principalId,
       verificationStatus: practitioner.verificationStatus,
+    };
+  }
+
+  async findVerifiedPractitionerById(practitionerId: string) {
+    const practitioner = await this.database.practitioner.findFirst({
+      select: { displayName: true, id: true, principalId: true },
+      where: { id: practitionerId, principalId: { not: null }, verificationStatus: "VERIFIED" },
+    });
+    if (practitioner === null || practitioner.principalId === null) return null;
+    return {
+      displayName: practitioner.displayName,
+      id: practitioner.id,
+      principalId: practitioner.principalId,
     };
   }
 
@@ -200,6 +224,161 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
     });
   }
 
+  async listPatientsByPractitioner(input: {
+    cursor?: { id: string; lastEncounterAt: Date };
+    limit: number;
+    practitionerPrincipalId: string;
+    query?: string;
+  }): Promise<ProviderPatientRosterList> {
+    const search =
+      input.query === undefined
+        ? Prisma.empty
+        : Prisma.sql`
+      AND (patient."given_name" ILIKE ${`%${input.query}%`}
+        OR patient."family_name" ILIKE ${`%${input.query}%`}
+        OR concat_ws(' ', patient."given_name", patient."family_name") ILIKE ${`%${input.query}%`})
+    `;
+    const cursor =
+      input.cursor === undefined
+        ? Prisma.empty
+        : Prisma.sql`
+      AND (roster."last_encounter_at", roster."patient_id")
+        < (${input.cursor.lastEncounterAt}::timestamptz, ${input.cursor.id}::uuid)
+    `;
+    const rows = await this.database.$queryRaw<
+      Array<{
+        encounter_count: bigint;
+        family_name: string;
+        given_name: string;
+        last_encounter_at: Date;
+        patient_id: string;
+      }>
+    >(Prisma.sql`
+      WITH roster AS (
+        SELECT encounter."patient_id", MAX(encounter."opened_at") AS "last_encounter_at",
+               COUNT(*)::bigint AS "encounter_count"
+        FROM "clinical_encounters" encounter
+        JOIN "practitioners" practitioner ON practitioner."id" = encounter."practitioner_id"
+        WHERE practitioner."principal_id" = ${input.practitionerPrincipalId}::uuid
+        GROUP BY encounter."patient_id"
+      )
+      SELECT roster."patient_id", roster."last_encounter_at", roster."encounter_count",
+             patient."given_name", patient."family_name"
+      FROM roster
+      JOIN "patients" patient ON patient."id" = roster."patient_id"
+      WHERE TRUE ${search} ${cursor}
+      ORDER BY roster."last_encounter_at" DESC, roster."patient_id" DESC
+      LIMIT ${input.limit + 1}
+    `);
+    const hasNextPage = rows.length > input.limit;
+    const page = rows.slice(0, input.limit);
+    const last = page.at(-1);
+    return {
+      data: page.map((row) => ({
+        encounterCount: Number(row.encounter_count),
+        id: row.patient_id,
+        lastEncounterAt: row.last_encounter_at.toISOString(),
+        name: `${row.given_name} ${row.family_name}`.trim(),
+      })),
+      pageInfo: {
+        endCursor:
+          hasNextPage && last !== undefined
+            ? encodeCursor({ id: last.patient_id, lastEncounterAt: last.last_encounter_at })
+            : null,
+        hasNextPage,
+      },
+    };
+  }
+
+  async listReferralsByPractitioner(input: {
+    cursor?: { createdAt: Date; id: string };
+    direction: "RECEIVED" | "SENT";
+    limit: number;
+    practitionerPrincipalId: string;
+  }): Promise<ProviderReferralAccessList> {
+    const rows = await this.database.clinicalReferral.findMany({
+      include: referralInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      relationLoadStrategy: "join",
+      take: input.limit + 1,
+      where: {
+        ...(input.direction === "SENT"
+          ? { practitioner: { principalId: input.practitionerPrincipalId } }
+          : { recipientPractitioner: { principalId: input.practitionerPrincipalId } }),
+        ...(input.cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: input.cursor.createdAt } },
+                { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
+              ],
+            }),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const page = rows.slice(0, input.limit);
+    const last = page.at(-1);
+    return {
+      data: page.map(mapReferral),
+      pageInfo: {
+        endCursor:
+          hasNextPage && last !== undefined
+            ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+            : null,
+        hasNextPage,
+      },
+    };
+  }
+
+  async transitionReceivedReferral(
+    input: Parameters<ClinicalEncounterRepository["transitionReceivedReferral"]>[0],
+  ) {
+    const operation = "clinical.referral.decide";
+    const referralId = await this.transaction(async (transaction) => {
+      const replay = await beginIdempotentMutation(transaction, { ...input, operation });
+      if (replay !== null) return replay;
+      const current = await lockReferral(transaction, input.referralId);
+      if (
+        current === null ||
+        current.recipient_principal_id !== input.actorPrincipalId ||
+        current.status !== "ACTIVE" ||
+        current.version !== input.expectedVersion
+      ) {
+        throw new ClinicalEncounterConflictError("VERSION_CONFLICT");
+      }
+      const updated = await transaction.clinicalReferral.updateMany({
+        data: { status: input.decision, updatedAt: new Date(), version: { increment: 1 } },
+        where: {
+          id: input.referralId,
+          status: "ACTIVE",
+          version: input.expectedVersion,
+        },
+      });
+      if (updated.count !== 1) throw new ClinicalEncounterConflictError("VERSION_CONFLICT");
+      await transaction.clinicalReferralStatusHistory.create({
+        data: {
+          actorPrincipalId: input.actorPrincipalId,
+          fromStatus: "ACTIVE",
+          id: createOpaqueId(),
+          referralId: input.referralId,
+          toStatus: input.decision,
+        },
+      });
+      await completeReferralMutation(transaction, input, operation, current.patient_id);
+      return input.referralId;
+    });
+    const row = await this.database.clinicalReferral.findFirst({
+      include: referralInclude,
+      relationLoadStrategy: "join",
+      where: {
+        id: referralId,
+        recipientPractitioner: { principalId: input.actorPrincipalId },
+      },
+    });
+    if (row === null) throw new ClinicalEncounterConflictError("INVALID_STATE");
+    return mapReferral(row);
+  }
+
   async open(input: {
     actorPrincipalId: string;
     appointmentId: string;
@@ -323,6 +502,7 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
               practitionerId: current.practitioner_id,
               reason: input.action.reason,
               recipientName: input.action.recipientName,
+              recipientPractitionerId: input.action.recipientPractitionerId,
               specialtyCode: input.action.specialtyCode,
               updatedAt: now,
             },
@@ -638,6 +818,68 @@ async function completeMutation(
   });
 }
 
+async function completeReferralMutation(
+  transaction: Transaction,
+  input: {
+    actorPrincipalId: string;
+    decision: "ACCEPTED" | "DECLINED";
+    idempotencyKey: string;
+    referralId: string;
+    traceRequestId: string;
+  },
+  operation: string,
+  patientScopeId: string,
+) {
+  await transaction.idempotencyKey.update({
+    data: {
+      resourceId: input.referralId,
+      resourceType: "clinical_referral",
+      responseStatusCode: 200,
+      status: "COMPLETED",
+      updatedAt: new Date(),
+    },
+    where: {
+      principalId_operation_key: {
+        key: input.idempotencyKey,
+        operation,
+        principalId: input.actorPrincipalId,
+      },
+    },
+  });
+  await transaction.auditEvent.create({
+    data: {
+      action: `clinical.referral.${input.decision.toLowerCase()}`,
+      actorPrincipalId: input.actorPrincipalId,
+      id: createOpaqueId(),
+      patientScopeId,
+      requestId: input.traceRequestId,
+      resourceId: input.referralId,
+      resourceType: "clinical_referral",
+      result: "SUCCEEDED",
+    },
+  });
+}
+
+async function lockReferral(transaction: Transaction, referralId: string) {
+  const rows = await transaction.$queryRaw<
+    Array<{
+      patient_id: string;
+      recipient_principal_id: string | null;
+      status: string;
+      version: number;
+    }>
+  >(Prisma.sql`
+    SELECT referral."patient_id", referral."status"::text, referral."version",
+           recipient."principal_id" AS recipient_principal_id
+    FROM "clinical_referrals" referral
+    LEFT JOIN "practitioners" recipient
+      ON recipient."id" = referral."recipient_practitioner_id"
+    WHERE referral."id" = ${referralId}::uuid
+    FOR UPDATE OF referral
+  `);
+  return rows[0] ?? null;
+}
+
 async function lockEncounter(transaction: Transaction, encounterId: string) {
   const rows = await transaction.$queryRaw<
     Array<{
@@ -724,6 +966,29 @@ function requireEncounter(
 ): ClinicalEncounterAccessRecord {
   if (value === null) throw new ClinicalEncounterConflictError("INVALID_STATE");
   return value;
+}
+
+function mapReferral(row: ReferralRow) {
+  return {
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+    patient: {
+      displayName: `${row.patient.givenName} ${row.patient.familyName}`.trim(),
+      id: row.patient.id,
+    },
+    priority: row.priority as "ROUTINE" | "URGENT" | "EMERGENCY",
+    reason: row.reason,
+    recipient: row.recipientPractitioner,
+    recipientName: row.recipientName,
+    sender: row.practitioner,
+    specialtyCode: row.specialtyCode,
+    status: row.status,
+    version: row.version,
+  };
+}
+
+function encodeCursor(value: Record<string, Date | string>): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
 
 function mapEncounter(row: EncounterRow): ClinicalEncounterAccessRecord {

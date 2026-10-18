@@ -297,6 +297,149 @@ describe("ClinicalEncounterService", () => {
     );
   });
 
+  it("builds the patient roster only through the authenticated verified practitioner scope", async () => {
+    const principalId = createOpaqueId();
+    const listPatientsByPractitioner = vi.fn<
+      ClinicalEncounterRepository["listPatientsByPractitioner"]
+    >(async () => ({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }));
+    const service = createService({
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: createOpaqueId(),
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+      listPatientsByPractitioner,
+    });
+
+    await service.listPatientsForPractitioner(
+      { actor: session("PROVIDER", principalId), requestId: "request-patient-roster" },
+      { limit: 20, query: "Synthetic" },
+    );
+
+    expect(listPatientsByPractitioner).toHaveBeenCalledWith({
+      limit: 20,
+      practitionerPrincipalId: principalId,
+      query: "Synthetic",
+    });
+  });
+
+  it("lists referrals only in the requested authenticated-practitioner direction", async () => {
+    const principalId = createOpaqueId();
+    const listReferralsByPractitioner = vi.fn<
+      ClinicalEncounterRepository["listReferralsByPractitioner"]
+    >(async () => ({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }));
+    const service = createService({
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: createOpaqueId(),
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+      listReferralsByPractitioner,
+    });
+
+    await service.listReferralsForPractitioner(
+      { actor: session("PROVIDER", principalId), requestId: "request-referrals" },
+      { direction: "RECEIVED", limit: 20 },
+    );
+
+    expect(listReferralsByPractitioner).toHaveBeenCalledWith({
+      direction: "RECEIVED",
+      limit: 20,
+      practitionerPrincipalId: principalId,
+    });
+  });
+
+  it("resolves a named referral recipient from verified practitioner data", async () => {
+    const principalId = createOpaqueId();
+    const recipientPractitionerId = createOpaqueId();
+    const current = encounter({ practitionerPrincipalId: principalId, status: "SIGNED" });
+    const createRelatedAction = vi.fn<ClinicalEncounterRepository["createRelatedAction"]>(
+      async () => current,
+    );
+    const service = createService({
+      createRelatedAction,
+      findScopeById: vi.fn(async () => current),
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: current.practitioner.id,
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+      findVerifiedPractitionerById: vi.fn(async () => ({
+        displayName: "Verified Recipient",
+        id: recipientPractitionerId,
+        principalId: createOpaqueId(),
+      })),
+    });
+
+    await service.createRelatedAction(
+      { actor: session("PROVIDER", principalId), requestId: "request-named-referral" },
+      current.id,
+      {
+        kind: "REFERRAL",
+        priority: "ROUTINE",
+        reason: "Synthetic review",
+        recipientPractitionerId,
+        specialtyCode: "synthetic-specialty",
+      },
+      "named-referral-001",
+    );
+
+    expect(createRelatedAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({
+          recipientName: "Verified Recipient",
+          recipientPractitionerId,
+        }),
+      }),
+    );
+  });
+
+  it("uses optimistic concurrency and idempotency for recipient decisions", async () => {
+    const principalId = createOpaqueId();
+    const referralId = createOpaqueId();
+    const transitionReceivedReferral = vi.fn<
+      ClinicalEncounterRepository["transitionReceivedReferral"]
+    >(async () => ({
+      createdAt: new Date().toISOString(),
+      id: referralId,
+      patient: { displayName: "Synthetic Patient", id: createOpaqueId() },
+      priority: "ROUTINE",
+      reason: "Synthetic review",
+      recipient: { displayName: "Recipient", id: createOpaqueId() },
+      recipientName: "Recipient",
+      sender: { displayName: "Sender", id: createOpaqueId() },
+      specialtyCode: "synthetic-specialty",
+      status: "ACCEPTED",
+      version: 2,
+    }));
+    const service = createService({
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: createOpaqueId(),
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+      transitionReceivedReferral,
+    });
+
+    await service.decideReceivedReferral(
+      { actor: session("PROVIDER", principalId), requestId: "request-decide-referral" },
+      referralId,
+      { decision: "ACCEPTED", expectedVersion: 1 },
+      "decide-referral-001",
+    );
+
+    expect(transitionReceivedReferral).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorPrincipalId: principalId,
+        decision: "ACCEPTED",
+        expectedVersion: 1,
+        idempotencyKey: "decide-referral-001",
+        referralId,
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    );
+  });
+
   it("maps idempotency and concurrency conflicts without exposing database details", () => {
     for (const reason of [
       "IDEMPOTENCY_CONFLICT",

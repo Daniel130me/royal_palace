@@ -247,6 +247,7 @@ enum ClinicalObservationValueType {
 enum ClinicalReferralStatus {
   ACTIVE
   ACCEPTED
+  DECLINED
   COMPLETED
   CANCELLED
 }
@@ -763,12 +764,13 @@ model IdentityPrincipal {
   signedClinicalEncounters         ClinicalEncounter[]                @relation("ClinicalEncounterSigner")
   authoredClinicalNotes            ClinicalEncounterNote[]            @relation("ClinicalNoteAuthor")
   createdClinicalReferrals         ClinicalReferral[]                 @relation("ClinicalReferralCreator")
+  decidedClinicalReferrals         ClinicalReferralStatusHistory[]    @relation("ClinicalReferralStatusActor")
   updatedClinicalCarePlans         ClinicalCarePlan[]                 @relation("ClinicalCarePlanUpdater")
   recordedClinicalAllergies        ClinicalAllergy[]                  @relation("ClinicalAllergyRecorder")
   linkedClinicalAttachments        ClinicalAttachmentReference[]      @relation("ClinicalAttachmentLinker")
-  submittedPlatformComplaints      PlatformComplaint[]                 @relation("PlatformComplaintSubmitter")
-  platformComplaintStatusChanges   PlatformComplaintStatusHistory[]    @relation("PlatformComplaintStatusActor")
-  practitionerVerificationChanges  PractitionerVerificationHistory[]   @relation("PractitionerVerificationActor")
+  submittedPlatformComplaints      PlatformComplaint[]                @relation("PlatformComplaintSubmitter")
+  platformComplaintStatusChanges   PlatformComplaintStatusHistory[]   @relation("PlatformComplaintStatusActor")
+  practitionerVerificationChanges  PractitionerVerificationHistory[]  @relation("PractitionerVerificationActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -817,8 +819,8 @@ model PlatformComplaint {
   complainantType        String                           @map("complainant_type") @db.VarChar(40)
   subject                String                           @db.VarChar(240)
   description            String                           @db.VarChar(4000)
-  priority               PlatformComplaintPriority       @default(NORMAL)
-  status                 PlatformComplaintStatus         @default(OPEN)
+  priority               PlatformComplaintPriority        @default(NORMAL)
+  status                 PlatformComplaintStatus          @default(OPEN)
   resolvedAt             DateTime?                        @map("resolved_at") @db.Timestamptz(6)
   createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1163,39 +1165,40 @@ model SpecialtyTaxonomy {
 }
 
 model Practitioner {
-  id                  String                         @id @db.Uuid
-  principalId         String?                        @unique @map("principal_id") @db.Uuid
-  displayName         String                         @map("display_name") @db.VarChar(160)
-  givenName           String                         @map("given_name") @db.VarChar(100)
-  familyName          String                         @map("family_name") @db.VarChar(100)
-  honorific           String?                        @db.VarChar(40)
-  verificationStatus  VerificationStatus             @default(PENDING) @map("verification_status")
-  verifiedAt          DateTime?                      @map("verified_at") @db.Timestamptz(6)
-  createdAt           DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version             Int                            @default(1)
-  principal           IdentityPrincipal?             @relation(fields: [principalId], references: [id], onDelete: Restrict)
-  publicProfile       PractitionerPublicProfile?
-  professions         PractitionerProfession[]
-  specialties         PractitionerSpecialty[]
-  locations           PractitionerLocation[]
-  serviceModes        PractitionerServiceMode[]
-  languages           PractitionerLanguage[]
-  affiliations        PractitionerAffiliation[]
-  publicCredentials   PractitionerPublicCredential[]
-  credentials         PractitionerCredential[]
-  approvedApplication OnboardingApplication?         @relation("ApprovedPractitionerApplication")
-  consultationFees    ConsultationFee[]
-  availabilitySlots   AvailabilitySlot[]
-  appointments        Appointment[]
-  prescriptions       Prescription[]
-  laboratoryRequests  LaboratoryRequest[]
-  laboratoryResults   LaboratoryResult[]
-  clinicalEncounters  ClinicalEncounter[]
-  clinicalReferrals   ClinicalReferral[]
-  clinicalCarePlans   ClinicalCarePlan[]
-  clinicalAllergies   ClinicalAllergy[]
-  verificationHistory PractitionerVerificationHistory[]
+  id                        String                            @id @db.Uuid
+  principalId               String?                           @unique @map("principal_id") @db.Uuid
+  displayName               String                            @map("display_name") @db.VarChar(160)
+  givenName                 String                            @map("given_name") @db.VarChar(100)
+  familyName                String                            @map("family_name") @db.VarChar(100)
+  honorific                 String?                           @db.VarChar(40)
+  verificationStatus        VerificationStatus                @default(PENDING) @map("verification_status")
+  verifiedAt                DateTime?                         @map("verified_at") @db.Timestamptz(6)
+  createdAt                 DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                   Int                               @default(1)
+  principal                 IdentityPrincipal?                @relation(fields: [principalId], references: [id], onDelete: Restrict)
+  publicProfile             PractitionerPublicProfile?
+  professions               PractitionerProfession[]
+  specialties               PractitionerSpecialty[]
+  locations                 PractitionerLocation[]
+  serviceModes              PractitionerServiceMode[]
+  languages                 PractitionerLanguage[]
+  affiliations              PractitionerAffiliation[]
+  publicCredentials         PractitionerPublicCredential[]
+  credentials               PractitionerCredential[]
+  approvedApplication       OnboardingApplication?            @relation("ApprovedPractitionerApplication")
+  consultationFees          ConsultationFee[]
+  availabilitySlots         AvailabilitySlot[]
+  appointments              Appointment[]
+  prescriptions             Prescription[]
+  laboratoryRequests        LaboratoryRequest[]
+  laboratoryResults         LaboratoryResult[]
+  clinicalEncounters        ClinicalEncounter[]
+  clinicalReferrals         ClinicalReferral[]
+  receivedClinicalReferrals ClinicalReferral[]                @relation("ClinicalReferralRecipient")
+  clinicalCarePlans         ClinicalCarePlan[]
+  clinicalAllergies         ClinicalAllergy[]
+  verificationHistory       PractitionerVerificationHistory[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
   @@index([verificationStatus, updatedAt(sort: Desc), id(sort: Desc)], map: "practitioners_verification_updated_id_idx")
@@ -2271,27 +2274,46 @@ model ClinicalObservation {
 }
 
 model ClinicalReferral {
-  id                   String                 @id @db.Uuid
-  encounterId          String                 @map("encounter_id") @db.Uuid
-  patientId            String                 @map("patient_id") @db.Uuid
-  practitionerId       String                 @map("practitioner_id") @db.Uuid
-  createdByPrincipalId String                 @map("created_by_principal_id") @db.Uuid
-  specialtyCode        String                 @map("specialty_code") @db.VarChar(120)
-  recipientName        String?                @map("recipient_name") @db.VarChar(200)
-  reason               String                 @db.VarChar(2000)
-  priority             String                 @db.VarChar(32)
-  status               ClinicalReferralStatus @default(ACTIVE)
-  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  version              Int                    @default(1)
-  encounter            ClinicalEncounter      @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  patient              Patient                @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  practitioner         Practitioner           @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
-  createdByPrincipal   IdentityPrincipal      @relation("ClinicalReferralCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  id                      String                          @id @db.Uuid
+  encounterId             String                          @map("encounter_id") @db.Uuid
+  patientId               String                          @map("patient_id") @db.Uuid
+  practitionerId          String                          @map("practitioner_id") @db.Uuid
+  recipientPractitionerId String?                         @map("recipient_practitioner_id") @db.Uuid
+  createdByPrincipalId    String                          @map("created_by_principal_id") @db.Uuid
+  specialtyCode           String                          @map("specialty_code") @db.VarChar(120)
+  recipientName           String?                         @map("recipient_name") @db.VarChar(200)
+  reason                  String                          @db.VarChar(2000)
+  priority                String                          @db.VarChar(32)
+  status                  ClinicalReferralStatus          @default(ACTIVE)
+  createdAt               DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                 Int                             @default(1)
+  encounter               ClinicalEncounter               @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient                 Patient                         @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  practitioner            Practitioner                    @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  recipientPractitioner   Practitioner?                   @relation("ClinicalReferralRecipient", fields: [recipientPractitionerId], references: [id], onDelete: Restrict)
+  createdByPrincipal      IdentityPrincipal               @relation("ClinicalReferralCreator", fields: [createdByPrincipalId], references: [id], onDelete: Restrict)
+  statusHistory           ClinicalReferralStatusHistory[]
 
   @@index([encounterId, createdAt, id], map: "clinical_referrals_encounter_created_idx")
   @@index([patientId, status, createdAt(sort: Desc), id(sort: Desc)], map: "clinical_referrals_patient_status_created_idx")
+  @@index([practitionerId, createdAt(sort: Desc), id(sort: Desc)], map: "clinical_referrals_sender_created_idx")
+  @@index([recipientPractitionerId, createdAt(sort: Desc), id(sort: Desc)], map: "clinical_referrals_recipient_created_idx")
   @@map("clinical_referrals")
+}
+
+model ClinicalReferralStatusHistory {
+  id               String                 @id @db.Uuid
+  referralId       String                 @map("referral_id") @db.Uuid
+  actorPrincipalId String                 @map("actor_principal_id") @db.Uuid
+  fromStatus       ClinicalReferralStatus @map("from_status")
+  toStatus         ClinicalReferralStatus @map("to_status")
+  occurredAt       DateTime               @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  referral         ClinicalReferral       @relation(fields: [referralId], references: [id], onDelete: Restrict)
+  actorPrincipal   IdentityPrincipal      @relation("ClinicalReferralStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([referralId, occurredAt, id], map: "clinical_referral_history_referral_occurred_idx")
+  @@map("clinical_referral_status_history")
 }
 
 model ClinicalCarePlan {

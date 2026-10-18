@@ -20,6 +20,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/provider/clinical-encounters/patients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProviderClinicalPatients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/clinical-encounters/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProviderClinicalReferrals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provider/clinical-encounters/referrals/{referralId}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideProviderClinicalReferral"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/provider/clinical-encounters/{encounterId}": {
         parameters: {
             query?: never;
@@ -227,6 +275,8 @@ export interface components {
             priority: "ROUTINE" | "URGENT" | "EMERGENCY";
             reason: string;
             recipientName?: string;
+            /** Format: uuid */
+            recipientPractitionerId?: string;
             specialtyCode: string;
         };
         CarePlanInput: {
@@ -298,7 +348,32 @@ export interface components {
             recipientName: string | null;
             specialtyCode: string;
             /** @enum {string} */
-            status: "ACTIVE" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+            status: "ACTIVE" | "ACCEPTED" | "DECLINED" | "COMPLETED" | "CANCELLED";
+            version: number;
+        };
+        ProviderPatientRosterItem: {
+            encounterCount: number;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            lastEncounterAt: string;
+            name: string;
+        };
+        ProviderReferral: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            patient: components["schemas"]["Party"];
+            /** @enum {string} */
+            priority: "ROUTINE" | "URGENT" | "EMERGENCY";
+            reason: string;
+            recipient: components["schemas"]["Party"] | null;
+            recipientName: string | null;
+            sender: components["schemas"]["Party"];
+            specialtyCode: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "ACCEPTED" | "DECLINED" | "COMPLETED" | "CANCELLED";
             version: number;
         };
         ClinicalCarePlan: {
@@ -428,6 +503,30 @@ export interface components {
                 };
             };
         };
+        /** @description Privacy-minimized provider patient roster page */
+        ProviderPatientRosterList: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    data: components["schemas"]["ProviderPatientRosterItem"][];
+                    pageInfo: components["schemas"]["PageInfo"];
+                };
+            };
+        };
+        /** @description Provider referral page scoped to the authenticated practitioner */
+        ProviderReferralList: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    data: components["schemas"]["ProviderReferral"][];
+                    pageInfo: components["schemas"]["PageInfo"];
+                };
+            };
+        };
         /** @description Error response */
         Error: {
             headers: {
@@ -504,6 +603,78 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["Encounter"];
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    listProviderClinicalPatients: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ProviderPatientRosterList"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    listProviderClinicalReferrals: {
+        parameters: {
+            query: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                direction: "RECEIVED" | "SENT";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ProviderReferralList"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    decideProviderClinicalReferral: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                referralId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "ACCEPTED" | "DECLINED";
+                    expectedVersion: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated referral */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderReferral"];
+                };
+            };
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];

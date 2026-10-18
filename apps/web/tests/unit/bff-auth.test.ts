@@ -119,6 +119,36 @@ describe("BFF authentication boundary", () => {
     ).toThrow("Limit is invalid");
   });
 
+  it("allowlists bounded clinical roster and referral filters without forwarding unknown input", () => {
+    const roster = new NextRequest(
+      "http://127.0.0.1:3000/api/provider/clinical-encounters/patients?q=Synthetic%20Patient&role=ADMINISTRATOR",
+    );
+    expect(
+      authenticatedListPath(roster, "/v1/provider/clinical-encounters/patients", {
+        allowQuery: true,
+      }),
+    ).toBe("/v1/provider/clinical-encounters/patients?q=Synthetic+Patient");
+
+    const referrals = new NextRequest(
+      "http://127.0.0.1:3000/api/provider/clinical-encounters/referrals?direction=RECEIVED&principalId=forged",
+    );
+    expect(
+      authenticatedListPath(referrals, "/v1/provider/clinical-encounters/referrals", {
+        allowDirection: true,
+      }),
+    ).toBe("/v1/provider/clinical-encounters/referrals?direction=RECEIVED");
+
+    expect(() =>
+      authenticatedListPath(
+        new NextRequest(
+          "http://127.0.0.1:3000/api/provider/clinical-encounters/referrals?direction=ALL",
+        ),
+        "/v1/provider/clinical-encounters/referrals",
+        { allowDirection: true },
+      ),
+    ).toThrow("Direction is invalid");
+  });
+
   it("forwards an explicitly scoped organization without trusting actor identifiers", async () => {
     const sessionId = "0199a18e-a400-7000-8000-000000000001";
     const organizationId = "0199a18e-a400-7000-8000-000000000902";

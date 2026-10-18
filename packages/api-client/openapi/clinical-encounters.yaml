@@ -46,6 +46,63 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+  /v1/provider/clinical-encounters/patients:
+    get:
+      operationId: listProviderClinicalPatients
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - in: query
+          name: q
+          schema: { type: string, minLength: 2, maxLength: 100 }
+      responses:
+        "200": { $ref: "#/components/responses/ProviderPatientRosterList" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/provider/clinical-encounters/referrals:
+    get:
+      operationId: listProviderClinicalReferrals
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - in: query
+          name: direction
+          required: true
+          schema: { type: string, enum: [RECEIVED, SENT] }
+      responses:
+        "200": { $ref: "#/components/responses/ProviderReferralList" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /v1/provider/clinical-encounters/referrals/{referralId}/decision:
+    post:
+      operationId: decideProviderClinicalReferral
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - in: path
+          name: referralId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision, expectedVersion]
+              properties:
+                decision: { type: string, enum: [ACCEPTED, DECLINED] }
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Updated referral
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderReferral" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /v1/provider/clinical-encounters/{encounterId}:
     get:
       operationId: getProviderClinicalEncounter
@@ -254,6 +311,30 @@ components:
                   $ref: "#/components/schemas/ClinicalEncounter"
               pageInfo:
                 $ref: "#/components/schemas/PageInfo"
+    ProviderPatientRosterList:
+      description: Privacy-minimized provider patient roster page
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, pageInfo]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/ProviderPatientRosterItem" }
+              pageInfo: { $ref: "#/components/schemas/PageInfo" }
+    ProviderReferralList:
+      description: Provider referral page scoped to the authenticated practitioner
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, pageInfo]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/ProviderReferral" }
+              pageInfo: { $ref: "#/components/schemas/PageInfo" }
     Error:
       description: Error response
       content:
@@ -401,6 +482,7 @@ components:
         priority: { type: string, enum: [ROUTINE, URGENT, EMERGENCY] }
         reason: { type: string, minLength: 1, maxLength: 2000 }
         recipientName: { type: string, minLength: 1, maxLength: 200 }
+        recipientPractitionerId: { type: string, format: uuid }
         specialtyCode: { type: string, minLength: 1, maxLength: 120 }
     CarePlanInput:
       type: object
@@ -513,7 +595,48 @@ components:
         reason: { type: string }
         recipientName: { type: [string, "null"] }
         specialtyCode: { type: string }
-        status: { type: string, enum: [ACTIVE, ACCEPTED, COMPLETED, CANCELLED] }
+        status: { type: string, enum: [ACTIVE, ACCEPTED, DECLINED, COMPLETED, CANCELLED] }
+        version: { type: integer }
+    ProviderPatientRosterItem:
+      type: object
+      additionalProperties: false
+      required: [encounterCount, id, lastEncounterAt, name]
+      properties:
+        encounterCount: { type: integer, minimum: 1 }
+        id: { type: string, format: uuid }
+        lastEncounterAt: { type: string, format: date-time }
+        name: { type: string }
+    ProviderReferral:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          createdAt,
+          id,
+          patient,
+          priority,
+          reason,
+          recipient,
+          recipientName,
+          sender,
+          specialtyCode,
+          status,
+          version,
+        ]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+        patient: { $ref: "#/components/schemas/Party" }
+        priority: { type: string, enum: [ROUTINE, URGENT, EMERGENCY] }
+        reason: { type: string }
+        recipient:
+          oneOf:
+            - $ref: "#/components/schemas/Party"
+            - type: "null"
+        recipientName: { type: [string, "null"] }
+        sender: { $ref: "#/components/schemas/Party" }
+        specialtyCode: { type: string }
+        status: { type: string, enum: [ACTIVE, ACCEPTED, DECLINED, COMPLETED, CANCELLED] }
         version: { type: integer }
     ClinicalCarePlan:
       type: object

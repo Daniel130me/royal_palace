@@ -882,8 +882,13 @@
         {
           "id": "patients",
           "file": "pages/patients.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11Q",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/patients.tsx",
+            "apps/api/src/clinical/application/clinical-encounter.service.ts",
+            "apps/api/src/clinical/infrastructure/prisma-clinical-encounter.repository.ts"
+          ]
         },
         {
           "id": "payouts",
@@ -900,8 +905,14 @@
         {
           "id": "referrals",
           "file": "pages/referrals.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11Q",
+          "productionFiles": [
+            "apps/web/src/features/provider/pages/referrals.tsx",
+            "apps/web/src/features/provider/referral-dialog.tsx",
+            "apps/api/src/clinical/application/clinical-encounter.service.ts",
+            "apps/api/src/clinical/infrastructure/prisma-clinical-encounter.repository.ts"
+          ]
         },
         {
           "id": "results",

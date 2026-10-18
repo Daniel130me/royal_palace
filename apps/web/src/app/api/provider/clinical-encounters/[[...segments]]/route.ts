@@ -12,6 +12,16 @@ export async function GET(request: NextRequest, context: Context) {
       allowPatientId: true,
     });
   }
+  if (segments.length === 1 && segments[0] === "patients") {
+    return proxyAuthenticatedList(request, "/v1/provider/clinical-encounters/patients", {
+      allowQuery: true,
+    });
+  }
+  if (segments.length === 1 && segments[0] === "referrals") {
+    return proxyAuthenticatedList(request, "/v1/provider/clinical-encounters/referrals", {
+      allowDirection: true,
+    });
+  }
   const encounterId = segments.length === 1 ? exactClinicalUuid(segments[0]) : null;
   return encounterId === null
     ? clinicalBffNotFound()
@@ -22,6 +32,18 @@ export async function POST(request: NextRequest, context: Context) {
   const { segments = [] } = await context.params;
   if (segments.length === 0) {
     return proxyAuthenticatedApi(request, "/v1/provider/clinical-encounters", "POST");
+  }
+  if (
+    segments.length === 3 &&
+    segments[0] === "referrals" &&
+    exactClinicalUuid(segments[1]) !== null &&
+    segments[2] === "decision"
+  ) {
+    return proxyAuthenticatedApi(
+      request,
+      `/v1/provider/clinical-encounters/referrals/${segments[1]}/decision`,
+      "POST",
+    );
   }
   const encounterId = exactClinicalUuid(segments[0]);
   if (

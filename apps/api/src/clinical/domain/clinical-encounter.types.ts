@@ -6,6 +6,8 @@ import type {
   ClinicalEncounterResponse,
   ClinicalObservationValueType,
   CursorPageInfo,
+  ProviderPatientRosterItem,
+  ProviderReferralListItem,
 } from "@royal-palace/contracts";
 
 export interface ClinicalEncounterAccessRecord extends ClinicalEncounterResponse {
@@ -22,6 +24,16 @@ export interface ClinicalEncounterScope {
 
 export interface ClinicalEncounterAccessList {
   data: readonly ClinicalEncounterAccessRecord[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface ProviderPatientRosterList {
+  data: readonly ProviderPatientRosterItem[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface ProviderReferralAccessList {
+  data: readonly ProviderReferralListItem[];
   pageInfo: CursorPageInfo;
 }
 
@@ -78,6 +90,7 @@ export interface ClinicalEncounterRepository {
           priority: "ROUTINE" | "URGENT" | "EMERGENCY";
           reason: string;
           recipientName?: string;
+          recipientPractitionerId?: string;
           specialtyCode: string;
         }
       | {
@@ -136,6 +149,32 @@ export interface ClinicalEncounterRepository {
     principalId: string;
     verificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
   } | null>;
+  findVerifiedPractitionerById(practitionerId: string): Promise<{
+    displayName: string;
+    id: string;
+    principalId: string;
+  } | null>;
+  listPatientsByPractitioner(input: {
+    cursor?: { id: string; lastEncounterAt: Date };
+    limit: number;
+    practitionerPrincipalId: string;
+    query?: string;
+  }): Promise<ProviderPatientRosterList>;
+  listReferralsByPractitioner(input: {
+    cursor?: { createdAt: Date; id: string };
+    direction: "RECEIVED" | "SENT";
+    limit: number;
+    practitionerPrincipalId: string;
+  }): Promise<ProviderReferralAccessList>;
+  transitionReceivedReferral(input: {
+    actorPrincipalId: string;
+    decision: "ACCEPTED" | "DECLINED";
+    expectedVersion: number;
+    idempotencyKey: string;
+    referralId: string;
+    requestHash: string;
+    traceRequestId: string;
+  }): Promise<ProviderReferralListItem>;
   listByPatient(input: {
     cursor?: { id: string; openedAt: Date };
     limit: number;

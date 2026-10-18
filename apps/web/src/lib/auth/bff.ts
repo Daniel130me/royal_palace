@@ -162,7 +162,7 @@ export async function proxyAuthenticatedApi(
 export function authenticatedListPath(
   request: NextRequest,
   apiPath: string,
-  options: { allowPatientId?: boolean } = {},
+  options: { allowDirection?: boolean; allowPatientId?: boolean; allowQuery?: boolean } = {},
 ): string {
   const output = new URLSearchParams();
   const cursor = request.nextUrl.searchParams.get("cursor");
@@ -188,6 +188,21 @@ export function authenticatedListPath(
     }
     output.set("patientId", patientId);
   }
+  const direction = request.nextUrl.searchParams.get("direction");
+  if (options.allowDirection && direction !== null) {
+    if (!["RECEIVED", "SENT"].includes(direction)) {
+      throw new BffAuthError("Direction is invalid", 400, "invalid_request");
+    }
+    output.set("direction", direction);
+  }
+  const search = request.nextUrl.searchParams.get("q");
+  if (options.allowQuery && search !== null) {
+    const normalized = search.trim();
+    if (normalized.length < 2 || normalized.length > 100) {
+      throw new BffAuthError("Search query is invalid", 400, "invalid_request");
+    }
+    output.set("q", normalized);
+  }
   const query = output.toString();
   return query.length === 0 ? apiPath : `${apiPath}?${query}`;
 }
@@ -208,7 +223,12 @@ export function requiredOrganizationId(request: NextRequest): string {
 export function proxyAuthenticatedList(
   request: NextRequest,
   apiPath: string,
-  options: { allowPatientId?: boolean; requireOrganization?: boolean } = {},
+  options: {
+    allowDirection?: boolean;
+    allowPatientId?: boolean;
+    allowQuery?: boolean;
+    requireOrganization?: boolean;
+  } = {},
 ): Promise<NextResponse> | NextResponse {
   try {
     const organizationId = options.requireOrganization

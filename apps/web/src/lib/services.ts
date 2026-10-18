@@ -1823,6 +1823,9 @@ export const administrationService = {
 };
 
 type ClinicalRelatedActionInput = ClinicalEncounterComponents["schemas"]["RelatedActionInput"];
+export type ProviderClinicalPatient =
+  ClinicalEncounterComponents["schemas"]["ProviderPatientRosterItem"];
+export type ProviderClinicalReferral = ClinicalEncounterComponents["schemas"]["ProviderReferral"];
 
 const CLINICAL_SECTION_TITLES: Readonly<Record<string, string>> = {
   allergyConfirmation: "Allergy confirmation",
@@ -1960,6 +1963,31 @@ export const productionClinicalService = {
           params: {
             query: { ...(cursor ? { cursor } : {}), limit, ...(patientId ? { patientId } : {}) },
           },
+        })
+        .then(unwrapGeneratedResponse),
+    listPatients: (query?: string, cursor?: string, limit = 20) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/provider/clinical-encounters/patients", {
+          params: {
+            query: { ...(cursor ? { cursor } : {}), limit, ...(query ? { q: query } : {}) },
+          },
+        })
+        .then(unwrapGeneratedResponse),
+    listReferrals: (direction: "RECEIVED" | "SENT", cursor?: string, limit = 20) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/provider/clinical-encounters/referrals", {
+          params: { query: { ...(cursor ? { cursor } : {}), direction, limit } },
+        })
+        .then(unwrapGeneratedResponse),
+    decideReferral: (
+      referralId: string,
+      decision: "ACCEPTED" | "DECLINED",
+      expectedVersion: number,
+    ) =>
+      generatedClinicalEncounterClient
+        .POST("/v1/provider/clinical-encounters/referrals/{referralId}/decision", {
+          body: { decision, expectedVersion },
+          params: { header: clinicalMutationHeader(), path: { referralId } },
         })
         .then(unwrapGeneratedResponse),
     open: (appointmentId: string) =>

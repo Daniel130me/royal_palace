@@ -211,6 +211,56 @@ export class ClinicalEncounterService {
     return { ...page, data: page.data.map(publicEncounter) };
   }
 
+  async listPatientsForPractitioner(
+    context: ClinicalEncounterContext,
+    input: { cursor?: string; limit: number; query?: string },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizePractitionerCollection(context, "clinical_patient_roster");
+    return this.repository.listPatientsByPractitioner({
+      ...(input.cursor === undefined
+        ? {}
+        : { cursor: decodeDatedCursor(input.cursor, "lastEncounterAt") }),
+      limit: input.limit,
+      practitionerPrincipalId: context.actor.principalId,
+      ...(input.query === undefined ? {} : { query: input.query }),
+    });
+  }
+
+  async listReferralsForPractitioner(
+    context: ClinicalEncounterContext,
+    input: { cursor?: string; direction: "RECEIVED" | "SENT"; limit: number },
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizePractitionerCollection(context, "clinical_referral_list");
+    return this.repository.listReferralsByPractitioner({
+      ...(input.cursor === undefined
+        ? {}
+        : { cursor: decodeDatedCursor(input.cursor, "createdAt") }),
+      direction: input.direction,
+      limit: input.limit,
+      practitionerPrincipalId: context.actor.principalId,
+    });
+  }
+
+  async decideReceivedReferral(
+    context: ClinicalEncounterContext,
+    referralId: string,
+    input: { decision: "ACCEPTED" | "DECLINED"; expectedVersion: number },
+    idempotencyKey: string,
+  ) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizePractitionerCollection(context, "clinical_referral");
+    return this.repository.transitionReceivedReferral({
+      actorPrincipalId: context.actor.principalId,
+      ...input,
+      idempotencyKey,
+      referralId,
+      requestHash: requestHash({ referralId, ...input }),
+      traceRequestId: context.requestId,
+    });
+  }
+
   async saveDraft(
     context: ClinicalEncounterContext,
     encounterId: string,
@@ -330,9 +380,23 @@ export class ClinicalEncounterService {
   ) {
     this.assertSyntheticClinicalWorkflow();
     await this.authorizeMutation(context, encounterId, "OPEN_OR_SIGNED");
+    let normalizedAction = action;
+    if (action.kind === "REFERRAL" && action.recipientPractitionerId !== undefined) {
+      const recipient = await this.repository.findVerifiedPractitionerById(
+        action.recipientPractitionerId,
+      );
+      if (recipient === null || recipient.principalId === context.actor.principalId) {
+        throw new ClinicalEncounterFlowError(
+          "invalid_referral_recipient",
+          400,
+          "The selected referral recipient is unavailable",
+        );
+      }
+      normalizedAction = { ...action, recipientName: recipient.displayName };
+    }
     return publicEncounter(
       await this.repository.createRelatedAction({
-        action,
+        action: normalizedAction,
         actorPrincipalId: context.actor.principalId,
         encounterId,
         idempotencyKey,
@@ -358,6 +422,26 @@ export class ClinicalEncounterService {
       );
     }
     return scope;
+  }
+
+  private async authorizePractitionerCollection(
+    context: ClinicalEncounterContext,
+    resourceType: string,
+  ) {
+    await this.requireVerifiedPractitioner(context.actor.principalId);
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        patientScopeId: context.actor.principalId,
+        practitionerPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType,
+        visibility: "PRACTITIONER_FULL",
+      },
+      policy: AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD,
+      requestId: context.requestId,
+    });
   }
 
   private authorizePractitioner(
@@ -482,6 +566,24 @@ function decodeCursor(value: string): { id: string; openedAt: Date } {
     const openedAt = new Date(decoded.openedAt);
     if (!Number.isFinite(openedAt.getTime())) throw new Error();
     return { id: decoded.id, openedAt };
+  } catch {
+    throw new ClinicalEncounterFlowError("invalid_cursor", 400, "Cursor is invalid");
+  }
+}
+
+function decodeDatedCursor<K extends "createdAt" | "lastEncounterAt">(
+  value: string,
+  dateKey: K,
+): { id: string } & Record<K, Date> {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (typeof decoded.id !== "string" || typeof decoded[dateKey] !== "string") throw new Error();
+    const date = new Date(decoded[dateKey]);
+    if (!Number.isFinite(date.getTime())) throw new Error();
+    return { id: decoded.id, [dateKey]: date } as { id: string } & Record<K, Date>;
   } catch {
     throw new ClinicalEncounterFlowError("invalid_cursor", 400, "Cursor is invalid");
   }

@@ -1788,8 +1788,31 @@ export interface ClinicalReferralResponse {
   reason: string;
   recipientName: string | null;
   specialtyCode: string;
-  status: "ACTIVE" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+  status: "ACTIVE" | "ACCEPTED" | "DECLINED" | "COMPLETED" | "CANCELLED";
   version: number;
+}
+
+export interface ProviderPatientRosterItem {
+  encounterCount: number;
+  id: string;
+  lastEncounterAt: string;
+  name: string;
+}
+
+export interface ProviderPatientRosterResponse {
+  data: readonly ProviderPatientRosterItem[];
+  pageInfo: CursorPageInfo;
+}
+
+export interface ProviderReferralListItem extends ClinicalReferralResponse {
+  patient: { displayName: string; id: string };
+  recipient: { displayName: string; id: string } | null;
+  sender: { displayName: string; id: string };
+}
+
+export interface ProviderReferralListResponse {
+  data: readonly ProviderReferralListItem[];
+  pageInfo: CursorPageInfo;
 }
 
 export interface ClinicalCarePlanResponse {
