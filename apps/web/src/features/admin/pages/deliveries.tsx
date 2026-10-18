@@ -1,8 +1,12 @@
 "use client";
 
-import type { LogisticsComponents } from "@royal-palace/api-client";
+import type {
+  AdminDeliveryListItem,
+  AdminDeliveryScope,
+  AdminDeliverySummary,
+} from "@royal-palace/contracts";
 import { CheckCircle2, Clock, Package, Search, Truck } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
 import {
@@ -17,93 +21,62 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/format";
 import { navigate } from "@/lib/nav";
-import { productionLogisticsService } from "@/lib/services";
+import { administrationService } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
-type Delivery = LogisticsComponents["schemas"]["AdminDelivery"];
-type StatusFilter = "all" | "active" | "delivered" | "exception";
-const ACTIVE = [
-  "ASSIGNED",
-  "ACCEPTED",
-  "HEADING_TO_PICKUP",
-  "ARRIVED_AT_PICKUP",
-  "PICKUP_VERIFIED",
-  "PICKED_UP",
-  "IN_TRANSIT",
-  "ARRIVED_AT_DESTINATION",
-];
 const EXCEPTIONS = ["FAILED", "RETURNED", "CANCELLED"];
+const EMPTY_SUMMARY: AdminDeliverySummary = { active: 0, all: 0, delivered: 0, exception: 0 };
 
 export function AdminDeliveries() {
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [deliveries, setDeliveries] = useState<AdminDeliveryListItem[]>([]);
+  const [summary, setSummary] = useState<AdminDeliverySummary>(EMPTY_SUMMARY);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<AdminDeliveryScope>("ALL");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    void productionLogisticsService.admin
-      .list({ limit: 50 })
+    void administrationService
+      .deliveries({ limit: 25, ...(query ? { query } : {}), scope: filter })
       .then((page) => {
         setDeliveries([...page.data]);
-        setNextCursor(page.nextCursor);
+        setSummary(page.summary);
+        setNextCursor(page.pageInfo.endCursor);
       })
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : "Deliveries could not be loaded."),
       )
       .finally(() => setLoading(false));
-  }, []);
+  }, [filter, query]);
   useEffect(load, [load]);
   const loadMore = async () => {
     if (!nextCursor) return;
     setLoadingMore(true);
     try {
-      const page = await productionLogisticsService.admin.list({ cursor: nextCursor, limit: 50 });
+      const page = await administrationService.deliveries({
+        cursor: nextCursor,
+        limit: 25,
+        ...(query ? { query } : {}),
+        scope: filter,
+      });
       setDeliveries((current) => [...current, ...page.data]);
-      setNextCursor(page.nextCursor);
+      setNextCursor(page.pageInfo.endCursor);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Older deliveries could not be loaded.");
     } finally {
       setLoadingMore(false);
     }
   };
-
-  const counts = useMemo(
-    () => ({
-      all: deliveries.length,
-      active: deliveries.filter((delivery) => ACTIVE.includes(delivery.status)).length,
-      delivered: deliveries.filter((delivery) => delivery.status === "DELIVERED").length,
-      exception: deliveries.filter((delivery) => EXCEPTIONS.includes(delivery.status)).length,
-    }),
-    [deliveries],
-  );
-  const visible = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return deliveries
-      .filter(
-        (delivery) =>
-          filter === "all" ||
-          (filter === "active" && ACTIVE.includes(delivery.status)) ||
-          (filter === "delivered" && delivery.status === "DELIVERED") ||
-          (filter === "exception" && EXCEPTIONS.includes(delivery.status)),
-      )
-      .filter(
-        (delivery) =>
-          !query ||
-          [
-            delivery.deliveryNumber,
-            delivery.orderNumber,
-            delivery.handoffReference,
-            delivery.logisticsOrganizationId,
-            delivery.pharmacyOrganizationId,
-            delivery.deliveryArea.locality,
-          ].some((value) => value.toLowerCase().includes(query)),
-      );
-  }, [deliveries, filter, search]);
 
   if (loading)
     return (
@@ -126,10 +99,10 @@ export function AdminDeliveries() {
         ]}
       />
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <StatTile label="Loaded" value={counts.all} icon={Truck} />
-        <StatTile label="Active" value={counts.active} icon={Package} tone="info" />
-        <StatTile label="Delivered" value={counts.delivered} icon={CheckCircle2} tone="success" />
-        <StatTile label="Exceptions" value={counts.exception} icon={Clock} tone="warning" />
+        <StatTile label="Total" value={summary.all} icon={Truck} />
+        <StatTile label="Active" value={summary.active} icon={Package} tone="info" />
+        <StatTile label="Delivered" value={summary.delivered} icon={CheckCircle2} tone="success" />
+        <StatTile label="Exceptions" value={summary.exception} icon={Clock} tone="warning" />
       </div>
       <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
         Admin oversight intentionally excludes recipient identity, phone, full address, verification
@@ -147,17 +120,25 @@ export function AdminDeliveries() {
       </div>
       <SegmentedControl
         options={[
-          { value: "all" as StatusFilter, label: "All", badge: counts.all },
-          { value: "active" as StatusFilter, label: "Active", badge: counts.active },
-          { value: "delivered" as StatusFilter, label: "Delivered", badge: counts.delivered },
-          { value: "exception" as StatusFilter, label: "Exceptions", badge: counts.exception },
+          { value: "ALL" as AdminDeliveryScope, label: "All", badge: summary.all },
+          { value: "ACTIVE" as AdminDeliveryScope, label: "Active", badge: summary.active },
+          {
+            value: "DELIVERED" as AdminDeliveryScope,
+            label: "Delivered",
+            badge: summary.delivered,
+          },
+          {
+            value: "EXCEPTION" as AdminDeliveryScope,
+            label: "Exceptions",
+            badge: summary.exception,
+          },
         ]}
         value={filter}
         onChange={setFilter}
         size="sm"
       />
       {error !== null && <ErrorState message={error} onRetry={load} />}
-      {visible.length === 0 ? (
+      {deliveries.length === 0 ? (
         <EmptyState
           icon={Truck}
           title="No deliveries"
@@ -166,7 +147,7 @@ export function AdminDeliveries() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card divide-y divide-border/40">
-          {visible.map((delivery) => (
+          {deliveries.map((delivery) => (
             <CompactListItem
               key={delivery.id}
               leading={

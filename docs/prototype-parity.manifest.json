@@ -87,20 +87,35 @@
         {
           "id": "complaints",
           "file": "pages/complaints.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-clinical"
+          "status": "CONNECTED",
+          "checkpoint": "11K2",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/complaints.tsx",
+            "apps/api/src/administration/application/administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
         },
         {
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11"
+          "status": "CONNECTED",
+          "checkpoint": "11K1",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/dashboard.tsx",
+            "apps/api/src/administration/application/administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
         },
         {
           "id": "deliveries",
           "file": "pages/deliveries.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11K3",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/deliveries.tsx",
+            "apps/api/src/administration/application/administration.service.ts",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
         },
         {
           "id": "manager-applications",

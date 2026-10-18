@@ -457,6 +457,20 @@ enum AuditResult {
   FAILED
 }
 
+enum PlatformComplaintStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+enum PlatformComplaintPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum IdempotencyStatus {
   IN_PROGRESS
   COMPLETED
@@ -752,6 +766,8 @@ model IdentityPrincipal {
   updatedClinicalCarePlans         ClinicalCarePlan[]                 @relation("ClinicalCarePlanUpdater")
   recordedClinicalAllergies        ClinicalAllergy[]                  @relation("ClinicalAllergyRecorder")
   linkedClinicalAttachments        ClinicalAttachmentReference[]      @relation("ClinicalAttachmentLinker")
+  submittedPlatformComplaints      PlatformComplaint[]                 @relation("PlatformComplaintSubmitter")
+  platformComplaintStatusChanges   PlatformComplaintStatusHistory[]    @relation("PlatformComplaintStatusActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -791,6 +807,44 @@ model Patient {
   @@index([givenName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_given_name_trgm_idx")
   @@index([familyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "patients_family_name_trgm_idx")
   @@map("patients")
+}
+
+model PlatformComplaint {
+  id                     String                           @id @db.Uuid
+  complaintNumber        String                           @unique(map: "platform_complaints_number_key") @map("complaint_number") @db.VarChar(64)
+  submittedByPrincipalId String?                          @map("submitted_by_principal_id") @db.Uuid
+  complainantType        String                           @map("complainant_type") @db.VarChar(40)
+  subject                String                           @db.VarChar(240)
+  description            String                           @db.VarChar(4000)
+  priority               PlatformComplaintPriority       @default(NORMAL)
+  status                 PlatformComplaintStatus         @default(OPEN)
+  resolvedAt             DateTime?                        @map("resolved_at") @db.Timestamptz(6)
+  createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version                Int                              @default(1)
+  submittedByPrincipal   IdentityPrincipal?               @relation("PlatformComplaintSubmitter", fields: [submittedByPrincipalId], references: [id], onDelete: Restrict, map: "platform_complaints_submitter_fkey")
+  statusHistory          PlatformComplaintStatusHistory[]
+
+  @@index([status, priority, createdAt(sort: Desc), id(sort: Desc)], map: "platform_complaints_status_priority_created_idx")
+  @@index([priority, createdAt(sort: Desc), id(sort: Desc)], map: "platform_complaints_priority_created_idx")
+  @@index([complaintNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "platform_complaints_number_trgm_idx")
+  @@index([subject(ops: raw("gin_trgm_ops"))], type: Gin, map: "platform_complaints_subject_trgm_idx")
+  @@map("platform_complaints")
+}
+
+model PlatformComplaintStatusHistory {
+  id               String                  @id @db.Uuid
+  complaintId      String                  @map("complaint_id") @db.Uuid
+  actorPrincipalId String                  @map("actor_principal_id") @db.Uuid
+  fromStatus       PlatformComplaintStatus @map("from_status")
+  toStatus         PlatformComplaintStatus @map("to_status")
+  internalNote     String?                 @map("internal_note") @db.VarChar(2000)
+  occurredAt       DateTime                @map("occurred_at") @db.Timestamptz(6)
+  complaint        PlatformComplaint       @relation(fields: [complaintId], references: [id], onDelete: Restrict, map: "platform_complaint_history_complaint_fkey")
+  actorPrincipal   IdentityPrincipal       @relation("PlatformComplaintStatusActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict, map: "platform_complaint_history_actor_fkey")
+
+  @@index([complaintId, occurredAt, id], map: "platform_complaint_history_complaint_time_idx")
+  @@map("platform_complaint_status_history")
 }
 
 model ExternalIdentity {
@@ -1290,6 +1344,7 @@ model PractitionerCredential {
   issuerName         String       @map("issuer_name") @db.VarChar(200)
   jurisdictionCode   String       @map("jurisdiction_code") @db.VarChar(16)
   verifiedAt         DateTime?    @map("verified_at") @db.Timestamptz(6)
+  expiresAt          DateTime?    @map("expires_at") @db.Timestamptz(6)
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
   version            Int          @default(1)
@@ -1297,6 +1352,7 @@ model PractitionerCredential {
 
   @@unique([issuerName, jurisdictionCode, registrationNumber], map: "practitioner_credentials_issuer_jurisdiction_registration_key")
   @@index([practitionerId, verifiedAt, id], map: "practitioner_credentials_practitioner_verified_idx")
+  @@index([expiresAt, id], map: "practitioner_credentials_expiry_idx")
   @@map("practitioner_credentials")
 }
 
@@ -3080,6 +3136,9 @@ model LogisticsDelivery {
 
   @@index([logisticsOrganizationId, status, assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_deliveries_org_status_assigned_idx")
   @@index([status, assignedAt, id], map: "logistics_deliveries_status_assigned_idx")
+  @@index([assignedAt(sort: Desc), id(sort: Desc)], map: "logistics_deliveries_assigned_id_idx")
+  @@index([deliveryNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "logistics_deliveries_number_trgm_idx")
+  @@index([deliveryLocality(ops: raw("gin_trgm_ops"))], type: Gin, map: "logistics_deliveries_locality_trgm_idx")
   @@index([orderId, status, id], map: "logistics_deliveries_order_status_idx")
   @@map("logistics_deliveries")
 }

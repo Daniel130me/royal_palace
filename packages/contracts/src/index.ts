@@ -219,6 +219,95 @@ export interface AdminAuditEventListResponse {
   pageInfo: CursorPageInfo;
 }
 
+export type AdminComplaintStatus = "OPEN" | "INVESTIGATING" | "RESOLVED" | "CLOSED";
+export type AdminComplaintPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type AdminComplaintScope = "ALL" | "OPEN" | "RESOLVED";
+export type AdminDeliveryScope = "ALL" | "ACTIVE" | "DELIVERED" | "EXCEPTION";
+
+export interface AdminComplaintListItem {
+  complaintNumber: string;
+  complainantType: PlatformRole | "EXTERNAL";
+  createdAt: string;
+  description: string;
+  id: string;
+  priority: AdminComplaintPriority;
+  status: AdminComplaintStatus;
+  subject: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminComplaintSummary {
+  all: number;
+  open: number;
+  resolved: number;
+  urgent: number;
+}
+
+export interface AdminComplaintListResponse {
+  data: readonly AdminComplaintListItem[];
+  pageInfo: CursorPageInfo;
+  summary: AdminComplaintSummary;
+}
+
+export interface AdminComplaintTransitionResponse extends AdminComplaintListItem {
+  resolvedAt: string | null;
+}
+
+export interface AdminDeliveryListItem {
+  courierAssigned: boolean;
+  deliveryArea: {
+    administrativeArea: string;
+    countryCode: string;
+    locality: string;
+    postalCode?: string;
+  };
+  deliveryNumber: string;
+  handoffReference: string;
+  id: string;
+  logisticsOrganizationId: string;
+  orderNumber: string;
+  pharmacyOrganizationId: string;
+  status: LogisticsDeliveryStatus;
+  updatedAt: string;
+}
+
+export interface AdminDeliverySummary {
+  active: number;
+  all: number;
+  delivered: number;
+  exception: number;
+}
+
+export interface AdminDeliveryListResponse {
+  data: readonly AdminDeliveryListItem[];
+  pageInfo: CursorPageInfo;
+  summary: AdminDeliverySummary;
+}
+
+export interface AdminDashboardMoneyTotal {
+  amountMinor: string;
+  currency: string;
+}
+
+export interface AdminDashboardResponse {
+  attention: {
+    expiringCredentials: number;
+    openComplaints: number;
+    pendingApplications: number;
+  };
+  counts: {
+    activeDeliveries: number;
+    appointmentsToday: number;
+    laboratoryBookings: number;
+    patients: number;
+    verifiedPractitioners: number;
+  };
+  paymentVolume: readonly AdminDashboardMoneyTotal[];
+  recentAuditEvents: readonly AdminAuditEventListItem[];
+  recentComplaints: readonly AdminComplaintListItem[];
+}
+
 export interface PublicService {
   category: string;
   code: string;

@@ -97,6 +97,32 @@ const SYNTHETIC_LOGISTICS_DELIVERY = {
   quoteLineId: "0199a18e-a400-7000-8000-000000000815",
   reservationId: "0199a18e-a400-7000-8000-000000000816",
 } as const;
+const SYNTHETIC_ADMIN_COMPLAINTS = [
+  {
+    complaintNumber: "SYNTHETIC-COMPLAINT-001",
+    description: "Synthetic review fixture for a delayed pharmacy delivery. No real patient data.",
+    id: "0199a18e-a400-7000-8000-000000000831",
+    priority: "URGENT" as const,
+    status: "OPEN" as const,
+    subject: "Delayed synthetic pharmacy delivery",
+  },
+  {
+    complaintNumber: "SYNTHETIC-COMPLAINT-002",
+    description: "Synthetic review fixture for an appointment communication issue.",
+    id: "0199a18e-a400-7000-8000-000000000832",
+    priority: "HIGH" as const,
+    status: "INVESTIGATING" as const,
+    subject: "Appointment communication review",
+  },
+  {
+    complaintNumber: "SYNTHETIC-COMPLAINT-003",
+    description: "Synthetic resolved fixture used to review the completed complaint filter.",
+    id: "0199a18e-a400-7000-8000-000000000833",
+    priority: "NORMAL" as const,
+    status: "RESOLVED" as const,
+    subject: "Resolved synthetic service concern",
+  },
+] as const;
 const SYNTHETIC_ORGANIZATIONS = [
   {
     id: "0199a18e-a400-7000-8000-000000000201",
@@ -289,9 +315,57 @@ async function main(): Promise<void> {
     await seedSyntheticServicePrices(database, reviewerPrincipals);
     await seedPractitionerDiscovery(database);
     await seedReviewerPortals(database, reviewerPrincipals);
+    await seedSyntheticAdminComplaints(database, reviewerPrincipals);
     await seedOnboardingApplications(database);
   } finally {
     await database.$disconnect();
+  }
+}
+
+async function seedSyntheticAdminComplaints(
+  database: PrismaClient,
+  principals: ReviewerPrincipalMap,
+): Promise<void> {
+  const administratorPrincipalId = requiredReviewerPrincipal(principals, "administrator-reviewer");
+  const patientPrincipalId = requiredReviewerPrincipal(principals, "patient-reviewer");
+  const occurredAt = new Date("2026-10-16T12:00:00.000Z");
+
+  for (const [index, fixture] of SYNTHETIC_ADMIN_COMPLAINTS.entries()) {
+    const resolvedAt = fixture.status === "RESOLVED" ? occurredAt : null;
+    await database.platformComplaint.upsert({
+      where: { id: fixture.id },
+      create: {
+        ...fixture,
+        complainantType: "PATIENT",
+        createdAt: new Date(occurredAt.getTime() - index * 60 * 60 * 1_000),
+        resolvedAt,
+        submittedByPrincipalId: patientPrincipalId,
+      },
+      update: {
+        description: fixture.description,
+        priority: fixture.priority,
+        resolvedAt,
+        status: fixture.status,
+        subject: fixture.subject,
+      },
+      select: { id: true },
+    });
+
+    if (fixture.status === "OPEN") continue;
+    await database.platformComplaintStatusHistory.upsert({
+      where: { id: `0199a18e-a400-7000-8000-00000000084${String(index)}` },
+      create: {
+        actorPrincipalId: administratorPrincipalId,
+        complaintId: fixture.id,
+        fromStatus: "OPEN",
+        id: `0199a18e-a400-7000-8000-00000000084${String(index)}`,
+        internalNote: "Synthetic review transition. No real patient information.",
+        occurredAt,
+        toStatus: fixture.status,
+      },
+      update: {},
+      select: { id: true },
+    });
   }
 }
 

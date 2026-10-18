@@ -414,6 +414,12 @@ that completes an increment.
     generic prototype reads. Finance users sharing the admin shell now see only their authorized
     finance navigation; the backend remains the final authorization boundary. See
     [`increments/11j-admin-oversight-and-portal.md`](./increments/11j-admin-oversight-and-portal.md).
+  - `[x]` 11K administrator operations parity connects the approved dashboard, complaint
+    triage, and delivery-oversight screens to the administration boundary. It adds a durable,
+    versioned complaint workflow with immutable actor-attributed history, bounded server-side
+    filters, exact BFF allowlists, least-privilege delivery projections, currency-separated
+    payment volume, attention counts, and representative index-plan evidence. See
+    [`increments/11k-admin-operations.md`](./increments/11k-admin-operations.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

@@ -1,423 +1,219 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { LogisticsComponents } from "@royal-palace/api-client";
-import { navigate } from "@/lib/nav";
+import type { AdminDashboardResponse } from "@royal-palace/contracts";
 import {
-  patientService,
-  providerService,
-  applicationService,
-  appointmentService,
-  productionLogisticsService,
-  settlementService,
-  auditService,
-  complaintService,
-  adminService,
-} from "@/lib/services";
-import { resource } from "@/lib/api-client";
-import type {
-  Patient,
-  Provider,
-  ProviderApplication,
-  Appointment,
-  Settlement,
-  AuditLog,
-  Complaint,
-  Payment,
-} from "@/types";
-import { StatusBadge } from "@/components/healthcare/status-badge";
-import {
-  PageHeader,
-  ErrorState,
-  EmptyState,
-  SkeletonGrid,
-} from "@/components/healthcare/page-header";
-import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { formatCurrency, formatDateTime, relativeDay, initials } from "@/lib/format";
-import {
-  Users,
-  UserCheck,
-  Stethoscope,
-  ClipboardCheck,
-  CalendarDays,
-  FlaskConical,
-  Truck,
-  Wallet,
-  TrendingUp,
   AlertCircle,
-  ShieldAlert,
-  ScrollText,
-  BadgeCheck,
-  Clock,
   ArrowRight,
-  ChevronRight,
+  CalendarDays,
+  Clock,
+  FlaskConical,
+  MessageSquareWarning,
+  ScrollText,
+  Stethoscope,
+  Truck,
+  Users,
+  Wallet,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-type AdminDelivery = LogisticsComponents["schemas"]["AdminDelivery"];
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import { ErrorState, SkeletonGrid } from "@/components/healthcare/page-header";
+import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Button } from "@/components/ui/button";
+import { formatDateTime, formatMinorCurrency, relativeDay } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { administrationService } from "@/lib/services";
 
-function startOfDayStr(d = new Date()): string {
-  return d.toISOString().slice(0, 10);
+function currentDayRange(): { dayFrom: string; dayTo: string } {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+  return { dayFrom: from.toISOString(), dayTo: to.toISOString() };
 }
 
 export function AdminDashboard() {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [applications, setApplications] = useState<ProviderApplication[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [deliveries, setDeliveries] = useState<AdminDelivery[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [audit, setAudit] = useState<AuditLog[]>([]);
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [labBookings, setLabBookings] = useState<unknown[]>([]);
+  const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    Promise.all([
-      patientService.list(),
-      providerService.list(),
-      applicationService.list(),
-      appointmentService.list(),
-      productionLogisticsService.admin.list({ limit: 50 }),
-      resource.list<Payment>("payment"),
-      settlementService.list(),
-      auditService.list(),
-      complaintService.list(),
-      resource.list<unknown>("laboratoryBooking"),
-    ])
-      .then(([p, pr, ap, apt, del, pay, stl, aud, cmp, lab]) => {
-        setPatients(p);
-        setProviders(pr);
-        setApplications(ap);
-        setAppointments(apt);
-        setDeliveries([...del.data]);
-        setPayments(pay);
-        setSettlements(stl);
-        setAudit(aud);
-        setComplaints(cmp);
-        setLabBookings(lab);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load dashboard"))
-      .finally(() => setLoading(false));
-  };
-
-  const refetch = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    load();
-  };
-
-  useEffect(() => {
-    load();
+    void administrationService
+      .dashboard(currentDayRange())
+      .then(setDashboard)
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Dashboard could not be loaded."),
+      )
+      .finally(() => setLoading(false));
   }, []);
+  useEffect(load, [load]);
+  const paymentVolume = useMemo(
+    () =>
+      dashboard?.paymentVolume
+        .map((total) => formatMinorCurrency(total.amountMinor, total.currency))
+        .join(" · ") ?? "—",
+    [dashboard],
+  );
 
-  const todayStr = startOfDayStr();
-  const primaryPatients = useMemo(() => patients.filter((p) => !p.parentPatientId), [patients]);
-  const verifiedProviders = useMemo(
-    () => providers.filter((p) => p.verificationStatus === "approved"),
-    [providers],
-  );
-  const pendingVerifications = useMemo(
-    () => applications.filter((a) => ["submitted", "under_review"].includes(a.status)),
-    [applications],
-  );
-  const todaysAppointments = useMemo(
-    () => appointments.filter((a) => a.date === todayStr),
-    [appointments, todayStr],
-  );
-  const grossTransactionValue = useMemo(
-    () => payments.filter((p) => p.status === "successful").reduce((s, p) => s + p.amount, 0),
-    [payments],
-  );
-  const platformRevenue = useMemo(
-    () => settlements.reduce((s, x) => s + x.commissionAmount, 0),
-    [settlements],
-  );
-  const openComplaints = useMemo(
-    () => complaints.filter((c) => ["open", "investigating"].includes(c.status)),
-    [complaints],
-  );
-  const expiringLicences = useMemo(() => {
-    const now = Date.now();
-    const limit = 90 * 86400000;
-    return providers.filter((p) => {
-      const exp = new Date(p.licenceExpiry).getTime();
-      const diff = exp - now;
-      return diff < limit;
-    });
-  }, [providers]);
-
-  if (loading) {
+  if (loading)
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
-        <div className="h-24 bg-muted/40 animate-pulse rounded-2xl" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
+        <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
         <SkeletonGrid count={4} />
       </div>
     );
-  }
-  if (error) return <ErrorState message={error} onRetry={refetch} />;
-
-  const recentAudit = audit.slice(0, 4);
-  void adminService;
-
-  const actionNeededCount =
-    pendingVerifications.length + openComplaints.length + expiringLicences.length;
+  if (error !== null || dashboard === null)
+    return <ErrorState message={error ?? "Dashboard response was empty."} onRetry={load} />;
+  const attentionTotal =
+    dashboard.attention.pendingApplications +
+    dashboard.attention.openComplaints +
+    dashboard.attention.expiringCredentials;
+  const attentionDestination =
+    dashboard.attention.openComplaints > 0
+      ? "complaints"
+      : dashboard.attention.pendingApplications > 0
+        ? "applications"
+        : dashboard.attention.expiringCredentials > 0
+          ? "providers"
+          : "audit";
 
   return (
     <div className="space-y-5">
-      {/* Greeting */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground leading-tight">Admin Console</p>
-          <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
-            Platform overview 👋
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            Provider verification · pricing · settlements · compliance
+          <p className="text-sm text-muted-foreground">Admin Console</p>
+          <h1 className="truncate text-2xl font-bold tracking-tight">Platform overview</h1>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            Operational facts from the production data boundary
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => navigate("admin", "audit")}
-          className="shrink-0"
-        >
+        <Button size="sm" variant="outline" onClick={() => navigate("admin", "audit")}>
           <ScrollText className="h-4 w-4" /> Audit
         </Button>
       </div>
-
-      {/* Hero: pending verifications */}
-      {actionNeededCount > 0 ? (
-        <button
-          onClick={() => navigate("admin", "providers")}
-          className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-left shadow-soft transition-all hover:shadow-soft-md active:scale-[0.99] tap-highlight-none"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="rounded-xl bg-amber-100 p-2.5 shrink-0">
-                <ClipboardCheck className="h-5 w-5 text-amber-700" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-amber-900 leading-tight">
-                  {actionNeededCount} item{actionNeededCount === 1 ? "" : "s"} need attention
-                </p>
-                <p className="text-xs text-amber-700 mt-0.5 truncate">
-                  {pendingVerifications.length} pending verifications · {openComplaints.length} open
-                  complaints · {expiringLicences.length} expiring licences
-                </p>
-              </div>
+      <button
+        onClick={() => navigate("admin", attentionDestination)}
+        className={`w-full rounded-2xl border p-4 text-left shadow-soft transition active:scale-[0.99] ${attentionTotal > 0 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="rounded-xl bg-white/70 p-2.5">
+              {attentionTotal > 0 ? (
+                <AlertCircle className="h-5 w-5 text-amber-700" />
+              ) : (
+                <ArrowRight className="h-5 w-5 text-emerald-700" />
+              )}
             </div>
-            <ChevronRight className="h-5 w-5 text-amber-700 shrink-0" />
-          </div>
-        </button>
-      ) : (
-        <button
-          onClick={() => navigate("admin", "audit")}
-          className="w-full rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-left text-white shadow-soft-md active:scale-[0.99] transition-transform tap-highlight-none"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-emerald-50/90">All caught up</p>
-              <p className="text-xl font-bold mt-1">Review audit trail</p>
-              <p className="text-xs text-emerald-100/80 mt-1">
-                Recent platform activity at a glance
+            <div className="min-w-0">
+              <p className="font-bold">
+                {attentionTotal > 0 ? `${attentionTotal} items need attention` : "All caught up"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {dashboard.attention.pendingApplications} pending applications ·{" "}
+                {dashboard.attention.openComplaints} open complaints ·{" "}
+                {dashboard.attention.expiringCredentials} expiring credentials
               </p>
             </div>
-            <div className="rounded-full bg-white/20 p-3">
-              <ArrowRight className="h-5 w-5" />
-            </div>
           </div>
-        </button>
-      )}
-
-      {/* StatTiles row */}
-      <div className="grid grid-cols-4 gap-2.5">
-        <StatTile
-          label="Patients"
-          value={patients.length}
-          icon={Users}
-          tone="info"
-          onClick={() => navigate("admin", "users")}
-        />
+          <ArrowRight className="h-4 w-4 shrink-0" />
+        </div>
+      </button>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <StatTile label="Patients" value={dashboard.counts.patients} icon={Users} tone="info" />
         <StatTile
           label="Providers"
-          value={verifiedProviders.length}
+          value={dashboard.counts.verifiedPractitioners}
           icon={Stethoscope}
           tone="success"
           onClick={() => navigate("admin", "providers")}
         />
         <StatTile
-          label="Appointments"
-          value={appointments.length}
+          label="Today"
+          value={dashboard.counts.appointmentsToday}
           icon={CalendarDays}
           tone="warning"
           onClick={() => navigate("admin", "appointments")}
         />
         <StatTile
-          label="Revenue"
-          value={formatCurrency(platformRevenue)}
+          label="Payment volume"
+          value={paymentVolume}
           icon={Wallet}
           tone="success"
-          onClick={() => navigate("admin", "settlements")}
+          onClick={() => navigate("admin", "payments")}
         />
       </div>
-
-      {/* Action needed list */}
-      {(pendingVerifications.length > 0 || openComplaints.length > 0) && (
-        <div className="space-y-2">
-          <SectionLabel>Action needed</SectionLabel>
-          <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-            {pendingVerifications.slice(0, 3).map((app) => {
-              const provider = app.provider;
-              return (
-                <CompactListItem
-                  key={app.id}
-                  leading={
-                    <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
-                        {provider ? initials(`${provider.firstName} ${provider.lastName}`) : "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                  }
-                  title={
-                    provider
-                      ? `${provider.title} ${provider.firstName} ${provider.lastName}`
-                      : app.providerId
-                  }
-                  subtitle={`${provider?.specialty ?? "—"} · submitted ${relativeDay(app.submittedAt)}`}
-                  trailing={<StatusBadge status={app.status} size="sm" />}
-                  onClick={() => navigate("admin", "provider", { id: app.providerId })}
-                  chevron
-                />
-              );
-            })}
-            {openComplaints.slice(0, 2).map((c) => (
-              <CompactListItem
-                key={c.id}
-                leading={
-                  <div className="rounded-lg bg-rose-50 p-2 ring-1 ring-rose-100">
-                    <ShieldAlert className="h-4 w-4 text-rose-600" />
-                  </div>
-                }
-                title={c.subject}
-                subtitle={`${c.complainantType} · ${relativeDay(c.createdAt)}`}
-                trailing={<StatusBadge status={c.status} size="sm" />}
-                onClick={() => navigate("admin", "complaints")}
-                chevron
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Secondary stats */}
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
         <StatTile
-          label="Today"
-          value={todaysAppointments.length}
-          icon={CalendarDays}
-          tone="info"
-          onClick={() => navigate("admin", "appointments")}
-        />
-        <StatTile
-          label="Labs"
-          value={labBookings.length}
-          icon={FlaskConical}
-          tone="violet"
-          onClick={() => navigate("admin", "appointments")}
-        />
-        <StatTile
-          label="Deliveries"
-          value={deliveries.length}
+          label="Active deliveries"
+          value={dashboard.counts.activeDeliveries}
           icon={Truck}
           tone="info"
           onClick={() => navigate("admin", "deliveries")}
         />
         <StatTile
-          label="GTV"
-          value={formatCurrency(grossTransactionValue)}
-          icon={TrendingUp}
-          tone="success"
+          label="Laboratory bookings"
+          value={dashboard.counts.laboratoryBookings}
+          icon={FlaskConical}
+          tone="violet"
         />
       </div>
-
-      {/* Expiring licences alert */}
-      {expiringLicences.length > 0 && (
-        <button
-          onClick={() => navigate("admin", "providers")}
-          className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left flex items-center gap-3 hover:bg-amber-100/60 transition-colors tap-highlight-none"
-        >
-          <div className="rounded-lg bg-amber-100 p-2 shrink-0">
-            <AlertCircle className="h-4 w-4 text-amber-700" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-amber-900">Expiring licences</p>
-            <p className="text-xs text-amber-700 truncate">
-              {expiringLicences.length} provider(s) with licences expiring within 90 days
-            </p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-amber-700 shrink-0" />
-        </button>
+      {dashboard.recentComplaints.length > 0 && (
+        <DashboardSection title="Action needed">
+          {dashboard.recentComplaints.map((complaint) => (
+            <CompactListItem
+              key={complaint.id}
+              leading={
+                <div className="rounded-lg bg-rose-50 p-2">
+                  <MessageSquareWarning className="h-4 w-4 text-rose-600" />
+                </div>
+              }
+              title={complaint.subject}
+              subtitle={`${complaint.complaintNumber} · ${complaint.complainantType} · ${relativeDay(complaint.createdAt)}`}
+              trailing={<StatusBadge status={complaint.status.toLowerCase()} size="sm" />}
+              onClick={() => navigate("admin", "complaints")}
+              chevron
+            />
+          ))}
+        </DashboardSection>
       )}
-
-      {/* Recent audit compact list */}
-      {recentAudit.length > 0 && (
-        <div className="space-y-2">
-          <SectionLabel>Recent activity</SectionLabel>
-          <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-            {recentAudit.map((a) => (
-              <CompactListItem
-                key={a.id}
-                leading={
-                  <div className="rounded-lg bg-muted p-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                }
-                title={a.description}
-                subtitle={`${a.actorRole} · ${a.action.replace(/_/g, " ")}`}
-                trailing={
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatDateTime(a.timestamp)}
-                  </span>
-                }
-                onClick={() => navigate("admin", "audit")}
-                chevron
-              />
-            ))}
-          </div>
-        </div>
+      {dashboard.recentAuditEvents.length > 0 && (
+        <DashboardSection title="Recent activity">
+          {dashboard.recentAuditEvents.map((event) => (
+            <CompactListItem
+              key={event.id}
+              leading={
+                <div className="rounded-lg bg-muted p-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+              }
+              title={event.action.replaceAll("_", " ")}
+              subtitle={`${event.effectiveRole ?? "SYSTEM"} · ${event.resourceType}`}
+              trailing={
+                <span className="text-[10px] text-muted-foreground">
+                  {formatDateTime(event.occurredAt)}
+                </span>
+              }
+              onClick={() => navigate("admin", "audit")}
+              chevron
+            />
+          ))}
+        </DashboardSection>
       )}
-
-      {/* More stats */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <StatTile
-          label="Primary patients"
-          value={primaryPatients.length}
-          icon={UserCheck}
-          tone="success"
-          onClick={() => navigate("admin", "users")}
-        />
-        <StatTile
-          label="Verified providers"
-          value={verifiedProviders.length}
-          icon={BadgeCheck}
-          tone="success"
-          onClick={() => navigate("admin", "providers")}
-        />
-      </div>
     </div>
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function DashboardSection({ children, title }: { children: React.ReactNode; title: string }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
-      {children}
-    </p>
+    <div className="space-y-2">
+      <p className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-card">
+        {children}
+      </div>
+    </div>
   );
 }

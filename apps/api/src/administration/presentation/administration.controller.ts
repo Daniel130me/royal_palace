@@ -1,4 +1,15 @@
-import { Controller, Get, HttpException, Inject, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Inject,
+  Param,
+  Patch,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { z } from "zod";
 
 import { AuthorizationDeniedError } from "../../authorization/application/authorization.service.js";
@@ -6,6 +17,7 @@ import type { AuthenticatedInternalRequest } from "../../identity/presentation/a
 import { AuthenticatedInternalRequestGuard } from "../../identity/presentation/authenticated-internal-request.guard.js";
 import {
   ADMINISTRATION_MAX_PAGE_SIZE,
+  AdministrationFlowError,
   AdministrationService,
 } from "../application/administration.service.js";
 import { InvalidAdministrationCursorError } from "../application/administration-cursor.js";
@@ -29,6 +41,33 @@ const commonListFields = {
   limit: z.coerce.number().int().min(1).max(ADMINISTRATION_MAX_PAGE_SIZE).optional(),
   q: z.string().trim().min(1).max(100).optional(),
 };
+const idSchema = z.uuid();
+const dashboardQuerySchema = z
+  .object({ dayFrom: instantSchema, dayTo: instantSchema })
+  .strict()
+  .refine((value) => new Date(value.dayTo) > new Date(value.dayFrom), {
+    message: "Invalid day range",
+  });
+const complaintQuerySchema = z
+  .object({
+    ...commonListFields,
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    scope: z.enum(["ALL", "OPEN", "RESOLVED"]).default("OPEN"),
+  })
+  .strict();
+const complaintTransitionSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    internalNote: z.string().trim().min(1).max(2000).optional(),
+    status: z.enum(["OPEN", "INVESTIGATING", "RESOLVED", "CLOSED"]),
+  })
+  .strict();
+const deliveryQuerySchema = z
+  .object({
+    ...commonListFields,
+    scope: z.enum(["ALL", "ACTIVE", "DELIVERED", "EXCEPTION"]).default("ALL"),
+  })
+  .strict();
 const appointmentQuerySchema = z
   .object({
     ...commonListFields,
@@ -63,6 +102,54 @@ export class AdministrationController {
   constructor(
     @Inject(AdministrationService) private readonly administration: AdministrationService,
   ) {}
+
+  @Get("dashboard")
+  getDashboard(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(dashboardQuerySchema, rawQuery);
+    return execute(() => this.administration.getDashboard(requestContext(request), query));
+  }
+
+  @Get("complaints")
+  listComplaints(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(complaintQuerySchema, rawQuery);
+    return execute(() =>
+      this.administration.listComplaints(requestContext(request), {
+        cursor: query.cursor,
+        limit: query.limit,
+        priority: query.priority,
+        query: query.q,
+        scope: query.scope,
+      }),
+    );
+  }
+
+  @Patch("complaints/:complaintId")
+  transitionComplaint(
+    @Param("complaintId") rawComplaintId: string,
+    @Body() rawBody: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.administration.transitionComplaint(
+        requestContext(request),
+        parse(idSchema, rawComplaintId),
+        parse(complaintTransitionSchema, rawBody),
+      ),
+    );
+  }
+
+  @Get("deliveries")
+  listDeliveries(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(deliveryQuerySchema, rawQuery);
+    return execute(() =>
+      this.administration.listDeliveries(requestContext(request), {
+        cursor: query.cursor,
+        limit: query.limit,
+        query: query.q,
+        scope: query.scope,
+      }),
+    );
+  }
 
   @Get("appointments")
   listAppointments(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
@@ -124,6 +211,9 @@ async function execute<T>(operation: () => Promise<T>): Promise<T> {
     }
     if (error instanceof InvalidAdministrationCursorError) {
       throw new HttpException({ error: "invalid_cursor", message: error.message }, 400);
+    }
+    if (error instanceof AdministrationFlowError) {
+      throw new HttpException({ error: error.code, message: error.message }, error.status);
     }
     throw error;
   }

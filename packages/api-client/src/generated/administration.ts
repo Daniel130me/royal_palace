@@ -4,6 +4,70 @@
  */
 
 export interface paths {
+    "/api/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminComplaints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/complaints/{complaintId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["transitionAdminComplaint"];
+        trace?: never;
+    };
+    "/api/admin/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminDeliveryOversight"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/appointments": {
         parameters: {
             query?: never;
@@ -103,6 +167,105 @@ export interface components {
             data: components["schemas"]["AuditEvent"][];
             pageInfo: components["schemas"]["PageInfo"];
         };
+        /** @enum {string} */
+        ComplaintStatus: "OPEN" | "INVESTIGATING" | "RESOLVED" | "CLOSED";
+        /** @enum {string} */
+        ComplaintPriority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+        /** @enum {string} */
+        ComplaintScope: "ALL" | "OPEN" | "RESOLVED";
+        Complaint: {
+            complainantType: components["schemas"]["PlatformRole"] | "EXTERNAL";
+            complaintNumber: string;
+            /** Format: date-time */
+            createdAt: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            priority: components["schemas"]["ComplaintPriority"];
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            status: components["schemas"]["ComplaintStatus"];
+            subject: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+        };
+        ComplaintSummary: {
+            all: number;
+            open: number;
+            resolved: number;
+            urgent: number;
+        };
+        ComplaintList: {
+            data: components["schemas"]["Complaint"][];
+            pageInfo: components["schemas"]["PageInfo"];
+            summary: components["schemas"]["ComplaintSummary"];
+        };
+        ComplaintTransitionInput: {
+            expectedVersion: number;
+            internalNote?: string;
+            status: components["schemas"]["ComplaintStatus"];
+        };
+        /** @enum {string} */
+        DeliveryScope: "ALL" | "ACTIVE" | "DELIVERED" | "EXCEPTION";
+        /** @enum {string} */
+        DeliveryStatus: "ASSIGNED" | "ACCEPTED" | "HEADING_TO_PICKUP" | "ARRIVED_AT_PICKUP" | "PICKUP_VERIFIED" | "PICKED_UP" | "IN_TRANSIT" | "ARRIVED_AT_DESTINATION" | "DELIVERED" | "FAILED" | "RETURNED" | "CANCELLED";
+        DeliveryArea: {
+            administrativeArea: string;
+            countryCode: string;
+            locality: string;
+            postalCode?: string;
+        };
+        Delivery: {
+            courierAssigned: boolean;
+            deliveryArea: components["schemas"]["DeliveryArea"];
+            deliveryNumber: string;
+            handoffReference: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            logisticsOrganizationId: string;
+            orderNumber: string;
+            /** Format: uuid */
+            pharmacyOrganizationId: string;
+            status: components["schemas"]["DeliveryStatus"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DeliverySummary: {
+            active: number;
+            all: number;
+            delivered: number;
+            exception: number;
+        };
+        DeliveryList: {
+            data: components["schemas"]["Delivery"][];
+            pageInfo: components["schemas"]["PageInfo"];
+            summary: components["schemas"]["DeliverySummary"];
+        };
+        MoneyTotal: {
+            amountMinor: string;
+            currency: string;
+        };
+        DashboardAttention: {
+            expiringCredentials: number;
+            openComplaints: number;
+            pendingApplications: number;
+        };
+        DashboardCounts: {
+            activeDeliveries: number;
+            appointmentsToday: number;
+            laboratoryBookings: number;
+            patients: number;
+            verifiedPractitioners: number;
+        };
+        Dashboard: {
+            attention: components["schemas"]["DashboardAttention"];
+            counts: components["schemas"]["DashboardCounts"];
+            paymentVolume: components["schemas"]["MoneyTotal"][];
+            recentAuditEvents: components["schemas"]["AuditEvent"][];
+            recentComplaints: components["schemas"]["Complaint"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -112,6 +275,108 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAdminDashboard: {
+        parameters: {
+            query: {
+                dayFrom: string;
+                dayTo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Privacy-minimized operational dashboard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+        };
+    };
+    listAdminComplaints: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                priority?: components["schemas"]["ComplaintPriority"];
+                q?: string;
+                scope: components["schemas"]["ComplaintScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded administrator complaint queue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintList"];
+                };
+            };
+        };
+    };
+    transitionAdminComplaint: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": string;
+            };
+            path: {
+                complaintId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintTransitionInput"];
+            };
+        };
+        responses: {
+            /** @description Complaint status transition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Complaint"];
+                };
+            };
+        };
+    };
+    listAdminDeliveryOversight: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                q?: string;
+                scope: components["schemas"]["DeliveryScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded privacy-minimized delivery oversight */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryList"];
+                };
+            };
+        };
+    };
     listAdminAppointments: {
         parameters: {
             query: {

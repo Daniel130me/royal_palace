@@ -8,7 +8,10 @@ import {
   encodeAdministrationCursor,
   InvalidAdministrationCursorError,
 } from "../src/administration/application/administration-cursor.js";
-import type { AdministrationRepository } from "../src/administration/domain/administration.types.js";
+import type {
+  AdministrationRepository,
+  TransitionAdminComplaintInput,
+} from "../src/administration/domain/administration.types.js";
 import { AuthorizationService } from "../src/authorization/application/authorization.service.js";
 import { PolicyEngine } from "../src/authorization/domain/policy-engine.js";
 
@@ -44,6 +47,76 @@ describe("AdministrationService", () => {
     ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
   });
 
+  it("exposes the operations dashboard only to administrators", async () => {
+    const getDashboard = vi.fn(async () => emptyDashboard);
+    const service = createService({ getDashboard });
+
+    await expect(
+      service.getDashboard(context("FINANCE"), { dayFrom, dayTo }),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await expect(service.getDashboard(context("ADMINISTRATOR"), { dayFrom, dayTo })).resolves.toBe(
+      emptyDashboard,
+    );
+    expect(getDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ dayFrom: new Date(dayFrom), dayTo: new Date(dayTo) }),
+    );
+  });
+
+  it("binds complaint filters to pagination and enforces valid status transitions", async () => {
+    const listComplaints = vi.fn(async () => emptyComplaints);
+    const transitionComplaint = vi.fn(async (input: TransitionAdminComplaintInput) => ({
+      complaintNumber: "CMP-000001",
+      complainantType: "PATIENT" as const,
+      createdAt: dayFrom,
+      description: "Delivery was delayed.",
+      id: input.complaintId,
+      priority: "HIGH" as const,
+      resolvedAt: null,
+      status: input.status,
+      subject: "Delayed order",
+      updatedAt: dayTo,
+      version: input.expectedVersion + 1,
+    }));
+    const service = createService({ listComplaints, transitionComplaint });
+
+    await service.listComplaints(context("ADMINISTRATOR"), {
+      priority: "HIGH",
+      query: "CMP-000001",
+      scope: "OPEN",
+    });
+    await service.transitionComplaint(
+      context("ADMINISTRATOR"),
+      "0199a18e-a400-7000-8000-000000000299",
+      { expectedVersion: 2, status: "RESOLVED" },
+    );
+
+    expect(listComplaints).toHaveBeenCalledWith(
+      expect.objectContaining({ priority: "HIGH", query: "CMP-000001", scope: "OPEN" }),
+    );
+    expect(transitionComplaint).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowedFromStatuses: ["OPEN", "INVESTIGATING"],
+        expectedVersion: 2,
+        status: "RESOLVED",
+      }),
+    );
+  });
+
+  it("returns privacy-minimized delivery oversight only to administrators", async () => {
+    const listDeliveries = vi.fn(async () => emptyDeliveries);
+    const service = createService({ listDeliveries });
+
+    await expect(
+      service.listDeliveries(context("SUPPORT"), { scope: "ACTIVE" }),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await expect(
+      service.listDeliveries(context("ADMINISTRATOR"), { query: "Lagos", scope: "ACTIVE" }),
+    ).resolves.toBe(emptyDeliveries);
+    expect(listDeliveries).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 25, query: "Lagos", scope: "ACTIVE" }),
+    );
+  });
+
   it("binds cursors to the complete filter set", () => {
     const filters = { dayFrom, dayTo, scope: "ALL" };
     const hash = administrationFilterHash(filters);
@@ -62,6 +135,7 @@ describe("AdministrationService", () => {
 
 function createService(overrides: Partial<AdministrationRepository>): AdministrationService {
   const repository: AdministrationRepository = {
+    getDashboard: vi.fn(async () => emptyDashboard),
     listAppointments: vi.fn(async () => ({
       data: [],
       pageInfo: { endCursor: null, hasNextPage: false },
@@ -71,6 +145,9 @@ function createService(overrides: Partial<AdministrationRepository>): Administra
       data: [],
       pageInfo: { endCursor: null, hasNextPage: false },
     })),
+    listComplaints: vi.fn(async () => emptyComplaints),
+    listDeliveries: vi.fn(async () => emptyDeliveries),
+    transitionComplaint: vi.fn(async () => null),
     ...overrides,
   };
   const authorization = new AuthorizationService(new PolicyEngine(), {
@@ -78,6 +155,32 @@ function createService(overrides: Partial<AdministrationRepository>): Administra
   });
   return new AdministrationService(repository, authorization);
 }
+
+const emptyDashboard = {
+  attention: { expiringCredentials: 0, openComplaints: 0, pendingApplications: 0 },
+  counts: {
+    activeDeliveries: 0,
+    appointmentsToday: 0,
+    laboratoryBookings: 0,
+    patients: 0,
+    verifiedPractitioners: 0,
+  },
+  paymentVolume: [],
+  recentAuditEvents: [],
+  recentComplaints: [],
+};
+
+const emptyComplaints = {
+  data: [],
+  pageInfo: { endCursor: null, hasNextPage: false },
+  summary: { all: 0, open: 0, resolved: 0, urgent: 0 },
+};
+
+const emptyDeliveries = {
+  data: [],
+  pageInfo: { endCursor: null, hasNextPage: false },
+  summary: { active: 0, all: 0, delivered: 0, exception: 0 },
+};
 
 function context(role: PlatformRole) {
   const actor: CurrentSession = {

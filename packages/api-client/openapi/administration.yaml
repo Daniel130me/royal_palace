@@ -3,6 +3,79 @@ info:
   title: Royal Palace Administration Oversight API
   version: 1.0.0
 paths:
+  /api/admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      parameters:
+        - { name: dayFrom, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: dayTo, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Privacy-minimized operational dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /api/admin/complaints:
+    get:
+      operationId: listAdminComplaints
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: priority, in: query, schema: { $ref: "#/components/schemas/ComplaintPriority" } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - {
+            name: scope,
+            in: query,
+            required: true,
+            schema: { $ref: "#/components/schemas/ComplaintScope" },
+          }
+      responses:
+        "200":
+          description: Bounded administrator complaint queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ComplaintList" }
+  /api/admin/complaints/{complaintId}:
+    patch:
+      operationId: transitionAdminComplaint
+      parameters:
+        - { name: complaintId, in: path, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: x-rp-csrf-token,
+            in: header,
+            required: true,
+            schema: { type: string, minLength: 1 },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ComplaintTransitionInput" }
+      responses:
+        "200":
+          description: Complaint status transition
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Complaint" }
+  /api/admin/deliveries:
+    get:
+      operationId: listAdminDeliveryOversight
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - {
+            name: scope,
+            in: query,
+            required: true,
+            schema: { $ref: "#/components/schemas/DeliveryScope" },
+          }
+      responses:
+        "200":
+          description: Bounded privacy-minimized delivery oversight
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeliveryList" }
   /api/admin/appointments:
     get:
       operationId: listAdminAppointments
@@ -147,3 +220,177 @@ components:
       properties:
         data: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
         pageInfo: { $ref: "#/components/schemas/PageInfo" }
+    ComplaintStatus:
+      type: string
+      enum: [OPEN, INVESTIGATING, RESOLVED, CLOSED]
+    ComplaintPriority:
+      type: string
+      enum: [LOW, NORMAL, HIGH, URGENT]
+    ComplaintScope:
+      type: string
+      enum: [ALL, OPEN, RESOLVED]
+    Complaint:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          complainantType,
+          complaintNumber,
+          createdAt,
+          description,
+          id,
+          priority,
+          status,
+          subject,
+          updatedAt,
+          version,
+        ]
+      properties:
+        complainantType:
+          oneOf:
+            - { $ref: "#/components/schemas/PlatformRole" }
+            - { type: string, const: EXTERNAL }
+        complaintNumber: { type: string }
+        createdAt: { type: string, format: date-time }
+        description: { type: string }
+        id: { type: string, format: uuid }
+        priority: { $ref: "#/components/schemas/ComplaintPriority" }
+        resolvedAt: { type: [string, "null"], format: date-time }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        subject: { type: string }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    ComplaintSummary:
+      type: object
+      additionalProperties: false
+      required: [all, open, resolved, urgent]
+      properties:
+        all: { type: integer, minimum: 0 }
+        open: { type: integer, minimum: 0 }
+        resolved: { type: integer, minimum: 0 }
+        urgent: { type: integer, minimum: 0 }
+    ComplaintList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, summary]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Complaint" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        summary: { $ref: "#/components/schemas/ComplaintSummary" }
+    ComplaintTransitionInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, status]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        internalNote: { type: string, minLength: 1, maxLength: 2000 }
+        status: { $ref: "#/components/schemas/ComplaintStatus" }
+    DeliveryScope:
+      type: string
+      enum: [ALL, ACTIVE, DELIVERED, EXCEPTION]
+    DeliveryStatus:
+      type: string
+      enum:
+        [
+          ASSIGNED,
+          ACCEPTED,
+          HEADING_TO_PICKUP,
+          ARRIVED_AT_PICKUP,
+          PICKUP_VERIFIED,
+          PICKED_UP,
+          IN_TRANSIT,
+          ARRIVED_AT_DESTINATION,
+          DELIVERED,
+          FAILED,
+          RETURNED,
+          CANCELLED,
+        ]
+    DeliveryArea:
+      type: object
+      additionalProperties: false
+      required: [administrativeArea, countryCode, locality]
+      properties:
+        administrativeArea: { type: string }
+        countryCode: { type: string, pattern: "^[A-Z]{2}$" }
+        locality: { type: string }
+        postalCode: { type: string }
+    Delivery:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          courierAssigned,
+          deliveryArea,
+          deliveryNumber,
+          handoffReference,
+          id,
+          logisticsOrganizationId,
+          orderNumber,
+          pharmacyOrganizationId,
+          status,
+          updatedAt,
+        ]
+      properties:
+        courierAssigned: { type: boolean }
+        deliveryArea: { $ref: "#/components/schemas/DeliveryArea" }
+        deliveryNumber: { type: string }
+        handoffReference: { type: string }
+        id: { type: string, format: uuid }
+        logisticsOrganizationId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        pharmacyOrganizationId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/DeliveryStatus" }
+        updatedAt: { type: string, format: date-time }
+    DeliverySummary:
+      type: object
+      additionalProperties: false
+      required: [active, all, delivered, exception]
+      properties:
+        active: { type: integer, minimum: 0 }
+        all: { type: integer, minimum: 0 }
+        delivered: { type: integer, minimum: 0 }
+        exception: { type: integer, minimum: 0 }
+    DeliveryList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, summary]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Delivery" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        summary: { $ref: "#/components/schemas/DeliverySummary" }
+    MoneyTotal:
+      type: object
+      additionalProperties: false
+      required: [amountMinor, currency]
+      properties:
+        amountMinor: { type: string, pattern: "^-?[0-9]+$" }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+    DashboardAttention:
+      type: object
+      additionalProperties: false
+      required: [expiringCredentials, openComplaints, pendingApplications]
+      properties:
+        expiringCredentials: { type: integer, minimum: 0 }
+        openComplaints: { type: integer, minimum: 0 }
+        pendingApplications: { type: integer, minimum: 0 }
+    DashboardCounts:
+      type: object
+      additionalProperties: false
+      required:
+        [activeDeliveries, appointmentsToday, laboratoryBookings, patients, verifiedPractitioners]
+      properties:
+        activeDeliveries: { type: integer, minimum: 0 }
+        appointmentsToday: { type: integer, minimum: 0 }
+        laboratoryBookings: { type: integer, minimum: 0 }
+        patients: { type: integer, minimum: 0 }
+        verifiedPractitioners: { type: integer, minimum: 0 }
+    Dashboard:
+      type: object
+      additionalProperties: false
+      required: [attention, counts, paymentVolume, recentAuditEvents, recentComplaints]
+      properties:
+        attention: { $ref: "#/components/schemas/DashboardAttention" }
+        counts: { $ref: "#/components/schemas/DashboardCounts" }
+        paymentVolume: { type: array, items: { $ref: "#/components/schemas/MoneyTotal" } }
+        recentAuditEvents: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
+        recentComplaints: { type: array, items: { $ref: "#/components/schemas/Complaint" } }

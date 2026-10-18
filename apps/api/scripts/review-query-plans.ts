@@ -18,6 +18,7 @@ const HISTORICAL_NOTIFICATION_ENDPOINT_COUNT = 10_000;
 const LABORATORY_WORKFLOW_COUNT = 5_000;
 const LABORATORY_CRITICAL_COUNT = 500;
 const LOGISTICS_WORKFLOW_COUNT = 5_000;
+const PLATFORM_COMPLAINT_COUNT = 5_000;
 
 interface ExplainNode {
   [key: string]: unknown;
@@ -512,6 +513,36 @@ async function main(): Promise<void> {
       ),
       await reviewPlan(
         client,
+        "administrator complaint status cursor",
+        `SELECT "id", "complaint_number", "priority", "status", "created_at"
+           FROM "platform_complaints"
+          WHERE "status" = 'OPEN'
+            AND "priority" = 'URGENT'
+            AND ("created_at", "id") < ($1, $2)
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
+        [
+          "platform_complaints_status_priority_created_idx",
+          "platform_complaints_priority_created_idx",
+        ],
+        { forceIndexEligibility: true, preserveOrderedIndexScans: true },
+      ),
+      await reviewPlan(
+        client,
+        "administrator complaint search",
+        `SELECT "id", "complaint_number", "subject"
+           FROM "platform_complaints"
+          WHERE "complaint_number" ILIKE '%CMP-004900%'
+             OR "subject" ILIKE '%complaint 004900%'
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT 50`,
+        [],
+        ["platform_complaints_number_trgm_idx", "platform_complaints_subject_trgm_idx"],
+        { forceIndexEligibility: true },
+      ),
+      await reviewPlan(
+        client,
         "patient payment status",
         `SELECT "id", "appointment_id", "amount_minor", "currency", "status", "updated_at"
            FROM "payments"
@@ -564,7 +595,7 @@ async function main(): Promise<void> {
           new Date("9999-12-31T23:59:59.999Z"),
           "ffffffff-ffff-7fff-bfff-ffffffffffff",
         ],
-        "logistics_deliveries_org_status_assigned_idx",
+        ["logistics_deliveries_org_status_assigned_idx", "logistics_deliveries_assigned_id_idx"],
       ),
       await reviewPlan(
         client,
@@ -576,7 +607,7 @@ async function main(): Promise<void> {
           ORDER BY "assigned_at" DESC, "id" DESC
           LIMIT 50`,
         [new Date("9999-12-31T23:59:59.999Z"), "ffffffff-ffff-7fff-bfff-ffffffffffff"],
-        "logistics_deliveries_status_assigned_idx",
+        ["logistics_deliveries_status_assigned_idx", "logistics_deliveries_assigned_id_idx"],
       ),
       await reviewPlan(
         client,
@@ -633,6 +664,23 @@ async function loadRepresentativeData(
             now() + interval '15 minutes', now() + interval '8 hours'
        FROM unnest($3::uuid[]) AS input(id)`,
     [principalId, externalIdentityId, sessionIds],
+  );
+
+  const complaintIds = Array.from({ length: PLATFORM_COMPLAINT_COUNT }, () => v7());
+  await client.query(
+    `INSERT INTO "platform_complaints"
+       ("id", "complaint_number", "submitted_by_principal_id", "complainant_type",
+        "subject", "description", "priority", "status", "created_at", "updated_at")
+     SELECT input.id, 'CMP-' || lpad(input.ordinality::text, 6, '0'), $1, 'PATIENT',
+            'Synthetic complaint ' || lpad(input.ordinality::text, 6, '0'),
+            'Synthetic query-plan complaint without clinical content.',
+            CASE WHEN input.ordinality % 20 = 0 THEN 'URGENT'::"PlatformComplaintPriority"
+                 ELSE 'NORMAL'::"PlatformComplaintPriority" END,
+            CASE WHEN input.ordinality % 5 = 0 THEN 'INVESTIGATING'::"PlatformComplaintStatus"
+                 ELSE 'OPEN'::"PlatformComplaintStatus" END,
+            now() - (input.ordinality * interval '1 second'), now()
+       FROM unnest($2::uuid[]) WITH ORDINALITY AS input(id, ordinality)`,
+    [principalId, complaintIds],
   );
 
   const onboardingPrincipalIds = Array.from({ length: ONBOARDING_APPLICATION_COUNT }, () => v7());
@@ -1128,7 +1176,9 @@ async function loadRepresentativeLogisticsData(
   input: { patientId: string; pharmacyOrganizationId: string; principalId: string },
 ): Promise<{ targetLogisticsDeliveryId: string; targetLogisticsOrganizationId: string }> {
   const logisticsOrganizationId = v7();
+  const secondaryLogisticsOrganizationId = v7();
   const membershipId = v7();
+  const secondaryMembershipId = v7();
   const categoryId = v7();
   const dosageFormId = v7();
   const catalogItemId = v7();
@@ -1150,19 +1200,28 @@ async function loadRepresentativeLogisticsData(
     `INSERT INTO "organizations"
        ("id", "type", "verification_status", "verified_at", "legal_name", "display_name", "updated_at")
      VALUES ($1, 'LOGISTICS', 'VERIFIED', now(),
-             'Query Plan Logistics Limited', 'Query Plan Logistics', now())`,
-    [logisticsOrganizationId],
+             'Query Plan Logistics Limited', 'Query Plan Logistics', now()),
+            ($2, 'LOGISTICS', 'VERIFIED', now(),
+             'Query Plan Secondary Logistics Limited', 'Query Plan Secondary Logistics', now())`,
+    [logisticsOrganizationId, secondaryLogisticsOrganizationId],
   );
   await client.query(
     `INSERT INTO "memberships" ("id", "organization_id", "principal_id", "updated_at")
-     VALUES ($1, $2, $3, now())`,
-    [membershipId, logisticsOrganizationId, input.principalId],
+     VALUES ($1, $2, $3, now()), ($4, $5, $3, now())`,
+    [
+      membershipId,
+      logisticsOrganizationId,
+      input.principalId,
+      secondaryMembershipId,
+      secondaryLogisticsOrganizationId,
+    ],
   );
   await client.query(
     `INSERT INTO "role_assignments"
        ("id", "membership_id", "role", "scope", "updated_at")
-     VALUES ($1, $2, 'LOGISTICS', 'ORGANIZATION', now())`,
-    [v7(), membershipId],
+     VALUES ($1, $2, 'LOGISTICS', 'ORGANIZATION', now()),
+            ($3, $4, 'LOGISTICS', 'ORGANIZATION', now())`,
+    [v7(), membershipId, v7(), secondaryMembershipId],
   );
   await client.query(
     `INSERT INTO "pharmacy_product_classifications" ("id", "kind", "code", "name", "updated_at")
@@ -1254,26 +1313,35 @@ async function loadRepresentativeLogisticsData(
         "delivery_administrative_area", "delivery_country_code", "recipient_code_digest",
         "recipient_code_key_id", "recipient_code_expires_at", "assigned_at", "created_at", "updated_at")
      SELECT fixture.delivery_id, 'QP-LD-' || lpad(fixture.ordinality::text, 8, '0'),
-            fixture.order_id, fixture.handoff_id, $1, 'ASSIGNED', 'Synthetic pharmacy',
+            fixture.order_id, fixture.handoff_id,
+            CASE WHEN fixture.ordinality % 2 = 1 THEN $1::uuid ELSE $2::uuid END,
+            'ASSIGNED', 'Synthetic pharmacy',
             'Synthetic pharmacist', '+15555550101', '1 Synthetic Pharmacy Street', 'Toronto',
             'Ontario', 'CA', 'Synthetic patient', '+15555550102', '2 Synthetic Patient Street',
             'Toronto', 'Ontario', 'CA', repeat('b', 64), 'query-plan-key', now() + interval '1 day',
             now() - (fixture.ordinality * interval '1 second'),
             now() - (fixture.ordinality * interval '1 second'), now()
-       FROM unnest($2::uuid[], $3::uuid[], $4::uuid[]) WITH ORDINALITY
+       FROM unnest($3::uuid[], $4::uuid[], $5::uuid[]) WITH ORDINALITY
             AS fixture(delivery_id, order_id, handoff_id, ordinality)`,
-    [logisticsOrganizationId, deliveryIds, orderIds, handoffIds],
+    [logisticsOrganizationId, secondaryLogisticsOrganizationId, deliveryIds, orderIds, handoffIds],
   );
   await client.query(
     `INSERT INTO "logistics_delivery_assignments"
        ("id", "delivery_id", "logistics_organization_id", "courier_principal_id",
         "assigned_by_principal_id", "assigned_at", "created_at")
-     SELECT fixture.assignment_id, fixture.delivery_id, $1, $2, $2,
+     SELECT fixture.assignment_id, fixture.delivery_id,
+            CASE WHEN fixture.ordinality % 2 = 1 THEN $1::uuid ELSE $2::uuid END, $3, $3,
             now() - (fixture.ordinality * interval '1 second'),
             now() - (fixture.ordinality * interval '1 second')
-       FROM unnest($3::uuid[], $4::uuid[]) WITH ORDINALITY
+       FROM unnest($4::uuid[], $5::uuid[]) WITH ORDINALITY
             AS fixture(assignment_id, delivery_id, ordinality)`,
-    [logisticsOrganizationId, input.principalId, assignmentIds, deliveryIds],
+    [
+      logisticsOrganizationId,
+      secondaryLogisticsOrganizationId,
+      input.principalId,
+      assignmentIds,
+      deliveryIds,
+    ],
   );
   await client.query(
     `INSERT INTO "logistics_delivery_status_history"
@@ -1505,6 +1573,7 @@ async function reviewPlan(
       laboratoryWorkflows: LABORATORY_WORKFLOW_COUNT,
       laboratoryCriticalResults: LABORATORY_CRITICAL_COUNT,
       logisticsWorkflows: LOGISTICS_WORKFLOW_COUNT,
+      platformComplaints: PLATFORM_COMPLAINT_COUNT,
     },
   };
 }

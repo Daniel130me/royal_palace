@@ -4,6 +4,9 @@ import { authErrorResponse, BffAuthError, proxyAuthenticatedApi } from "./bff";
 
 const INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/;
 const APPOINTMENT_SCOPES = new Set(["ALL", "TODAY", "UPCOMING", "COMPLETED", "UNSUCCESSFUL"]);
+const COMPLAINT_SCOPES = new Set(["ALL", "OPEN", "RESOLVED"]);
+const COMPLAINT_PRIORITIES = new Set(["LOW", "NORMAL", "HIGH", "URGENT"]);
+const DELIVERY_SCOPES = new Set(["ALL", "ACTIVE", "DELIVERED", "EXCEPTION"]);
 const PLATFORM_ROLES = new Set([
   "PATIENT",
   "MANAGER",
@@ -19,36 +22,108 @@ const PLATFORM_ROLES = new Set([
 ]);
 
 export function proxyAdminAppointmentList(request: NextRequest) {
-  return proxyValidated(request, "/v1/admin/appointments", (source, output) => {
+  return proxyValidated(request, adminAppointmentListPath);
+}
+
+export function adminAppointmentListPath(url: URL): string {
+  return validatedPath(
+    url,
+    "/v1/admin/appointments",
+    ["dayFrom", "dayTo", "scope", "cursor", "limit", "q"],
+    (source, output) => {
+      copyInstant(source, output, "dayFrom", true);
+      copyInstant(source, output, "dayTo", true);
+      copyEnum(source, output, "scope", APPOINTMENT_SCOPES);
+      copyCommon(source, output);
+    },
+  );
+}
+
+export function proxyAdminDashboard(request: NextRequest) {
+  return proxyValidated(request, adminDashboardPath);
+}
+
+export function adminDashboardPath(url: URL): string {
+  return validatedPath(url, "/v1/admin/dashboard", ["dayFrom", "dayTo"], (source, output) => {
     copyInstant(source, output, "dayFrom", true);
     copyInstant(source, output, "dayTo", true);
-    copyEnum(source, output, "scope", APPOINTMENT_SCOPES);
-    copyCommon(source, output);
   });
+}
+
+export function proxyAdminComplaintList(request: NextRequest) {
+  return proxyValidated(request, adminComplaintListPath);
+}
+
+export function adminComplaintListPath(url: URL): string {
+  return validatedPath(
+    url,
+    "/v1/admin/complaints",
+    ["priority", "scope", "cursor", "limit", "q"],
+    (source, output) => {
+      copyEnum(source, output, "priority", COMPLAINT_PRIORITIES);
+      copyEnum(source, output, "scope", COMPLAINT_SCOPES);
+      copyCommon(source, output);
+    },
+  );
+}
+
+export function proxyAdminDeliveryList(request: NextRequest) {
+  return proxyValidated(request, adminDeliveryListPath);
+}
+
+export function adminDeliveryListPath(url: URL): string {
+  return validatedPath(
+    url,
+    "/v1/admin/deliveries",
+    ["scope", "cursor", "limit", "q"],
+    (source, output) => {
+      copyEnum(source, output, "scope", DELIVERY_SCOPES);
+      copyCommon(source, output);
+    },
+  );
 }
 
 export function proxyAdminAuditList(request: NextRequest) {
-  return proxyValidated(request, "/v1/admin/audit-events", (source, output) => {
-    copyInstant(source, output, "from", false);
-    copyInstant(source, output, "to", false);
-    copyEnum(source, output, "effectiveRole", PLATFORM_ROLES);
-    copyText(source, output, "action", 160);
-    copyCommon(source, output);
-  });
+  return proxyValidated(request, adminAuditListPath);
 }
 
-function proxyValidated(
-  request: NextRequest,
-  apiPath: string,
-  build: (source: URLSearchParams, output: URLSearchParams) => void,
-) {
+export function adminAuditListPath(url: URL): string {
+  return validatedPath(
+    url,
+    "/v1/admin/audit-events",
+    ["from", "to", "effectiveRole", "action", "cursor", "limit", "q"],
+    (source, output) => {
+      copyInstant(source, output, "from", false);
+      copyInstant(source, output, "to", false);
+      copyEnum(source, output, "effectiveRole", PLATFORM_ROLES);
+      copyText(source, output, "action", 160);
+      copyCommon(source, output);
+    },
+  );
+}
+
+function proxyValidated(request: NextRequest, buildPath: (url: URL) => string) {
   try {
-    const output = new URLSearchParams();
-    build(request.nextUrl.searchParams, output);
-    return proxyAuthenticatedApi(request, `${apiPath}?${output.toString()}`, "GET");
+    return proxyAuthenticatedApi(request, buildPath(request.nextUrl), "GET");
   } catch (error) {
     return authErrorResponse(error);
   }
+}
+
+function validatedPath(
+  url: URL,
+  apiPath: string,
+  allowedKeys: readonly string[],
+  build: (source: URLSearchParams, output: URLSearchParams) => void,
+): string {
+  const allowed = new Set(allowedKeys);
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.has(key)) invalid(key);
+  }
+  const output = new URLSearchParams();
+  build(url.searchParams, output);
+  const query = output.toString();
+  return query.length === 0 ? apiPath : `${apiPath}?${query}`;
 }
 
 function copyCommon(source: URLSearchParams, output: URLSearchParams): void {

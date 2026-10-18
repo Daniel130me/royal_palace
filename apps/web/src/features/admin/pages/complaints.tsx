@@ -1,240 +1,321 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
-import { complaintService } from "@/lib/services";
-import { resource } from "@/lib/api-client";
-import type { Complaint } from "@/types";
+import type {
+  AdminComplaintListItem,
+  AdminComplaintPriority,
+  AdminComplaintScope,
+  AdminComplaintStatus,
+  AdminComplaintSummary,
+} from "@royal-palace/contracts";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  MessageSquareWarning,
+  Search,
+  ShieldAlert,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
+import { SegmentedControl } from "@/components/healthcare/segmented-control";
+import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { StatusBadge } from "@/components/healthcare/status-badge";
-import {
-  PageHeader, LoadingState, ErrorState, EmptyState, SkeletonGrid,
-} from "@/components/healthcare/page-header";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { SegmentedControl } from "@/components/healthcare/segmented-control";
-import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
-import { toast } from "sonner";
-import {
-  MessageSquareWarning, Search, ShieldAlert, CheckCircle2, AlertTriangle,
-} from "lucide-react";
+import { navigate } from "@/lib/nav";
+import { administrationService } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
-const STATUS_FLOW = ["open", "investigating", "resolved", "closed"];
-
-type FilterKey = "open" | "resolved" | "all";
-
-const PRIORITY_TONES: Record<string, string> = {
-  low: "bg-muted text-muted-foreground border-border",
-  normal: "bg-sky-50 text-sky-700 border-sky-200",
-  high: "bg-amber-50 text-amber-700 border-amber-200",
-  urgent: "bg-rose-50 text-rose-700 border-rose-200",
+const EMPTY_SUMMARY: AdminComplaintSummary = { all: 0, open: 0, resolved: 0, urgent: 0 };
+const PRIORITIES: readonly (AdminComplaintPriority | "ALL")[] = [
+  "ALL",
+  "URGENT",
+  "HIGH",
+  "NORMAL",
+  "LOW",
+];
+const STATUSES: readonly AdminComplaintStatus[] = ["OPEN", "INVESTIGATING", "RESOLVED", "CLOSED"];
+const ALLOWED_TRANSITIONS: Readonly<Record<AdminComplaintStatus, readonly AdminComplaintStatus[]>> =
+  {
+    OPEN: ["INVESTIGATING", "RESOLVED", "CLOSED"],
+    INVESTIGATING: ["OPEN", "RESOLVED", "CLOSED"],
+    RESOLVED: ["INVESTIGATING", "CLOSED"],
+    CLOSED: ["INVESTIGATING"],
+  };
+const PRIORITY_TONES: Record<AdminComplaintPriority, string> = {
+  LOW: "bg-muted text-muted-foreground border-border",
+  NORMAL: "bg-sky-50 text-sky-700 border-sky-200",
+  HIGH: "bg-amber-50 text-amber-700 border-amber-200",
+  URGENT: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export function AdminComplaints() {
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [complaints, setComplaints] = useState<AdminComplaintListItem[]>([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("open");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [selected, setSelected] = useState<Complaint | null>(null);
-  const [newStatus, setNewStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<AdminComplaintScope>("OPEN");
+  const [priority, setPriority] = useState<AdminComplaintPriority | "ALL">("ALL");
+  const [selected, setSelected] = useState<AdminComplaintListItem | null>(null);
+  const [newStatus, setNewStatus] = useState<AdminComplaintStatus>("OPEN");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const availableStatuses =
+    selected === null ? STATUSES : [selected.status, ...ALLOWED_TRANSITIONS[selected.status]];
 
-  const load = () => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    complaintService.list()
-      .then(setComplaints)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load complaints"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const counts = useMemo(() => ({
-    open: complaints.filter((c) => ["open", "investigating"].includes(c.status)).length,
-    resolved: complaints.filter((c) => ["resolved", "closed"].includes(c.status)).length,
-    all: complaints.length,
-  }), [complaints]);
-
-  const urgentCount = complaints.filter((c) => c.priority === "urgent").length;
-
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return complaints
-      .filter((c) => {
-        if (filter === "open" && !["open", "investigating"].includes(c.status)) return false;
-        if (filter === "resolved" && !["resolved", "closed"].includes(c.status)) return false;
-        if (priorityFilter !== "all" && c.priority !== priorityFilter) return false;
-        if (!q) return true;
-        return `${c.subject} ${c.description} ${c.complainantId} ${c.complainantType}`.toLowerCase().includes(q);
+    void administrationService
+      .complaints({
+        limit: 25,
+        ...(priority === "ALL" ? {} : { priority }),
+        ...(query ? { query } : {}),
+        scope,
       })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [complaints, search, filter, priorityFilter]);
+      .then((page) => {
+        setComplaints([...page.data]);
+        setSummary(page.summary);
+        setNextCursor(page.pageInfo.endCursor);
+      })
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : "Complaints could not be loaded."),
+      )
+      .finally(() => setLoading(false));
+  }, [priority, query, scope]);
+  useEffect(load, [load]);
 
-  const openDetail = (c: Complaint) => {
-    setSelected(c);
-    setNewStatus(c.status);
+  const loadMore = async () => {
+    if (nextCursor === null) return;
+    setLoadingMore(true);
+    try {
+      const page = await administrationService.complaints({
+        cursor: nextCursor,
+        limit: 25,
+        ...(priority === "ALL" ? {} : { priority }),
+        ...(query ? { query } : {}),
+        scope,
+      });
+      setComplaints((current) => [...current, ...page.data]);
+      setNextCursor(page.pageInfo.endCursor);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Older complaints could not be loaded.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+  const openDetail = (complaint: AdminComplaintListItem) => {
+    setSelected(complaint);
+    setNewStatus(complaint.status);
     setNote("");
   };
-
   const update = async () => {
-    if (!selected) return;
+    if (selected === null || selected.status === newStatus) return;
     setSubmitting(true);
     try {
-      await resource.update<Complaint>("complaint", selected.id, { status: newStatus });
-      toast.success(`Complaint status updated to ${newStatus}.`);
+      await administrationService.transitionComplaint(selected.id, {
+        expectedVersion: selected.version,
+        ...(note.trim() ? { internalNote: note.trim() } : {}),
+        status: newStatus,
+      });
+      toast.success(`Complaint moved to ${newStatus.toLowerCase()}.`);
       setSelected(null);
       load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to update complaint.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Complaint could not be updated.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
+  if (loading && complaints.length === 0)
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
         <SkeletonGrid count={4} />
       </div>
     );
-  }
-  if (error) return <ErrorState message={error} onRetry={load} />;
-
+  if (error !== null && complaints.length === 0)
+    return <ErrorState message={error} onRetry={load} />;
   return (
     <div className="space-y-4">
       <PageHeader
         title="Complaints"
-        description="Triage and resolve complaints raised by patients and partners."
-        breadcrumbs={[{ label: "Admin", onClick: () => navigate("admin", "dashboard") }, { label: "Complaints" }]}
+        description="Triage and resolve complaints through an auditable workflow."
+        breadcrumbs={[
+          { label: "Admin", onClick: () => navigate("admin", "dashboard") },
+          { label: "Complaints" },
+        ]}
       />
-
-      {/* StatTiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <StatTile label="Open" value={counts.open} icon={ShieldAlert} tone="warning" />
-        <StatTile label="Resolved" value={counts.resolved} icon={CheckCircle2} tone="success" />
-        <StatTile label="Urgent" value={urgentCount} icon={AlertTriangle} tone={urgentCount > 0 ? "danger" : "default"} />
-        <StatTile label="Total" value={counts.all} icon={MessageSquareWarning} />
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <StatTile label="Open" value={summary.open} icon={ShieldAlert} tone="warning" />
+        <StatTile label="Resolved" value={summary.resolved} icon={CheckCircle2} tone="success" />
+        <StatTile
+          label="Urgent"
+          value={summary.urgent}
+          icon={AlertTriangle}
+          tone={summary.urgent > 0 ? "danger" : "default"}
+        />
+        <StatTile label="Total" value={summary.all} icon={MessageSquareWarning} />
       </div>
-
-      {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Subject, description, complainant…" className="pl-9" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          aria-label="Search complaints"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Complaint number, subject, or submitter ID…"
+          className="pl-9"
+        />
       </div>
-
-      {/* SegmentedControl filter */}
       <SegmentedControl
         options={[
-          { value: "open" as FilterKey, label: "Open", badge: counts.open },
-          { value: "resolved" as FilterKey, label: "Resolved", badge: counts.resolved },
-          { value: "all" as FilterKey, label: "All", badge: counts.all },
+          { value: "OPEN" as AdminComplaintScope, label: "Open", badge: summary.open },
+          { value: "RESOLVED" as AdminComplaintScope, label: "Resolved", badge: summary.resolved },
+          { value: "ALL" as AdminComplaintScope, label: "All", badge: summary.all },
         ]}
-        value={filter}
-        onChange={setFilter}
+        value={scope}
+        onChange={setScope}
         size="sm"
       />
-
-      {/* Priority filter chips */}
-      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 lg:mx-0 lg:px-0">
-        {["all", "urgent", "high", "normal", "low"].map((p) => {
-          const active = priorityFilter === p;
-          const count = p === "all" ? complaints.length : complaints.filter((c) => c.priority === p).length;
-          return (
-            <button
-              key={p}
-              onClick={() => setPriorityFilter(p)}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-all tap-highlight-none",
-                active ? "bg-primary text-primary-foreground shadow-soft" : "bg-card border border-border/60 text-muted-foreground hover:bg-accent"
-              )}
-            >
-              {p === "all" ? "All priorities" : p}
-              <span className={cn("text-[10px] rounded-full px-1", active ? "bg-primary-foreground/20" : "bg-muted")}>{count}</span>
-            </button>
-          );
-        })}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {PRIORITIES.map((value) => (
+          <button
+            key={value}
+            onClick={() => setPriority(value)}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium capitalize",
+              priority === value
+                ? "bg-primary text-primary-foreground"
+                : "border bg-card text-muted-foreground",
+            )}
+          >
+            {value === "ALL" ? "All priorities" : value.toLowerCase()}
+          </button>
+        ))}
       </div>
-
-      {visible.length === 0 ? (
-        <EmptyState icon={MessageSquareWarning} title="No complaints" description="No complaints match your filters." compact />
+      {error !== null && <ErrorState message={error} onRetry={load} />}
+      {complaints.length === 0 ? (
+        <EmptyState
+          icon={MessageSquareWarning}
+          title="No complaints"
+          description="No complaint matches these server-side filters."
+          compact
+        />
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40">
-          {visible.map((c) => (
+        <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-card">
+          {complaints.map((complaint) => (
             <CompactListItem
-              key={c.id}
+              key={complaint.id}
               leading={
-                <div className={cn("rounded-lg p-2 border", PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal)}>
+                <div className={cn("rounded-lg border p-2", PRIORITY_TONES[complaint.priority])}>
                   <MessageSquareWarning className="h-4 w-4" />
                 </div>
               }
-              title={c.subject}
-              subtitle={`${c.complainantType} · ${c.complainantId} · ${formatDateTime(c.createdAt)}`}
+              title={complaint.subject}
+              subtitle={`${complaint.complaintNumber} · ${complaint.complainantType} · ${formatDateTime(complaint.createdAt)}`}
               trailing={
                 <div className="flex flex-col items-end gap-1">
-                  <StatusBadge status={c.status} size="sm" />
-                  <span className={cn("text-[10px] font-medium uppercase tracking-wider rounded-md px-1.5 py-0.5 border", PRIORITY_TONES[c.priority] ?? PRIORITY_TONES.normal)}>
-                    {c.priority}
+                  <StatusBadge status={complaint.status.toLowerCase()} size="sm" />
+                  <span
+                    className={cn(
+                      "rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                      PRIORITY_TONES[complaint.priority],
+                    )}
+                  >
+                    {complaint.priority}
                   </span>
                 </div>
               }
-              onClick={() => openDetail(c)}
+              onClick={() => openDetail(complaint)}
               chevron
             />
           ))}
         </div>
       )}
-
-      {/* Detail / status update dialog */}
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+      {nextCursor !== null && (
+        <div className="flex justify-center">
+          <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
+            {loadingMore ? "Loading…" : "Load more complaints"}
+          </Button>
+        </div>
+      )}
+      <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selected?.subject}</DialogTitle>
             <DialogDescription>
-              {selected?.complainantType} · {selected?.complainantId} · {selected ? formatDateTime(selected.createdAt) : ""}
+              {selected?.complaintNumber} · {selected?.complainantType}
             </DialogDescription>
           </DialogHeader>
-          {selected && (
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge status={selected.status} size="sm" />
-                <span className={cn("text-xs font-medium uppercase tracking-wider rounded-md px-2 py-0.5 border", PRIORITY_TONES[selected.priority] ?? PRIORITY_TONES.normal)}>
-                  Priority: {selected.priority}
-                </span>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Description</p>
-                <p className="text-sm leading-relaxed">{selected.description}</p>
-              </div>
-              <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Update status</p>
+          {selected !== null && (
+            <div className="space-y-4">
+              <p className="text-sm leading-relaxed">{selected.description}</p>
+              <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="status" className="text-xs">New status</Label>
-                  <Select value={newStatus} onValueChange={setNewStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Label>New status</Label>
+                  <Select
+                    value={newStatus}
+                    onValueChange={(value) => setNewStatus(value as AdminComplaintStatus)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {STATUS_FLOW.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {availableStatuses.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.toLowerCase().replaceAll("_", " ")}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="note" className="text-xs">Internal note (optional)</Label>
-                  <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note for the team…" rows={3} />
+                  <Label htmlFor="complaint-note">Internal note (optional)</Label>
+                  <Textarea
+                    id="complaint-note"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                  />
                 </div>
-                <Button onClick={() => void update()} disabled={submitting || newStatus === selected.status} className="w-full">
+                <Button
+                  className="w-full"
+                  disabled={submitting || newStatus === selected.status}
+                  onClick={() => void update()}
+                >
                   {submitting ? "Saving…" : "Update status"}
                 </Button>
               </div>

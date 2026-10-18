@@ -48,6 +48,10 @@ import type {
   PractitionerAvailabilityResponse,
   ServicePriceResponse,
   AdminAppointmentScope,
+  AdminComplaintPriority,
+  AdminComplaintScope,
+  AdminComplaintStatus,
+  AdminDeliveryScope,
   PlatformRole,
 } from "@royal-palace/contracts";
 import {
@@ -1710,6 +1714,39 @@ export const appointmentService = {
 };
 
 export const administrationService = {
+  dashboard: (input: { dayFrom: string; dayTo: string }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/dashboard", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  complaints: (input: {
+    cursor?: string;
+    limit?: number;
+    priority?: AdminComplaintPriority;
+    query?: string;
+    scope: AdminComplaintScope;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/complaints", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  transitionComplaint: (
+    complaintId: string,
+    input: { expectedVersion: number; internalNote?: string; status: AdminComplaintStatus },
+  ) =>
+    generatedAdministrationClient
+      .PATCH("/api/admin/complaints/{complaintId}", {
+        body: input,
+        params: { header: csrfHeader(), path: { complaintId } },
+      })
+      .then(unwrapGeneratedResponse),
+  deliveries: (input: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    scope: AdminDeliveryScope;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/deliveries", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
   appointments: (input: {
     cursor?: string;
     dayFrom: string;
