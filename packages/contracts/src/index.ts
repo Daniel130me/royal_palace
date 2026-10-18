@@ -375,6 +375,15 @@ export interface AdminPractitionerDetail extends AdminPractitionerListItem {
     roleTitle: string | null;
   }[];
   biography: string | null;
+  consultationFees: readonly {
+    amountMinor: string;
+    currency: string;
+    effectiveFrom: string;
+    effectiveUntil: string | null;
+    id: string;
+    mode: PublicConsultationMode;
+    status: "DRAFT" | "ACTIVE" | "RETIRED";
+  }[];
   credentials: readonly {
     credentialType: string;
     expiresAt: string | null;
@@ -990,6 +999,16 @@ export interface AppointmentResponse {
   practitioner: { displayName: string; id: string };
   startsAt: string;
   status: AppointmentStatus;
+  version: number;
+  intake?: AppointmentIntakeResponse;
+}
+
+export interface AppointmentIntakeResponse {
+  consentedAt: string;
+  consentStatus: "GRANTED" | "REVOKED";
+  reason: string | null;
+  revokedAt: string | null;
+  symptoms: string | null;
   version: number;
 }
 

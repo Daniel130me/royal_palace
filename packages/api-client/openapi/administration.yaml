@@ -630,6 +630,7 @@ components:
           affiliations,
           approvedApplicationId,
           biography,
+          consultationFees,
           createdAt,
           credentials,
           displayName,
@@ -661,6 +662,20 @@ components:
           { type: array, items: { $ref: "#/components/schemas/PractitionerAffiliation" } }
         approvedApplicationId: { type: [string, "null"], format: uuid }
         biography: { type: [string, "null"] }
+        consultationFees:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [amountMinor, currency, effectiveFrom, effectiveUntil, id, mode, status]
+            properties:
+              amountMinor: { type: string, pattern: "^[0-9]+$" }
+              currency: { type: string, pattern: "^[A-Z]{3}$" }
+              effectiveFrom: { type: string, format: date-time }
+              effectiveUntil: { type: [string, "null"], format: date-time }
+              id: { type: string, format: uuid }
+              mode: { type: string, enum: [VIDEO, AUDIO, CHAT, IN_PERSON, HOME_VISIT] }
+              status: { type: string, enum: [DRAFT, ACTIVE, RETIRED] }
         credentials: { type: array, items: { $ref: "#/components/schemas/PractitionerCredential" } }
         documents:
           type: array

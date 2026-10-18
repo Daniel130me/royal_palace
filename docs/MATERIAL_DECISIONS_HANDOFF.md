@@ -1,0 +1,103 @@
+# Material decisions handoff
+
+This document contains the remaining decisions that cannot be made safely by an implementation
+agent. The affected signed-prototype screens remain present and tracked; none has been removed.
+
+## 1. Practitioner commercial and payout policy
+
+Unblocks: provider earnings, provider payouts, the financial section of administrator practitioner
+detail, and the provider portal completion state.
+
+Approve:
+
+- how practitioner earnings are calculated for each service (fixed amount, percentage, or a
+  versioned fee schedule), including the effective date and currency;
+- which payment states make earnings available and how refunds, disputes, cancellations, taxes,
+  platform fees, and reversals affect them;
+- settlement cadence, minimum payout amount, review/approval roles, and reconciliation process;
+- whether practitioners are paid personally or through a registered business entity.
+
+The prototype's hard-coded 73% estimate is not an acceptable production rule.
+
+## 2. Manager payout policy and payout-provider qualification
+
+Unblocks: manager bank details and manager payouts.
+
+Approve:
+
+- payout cadence, minimums, review roles, reversal handling, and required KYC evidence;
+- the qualified provider(s) and countries for recipient/bank-account verification and transfer;
+- whether Paystack, Flutterwave, Stripe, or another provider is used per region after commercial,
+  security, privacy, webhook, settlement, and failure-mode review.
+
+The application will keep provider-neutral ports. Raw bank-account details must not be stored by
+Royal Palace when a qualified provider token can be used. Real enrollment and execution stay
+disabled until this decision is approved and tested in protected staging.
+
+## 3. Family and dependant governance
+
+Unblocks: patient family, dependant switching, dependant dashboard aggregation, and the patient
+portal completion state.
+
+Approve with legal/clinical/privacy owners:
+
+- allowed relationships and whether adult dependants must accept an invitation;
+- guardian evidence for minors or people lacking capacity;
+- what happens at the age of majority, on revocation, death, separation, or disputed guardianship;
+- the exact appointment, payment, prescription, laboratory, and record actions a representative may
+  perform for each relationship type;
+- emergency-access and safeguarding escalation rules.
+
+## 4. Patient consent and clinical sharing policy
+
+Unblocks: the patient Consent & Access screen and broader record sharing.
+
+Approve:
+
+- grantable resource scopes, recipients, purposes of use, default expiry, renewal, and revocation;
+- whether revocation affects only future access or also previously downloaded/disclosed material;
+- break-glass eligibility, approval, patient notification, review, and audit requirements;
+- retention and legal-hold rules for consent evidence and access logs.
+
+Appointment-specific intake consent is already implemented; this decision concerns broader record
+sharing.
+
+## 5. Patient health profile and emergency-contact governance
+
+Unblocks: the remaining patient settings fields.
+
+Approve:
+
+- which facts are patient-entered versus clinician-confirmed;
+- provenance, correction, conflict, verification, and stale-data rules;
+- who may view and update emergency contacts and when those contacts may be used;
+- terminology/value sets for blood group, genotype, conditions, allergies, and other clinical facts.
+
+## 6. Administrator platform policy settings
+
+Unblocks: administrator settings and the default pharmacy-commercial-policy screen.
+
+Approve:
+
+- retention periods and legal-hold overrides per data class and jurisdiction;
+- maintenance-mode behavior, emergency overrides, owner, and operational runbook;
+- platform support contact values per locale/region;
+- effective-dated pharmacy/platform margin rules, including order eligibility, tax, refunds,
+  disputes, and existing-order snapshots.
+
+These settings must be versioned and audited. They cannot be treated as browser-local preferences.
+
+## 7. Production qualification and stakeholder acceptance
+
+Unblocks: persona-switcher acceptance, protected staging with real users, and Increment 12 launch.
+
+Provide or approve:
+
+- production OIDC provider/tenant, privileged MFA and recovery policy;
+- hosting and data-processing regions, production account ownership, and cross-border assessment;
+- payment, payout, email, queue, monitoring, and object-storage provider qualification;
+- named legal/privacy, clinical/pharmacy, security, finance, and operations sign-off owners;
+- stakeholder visual/flow review against the signed prototype.
+
+Until these approvals exist, all real providers remain disabled and testing remains synthetic in a
+protected environment.

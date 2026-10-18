@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/appointments/{appointmentId}/intake-consent/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeAppointmentIntakeConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patient/appointments": {
         parameters: {
             query?: never;
@@ -243,6 +259,7 @@ export interface components {
             endsAt: string;
             /** Format: uuid */
             id: string;
+            intake?: components["schemas"]["AppointmentIntake"];
             mode: components["schemas"]["Mode"];
             /** Format: uuid */
             practitionerId: string;
@@ -268,6 +285,17 @@ export interface components {
             startsAt: string;
             /** @enum {string} */
             status: "PENDING_PAYMENT" | "CONFIRMED" | "PAYMENT_FAILED" | "EXPIRED" | "CANCELLED" | "COMPLETED";
+            version: number;
+        };
+        AppointmentIntake: {
+            /** Format: date-time */
+            consentedAt: string;
+            /** @enum {string} */
+            consentStatus: "GRANTED" | "REVOKED";
+            reason: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            symptoms: string | null;
             version: number;
         };
         ProviderAppointment: components["schemas"]["Appointment"] & {
@@ -441,6 +469,12 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     availabilitySlotId: string;
+                    intake: {
+                        /** @enum {string} */
+                        consentEvidenceCode: "APPOINTMENT_INTAKE_V1";
+                        reason: string;
+                        symptoms?: string;
+                    };
                 };
             };
         };
@@ -469,6 +503,36 @@ export interface operations {
         responses: {
             /** @description Authorized appointment view */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+        };
+    };
+    revokeAppointmentIntakeConsent: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": components["parameters"]["Csrf"];
+            };
+            path: {
+                appointmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedVersion: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Appointment intake consent revoked */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

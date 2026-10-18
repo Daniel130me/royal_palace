@@ -176,8 +176,14 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
 
   async bookAppointment(input: {
     idempotencyKey: string;
+    intake: {
+      consentEvidenceCode: string;
+      reason: string;
+      symptoms?: string;
+    };
     patientPrincipalId: string;
     paymentDueAt: Date;
+    requestId: string;
     requestHash: string;
     slotId: string;
   }): Promise<AppointmentAccessRecord | null> {
@@ -233,6 +239,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
           });
           const appointmentId = createOpaqueId();
           const paymentId = createOpaqueId();
+          const consentedAt = new Date();
           await transaction.appointment.create({
             data: {
               amountMinor: slot.consultationFee.amountMinor,
@@ -246,6 +253,31 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
               practitionerId: slot.practitionerId,
               startsAt: slot.startsAt,
               updatedAt: new Date(),
+            },
+          });
+          await transaction.appointmentIntake.create({
+            data: {
+              appointmentId,
+              consentEvidenceCode: input.intake.consentEvidenceCode,
+              consentedAt,
+              id: createOpaqueId(),
+              reason: input.intake.reason,
+              ...(input.intake.symptoms === undefined ? {} : { symptoms: input.intake.symptoms }),
+              updatedAt: consentedAt,
+            },
+          });
+          await transaction.auditEvent.create({
+            data: {
+              action: "appointment.intake_consent.granted",
+              actorPrincipalId: input.patientPrincipalId,
+              effectiveRole: "PATIENT",
+              id: createOpaqueId(),
+              metadata: { consentEvidenceCode: input.intake.consentEvidenceCode, version: 1 },
+              patientScopeId: patient.id,
+              requestId: input.requestId,
+              resourceId: appointmentId,
+              resourceType: "appointment_intake",
+              result: "SUCCEEDED",
             },
           });
           await transaction.payment.create({
@@ -292,6 +324,14 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
             currency: slot.consultationFee.currency,
             endsAt: slot.endsAt.toISOString(),
             id: appointmentId,
+            intake: {
+              consentedAt: consentedAt.toISOString(),
+              consentStatus: "GRANTED",
+              reason: input.intake.reason,
+              revokedAt: null,
+              symptoms: input.intake.symptoms ?? null,
+              version: 1,
+            },
             mode: slot.consultationFee.mode,
             patientPrincipalId: input.patientPrincipalId,
             paymentId,
@@ -369,10 +409,50 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
     principalId: string;
   }): Promise<ProviderAppointmentResponse | null> {
     const row = await this.database.appointment.findFirst({
-      select: providerAppointmentSelect,
+      select: providerAppointmentDetailSelect,
       where: { id: input.appointmentId, practitioner: { principalId: input.principalId } },
     });
-    return row === null ? null : mapProviderAppointment(row);
+    return row === null ? null : mapProviderAppointmentDetail(row);
+  }
+
+  async revokeAppointmentIntake(input: {
+    appointmentId: string;
+    expectedVersion: number;
+    patientPrincipalId: string;
+    requestId: string;
+    revokedAt: Date;
+  }): Promise<AppointmentAccessRecord | null> {
+    return this.database.$transaction(async (transaction) => {
+      const updated = await transaction.appointmentIntake.updateMany({
+        data: {
+          revokedAt: input.revokedAt,
+          updatedAt: input.revokedAt,
+          version: { increment: 1 },
+        },
+        where: {
+          appointmentId: input.appointmentId,
+          appointment: { patient: { principalId: input.patientPrincipalId } },
+          revokedAt: null,
+          version: input.expectedVersion,
+        },
+      });
+      if (updated.count !== 1) return null;
+      await transaction.auditEvent.create({
+        data: {
+          action: "appointment.intake_consent.revoked",
+          actorPrincipalId: input.patientPrincipalId,
+          effectiveRole: "PATIENT",
+          id: createOpaqueId(),
+          metadata: { previousVersion: input.expectedVersion },
+          requestId: input.requestId,
+          resourceId: input.appointmentId,
+          resourceType: "appointment_intake",
+          result: "SUCCEEDED",
+        },
+      });
+      const appointment = await findAppointmentRecord(transaction, input.appointmentId);
+      return appointment === null ? null : mapAppointment(appointment);
+    });
   }
 
   async findPayment(paymentId: string): Promise<PaymentAccessRecord | null> {
@@ -969,6 +1049,15 @@ async function findAppointmentRecord(
       currency: true,
       endsAt: true,
       id: true,
+      intake: {
+        select: {
+          consentedAt: true,
+          reason: true,
+          revokedAt: true,
+          symptoms: true,
+          version: true,
+        },
+      },
       mode: true,
       patient: { select: { principalId: true } },
       payment: { select: { id: true } },
@@ -997,6 +1086,19 @@ const appointmentListSelect = {
 const providerAppointmentSelect = {
   ...appointmentListSelect,
   patient: { select: { familyName: true, givenName: true, id: true } },
+} satisfies Prisma.AppointmentSelect;
+
+const providerAppointmentDetailSelect = {
+  ...providerAppointmentSelect,
+  intake: {
+    select: {
+      consentedAt: true,
+      reason: true,
+      revokedAt: true,
+      symptoms: true,
+      version: true,
+    },
+  },
 } satisfies Prisma.AppointmentSelect;
 
 function appointmentScopeWhere(input: {
@@ -1094,6 +1196,15 @@ function mapProviderAppointment(
   };
 }
 
+function mapProviderAppointmentDetail(
+  row: Prisma.AppointmentGetPayload<{ select: typeof providerAppointmentDetailSelect }>,
+): ProviderAppointmentResponse {
+  return {
+    ...mapProviderAppointment(row),
+    ...(row.intake === null ? {} : { intake: mapProviderIntake(row.intake) }),
+  };
+}
+
 function mapAppointment(
   row: NonNullable<Awaited<ReturnType<typeof findAppointmentRecord>>>,
 ): AppointmentAccessRecord {
@@ -1105,6 +1216,7 @@ function mapAppointment(
     currency: row.currency,
     endsAt: row.endsAt.toISOString(),
     id: row.id,
+    ...(row.intake === null ? {} : { intake: mapIntake(row.intake) }),
     mode: row.mode,
     patientPrincipalId: row.patient.principalId,
     paymentId: row.payment.id,
@@ -1114,6 +1226,28 @@ function mapAppointment(
     status: row.status,
     version: row.version,
   };
+}
+
+function mapIntake(intake: {
+  consentedAt: Date;
+  reason: string;
+  revokedAt: Date | null;
+  symptoms: string | null;
+  version: number;
+}) {
+  return {
+    consentedAt: intake.consentedAt.toISOString(),
+    consentStatus: intake.revokedAt === null ? ("GRANTED" as const) : ("REVOKED" as const),
+    reason: intake.reason,
+    revokedAt: intake.revokedAt?.toISOString() ?? null,
+    symptoms: intake.symptoms,
+    version: intake.version,
+  };
+}
+
+function mapProviderIntake(intake: Parameters<typeof mapIntake>[0]) {
+  const mapped = mapIntake(intake);
+  return mapped.consentStatus === "GRANTED" ? mapped : { ...mapped, reason: null, symptoms: null };
 }
 
 function mapPayment(row: {

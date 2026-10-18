@@ -1,8 +1,9 @@
 "use client";
 
 import type { AppointmentResponse, PaymentStatusResponse } from "@royal-palace/contracts";
-import { CalendarClock, CreditCard, RefreshCw, ShieldCheck } from "lucide-react";
+import { CalendarClock, CreditCard, FileText, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import {
   EmptyState,
@@ -25,6 +26,7 @@ export function PatientAppointmentDetail() {
   const [appointment, setAppointment] = useState<AppointmentResponse | null>(null);
   const [payment, setPayment] = useState<PaymentStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [revoking, setRevoking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +83,29 @@ export function PatientAppointmentDetail() {
     );
   }
 
+  async function revokeIntakeConsent(): Promise<void> {
+    if (appointment?.intake === undefined || appointment.intake.consentStatus !== "GRANTED") return;
+    if (
+      !window.confirm(
+        "Withdraw this appointment's intake consent? The practitioner will no longer see its content.",
+      )
+    )
+      return;
+    setRevoking(true);
+    try {
+      const updated = await schedulingPaymentService.revokeIntakeConsent(
+        appointment.id,
+        appointment.intake.version,
+      );
+      setAppointment(updated);
+      toast.success("Intake consent withdrawn.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Consent could not be withdrawn.");
+    } finally {
+      setRevoking(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader title="Appointment status" back />
@@ -135,6 +160,40 @@ export function PatientAppointmentDetail() {
               Refresh verified status
             </Button>
           </div>
+        </SectionCard>
+        <SectionCard title="Pre-consultation intake" icon={FileText} className="lg:col-span-2">
+          {appointment.intake === undefined ? (
+            <p className="text-sm text-muted-foreground">No intake record is attached.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <Row label="Reason" value={appointment.intake.reason ?? "Consent withdrawn"} />
+                <Row
+                  label="Additional context"
+                  value={appointment.intake.symptoms ?? "None provided"}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                <div>
+                  <Badge variant="outline">
+                    Consent {appointment.intake.consentStatus.toLowerCase()}
+                  </Badge>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This consent is limited to the selected practitioner and this appointment.
+                  </p>
+                </div>
+                {appointment.intake.consentStatus === "GRANTED" ? (
+                  <Button
+                    disabled={revoking}
+                    onClick={() => void revokeIntakeConsent()}
+                    variant="outline"
+                  >
+                    {revoking ? "Withdrawing…" : "Withdraw intake consent"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          )}
         </SectionCard>
       </div>
     </div>

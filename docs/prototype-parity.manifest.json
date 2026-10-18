@@ -869,11 +869,12 @@
         {
           "id": "appointment-detail",
           "file": "pages/appointment.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11U",
+          "status": "CONNECTED",
+          "checkpoint": "11W",
           "productionFiles": [
             "apps/web/src/features/provider/pages/appointment.tsx",
-            "apps/api/src/scheduling/application/scheduling-payment.service.ts"
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts",
+            "apps/api/prisma/migrations/20261018220000_appointment_intake/migration.sql"
           ]
         },
         {

@@ -29,9 +29,17 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [availabilitySlotId]
+              required: [availabilitySlotId, intake]
               properties:
                 availabilitySlotId: { type: string, format: uuid }
+                intake:
+                  type: object
+                  additionalProperties: false
+                  required: [consentEvidenceCode, reason]
+                  properties:
+                    consentEvidenceCode: { type: string, enum: [APPOINTMENT_INTAKE_V1] }
+                    reason: { type: string, minLength: 3, maxLength: 500 }
+                    symptoms: { type: string, minLength: 1, maxLength: 4000 }
       responses:
         "201":
           description: Appointment reserved pending payment
@@ -46,6 +54,28 @@ paths:
       responses:
         "200":
           description: Authorized appointment view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Appointment" }
+  /api/appointments/{appointmentId}/intake-consent/revoke:
+    post:
+      operationId: revokeAppointmentIntakeConsent
+      parameters:
+        - { in: path, name: appointmentId, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/Csrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "201":
+          description: Appointment intake consent revoked
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Appointment" }
@@ -317,6 +347,7 @@ components:
         currency: { type: string, pattern: "^[A-Z]{3}$" }
         endsAt: { type: string, format: date-time }
         id: { type: string, format: uuid }
+        intake: { $ref: "#/components/schemas/AppointmentIntake" }
         mode: { $ref: "#/components/schemas/Mode" }
         practitionerId: { type: string, format: uuid }
         startsAt: { type: string, format: date-time }
@@ -356,6 +387,17 @@ components:
             type: string,
             enum: [PENDING_PAYMENT, CONFIRMED, PAYMENT_FAILED, EXPIRED, CANCELLED, COMPLETED],
           }
+        version: { type: integer, minimum: 1 }
+    AppointmentIntake:
+      type: object
+      additionalProperties: false
+      required: [consentedAt, consentStatus, reason, revokedAt, symptoms, version]
+      properties:
+        consentedAt: { type: string, format: date-time }
+        consentStatus: { type: string, enum: [GRANTED, REVOKED] }
+        reason: { type: [string, "null"] }
+        revokedAt: { type: [string, "null"], format: date-time }
+        symptoms: { type: [string, "null"] }
         version: { type: integer, minimum: 1 }
     ProviderAppointment:
       allOf:

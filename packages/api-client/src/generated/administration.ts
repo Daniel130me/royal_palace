@@ -461,6 +461,20 @@ export interface components {
             /** Format: uuid */
             approvedApplicationId: string | null;
             biography: string | null;
+            consultationFees: {
+                amountMinor: string;
+                currency: string;
+                /** Format: date-time */
+                effectiveFrom: string;
+                /** Format: date-time */
+                effectiveUntil: string | null;
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                mode: "VIDEO" | "AUDIO" | "CHAT" | "IN_PERSON" | "HOME_VISIT";
+                /** @enum {string} */
+                status: "DRAFT" | "ACTIVE" | "RETIRED";
+            }[];
             credentials: components["schemas"]["PractitionerCredential"][];
             documents: {
                 declaredContentType: string;

@@ -92,12 +92,73 @@ describe("SchedulingPaymentService", () => {
     await expect(
       createService(repository).bookAppointment(
         { actor: session("PATIENT", principalId), requestId: "request-book" },
-        createOpaqueId(),
+        {
+          consentEvidenceCode: "APPOINTMENT_INTAKE_V1",
+          reason: "Persistent headache",
+          slotId: createOpaqueId(),
+        },
         "booking-key-123",
       ),
     ).rejects.toMatchObject<Partial<SchedulingPaymentFlowError>>({
       code: "idempotency_conflict",
       status: 409,
+    });
+  });
+
+  it("lets only the owning patient revoke appointment intake consent with version control", async () => {
+    const patientPrincipalId = createOpaqueId();
+    const appointmentId = createOpaqueId();
+    const practitionerPrincipalId = createOpaqueId();
+    const intake = {
+      consentedAt: "2026-10-18T10:00:00.000Z",
+      consentStatus: "GRANTED" as const,
+      reason: "Persistent headache",
+      revokedAt: null,
+      symptoms: "Worse in the morning",
+      version: 2,
+    };
+    const appointment = {
+      amountMinor: "12500",
+      currency: "USD",
+      endsAt: "2026-10-20T10:30:00.000Z",
+      id: appointmentId,
+      intake,
+      mode: "VIDEO" as const,
+      patientPrincipalId,
+      paymentId: createOpaqueId(),
+      practitioner: { displayName: "Synthetic Practitioner", id: createOpaqueId() },
+      practitionerPrincipalId,
+      startsAt: "2026-10-20T10:00:00.000Z",
+      status: "CONFIRMED" as const,
+      version: 1,
+    };
+    const revokeAppointmentIntake = vi.fn(async () => ({
+      ...appointment,
+      intake: {
+        ...intake,
+        consentStatus: "REVOKED" as const,
+        revokedAt: "2026-10-18T11:00:00.000Z",
+        version: 3,
+      },
+    }));
+    const scheduling = createService({
+      findAppointment: vi.fn(async () => appointment),
+      revokeAppointmentIntake,
+    });
+
+    await expect(
+      scheduling.revokeAppointmentIntake(
+        { actor: session("PATIENT", patientPrincipalId), requestId: "request-revoke-intake" },
+        appointmentId,
+        2,
+      ),
+    ).resolves.toMatchObject({ intake: { consentStatus: "REVOKED", version: 3 } });
+    expect(revokeAppointmentIntake).toHaveBeenCalledWith({
+      appointmentId,
+      expectedVersion: 2,
+      patientPrincipalId,
+      requestId: "request-revoke-intake",
+      revokedAt: expect.any(Date),
     });
   });
 

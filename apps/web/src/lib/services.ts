@@ -1635,15 +1635,36 @@ export const schedulingPaymentService = {
         signal,
       })
       .then(unwrapGeneratedResponse),
-  book: (availabilitySlotId: string, idempotencyKey: string) =>
+  book: (
+    availabilitySlotId: string,
+    intake: { reason: string; symptoms?: string },
+    idempotencyKey: string,
+  ) =>
     generatedSchedulingPaymentClient
       .POST("/api/appointments", {
-        body: { availabilitySlotId },
+        body: {
+          availabilitySlotId,
+          intake: {
+            consentEvidenceCode: "APPOINTMENT_INTAKE_V1",
+            reason: intake.reason,
+            ...(intake.symptoms === undefined ? {} : { symptoms: intake.symptoms }),
+          },
+        },
         params: {
           header: {
             "idempotency-key": idempotencyKey,
             "x-rp-csrf-token": csrfToken() ?? "",
           },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  revokeIntakeConsent: (appointmentId: string, expectedVersion: number) =>
+    generatedSchedulingPaymentClient
+      .POST("/api/appointments/{appointmentId}/intake-consent/revoke", {
+        body: { expectedVersion },
+        params: {
+          header: { "x-rp-csrf-token": csrfToken() ?? "" },
+          path: { appointmentId },
         },
       })
       .then(unwrapGeneratedResponse),

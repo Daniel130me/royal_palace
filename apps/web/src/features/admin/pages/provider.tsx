@@ -16,6 +16,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Stethoscope,
+  Wallet,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ import { StatusBadge } from "@/components/healthcare/status-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatDateTime, initials } from "@/lib/format";
+import { formatDate, formatDateTime, formatMinorCurrency, initials } from "@/lib/format";
 import { navigate, useNav } from "@/lib/nav";
 import { administrationService, onboardingService } from "@/lib/services";
 
@@ -407,6 +408,39 @@ function PractitionerDetail(props: {
                   label={item.roleTitle ?? "Facility"}
                   value={item.facilityName}
                 />
+              ))
+            )}
+          </ExpandableCard>
+          <ExpandableCard
+            leading={<Wallet className="h-4 w-4 text-violet-600" />}
+            title="Platform-controlled consultation fees"
+            subtitle={`${practitioner.consultationFees.length} effective-dated fee record(s)`}
+          >
+            {practitioner.consultationFees.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No consultation fee has been set.</p>
+            ) : (
+              practitioner.consultationFees.map((fee) => (
+                <div key={fee.id} className="mb-3 rounded-lg border p-3 text-sm last:mb-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold capitalize">
+                      {fee.mode.toLowerCase().replaceAll("_", " ")}
+                    </p>
+                    <StatusBadge status={fee.status.toLowerCase()} size="sm" />
+                  </div>
+                  <Detail
+                    label="Patient fee"
+                    value={formatMinorCurrency(fee.amountMinor, fee.currency)}
+                  />
+                  <Detail label="Effective from" value={formatDateTime(fee.effectiveFrom)} />
+                  <Detail
+                    label="Effective until"
+                    value={
+                      fee.effectiveUntil === null
+                        ? "No scheduled end"
+                        : formatDateTime(fee.effectiveUntil)
+                    }
+                  />
+                </div>
               ))
             )}
           </ExpandableCard>

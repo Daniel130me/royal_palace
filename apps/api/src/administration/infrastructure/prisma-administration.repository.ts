@@ -91,6 +91,19 @@ const practitionerDetailSelect = {
       verifiedAt: true,
     },
   },
+  consultationFees: {
+    orderBy: [{ effectiveFrom: "desc" as const }, { id: "desc" as const }],
+    select: {
+      amountMinor: true,
+      currency: true,
+      effectiveFrom: true,
+      effectiveUntil: true,
+      id: true,
+      mode: true,
+      status: true,
+    },
+    take: 100,
+  },
   languages: { orderBy: { languageTag: "asc" as const }, select: { languageTag: true } },
   professions: {
     orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
@@ -728,6 +741,12 @@ function mapPractitionerDetail(record: PractitionerDetailRecord): AdminPractitio
     approvedApplicationId: record.approvedApplication?.id ?? null,
     affiliations: record.affiliations,
     biography: record.publicProfile?.biography ?? null,
+    consultationFees: record.consultationFees.map((fee) => ({
+      ...fee,
+      amountMinor: fee.amountMinor.toString(),
+      effectiveFrom: fee.effectiveFrom.toISOString(),
+      effectiveUntil: fee.effectiveUntil?.toISOString() ?? null,
+    })),
     credentials: record.credentials.map((credential) => ({
       ...credential,
       expiresAt: credential.expiresAt?.toISOString() ?? null,

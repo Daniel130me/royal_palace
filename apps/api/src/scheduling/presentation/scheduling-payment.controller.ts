@@ -51,7 +51,19 @@ const availabilitySchema = z
     startsAt: instantSchema,
   })
   .strict();
-const bookSchema = z.object({ availabilitySlotId: idSchema }).strict();
+const bookSchema = z
+  .object({
+    availabilitySlotId: idSchema,
+    intake: z
+      .object({
+        consentEvidenceCode: z.literal("APPOINTMENT_INTAKE_V1"),
+        reason: z.string().trim().min(3).max(500),
+        symptoms: z.string().trim().min(1).max(4000).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+const revokeIntakeSchema = z.object({ expectedVersion: z.number().int().positive() }).strict();
 const checkoutSchema = z.object({ paymentId: idSchema }).strict();
 const availabilityQuerySchema = z.object({ from: instantSchema, to: instantSchema }).strict();
 const expirationQuerySchema = z
@@ -164,8 +176,29 @@ export class PatientSchedulingPaymentController {
     return execute(() =>
       this.scheduling.bookAppointment(
         requestContext(request),
-        input.availabilitySlotId,
+        {
+          consentEvidenceCode: input.intake.consentEvidenceCode,
+          reason: input.intake.reason,
+          slotId: input.availabilitySlotId,
+          ...(input.intake.symptoms === undefined ? {} : { symptoms: input.intake.symptoms }),
+        },
         parse(idempotencyKeySchema, idempotencyKey),
+      ),
+    );
+  }
+
+  @Post("appointments/:appointmentId/intake-consent/revoke")
+  revokeIntakeConsent(
+    @Param("appointmentId") appointmentId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    const input = parse(revokeIntakeSchema, body);
+    return execute(() =>
+      this.scheduling.revokeAppointmentIntake(
+        requestContext(request),
+        parse(idSchema, appointmentId),
+        input.expectedVersion,
       ),
     );
   }

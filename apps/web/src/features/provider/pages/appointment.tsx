@@ -165,6 +165,35 @@ export function ProviderAppointmentDetail() {
               disclosed only through the governed patient-record boundary.
             </p>
           </SectionCard>
+
+          <SectionCard title="Patient intake" icon={FileText}>
+            {appointment.intake === undefined ? (
+              <p className="text-sm text-muted-foreground">
+                No governed intake record is attached to this appointment.
+              </p>
+            ) : appointment.intake.consentStatus === "REVOKED" ? (
+              <div className="space-y-2">
+                <StatusBadge status="revoked" size="sm" />
+                <p className="text-sm text-muted-foreground">
+                  The patient withdrew consent. The intake content is no longer disclosed.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Detail label="Reason for consultation" value={appointment.intake.reason ?? "—"} />
+                <Detail
+                  label="Reported symptoms or context"
+                  value={appointment.intake.symptoms ?? "No additional symptoms reported"}
+                />
+                <div className="border-t border-border/60 pt-3">
+                  <StatusBadge status="granted" size="sm" />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Consent is limited to this consultation and may be withdrawn by the patient.
+                  </p>
+                </div>
+              </div>
+            )}
+          </SectionCard>
         </div>
 
         <div className="space-y-5">

@@ -18,6 +18,10 @@ import {
 } from "@/components/healthcare/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime, formatMinorCurrency } from "@/lib/format";
 import { navigate, useNav } from "@/lib/nav";
 import { publicDiscoveryService, schedulingPaymentService } from "@/lib/services";
@@ -30,6 +34,9 @@ export function PatientBook() {
   const [practitioner, setPractitioner] = useState<PublicPractitionerDetail | null>(null);
   const [slots, setSlots] = useState<readonly PractitionerAvailabilityResponse[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [symptoms, setSymptoms] = useState("");
+  const [consent, setConsent] = useState(false);
   const [appointment, setAppointment] = useState<AppointmentResponse | null>(null);
   const [checkout, setCheckout] = useState<HostedCheckoutResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,10 +82,19 @@ export function PatientBook() {
   }, [practitionerId, range]);
 
   async function reserveAndContinue(): Promise<void> {
-    if (selectedSlotId === null) return;
+    const normalizedReason = reason.trim();
+    const normalizedSymptoms = symptoms.trim();
+    if (selectedSlotId === null || normalizedReason.length < 3 || !consent) return;
     setSubmitting(true);
     try {
-      const reserved = await schedulingPaymentService.book(selectedSlotId, crypto.randomUUID());
+      const reserved = await schedulingPaymentService.book(
+        selectedSlotId,
+        {
+          reason: normalizedReason,
+          ...(normalizedSymptoms.length === 0 ? {} : { symptoms: normalizedSymptoms }),
+        },
+        crypto.randomUUID(),
+      );
       setAppointment(reserved);
       try {
         const hosted = await schedulingPaymentService.createCheckout(
@@ -208,9 +224,45 @@ export function PatientBook() {
           </div>
         )}
       </SectionCard>
+      <SectionCard title="Pre-consultation intake">
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="consultation-reason">Reason for consultation</Label>
+            <Input
+              id="consultation-reason"
+              maxLength={500}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Describe the main reason for this appointment"
+              value={reason}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="reported-symptoms">Symptoms or additional context (optional)</Label>
+            <Textarea
+              id="reported-symptoms"
+              maxLength={4000}
+              onChange={(event) => setSymptoms(event.target.value)}
+              placeholder="When did this begin, and how severe is it?"
+              rows={4}
+              value={symptoms}
+            />
+          </div>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:bg-accent/30">
+            <Checkbox
+              checked={consent}
+              className="mt-0.5"
+              onCheckedChange={(value) => setConsent(value === true)}
+            />
+            <span className="text-sm leading-relaxed">
+              I consent to share this intake information with the selected practitioner for this
+              consultation. I can withdraw this consent from the appointment view.
+            </span>
+          </label>
+        </div>
+      </SectionCard>
       <div className="flex justify-end">
         <Button
-          disabled={selectedSlotId === null || submitting}
+          disabled={selectedSlotId === null || reason.trim().length < 3 || !consent || submitting}
           onClick={() => void reserveAndContinue()}
         >
           {submitting ? "Reserving…" : "Reserve and continue"}

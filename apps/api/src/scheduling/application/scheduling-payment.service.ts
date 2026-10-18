@@ -194,7 +194,16 @@ export class SchedulingPaymentService {
     return slot;
   }
 
-  async bookAppointment(context: SchedulingRequestContext, slotId: string, idempotencyKey: string) {
+  async bookAppointment(
+    context: SchedulingRequestContext,
+    input: {
+      consentEvidenceCode: string;
+      reason: string;
+      slotId: string;
+      symptoms?: string;
+    },
+    idempotencyKey: string,
+  ) {
     const patientId = await this.repository.findPatientIdByPrincipal(context.actor.principalId);
     if (patientId === null) {
       throw new SchedulingPaymentFlowError(
@@ -207,23 +216,38 @@ export class SchedulingPaymentService {
       actor: context.actor,
       context: {
         patientPrincipalId: context.actor.principalId,
-        resourceId: slotId,
+        resourceId: input.slotId,
         resourceType: "appointment",
       },
       policy: AUTHORIZATION_POLICY.BOOK_APPOINTMENT,
       requestId: context.requestId,
     });
-    const requestHash = createHash("sha256").update(`book-appointment:${slotId}`).digest("hex");
+    const requestHash = createHash("sha256")
+      .update(
+        JSON.stringify({
+          consentEvidenceCode: input.consentEvidenceCode,
+          reason: input.reason,
+          slotId: input.slotId,
+          symptoms: input.symptoms ?? null,
+        }),
+      )
+      .digest("hex");
     let appointment: Awaited<ReturnType<SchedulingPaymentRepository["bookAppointment"]>>;
     try {
       appointment = await this.repository.bookAppointment({
         idempotencyKey,
+        intake: {
+          consentEvidenceCode: input.consentEvidenceCode,
+          reason: input.reason,
+          ...(input.symptoms === undefined ? {} : { symptoms: input.symptoms }),
+        },
         patientPrincipalId: context.actor.principalId,
         paymentDueAt: new Date(
           Date.now() + this.config.paymentGateway.reservationTtlSeconds * 1000,
         ),
+        requestId: context.requestId,
         requestHash,
-        slotId,
+        slotId: input.slotId,
       });
     } catch (error) {
       this.rethrowRepositoryConflict(error);
@@ -237,6 +261,46 @@ export class SchedulingPaymentService {
       );
     }
     return publicAppointment(appointment);
+  }
+
+  async revokeAppointmentIntake(
+    context: SchedulingRequestContext,
+    appointmentId: string,
+    expectedVersion: number,
+  ) {
+    const appointment = await this.repository.findAppointment(appointmentId);
+    if (appointment === null) {
+      throw new SchedulingPaymentFlowError(
+        "appointment_not_found",
+        404,
+        "Appointment was not found",
+      );
+    }
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        ownerPrincipalId: appointment.patientPrincipalId,
+        resourceId: appointment.id,
+        resourceType: "appointment_intake",
+      },
+      policy: AUTHORIZATION_POLICY.VIEW_PATIENT_APPOINTMENTS,
+      requestId: context.requestId,
+    });
+    const updated = await this.repository.revokeAppointmentIntake({
+      appointmentId,
+      expectedVersion,
+      patientPrincipalId: context.actor.principalId,
+      requestId: context.requestId,
+      revokedAt: new Date(),
+    });
+    if (updated === null) {
+      throw new SchedulingPaymentFlowError(
+        "intake_consent_conflict",
+        409,
+        "Intake consent was already changed or is unavailable",
+      );
+    }
+    return publicAppointment(updated);
   }
 
   async getAppointment(context: SchedulingRequestContext, appointmentId: string) {

@@ -479,13 +479,12 @@ that completes an increment.
     session revocation, immutable audit evidence, strict BFF allowlists, and generated contracts
     replace prototype account data without exposing identity-provider credentials. See
     [`increments/11t-identity-administration.md`](./increments/11t-identity-administration.md).
-  - `[~]` 11U replaces patient and practitioner appointment-list prototype reads with
+  - `[x]` 11U replaces patient and practitioner appointment-list prototype reads with
     authenticated owner-derived production queries. Indexed keyset pagination, filter-bound
     cursors, exact role policies, minimal practitioner-facing patient identity, strict BFF
     allowlists, and generated contracts remove caller-selected principal IDs and unbounded
     legacy reads. The patient and practitioner appointment-list screens are connected. The
-    practitioner detail remains `IN_PROGRESS` until the signed intake presentation is backed by
-    a governed intake record rather than the legacy generic resource store. See
+    practitioner detail intake is completed by 11W through a governed appointment-owned record. See
     [`increments/11u-owner-appointment-queries.md`](./increments/11u-owner-appointment-queries.md).
   - `[~]` 11V moves the patient dashboard's appointment and laboratory summaries plus the
     consultation waiting-room appointment read onto owner-scoped production APIs. The records
@@ -493,6 +492,12 @@ that completes an increment.
     family governance, notification context, and a qualified real-time media provider remain open;
     the dashboard and portal therefore remain `IN_PROGRESS`. See
     [`increments/11v-patient-appointment-consumers.md`](./increments/11v-patient-appointment-consumers.md).
+  - `[x]` 11W restores the signed appointment intake flow as a dedicated, validated aggregate,
+    records explicit versioned consent, supports owner-only optimistic withdrawal, redacts revoked
+    content from the assigned practitioner, and avoids intake joins on list queries. Administrator
+    practitioner detail now includes bounded effective-dated consultation-fee history without
+    inventing provider earnings or payout rules. See
+    [`increments/11w-appointment-intake-and-practitioner-fees.md`](./increments/11w-appointment-intake-and-practitioner-fees.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in
@@ -500,6 +505,9 @@ that completes an increment.
 - `[ ]` **Increment 12 — Qualification and controlled launch**
 
 ## Material decisions intentionally still open
+
+The actionable approval checklist and the screens each decision unblocks are maintained in
+[`MATERIAL_DECISIONS_HANDOFF.md`](./MATERIAL_DECISIONS_HANDOFF.md).
 
 These are not implementation-agent choices. Stop before the affected production work:
 

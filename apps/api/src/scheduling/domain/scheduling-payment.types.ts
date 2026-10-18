@@ -110,8 +110,14 @@ export interface SchedulingPaymentRepository {
   }): Promise<ConsultationFeeResponse | null>;
   bookAppointment(input: {
     idempotencyKey: string;
+    intake: {
+      consentEvidenceCode: string;
+      reason: string;
+      symptoms?: string;
+    };
     patientPrincipalId: string;
     paymentDueAt: Date;
+    requestId: string;
     requestHash: string;
     slotId: string;
   }): Promise<AppointmentAccessRecord | null>;
@@ -152,6 +158,13 @@ export interface SchedulingPaymentRepository {
     appointmentId: string;
     principalId: string;
   }): Promise<ProviderAppointmentResponse | null>;
+  revokeAppointmentIntake(input: {
+    appointmentId: string;
+    expectedVersion: number;
+    patientPrincipalId: string;
+    requestId: string;
+    revokedAt: Date;
+  }): Promise<AppointmentAccessRecord | null>;
   processVerifiedWebhook(input: {
     event: VerifiedPaymentEvent;
     payloadHash: string;

@@ -2164,6 +2164,7 @@ model Appointment {
   prescriptions      Prescription[]
   laboratoryRequests LaboratoryRequest[]
   clinicalEncounter  ClinicalEncounter?
+  intake             AppointmentIntake?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "appointments_patient_created_idx")
   @@index([patientId, startsAt, id], map: "appointments_patient_starts_idx")
@@ -2172,6 +2173,23 @@ model Appointment {
   @@index([practitionerId, startsAt, id], map: "appointments_practitioner_starts_idx")
   @@index([status, paymentDueAt, id], map: "appointments_payment_timeout_idx")
   @@map("appointments")
+}
+
+model AppointmentIntake {
+  id                  String      @id @db.Uuid
+  appointmentId       String      @unique @map("appointment_id") @db.Uuid
+  reason              String      @db.VarChar(500)
+  symptoms            String?     @db.VarChar(4000)
+  consentEvidenceCode String      @map("consent_evidence_code") @db.VarChar(100)
+  consentedAt         DateTime    @map("consented_at") @db.Timestamptz(6)
+  revokedAt           DateTime?   @map("revoked_at") @db.Timestamptz(6)
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int         @default(1)
+  appointment         Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+
+  @@index([appointmentId, revokedAt], map: "appointment_intakes_disclosure_idx")
+  @@map("appointment_intakes")
 }
 
 model ClinicalEncounter {
