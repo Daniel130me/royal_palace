@@ -14,6 +14,9 @@ import { PharmacyInventory } from "./pages/inventory";
 import { PharmacyDeliveries } from "./pages/deliveries";
 import { PharmacyNotifications } from "./pages/notifications";
 import { PharmacySettings } from "./pages/settings";
+import { PharmacyCommissions } from "./pages/commissions";
+import { PharmacyPayouts } from "./pages/payouts";
+import { PharmacySettlements } from "./pages/settlements";
 import {
   Bell,
   FileText,
@@ -23,6 +26,8 @@ import {
   Settings,
   Truck,
   Warehouse,
+  Banknote,
+  Wallet,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { productionNotificationService } from "@/lib/services";
@@ -56,6 +61,9 @@ export function PharmacyPortal() {
     { label: "Products", page: "products", icon: Pill },
     { label: "Inventory", page: "inventory", icon: Warehouse },
     { label: "Deliveries", page: "deliveries", icon: Truck },
+    { label: "Earnings", page: "commissions", icon: Banknote },
+    { label: "Settlements", page: "settlements", icon: Wallet },
+    { label: "Payouts", page: "payouts", icon: Wallet },
     { label: "Notifications", page: "notifications", icon: Bell, badge: unreadNotifications },
     { label: "Settings", page: "settings", icon: Settings },
   ];
@@ -85,6 +93,12 @@ export function PharmacyPortal() {
         <PharmacyInventory />
       ) : page === "deliveries" ? (
         <PharmacyDeliveries />
+      ) : page === "commissions" ? (
+        <PharmacyCommissions />
+      ) : page === "settlements" ? (
+        <PharmacySettlements />
+      ) : page === "payouts" ? (
+        <PharmacyPayouts />
       ) : page === "notifications" ? (
         <PharmacyNotifications onUnreadChange={updateUnreadNotifications} />
       ) : page === "settings" ? (

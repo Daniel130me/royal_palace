@@ -442,6 +442,16 @@ that completes an increment.
     register also reconciles signed patient/practitioner clinical and laboratory screens to
     their already-completed 11D/11F evidence; stakeholder UAT remains open. See
     [`increments/11n-personal-role-notification-parity.md`](./increments/11n-personal-role-notification-parity.md).
+  - `[x]` 11O parity-register evidence reconciliation records three completed surfaces
+    whose rows lagged their implementation evidence: the governed administrator pricing
+    screen from 11D4C, the production pharmacy portal shell from 11C4P-5, and the public
+    site shell whose routed pages were completed through 11I. This changes technical
+    connection status only; it does not substitute for stakeholder UAT or launch approval.
+  - `[~]` 11P pharmacy finance parity restores the signed earnings/commission,
+    settlement, and payout routes on the production organization-finance boundary. The
+    corrective UI removes ambiguous commission assumptions, keeps currencies separate,
+    and leaves real transfer execution disabled until provider and regional qualification.
+    See [`increments/11p-pharmacy-finance-parity.md`](./increments/11p-pharmacy-finance-parity.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

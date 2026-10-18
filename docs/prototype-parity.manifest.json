@@ -173,8 +173,8 @@
         {
           "id": "pricing",
           "file": "pages/pricing.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-reporting"
+          "status": "CONNECTED",
+          "checkpoint": "11D4C"
         },
         {
           "id": "provider-detail",
@@ -703,15 +703,15 @@
         {
           "id": "portal",
           "file": "pharmacy-portal.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "11C4P"
+          "status": "CONNECTED",
+          "checkpoint": "11C4P-5"
         },
         {
           "id": "commissions",
           "file": "pages/commissions.tsx",
-          "status": "CORRECTIVE",
-          "checkpoint": "11-settlements",
-          "productionFiles": []
+          "status": "CONNECTED",
+          "checkpoint": "11P",
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/commissions.tsx"]
         },
         {
           "id": "dashboard",
@@ -757,9 +757,9 @@
         {
           "id": "payouts",
           "file": "pages/payouts.tsx",
-          "status": "CORRECTIVE",
-          "checkpoint": "11-settlements",
-          "productionFiles": []
+          "status": "CONNECTED",
+          "checkpoint": "11P",
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/payouts.tsx"]
         },
         {
           "id": "prescription-detail",
@@ -807,9 +807,9 @@
         {
           "id": "settlements",
           "file": "pages/settlements.tsx",
-          "status": "CORRECTIVE",
-          "checkpoint": "11-settlements",
-          "productionFiles": []
+          "status": "CONNECTED",
+          "checkpoint": "11P",
+          "productionFiles": ["apps/web/src/features/pharmacy/pages/settlements.tsx"]
         }
       ]
     },
@@ -945,8 +945,8 @@
         {
           "id": "site",
           "file": "public-site.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "06-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11I"
         },
         {
           "id": "home",
