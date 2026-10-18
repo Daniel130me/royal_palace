@@ -487,6 +487,12 @@ that completes an increment.
     practitioner detail remains `IN_PROGRESS` until the signed intake presentation is backed by
     a governed intake record rather than the legacy generic resource store. See
     [`increments/11u-owner-appointment-queries.md`](./increments/11u-owner-appointment-queries.md).
+  - `[~]` 11V moves the patient dashboard's appointment and laboratory summaries plus the
+    consultation waiting-room appointment read onto owner-scoped production APIs. The records
+    screen no longer performs an unused legacy appointment scan. Dependant-specific aggregation,
+    family governance, notification context, and a qualified real-time media provider remain open;
+    the dashboard and portal therefore remain `IN_PROGRESS`. See
+    [`increments/11v-patient-appointment-consumers.md`](./increments/11v-patient-appointment-consumers.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

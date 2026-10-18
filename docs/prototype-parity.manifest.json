@@ -586,13 +586,23 @@
           "id": "consultation",
           "file": "pages/consultation.tsx",
           "status": "CONNECTED",
-          "checkpoint": "11F4"
+          "checkpoint": "11V",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/consultation.tsx",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts",
+            "apps/api/src/clinical/application/clinical-encounter.service.ts"
+          ]
         },
         {
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "11"
+          "checkpoint": "11V",
+          "productionFiles": [
+            "apps/web/src/features/patient/pages/dashboard.tsx",
+            "apps/api/src/scheduling/application/scheduling-payment.service.ts",
+            "apps/api/src/laboratory/application/laboratory.service.ts"
+          ]
         },
         {
           "id": "doctors",

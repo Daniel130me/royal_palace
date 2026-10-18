@@ -4,11 +4,11 @@ import { useEffect, useState, useMemo } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { usePatientContext } from "../use-patient-context";
 import {
-  appointmentService,
   productionPrescriptionService,
-  labRequestService,
+  productionLaboratoryService,
+  schedulingPaymentService,
 } from "@/lib/services";
-import type { Appointment, LaboratoryRequest } from "@/types";
+import type { AppointmentResponse, LaboratoryRequestResponse } from "@royal-palace/contracts";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
 type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 type PharmacyOrder = PrescriptionComponents["schemas"]["PharmacyOrder"];
@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SkeletonGrid } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
 import { StatusBadge } from "@/components/healthcare/status-badge";
-import { formatCurrency, relativeDay, formatTime, age } from "@/lib/format";
+import { relativeDay, formatTime, age } from "@/lib/format";
 import {
   Pill,
   FlaskConical,
@@ -32,7 +32,7 @@ import {
   Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { consultationActionLabel, isOnlineConsultationChannel } from "@/lib/consultation-policy";
+import { consultationActionLabel } from "@/lib/consultation-policy";
 import type { OnlineConsultationChannel } from "@/lib/consultation-policy";
 
 const QUICK_ACTIONS = [
@@ -78,46 +78,44 @@ export function PatientDashboard() {
   const { sessionName, activePatientId } = useNav();
   const { profile, primary, dependants, loading, unread, notifications, selectPatient } =
     usePatientContext();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-  const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
+  const [labRequests, setLabRequests] = useState<readonly LaboratoryRequestResponse[]>([]);
   const [orders, setOrders] = useState<PharmacyOrder[]>([]);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
     let cancelled = false;
     Promise.all([
-      appointmentService.list({ patientId: profile.id }),
+      profile.id === primary?.id
+        ? schedulingPaymentService.patientAppointments({ limit: 10, scope: "UPCOMING" })
+        : Promise.resolve({ data: [], pageInfo: { endCursor: null, hasNextPage: false } }),
       productionPrescriptionService.patient.list(undefined, 50).then((page) => [...page.data]),
-      labRequestService.list({ patientId: profile.id }),
+      productionLaboratoryService.patient.list(undefined, 50),
       productionPrescriptionService.patient.orders(undefined, 50).then((page) => [...page.data]),
-    ]).then(([a, rx, lab, ord]) => {
+    ]).then(([appointmentPage, rx, labPage, ord]) => {
       if (cancelled) return;
-      setAppointments(a);
+      setAppointments([...appointmentPage.data]);
       setPrescriptions(rx);
-      setLabRequests(lab);
+      setLabRequests(labPage.data);
       setOrders(ord);
-      setReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [profile?.id]);
+  }, [primary?.id, profile?.id]);
 
   const upcoming = useMemo(
     () =>
       appointments
-        .filter((a) =>
-          ["scheduled", "checked_in", "waiting_for_provider", "in_progress"].includes(a.status),
-        )
-        .sort((a, b) => a.date.localeCompare(b.date)),
+        .filter((appointment) => appointment.status === "CONFIRMED")
+        .sort((left, right) => left.startsAt.localeCompare(right.startsAt)),
     [appointments],
   );
   const pendingRx = prescriptions.filter((p) =>
     ["SIGNED", "SENT", "ACCEPTED", "PARTIALLY_DISPENSED"].includes(p.status),
   );
-  const pendingLab = labRequests.filter((l) => l.status === "pending_booking");
+  const pendingLab = labRequests.filter((request) => request.status === "ACTIVE");
   const activeOrders = orders.filter((o) => !["CANCELLED", "REFUNDED"].includes(o.status));
   const recentNotifications = notifications.slice(0, 3);
 
@@ -189,7 +187,7 @@ export function PatientDashboard() {
       {/* Stats row — tappable */}
       <div className="grid grid-cols-4 gap-2.5">
         <StatTile
-          label="Visits"
+          label="Upcoming"
           value={appointments.length}
           onClick={() => navigate("patient", "appointments")}
         />
@@ -227,8 +225,8 @@ export function PatientDashboard() {
                   </div>
                 }
                 title="Lab test pending"
-                subtitle={lab.tests.join(", ")}
-                badge={<StatusBadge status={lab.status} size="sm" />}
+                subtitle={lab.service.name}
+                badge={<StatusBadge status={lab.status.toLowerCase()} size="sm" />}
                 onClick={() => navigate("patient", "laboratory")}
               />
             ))}
@@ -313,13 +311,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
-  const provider = appointment.provider;
-  const channel: OnlineConsultationChannel = isOnlineConsultationChannel(
-    appointment.consultationChannel,
-  )
-    ? appointment.consultationChannel
-    : "video";
+function NextAppointmentCard({ appointment }: { appointment: AppointmentResponse }) {
+  const provider = appointment.practitioner;
+  const channel: OnlineConsultationChannel =
+    appointment.mode === "AUDIO" ? "audio" : appointment.mode === "CHAT" ? "chat" : "video";
   const ChannelIcon = APPOINTMENT_CHANNEL_ICONS[channel];
 
   return (
@@ -339,21 +334,27 @@ function NextAppointmentCard({ appointment }: { appointment: Appointment }) {
         <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
           Next appointment
         </span>
-        <StatusBadge status={appointment.status} size="sm" />
+        <StatusBadge status={appointment.status.toLowerCase()} size="sm" />
       </div>
       <div className="flex items-center gap-3">
         <Avatar className="h-12 w-12">
           <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-            {provider ? `${provider.firstName[0]}${provider.lastName[0]}` : "—"}
+            {provider
+              ? provider.displayName
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join("")
+              : "—"}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-sm truncate">
-            {provider ? `${provider.title} ${provider.lastName}` : "Consultation"}
+            {provider?.displayName ?? "Consultation"}
           </p>
-          <p className="text-xs text-muted-foreground truncate">{provider?.specialty}</p>
+          <p className="text-xs text-muted-foreground truncate">Verified practitioner</p>
           <p className="text-xs text-foreground mt-1 font-medium">
-            {relativeDay(appointment.date)} · {formatTime(appointment.time)}
+            {relativeDay(appointment.startsAt)} · {formatTime(appointment.startsAt)}
           </p>
         </div>
       </div>

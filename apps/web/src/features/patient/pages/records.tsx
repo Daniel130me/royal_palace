@@ -3,13 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { navigate } from "@/lib/nav";
 import {
-  appointmentService,
   productionPrescriptionService,
   encounterService,
   productionLaboratoryService,
 } from "@/lib/services";
 import type {
-  Appointment,
   ClinicalEncounter,
   LaboratoryRequest,
   Referral,
@@ -87,7 +85,6 @@ export function PatientRecords() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<RecordsTab>("summary");
   const [filter, setFilter] = useState<TimelineFilter>("all");
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [encounters, setEncounters] = useState<ClinicalEncounter[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [labRequests, setLabRequests] = useState<LaboratoryRequest[]>([]);
@@ -102,16 +99,14 @@ export function PatientRecords() {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      appointmentService.list({ patientId: profile.id }),
       productionPrescriptionService.patient.list(undefined, 50).then((page) => [...page.data]),
       productionLaboratoryService.patient.list(undefined, 50),
       productionPrescriptionService.patient.orders(undefined, 50).then((page) => [...page.data]),
       encounterService.listPatient(),
       productionLaboratoryService.patient.results(undefined, 50),
     ])
-      .then(([appts, rx, labPage, ords, encs, resultPage]) => {
+      .then(([rx, labPage, ords, encs, resultPage]) => {
         if (cancelled) return;
-        setAppointments(appts);
         setPrescriptions(rx);
         setLabRequests(
           labPage.data.map((request) => ({
