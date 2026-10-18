@@ -42,6 +42,7 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
   ),
   new RegExp(`^/api/admin/catalogue/(?:professions|specialties)(?:/${UUID_PATH_SEGMENT})?$`, "i"),
   /^\/api\/manager\/(?:profile|referral-links|referrals|earnings|tickets)$/i,
+  new RegExp(`^/api/manager/referrals/${UUID_PATH_SEGMENT}$`, "i"),
   new RegExp(`^/api/manager/tickets/${UUID_PATH_SEGMENT}(?:/follow-ups)?$`, "i"),
   /^\/api\/support\/manager-tickets$/i,
   new RegExp(`^/api/support/manager-tickets/${UUID_PATH_SEGMENT}$`, "i"),

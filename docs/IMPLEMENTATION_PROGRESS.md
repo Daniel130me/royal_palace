@@ -428,6 +428,13 @@ that completes an increment.
     earnings, payout enrollment, and payouts remain tracked under the practitioner detail
     and finance work. See
     [`increments/11l-practitioner-verification-governance.md`](./increments/11l-practitioner-verification-governance.md).
+  - `[~]` 11M manager privacy parity replaces the signed pharmacy/laboratory portfolio
+    screens with production referral-status views that preserve the approved UI capability
+    without disclosing organization records, patient information, gross payments, or assignment
+    history. Manager notifications and consent settings now use the production notification
+    boundary. Laboratory and logistics parity rows were reconciled to their already-completed
+    11D/11E evidence. Manager payout destinations and governed programme documents remain open.
+    See [`increments/11m-manager-privacy-parity.md`](./increments/11m-manager-privacy-parity.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

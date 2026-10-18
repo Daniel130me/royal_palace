@@ -1,177 +1,156 @@
 "use client";
 
-// Settings page (plan §3.1): notification preferences (stored locally in the
-// prototype), a note about theming and the sign-out control.
+import type { NotificationComponents } from "@royal-palace/api-client";
+import { Bell, Info, LogOut, Mail, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
-import { useEffect, useState } from "react";
-import { useNav } from "@/lib/nav";
-import { PageHeader, SectionCard } from "@/components/healthcare/page-header";
+import {
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  SectionCard,
+} from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeftRight, Bell, Coins, Info, LifeBuoy, LogOut, Moon, Wallet } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useNav } from "@/lib/nav";
+import { productionNotificationService } from "@/lib/services";
 
-const PREFS_KEY = "managerNotificationPrefs";
-
-interface ManagerPrefs {
-  earnings: boolean;
-  payouts: boolean;
-  tickets: boolean;
-  assignments: boolean;
-}
-
-const DEFAULT_PREFS: ManagerPrefs = {
-  earnings: true,
-  payouts: true,
-  tickets: true,
-  assignments: true,
-};
-
-function readPrefs(): ManagerPrefs {
-  if (typeof window === "undefined") return { ...DEFAULT_PREFS };
-  try {
-    const raw = window.localStorage.getItem(PREFS_KEY);
-    if (!raw) return { ...DEFAULT_PREFS };
-    const parsed = JSON.parse(raw) as Partial<ManagerPrefs>;
-    return {
-      earnings: parsed.earnings ?? DEFAULT_PREFS.earnings,
-      payouts: parsed.payouts ?? DEFAULT_PREFS.payouts,
-      tickets: parsed.tickets ?? DEFAULT_PREFS.tickets,
-      assignments: parsed.assignments ?? DEFAULT_PREFS.assignments,
-    };
-  } catch {
-    return { ...DEFAULT_PREFS };
-  }
-}
+type Preference = NotificationComponents["schemas"]["NotificationPreference"];
 
 export function ManagerSettings() {
   const { logout } = useNav();
-  const [prefs, setPrefs] = useState<ManagerPrefs>(DEFAULT_PREFS);
+  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setPrefs(readPrefs());
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await productionNotificationService.preferences();
+      setPreferences([...response.data]);
+      setError(null);
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Notification preferences could not be loaded.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  function toggle(key: keyof ManagerPrefs, value: boolean) {
-    setPrefs((p) => {
-      const next = { ...p, [key]: value };
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-        } catch {
-          /* storage unavailable — preference stays for this session only */
-        }
-      }
-      return next;
-    });
+  useEffect(() => void load(), [load]);
+  const marketing = preferences.find(
+    (item) => item.channel === "EMAIL" && item.category === "MARKETING",
+  );
+
+  async function updateMarketing(enabled: boolean) {
+    if (marketing === undefined) return;
+    try {
+      const updated = await productionNotificationService.updateEmailMarketing({
+        enabled,
+        expectedVersion: marketing.version,
+      });
+      setPreferences((current) =>
+        current.map((item) =>
+          item.channel === "EMAIL" && item.category === "MARKETING" ? updated : item,
+        ),
+      );
+      toast.success(enabled ? "Marketing email enabled." : "Marketing email disabled.");
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Preference could not be saved.");
+      await load();
+    }
   }
+
+  if (loading) return <LoadingState label="Loading settings…" />;
+  if (error) return <ErrorState message={error} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Settings"
-        description="Notification preferences and account controls for the Manager Portal."
+        description="Communication preferences and account controls for the Manager Portal."
       />
-
       <SectionCard
-        title="Notification preferences"
-        icon={Bell}
-        description="Choose what you want to be alerted about across your portfolio"
+        title="Required notifications"
+        icon={ShieldCheck}
+        description="Security and transactional delivery"
       >
-        <div className="divide-y divide-border/40">
-          <PrefRow
-            id="pref-earnings"
-            icon={<Coins className="h-4 w-4 text-primary" />}
-            title="Earnings notifications"
-            description="New Manager Earnings entries, maturities and reversals"
-            checked={prefs.earnings}
-            onChange={(v) => toggle("earnings", v)}
+        <div className="space-y-3">
+          <LockedPreference
+            icon={ShieldCheck}
+            title="Security alerts"
+            description="Sign-in, account, and security events are mandatory."
           />
-          <PrefRow
-            id="pref-payouts"
-            icon={<Wallet className="h-4 w-4 text-primary" />}
-            title="Payout updates"
-            description="Status changes on your payout requests (requested, processing, paid)"
-            checked={prefs.payouts}
-            onChange={(v) => toggle("payouts", v)}
-          />
-          <PrefRow
-            id="pref-tickets"
-            icon={<LifeBuoy className="h-4 w-4 text-primary" />}
-            title="Support ticket updates"
-            description="New tickets, replies and escalations in your portfolio"
-            checked={prefs.tickets}
-            onChange={(v) => toggle("tickets", v)}
-          />
-          <PrefRow
-            id="pref-assignments"
-            icon={<ArrowLeftRight className="h-4 w-4 text-primary" />}
-            title="Assignment changes"
-            description="Organizations added to or removed from your portfolio"
-            checked={prefs.assignments}
-            onChange={(v) => toggle("assignments", v)}
+          <LockedPreference
+            icon={Bell}
+            title="Transactional updates"
+            description="Referral, earnings, payout, and support updates are mandatory."
           />
         </div>
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5" />
-          Preferences are stored locally in this prototype.
+        <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          External notifications contain references and safe summaries only. Clinical details are
+          never included.
         </p>
       </SectionCard>
-
-      <SectionCard title="Appearance" icon={Moon} description="Theming">
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          The Manager Portal follows your system light/dark preference — there is no separate in-app
-          theme switch in this prototype.
-        </p>
-      </SectionCard>
-
-      <Card className="border-rose-200">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Sign out</p>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                End your Manager Portal session on this device.
-              </p>
-            </div>
-            <Button variant="destructive" onClick={logout} className="shrink-0">
-              <LogOut className="h-4 w-4" /> Sign out
-            </Button>
+      <SectionCard title="Optional communication" icon={Mail} description="Explicit consent">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="manager-marketing-email" className="text-sm font-semibold">
+              Marketing email
+            </Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Product news and optional programme announcements.
+            </p>
           </div>
+          <Switch
+            id="manager-marketing-email"
+            checked={marketing?.enabled ?? false}
+            disabled={marketing === undefined}
+            onCheckedChange={(enabled) => void updateMarketing(enabled)}
+          />
+        </div>
+      </SectionCard>
+      <Card className="border-rose-200">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Sign out</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              End your Manager Portal session on this device.
+            </p>
+          </div>
+          <Button variant="destructive" onClick={logout}>
+            <LogOut className="h-4 w-4" /> Sign out
+          </Button>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function PrefRow({
-  id,
-  icon,
+function LockedPreference({
+  icon: Icon,
   title,
   description,
-  checked,
-  onChange,
 }: {
-  id: string;
-  icon: React.ReactNode;
+  icon: typeof Bell;
   title: string;
   description: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
-      <div className="flex items-start gap-3 min-w-0">
-        <div className="mt-0.5 shrink-0">{icon}</div>
-        <div className="min-w-0">
-          <Label htmlFor={id} className="text-sm font-semibold cursor-pointer">
-            {title}
-          </Label>
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 p-3">
+      <div className="flex items-start gap-3">
+        <Icon className="mt-0.5 h-4 w-4 text-primary" />
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Switch checked disabled aria-label={`${title} enabled`} />
     </div>
   );
 }

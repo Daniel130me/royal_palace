@@ -72,7 +72,7 @@ export class ManagerService {
 
   async listOwnReferralStatuses(
     context: ManagerRequestContext,
-    input: { cursor?: string; limit?: number },
+    input: { cursor?: string; limit?: number; organizationType?: PublicOrganizationType },
   ): Promise<{
     data: ManagerReferralStatusResponse[];
     pageInfo: { endCursor: string | null; hasNextPage: boolean };
@@ -86,6 +86,7 @@ export class ManagerService {
         : { cursor: { applicationId: cursor.id, updatedAt: cursor.timestamp } }),
       limit: pageSize(input.limit),
       managerProfileId: profile.id,
+      ...(input.organizationType === undefined ? {} : { organizationType: input.organizationType }),
     });
     return {
       data: result.data,
@@ -97,6 +98,22 @@ export class ManagerService {
         hasNextPage: result.hasNextPage,
       },
     };
+  }
+
+  async getOwnReferralStatus(
+    context: ManagerRequestContext,
+    attributionId: string,
+  ): Promise<ManagerReferralStatusResponse> {
+    const profile = await this.requireOwnProfile(context);
+    await this.authorizeManager(context, profile, AUTHORIZATION_POLICY.VIEW_MANAGER_REFERRALS);
+    const referral = await this.repository.getReferralStatus({
+      attributionId,
+      managerProfileId: profile.id,
+    });
+    if (referral === null) {
+      throw new ManagerFlowError("referral_not_found", 404, "Referral was not found");
+    }
+    return referral;
   }
 
   async getOwnEarnings(

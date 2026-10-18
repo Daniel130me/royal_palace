@@ -297,74 +297,74 @@
         {
           "id": "portal",
           "file": "laboratory-portal.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4"
         },
         {
           "id": "bookings",
           "file": "pages/bookings.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D2B"
         },
         {
           "id": "critical-results",
           "file": "pages/critical-results.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D3D"
         },
         {
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4"
         },
         {
           "id": "notifications",
           "file": "pages/notifications.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4"
         },
         {
           "id": "payouts",
           "file": "pages/payouts.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-settlements"
+          "status": "CONNECTED",
+          "checkpoint": "11G2"
         },
         {
           "id": "request-detail",
           "file": "pages/request.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D2B"
         },
         {
           "id": "requests",
           "file": "pages/requests.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D2B"
         },
         {
           "id": "result-new",
           "file": "pages/result-new.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D3D"
         },
         {
           "id": "results",
           "file": "pages/results.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D3D"
         },
         {
           "id": "services",
           "file": "pages/services.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4"
         },
         {
           "id": "settings",
           "file": "pages/settings.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-laboratory"
+          "status": "CONNECTED",
+          "checkpoint": "11D4G"
         },
         {
           "id": "settlements",
@@ -387,44 +387,44 @@
         {
           "id": "portal",
           "file": "logistics-portal.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "assignments",
           "file": "pages/assignments.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "dashboard",
           "file": "pages/dashboard.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "delivery-detail",
           "file": "pages/delivery.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "earnings",
           "file": "pages/earnings.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "history",
           "file": "pages/history.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-logistics"
+          "status": "CONNECTED",
+          "checkpoint": "11E4"
         },
         {
           "id": "payouts",
           "file": "pages/payouts.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-settlements"
+          "status": "CONNECTED",
+          "checkpoint": "11G2"
         }
       ]
     },
@@ -462,20 +462,20 @@
         {
           "id": "laboratories",
           "file": "pages/laboratories.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "08-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11M"
         },
         {
           "id": "laboratory-detail",
           "file": "pages/laboratory.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "08-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11M"
         },
         {
           "id": "notifications",
           "file": "pages/notifications.tsx",
-          "status": "PENDING",
-          "checkpoint": "10"
+          "status": "CONNECTED",
+          "checkpoint": "11M"
         },
         {
           "id": "onboarding-links",
@@ -492,24 +492,29 @@
         {
           "id": "pharmacies",
           "file": "pages/pharmacies.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "08-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11M"
         },
         {
           "id": "pharmacy-detail",
           "file": "pages/pharmacy.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "08-parity"
+          "status": "CONNECTED",
+          "checkpoint": "11M"
         },
         { "id": "profile", "file": "pages/profile.tsx", "status": "CONNECTED", "checkpoint": "08" },
         { "id": "reports", "file": "pages/reports.tsx", "status": "CONNECTED", "checkpoint": "08" },
         {
           "id": "resources",
           "file": "pages/resources.tsx",
-          "status": "PENDING",
-          "checkpoint": "11-reporting"
+          "status": "IN_PROGRESS",
+          "checkpoint": "11M"
         },
-        { "id": "settings", "file": "pages/settings.tsx", "status": "PENDING", "checkpoint": "12" },
+        {
+          "id": "settings",
+          "file": "pages/settings.tsx",
+          "status": "CONNECTED",
+          "checkpoint": "11M"
+        },
         { "id": "support", "file": "pages/support.tsx", "status": "CONNECTED", "checkpoint": "08" },
         {
           "id": "ticket-detail",

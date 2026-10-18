@@ -28,7 +28,11 @@ const ticketStatusSchema = z.enum([
   "RESOLVED",
   "CLOSED",
 ]);
+const organizationTypeSchema = z.enum(["HOSPITAL", "PHARMACY", "LABORATORY"]);
 const listSchema = z.object({ cursor: cursorSchema, limit: limitSchema }).strict();
+const referralListSchema = listSchema.extend({
+  organizationType: organizationTypeSchema.optional(),
+});
 const ticketListSchema = listSchema.extend({ status: ticketStatusSchema.optional() });
 const earningsSchema = listSchema.extend({
   from: z.string().min(1).max(64),
@@ -63,7 +67,20 @@ export class ManagerController {
   @Get("referrals")
   referrals(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     return execute(() =>
-      this.manager.listOwnReferralStatuses(requestContext(request), parse(listSchema, query)),
+      this.manager.listOwnReferralStatuses(
+        requestContext(request),
+        parse(referralListSchema, query),
+      ),
+    );
+  }
+
+  @Get("referrals/:attributionId")
+  referral(
+    @Param("attributionId") attributionId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.manager.getOwnReferralStatus(requestContext(request), parse(idSchema, attributionId)),
     );
   }
 

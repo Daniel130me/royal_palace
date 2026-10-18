@@ -1,114 +1,139 @@
 "use client";
 
-// Shared list page for My Pharmacies / My Laboratories (plan §3.3).
-// Searchable + verification-filtered; one component keeps the two portals
-// visually identical.
-
+import type { ManagerComponents } from "@royal-palace/api-client";
+import { Building2, FlaskConical, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { managerService } from "@/lib/services";
+
 import {
-  PageHeader,
-  LoadingState,
-  ErrorState,
   EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
 } from "@/components/healthcare/page-header";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { OrganizationCard, ManagerEmptyState } from "./manager-shared";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/format";
 import { navigate } from "@/lib/nav";
-import { Search, RefreshCw } from "lucide-react";
-import type { ManagerOrganization } from "@/types";
+import { managerPortalService } from "@/lib/services";
+
+import { ManagerStatusBadge } from "./manager-shared";
+
+type Referral = ManagerComponents["schemas"]["ReferralStatus"];
+type OrganizationType = "PHARMACY" | "LABORATORY";
 
 export function OrganizationListPage({ type }: { type: "pharmacy" | "laboratory" }) {
-  const [items, setItems] = useState<ManagerOrganization[]>([]);
-  const [total, setTotal] = useState(0);
+  const organizationType: OrganizationType = type === "pharmacy" ? "PHARMACY" : "LABORATORY";
+  const title = type === "pharmacy" ? "Pharmacy referrals" : "Laboratory referrals";
+  const [items, setItems] = useState<Referral[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [verification, setVerification] = useState("all");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await managerService.organizations({
-        type,
-        search,
-        verification,
-        pageSize: "100",
-      });
-      setItems(res.data);
-      setTotal(res.meta.total);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load portfolio.");
-    } finally {
-      setLoading(false);
-    }
-  }, [type, search, verification]);
+  const load = useCallback(
+    async (nextCursor?: string) => {
+      setLoading(true);
+      try {
+        const response = await managerPortalService.referrals({
+          ...(nextCursor === undefined ? {} : { cursor: nextCursor }),
+          limit: 25,
+          organizationType,
+        });
+        setItems((current) =>
+          nextCursor === undefined ? [...response.data] : [...current, ...response.data],
+        );
+        setCursor(response.pageInfo.endCursor);
+        setHasNextPage(response.pageInfo.hasNextPage);
+        setError(null);
+      } catch (reason) {
+        setError(
+          reason instanceof Error ? reason.message : "Referral statuses could not be loaded.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [organizationType],
+  );
 
-  useEffect(() => {
-    const t = setTimeout(() => void load(), 200); // debounce search typing
-    return () => clearTimeout(t);
-  }, [load]);
-
-  const title = type === "pharmacy" ? "My Pharmacies" : "My Laboratories";
+  useEffect(() => void load(), [load]);
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title={title}
-        description={`Organizations currently assigned to you (${total}). Acquisition attribution is preserved even after reassignment.`}
+        description="Track applications attributed to your referral links. Applicant and organization records remain private to Support and administrators."
         actions={
-          <Button variant="outline" size="sm" onClick={() => void load()}>
+          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
         }
       />
-
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${type === "pharmacy" ? "pharmacies" : "laboratories"}…`}
-            className="pl-9"
-            aria-label={`Search ${title}`}
-          />
-        </div>
-        <div className="flex gap-2">
-          {["all", "approved", "pending"].map((v) => (
-            <Button
-              key={v}
-              size="sm"
-              variant={verification === v ? "default" : "outline"}
-              onClick={() => setVerification(v)}
-              className="capitalize"
-            >
-              {v === "all" ? "All" : v}
-            </Button>
-          ))}
-        </div>
-      </div>
-
       {loading && items.length === 0 ? (
         <LoadingState label={`Loading ${title.toLowerCase()}…`} />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : items.length === 0 ? (
-        <ManagerEmptyState
-          title={`No ${type === "pharmacy" ? "pharmacies" : "laboratories"} found`}
-          description="Try adjusting your search or filters, or onboard a new organization."
-          actionLabel="Onboard organization"
-          onAction={() => navigate("manager", "onboard")}
+        <EmptyState
+          title={`No ${type} referrals yet`}
+          description="Share an active organization referral link. The applicant completes and submits their own information."
+          action={
+            <Button onClick={() => navigate("manager", "onboard")}>View referral links</Button>
+          }
         />
       ) : (
-        <div className="grid gap-3">
-          {items.map((org) => (
-            <OrganizationCard key={org.id} org={org} />
+        <div className="space-y-3">
+          {items.map((item) => (
+            <ReferralCard key={item.attributionId} item={item} type={type} />
           ))}
+          {hasNextPage && cursor !== null ? (
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={loading}
+              onClick={() => void load(cursor)}
+            >
+              Load more
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
   );
+}
+
+function ReferralCard({ item, type }: { item: Referral; type: "pharmacy" | "laboratory" }) {
+  const Icon = type === "pharmacy" ? Building2 : FlaskConical;
+  const destination = type === "pharmacy" ? "pharmacy" : "laboratory";
+  return (
+    <Card
+      className="cursor-pointer transition-colors hover:border-primary/40"
+      onClick={() => navigate("manager", destination, { id: item.attributionId })}
+    >
+      <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+        <div className="rounded-xl bg-primary/10 p-2.5">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold">{item.referralLabel}</p>
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                Reference {shortReference(item.attributionId)}
+              </p>
+            </div>
+            <ManagerStatusBadge status={item.applicationStatus.toLowerCase()} />
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Attributed {formatDate(item.createdAt)} · No private organization or payment data is
+            disclosed.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function shortReference(value: string): string {
+  return value.slice(0, 8).toUpperCase();
 }

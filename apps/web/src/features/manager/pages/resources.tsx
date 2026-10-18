@@ -1,193 +1,110 @@
 "use client";
 
-// Resources page (plan §3.1): the Manager responsibilities checklist, the
-// support routing guide and the (simulated) agreement documents. Static
-// content only — no fabricated external links anywhere on this page.
+import { ArrowRight, CheckCircle2, FileText, Link2, LifeBuoy, ShieldCheck } from "lucide-react";
 
 import { PageHeader, SectionCard } from "@/components/healthcare/page-header";
-import { Button } from "@/components/ui/button";
-import { ManagerStatusBadge } from "../components/manager-shared";
-import {
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Download,
-  FileText,
-  FlaskConical,
-  Landmark,
-  LifeBuoy,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
 
 const RESPONSIBILITIES = [
   {
-    title: "Acquire & onboard organizations",
-    body: "Bring pharmacies and laboratories onto the Royal Palace platform: applications, business verification details and activation follow-up.",
+    title: "Share approved referral links",
+    body: "Use the purpose-specific patient or organization links issued to you. Applicants enter and submit their own information.",
   },
   {
-    title: "Monitor non-clinical status",
-    body: "Keep an eye on each portfolio organization's account, verification and payment status. Managers never access patient or clinical data.",
+    title: "Track referral outcomes",
+    body: "Follow privacy-limited application status and your own earnings. Do not request or retain applicant records outside approved channels.",
   },
   {
-    title: "Provide first-level support",
-    body: "Own Level 1 support for your portfolio: investigate tickets, ask the organization for details, and resolve account or billing questions.",
+    title: "Escalate support safely",
+    body: "Open and follow a ticket using its reference, subject name, category, and only the minimum information needed to identify the issue.",
   },
   {
-    title: "Escalate to Royal Palace",
-    body: "Anything you cannot resolve goes to Royal Palace with a clear reason — it is then routed to Finance, Technical, Operations or Compliance.",
+    title: "Protect confidential information",
+    body: "Managers do not access clinical records, verification documents, organization accounts, patient payments, or Royal Palace gross revenue.",
   },
-];
-
-const AGREEMENTS = [
-  {
-    title: "Manager Services Agreement",
-    description:
-      "The master agreement covering your role, portfolio responsibilities and conduct on the platform.",
-    accepted: true,
-  },
-  {
-    title: "Revenue Share Schedule",
-    description:
-      "The schedule of revenue share rates applied per organization type and transaction type.",
-    accepted: true,
-  },
-  {
-    title: "Support & Escalation Addendum",
-    description:
-      "The service expectations for first-level support, response windows and escalation handling.",
-    accepted: true,
-  },
-];
+] as const;
 
 export function ManagerResources() {
   return (
     <div className="space-y-4">
       <PageHeader
         title="Resources"
-        description="Your responsibilities, how support routing works and your signed agreements."
+        description="Manager responsibilities, privacy boundaries, and support escalation guidance."
       />
-
-      {/* Responsibilities checklist */}
       <SectionCard
         title="Manager responsibilities"
         icon={CheckCircle2}
-        description="What Royal Palace expects from every Manager"
+        description="The approved operating model"
       >
         <ul className="space-y-3">
-          {RESPONSIBILITIES.map((r) => (
-            <li key={r.title} className="flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          {RESPONSIBILITIES.map((item) => (
+            <li key={item.title} className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
               <div>
-                <p className="text-sm font-semibold">{r.title}</p>
-                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{r.body}</p>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
               </div>
             </li>
           ))}
         </ul>
       </SectionCard>
-
-      {/* Support routing guide */}
       <SectionCard
-        title="How support routing works"
-        icon={LifeBuoy}
-        description="Pharmacy / Laboratory → Manager (Level 1) → Royal Palace (Level 2) → specialist departments"
+        title="How referrals work"
+        icon={Link2}
+        description="Attribution without portfolio access"
       >
         <ol className="space-y-2">
-          <RoutingStep
-            icon={Building2}
-            tone="bg-primary/10 text-primary"
-            title="1 · Organization raises a ticket"
-            body="A pharmacy or laboratory opens a support ticket about a non-clinical issue (account, payments, platform)."
+          <Step
+            title="1 · Share a purpose-specific link"
+            body="Choose the patient, hospital, pharmacy, or laboratory link created for the intended audience."
           />
-          <RoutingStep
-            icon={Users}
-            tone="bg-sky-50 text-sky-700"
-            title="2 · Manager — Level 1"
-            body="You investigate as the first line of support, working directly with the organization on your portfolio."
+          <Step
+            title="2 · Applicant self-submits"
+            body="The applicant completes the form directly. You do not collect documents or enter information on their behalf."
           />
-          <RoutingStep
-            icon={LifeBuoy}
-            tone="bg-amber-50 text-amber-700"
-            title="3 · Royal Palace — Level 2"
-            body="Unresolved tickets are escalated to Royal Palace with your reason. They investigate and coordinate the outcome."
+          <Step
+            title="3 · Royal Palace reviews"
+            body="Support can request information; administrators alone approve, reject, or change verification status."
           />
-          <RoutingStep
-            icon={ShieldCheck}
-            tone="bg-violet-50 text-violet-700"
-            title="4 · Specialist departments"
-            body="Royal Palace routes the issue to Finance, Technical, Operations or Compliance, then the resolution flows back down the same chain."
+          <Step
+            title="4 · Track status and earnings"
+            body="You see a minimal status reference and commission earned from eligible patient activity—not what the patient paid Royal Palace."
           />
         </ol>
-        <div className="mt-3 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-3">
-          <FlaskConical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Tickets keep their organization, manager and department trail so every side can see
-            where an issue currently sits — statuses are shown identically across the Manager and
-            Admin portals.
+      </SectionCard>
+      <SectionCard
+        title="Support escalation"
+        icon={LifeBuoy}
+        description="Minimum necessary disclosure"
+      >
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Create a ticket with a short subject name, an optional non-sensitive reference, and the
+          issue category. Royal Palace Support investigates using its authorized records. Follow up
+          through the ticket ID; never paste health information, identity documents, payment
+          credentials, or clinical details into a manager ticket.
+        </p>
+      </SectionCard>
+      <SectionCard title="Programme documents" icon={FileText} description="Controlled publication">
+        <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-4">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Only current, administrator-published programme documents will appear here. The
+            application does not claim that an agreement was accepted and does not expose
+            placeholder downloads.
           </p>
         </div>
-      </SectionCard>
-
-      {/* Agreement placeholders */}
-      <SectionCard
-        title="Agreements"
-        icon={FileText}
-        description="Signed agreements on file with Royal Palace"
-      >
-        <div className="space-y-2">
-          {AGREEMENTS.map((a) => (
-            <div
-              key={a.title}
-              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-border/60 p-3"
-            >
-              <div className="rounded-lg bg-primary/10 p-2 shrink-0 self-start">
-                <Landmark className="h-4 w-4 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold">{a.title}</p>
-                  <ManagerStatusBadge status="approved" label="Accepted" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.description}</p>
-              </div>
-              <Button size="sm" variant="outline" disabled className="shrink-0">
-                <Download className="h-4 w-4" /> Download agreement (PDF placeholder)
-              </Button>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Agreement acceptance is simulated in this prototype — the documents above are placeholders
-          and downloads are disabled. In production these would be versioned PDFs with
-          countersignature tracking.
-        </p>
       </SectionCard>
     </div>
   );
 }
 
-function RoutingStep({
-  icon: Icon,
-  tone,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  tone: string;
-  title: string;
-  body: string;
-}) {
+function Step({ title, body }: { title: string; body: string }) {
   return (
-    <li className="flex items-start gap-3">
-      <div className={`rounded-lg p-2 shrink-0 ${tone}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1 border-b border-border/40 pb-2 last:border-0">
+    <li className="flex items-start gap-3 rounded-xl border border-border/60 p-3">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{title}</p>
-        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{body}</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
       </div>
-      <ArrowRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-2 hidden sm:block" />
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/50" />
     </li>
   );
 }

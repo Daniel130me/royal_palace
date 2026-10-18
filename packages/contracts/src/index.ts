@@ -853,6 +853,9 @@ export interface ManagerReferralStatusResponse {
   attributionId: string;
   createdAt: string;
   decidedAt: string | null;
+  organizationType: PublicOrganizationType | null;
+  referralLabel: string;
+  referralLinkId: string;
   submittedAt: string | null;
 }
 

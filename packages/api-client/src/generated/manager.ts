@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/manager/referrals/{attributionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getManagerReferral"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manager/earnings": {
         parameters: {
             query?: never;
@@ -270,6 +286,11 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             decidedAt: string | null;
+            /** @enum {string|null} */
+            organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY" | null;
+            referralLabel: string;
+            /** Format: uuid */
+            referralLinkId: string;
             /** Format: date-time */
             submittedAt: string | null;
         };
@@ -471,6 +492,7 @@ export interface operations {
             query?: {
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
+                organizationType?: "HOSPITAL" | "PHARMACY" | "LABORATORY";
             };
             header?: never;
             path?: never;
@@ -485,6 +507,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReferralPage"];
+                };
+            };
+        };
+    };
+    getManagerReferral: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attributionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Minimal referral status detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralStatus"];
                 };
             };
         };

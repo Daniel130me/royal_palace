@@ -1,87 +1,149 @@
 "use client";
 
-// Manager notifications — reuses the generic notification resources with
-// the manager recipient scope.
+import type { NotificationComponents } from "@royal-palace/api-client";
+import { Bell, Check, CheckCheck, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
-import { useCallback, useEffect, useState } from "react";
-import { managerService, notificationService } from "@/lib/services";
-import {
-  PageHeader,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-} from "@/components/healthcare/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState, PageHeader, SkeletonGrid } from "@/components/healthcare/page-header";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
-import { Bell, CheckCheck } from "lucide-react";
-import type { Notification } from "@/types";
+import { productionNotificationService } from "@/lib/services";
+
+type InboxItem = NotificationComponents["schemas"]["NotificationInboxItem"];
 
 export function ManagerNotifications() {
-  const [items, setItems] = useState<Notification[] | null>(null);
+  const [items, setItems] = useState<InboxItem[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setError(null);
+  const load = useCallback(async (nextCursor?: string) => {
+    setLoading(true);
     try {
-      const me = await managerService.me();
-      setItems(await notificationService.list(me.manager.id, "manager"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load notifications.");
+      const response = await productionNotificationService.list({
+        ...(nextCursor === undefined ? {} : { cursor: nextCursor }),
+        limit: 25,
+      });
+      setItems((current) =>
+        nextCursor === undefined ? [...response.data] : [...current, ...response.data],
+      );
+      setCursor(response.pageInfo.endCursor);
+      setHasNextPage(response.pageInfo.hasNextPage);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Notifications could not be loaded.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => void load(), [load]);
+  const unreadCount = useMemo(() => items.filter((item) => item.readAt === null).length, [items]);
 
-  async function markAllRead() {
-    if (!items) return;
-    const me = await managerService.me();
-    await notificationService.markAllRead(me.manager.id, "manager");
-    await load();
+  async function markRead(item: InboxItem) {
+    if (item.readAt !== null) return;
+    try {
+      const updated = await productionNotificationService.markRead(item.id);
+      setItems((current) =>
+        current.map((candidate) =>
+          candidate.id === item.id ? { ...candidate, readAt: updated.readAt } : candidate,
+        ),
+      );
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Notification could not be updated.");
+    }
   }
 
-  if (items === null && !error) return <LoadingState label="Loading notifications…" />;
+  async function markAllRead() {
+    try {
+      await productionNotificationService.markAllRead();
+      await load();
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Notifications could not be updated.");
+    }
+  }
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Notifications"
-        description="Manager-specific activity alerts across your portfolio and earnings."
+        description="Referral status, earnings, support, security, and platform updates without clinical details."
         actions={
-          <Button variant="outline" size="sm" onClick={() => void markAllRead()}>
-            <CheckCheck className="h-4 w-4" /> Mark all read
-          </Button>
+          unreadCount > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => void markAllRead()}>
+              <CheckCheck className="h-4 w-4" /> Mark all read
+            </Button>
+          ) : undefined
         }
       />
-      {error ? (
-        <ErrorState message={error} onRetry={() => void load()} />
-      ) : !items || items.length === 0 ? (
-        <EmptyState title="No notifications" description="You are all caught up." />
+      {loading && items.length === 0 ? (
+        <SkeletonGrid count={4} />
+      ) : error ? (
+        <EmptyState title="Notifications unavailable" description={error} />
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={Bell}
+          title="No notifications"
+          description="New manager updates will appear here."
+          compact
+        />
       ) : (
         <Card>
-          <CardContent className="p-0">
-            {items.map((n) => (
-              <div
-                key={n.id}
-                className={`flex items-start gap-3 p-4 border-b border-border/40 last:border-0 ${n.read ? "" : "bg-primary/[0.04]"}`}
+          <CardContent className="divide-y divide-border/40 p-0">
+            {items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => void markRead(item)}
+                className={`flex w-full items-start gap-3 p-4 text-left hover:bg-muted/40 ${item.readAt === null ? "bg-primary/[0.04]" : ""}`}
               >
-                <div
-                  className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${n.read ? "bg-muted-foreground/30" : "bg-primary"}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-tight">{n.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>
+                <div className="mt-0.5 rounded-lg bg-primary/10 p-2">
+                  {item.category === "SECURITY" ? (
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Bell className="h-4 w-4 text-primary" />
+                  )}
                 </div>
-                <span className="text-[11px] text-muted-foreground shrink-0">
-                  {formatDateTime(n.createdAt)}
-                </span>
-              </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{notificationTitle(item)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Reference {item.reference} · {formatDateTime(item.createdAt)}
+                  </p>
+                </div>
+                {item.readAt === null ? (
+                  <Check className="mt-2 h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <span className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Read
+                  </span>
+                )}
+              </button>
             ))}
+            {hasNextPage && cursor !== null ? (
+              <div className="p-3">
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => void load(cursor)}
+                >
+                  Load more
+                </Button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       )}
     </div>
   );
+}
+
+function notificationTitle(item: InboxItem): string {
+  return item.templateKey
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/^./, (letter) => letter.toUpperCase());
 }

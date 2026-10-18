@@ -102,6 +102,10 @@ export interface ManagerRepository {
     managerProfileId: string;
     ticketId: string;
   }): Promise<ManagerTicketResponse | null>;
+  getReferralStatus(input: {
+    attributionId: string;
+    managerProfileId: string;
+  }): Promise<ManagerReferralStatusResponse | null>;
   listEarnings(input: {
     cursor?: { id: string; occurredAt: Date };
     from: Date;
@@ -126,6 +130,7 @@ export interface ManagerRepository {
     cursor?: { applicationId: string; updatedAt: Date };
     limit: number;
     managerProfileId: string;
+    organizationType?: PublicOrganizationType;
   }): Promise<{
     cursor: { applicationId: string; updatedAt: Date } | null;
     data: ManagerReferralStatusResponse[];

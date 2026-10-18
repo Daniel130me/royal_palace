@@ -59,6 +59,9 @@ describe("ManagerService", () => {
             attributionId: createOpaqueId(),
             createdAt: "2026-09-30T09:00:00.000Z",
             decidedAt: null,
+            organizationType: null,
+            referralLabel: "Synthetic patient referral",
+            referralLinkId: createOpaqueId(),
             submittedAt: "2026-09-30T09:05:00.000Z",
           },
         ],
@@ -74,6 +77,38 @@ describe("ManagerService", () => {
     expect(result.pageInfo.endCursor).not.toBeNull();
     expect(result.data[0]).not.toHaveProperty("applicantPrincipalId");
     expect(result.data[0]).not.toHaveProperty("reviewerNote");
+  });
+
+  it("scopes referral detail to the authenticated manager profile", async () => {
+    const principalId = createOpaqueId();
+    const managerProfileId = createOpaqueId();
+    const attributionId = createOpaqueId();
+    const getReferralStatus = vi.fn<ManagerRepository["getReferralStatus"]>(async () => ({
+      applicationKind: "ORGANIZATION",
+      applicationStatus: "APPROVED",
+      attributionId,
+      createdAt: "2026-09-30T09:00:00.000Z",
+      decidedAt: "2026-10-01T09:00:00.000Z",
+      organizationType: "PHARMACY",
+      referralLabel: "Community pharmacy referrals",
+      referralLinkId: createOpaqueId(),
+      submittedAt: "2026-09-30T09:05:00.000Z",
+    }));
+    const manager = service({
+      findManagerByPrincipal: vi.fn<ManagerRepository["findManagerByPrincipal"]>(async () => ({
+        displayName: "Synthetic Manager",
+        id: managerProfileId,
+        status: "ACTIVE",
+      })),
+      getReferralStatus,
+    });
+
+    await manager.getOwnReferralStatus(
+      { actor: session("MANAGER", principalId), requestId: "request-referral-detail" },
+      attributionId,
+    );
+
+    expect(getReferralStatus).toHaveBeenCalledWith({ attributionId, managerProfileId });
   });
 
   it("never accepts stale privileged authentication for financial policy activation", async () => {

@@ -2182,9 +2182,19 @@ export const managerPortalService = {
   profile: () => generatedManagerClient.GET("/api/manager/profile").then(unwrapGeneratedResponse),
   referralLinks: () =>
     generatedManagerClient.GET("/api/manager/referral-links").then(unwrapGeneratedResponse),
-  referrals: (input: { cursor?: string; limit?: number } = {}) =>
+  referrals: (
+    input: {
+      cursor?: string;
+      limit?: number;
+      organizationType?: "HOSPITAL" | "PHARMACY" | "LABORATORY";
+    } = {},
+  ) =>
     generatedManagerClient
       .GET("/api/manager/referrals", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  referral: (attributionId: string) =>
+    generatedManagerClient
+      .GET("/api/manager/referrals/{attributionId}", { params: { path: { attributionId } } })
       .then(unwrapGeneratedResponse),
   earnings: (input: {
     cursor?: string;

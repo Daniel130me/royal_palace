@@ -30,12 +30,29 @@ paths:
       parameters:
         - { $ref: "#/components/parameters/Cursor" }
         - { $ref: "#/components/parameters/Limit" }
+        - {
+            in: query,
+            name: organizationType,
+            schema: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY] },
+          }
       responses:
         "200":
           {
             description: Minimal referral status,
             content:
               { application/json: { schema: { $ref: "#/components/schemas/ReferralPage" } } },
+          }
+  /api/manager/referrals/{attributionId}:
+    get:
+      operationId: getManagerReferral
+      parameters:
+        - { in: path, name: attributionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          {
+            description: Minimal referral status detail,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ReferralStatus" } } },
           }
   /api/manager/earnings:
     get:
@@ -321,7 +338,17 @@ components:
       type: object
       additionalProperties: false
       required:
-        [applicationKind, applicationStatus, attributionId, createdAt, decidedAt, submittedAt]
+        [
+          applicationKind,
+          applicationStatus,
+          attributionId,
+          createdAt,
+          decidedAt,
+          organizationType,
+          referralLabel,
+          referralLinkId,
+          submittedAt,
+        ]
       properties:
         applicationKind: { type: string, enum: [PATIENT, ORGANIZATION, PRACTITIONER] }
         applicationStatus:
@@ -341,6 +368,9 @@ components:
         attributionId: { type: string, format: uuid }
         createdAt: { type: string, format: date-time }
         decidedAt: { type: [string, "null"], format: date-time }
+        organizationType: { type: [string, "null"], enum: [HOSPITAL, PHARMACY, LABORATORY, null] }
+        referralLabel: { type: string }
+        referralLinkId: { type: string, format: uuid }
         submittedAt: { type: [string, "null"], format: date-time }
     ReferralPage:
       type: object

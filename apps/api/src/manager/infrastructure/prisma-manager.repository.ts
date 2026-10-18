@@ -308,10 +308,39 @@ export class PrismaManagerRepository implements ManagerRepository {
     }));
   }
 
+  async getReferralStatus(input: {
+    attributionId: string;
+    managerProfileId: string;
+  }): Promise<ManagerReferralStatusResponse | null> {
+    const record = await this.database.currentReferralAttribution.findFirst({
+      select: {
+        application: {
+          select: { createdAt: true, decidedAt: true, kind: true, status: true, submittedAt: true },
+        },
+        currentEventId: true,
+        referralLink: { select: { id: true, label: true, organizationType: true } },
+      },
+      where: { currentEventId: input.attributionId, managerProfileId: input.managerProfileId },
+    });
+    if (record === null || record.referralLink === null) return null;
+    return {
+      applicationKind: record.application.kind,
+      applicationStatus: record.application.status,
+      attributionId: record.currentEventId,
+      createdAt: record.application.createdAt.toISOString(),
+      decidedAt: record.application.decidedAt?.toISOString() ?? null,
+      organizationType: optionalPublicOrganizationType(record.referralLink.organizationType),
+      referralLabel: record.referralLink.label,
+      referralLinkId: record.referralLink.id,
+      submittedAt: record.application.submittedAt?.toISOString() ?? null,
+    };
+  }
+
   async listReferralStatuses(input: {
     cursor?: { applicationId: string; updatedAt: Date };
     limit: number;
     managerProfileId: string;
+    organizationType?: PublicOrganizationType;
   }): Promise<{
     cursor: { applicationId: string; updatedAt: Date } | null;
     data: ManagerReferralStatusResponse[];
@@ -325,11 +354,15 @@ export class PrismaManagerRepository implements ManagerRepository {
         },
         applicationId: true,
         currentEventId: true,
+        referralLink: { select: { id: true, label: true, organizationType: true } },
         updatedAt: true,
       },
       take: input.limit + 1,
       where: {
         managerProfileId: input.managerProfileId,
+        ...(input.organizationType === undefined
+          ? {}
+          : { referralLink: { organizationType: input.organizationType } }),
         ...(input.cursor === undefined
           ? {}
           : {
@@ -357,6 +390,11 @@ export class PrismaManagerRepository implements ManagerRepository {
         attributionId: record.currentEventId,
         createdAt: record.application.createdAt.toISOString(),
         decidedAt: record.application.decidedAt?.toISOString() ?? null,
+        organizationType: optionalPublicOrganizationType(
+          record.referralLink?.organizationType ?? null,
+        ),
+        referralLabel: record.referralLink?.label ?? "Referral",
+        referralLinkId: record.referralLink?.id ?? record.currentEventId,
         submittedAt: record.application.submittedAt?.toISOString() ?? null,
       })),
       hasNextPage,
