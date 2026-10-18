@@ -420,6 +420,14 @@ that completes an increment.
     filters, exact BFF allowlists, least-privilege delivery projections, currency-separated
     payment volume, attention counts, and representative index-plan evidence. See
     [`increments/11k-admin-operations.md`](./increments/11k-admin-operations.md).
+  - `[~]` 11L practitioner verification governance connects the administrator provider
+    queue and verification controls to production onboarding and practitioner records.
+    Bounded indexed reads, administrator-only policy enforcement, optimistic concurrency,
+    immutable verification history, clean-document access, and jurisdiction-neutral
+    credential presentation replace the generic prototype data path. Provider fees,
+    earnings, payout enrollment, and payouts remain tracked under the practitioner detail
+    and finance work. See
+    [`increments/11l-practitioner-verification-governance.md`](./increments/11l-practitioner-verification-governance.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

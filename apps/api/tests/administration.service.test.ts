@@ -117,6 +117,39 @@ describe("AdministrationService", () => {
     );
   });
 
+  it("keeps practitioner verification administrator-only and server-attributed", async () => {
+    const listPractitioners = vi.fn(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+      summary: { all: 0, pending: 0, revoked: 0, suspended: 0, verified: 0 },
+    }));
+    const transitionPractitioner = vi.fn(async () => null);
+    const service = createService({ listPractitioners, transitionPractitioner });
+
+    await expect(
+      service.listPractitioners(context("SUPPORT"), { scope: "ALL" }),
+    ).rejects.toMatchObject({ name: "AuthorizationDeniedError" });
+    await service.listPractitioners(context("ADMINISTRATOR"), { scope: "VERIFIED" });
+    expect(listPractitioners).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 25, scope: "VERIFIED" }),
+    );
+
+    await expect(
+      service.transitionPractitioner(
+        context("ADMINISTRATOR"),
+        "0199a18e-a400-7000-8000-000000000203",
+        { expectedVersion: 1, note: "Credential expired", status: "SUSPENDED" },
+      ),
+    ).rejects.toMatchObject({ code: "practitioner_conflict", status: 409 });
+    expect(transitionPractitioner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowedFromStatuses: ["VERIFIED"],
+        expectedVersion: 1,
+        status: "SUSPENDED",
+      }),
+    );
+  });
+
   it("binds cursors to the complete filter set", () => {
     const filters = { dayFrom, dayTo, scope: "ALL" };
     const hash = administrationFilterHash(filters);
@@ -147,7 +180,14 @@ function createService(overrides: Partial<AdministrationRepository>): Administra
     })),
     listComplaints: vi.fn(async () => emptyComplaints),
     listDeliveries: vi.fn(async () => emptyDeliveries),
+    listPractitioners: vi.fn(async () => ({
+      data: [],
+      pageInfo: { endCursor: null, hasNextPage: false },
+      summary: { all: 0, pending: 0, revoked: 0, suspended: 0, verified: 0 },
+    })),
+    getPractitioner: vi.fn(async () => null),
     transitionComplaint: vi.fn(async () => null),
+    transitionPractitioner: vi.fn(async () => null),
     ...overrides,
   };
   const authorization = new AuthorizationService(new PolicyEngine(), {

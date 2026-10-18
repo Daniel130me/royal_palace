@@ -112,6 +112,58 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuditEventList" }
+  /api/admin/practitioners:
+    get:
+      operationId: listAdminPractitioners
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2048 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - {
+            name: scope,
+            in: query,
+            required: true,
+            schema: { $ref: "#/components/schemas/PractitionerScope" },
+          }
+      responses:
+        "200":
+          description: Bounded administrator practitioner-verification queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerList" }
+  /api/admin/practitioners/{practitionerId}:
+    get:
+      operationId: getAdminPractitioner
+      parameters:
+        - { name: practitionerId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Administrator practitioner-verification detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerDetail" }
+  /api/admin/practitioners/{practitionerId}/verification:
+    patch:
+      operationId: transitionAdminPractitionerVerification
+      parameters:
+        - { name: practitionerId, in: path, required: true, schema: { type: string, format: uuid } }
+        - {
+            name: x-rp-csrf-token,
+            in: header,
+            required: true,
+            schema: { type: string, minLength: 1 },
+          }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PractitionerTransitionInput" }
+      responses:
+        "200":
+          description: Updated practitioner-verification detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerDetail" }
 components:
   schemas:
     PageInfo:
@@ -394,3 +446,174 @@ components:
         paymentVolume: { type: array, items: { $ref: "#/components/schemas/MoneyTotal" } }
         recentAuditEvents: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
         recentComplaints: { type: array, items: { $ref: "#/components/schemas/Complaint" } }
+    PractitionerVerificationStatus:
+      type: string
+      enum: [PENDING, VERIFIED, SUSPENDED, REVOKED]
+    PractitionerScope:
+      type: string
+      enum: [ALL, PENDING, VERIFIED, SUSPENDED, REVOKED]
+    PractitionerListItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          createdAt,
+          displayName,
+          id,
+          primaryProfession,
+          primarySpecialty,
+          updatedAt,
+          verificationStatus,
+          version,
+        ]
+      properties:
+        createdAt: { type: string, format: date-time }
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+        primaryProfession: { type: [string, "null"] }
+        primarySpecialty: { type: [string, "null"] }
+        updatedAt: { type: string, format: date-time }
+        verificationStatus: { $ref: "#/components/schemas/PractitionerVerificationStatus" }
+        version: { type: integer, minimum: 1 }
+    PractitionerSummary:
+      type: object
+      additionalProperties: false
+      required: [all, pending, revoked, suspended, verified]
+      properties:
+        all: { type: integer, minimum: 0 }
+        pending: { type: integer, minimum: 0 }
+        revoked: { type: integer, minimum: 0 }
+        suspended: { type: integer, minimum: 0 }
+        verified: { type: integer, minimum: 0 }
+    PractitionerList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo, summary]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PractitionerListItem" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
+        summary: { $ref: "#/components/schemas/PractitionerSummary" }
+    PractitionerTaxonomy:
+      type: object
+      additionalProperties: false
+      required: [id, isPrimary, name]
+      properties:
+        id: { type: string, format: uuid }
+        isPrimary: { type: boolean }
+        name: { type: string }
+    PractitionerAffiliation:
+      type: object
+      additionalProperties: false
+      required: [facilityName, id, organizationId, roleTitle]
+      properties:
+        facilityName: { type: string }
+        id: { type: string, format: uuid }
+        organizationId: { type: [string, "null"], format: uuid }
+        roleTitle: { type: [string, "null"] }
+    PractitionerCredential:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          credentialType,
+          expiresAt,
+          id,
+          issuerName,
+          jurisdictionCode,
+          registrationNumber,
+          verifiedAt,
+        ]
+      properties:
+        credentialType: { type: string }
+        expiresAt: { type: [string, "null"], format: date-time }
+        id: { type: string, format: uuid }
+        issuerName: { type: string }
+        jurisdictionCode: { type: string }
+        registrationNumber: { type: string }
+        verifiedAt: { type: [string, "null"], format: date-time }
+    PractitionerVerificationHistory:
+      type: object
+      additionalProperties: false
+      required: [actorPrincipalId, fromStatus, id, note, occurredAt, reasonCode, toStatus]
+      properties:
+        actorPrincipalId: { type: string, format: uuid }
+        fromStatus: { $ref: "#/components/schemas/PractitionerVerificationStatus" }
+        id: { type: string, format: uuid }
+        note: { type: [string, "null"] }
+        occurredAt: { type: string, format: date-time }
+        reasonCode: { type: string }
+        toStatus: { $ref: "#/components/schemas/PractitionerVerificationStatus" }
+    PractitionerDetail:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          affiliations,
+          approvedApplicationId,
+          biography,
+          createdAt,
+          credentials,
+          displayName,
+          documents,
+          headline,
+          id,
+          languages,
+          primaryProfession,
+          primarySpecialty,
+          professions,
+          serviceModes,
+          specialties,
+          updatedAt,
+          verificationHistory,
+          verificationStatus,
+          version,
+          yearsExperience,
+        ]
+      properties:
+        createdAt: { type: string, format: date-time }
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+        primaryProfession: { type: [string, "null"] }
+        primarySpecialty: { type: [string, "null"] }
+        updatedAt: { type: string, format: date-time }
+        verificationStatus: { $ref: "#/components/schemas/PractitionerVerificationStatus" }
+        version: { type: integer, minimum: 1 }
+        affiliations:
+          { type: array, items: { $ref: "#/components/schemas/PractitionerAffiliation" } }
+        approvedApplicationId: { type: [string, "null"], format: uuid }
+        biography: { type: [string, "null"] }
+        credentials: { type: array, items: { $ref: "#/components/schemas/PractitionerCredential" } }
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              [declaredContentType, declaredSizeBytes, id, originalFilename, purpose, status]
+            properties:
+              declaredContentType: { type: string }
+              declaredSizeBytes: { type: integer, minimum: 1 }
+              id: { type: string, format: uuid }
+              originalFilename: { type: string }
+              purpose: { type: string }
+              status: { type: string }
+        headline: { type: [string, "null"] }
+        languages: { type: array, items: { type: string } }
+        professions: { type: array, items: { $ref: "#/components/schemas/PractitionerTaxonomy" } }
+        serviceModes:
+          {
+            type: array,
+            items: { type: string, enum: [VIDEO, AUDIO, CHAT, IN_PERSON, HOME_VISIT] },
+          }
+        specialties: { type: array, items: { $ref: "#/components/schemas/PractitionerTaxonomy" } }
+        verificationHistory:
+          { type: array, items: { $ref: "#/components/schemas/PractitionerVerificationHistory" } }
+        yearsExperience: { type: [integer, "null"], minimum: 0 }
+    PractitionerTransitionInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, status]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        note: { type: string, minLength: 1, maxLength: 2000 }
+        status: { type: string, enum: [VERIFIED, SUSPENDED, REVOKED] }

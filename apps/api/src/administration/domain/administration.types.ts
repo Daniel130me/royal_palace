@@ -10,6 +10,10 @@ import type {
   AdminDashboardResponse,
   AdminDeliveryListResponse,
   AdminDeliveryScope,
+  AdminPractitionerDetail,
+  AdminPractitionerListResponse,
+  AdminPractitionerScope,
+  PractitionerVerificationStatus,
   PlatformRole,
 } from "@royal-palace/contracts";
 
@@ -52,6 +56,13 @@ export interface ListAdminDeliveriesQuery {
   scope: AdminDeliveryScope;
 }
 
+export interface ListAdminPractitionersQuery {
+  cursor?: AdministrationCursor;
+  limit: number;
+  query?: string;
+  scope: AdminPractitionerScope;
+}
+
 export interface AdminDashboardQuery {
   credentialExpiringBefore: Date;
   dayFrom: Date;
@@ -68,12 +79,28 @@ export interface TransitionAdminComplaintInput {
   status: AdminComplaintStatus;
 }
 
+export interface TransitionAdminPractitionerInput {
+  actorPrincipalId: string;
+  allowedFromStatuses: readonly PractitionerVerificationStatus[];
+  expectedVersion: number;
+  note?: string;
+  occurredAt: Date;
+  practitionerId: string;
+  requestId: string;
+  status: Exclude<PractitionerVerificationStatus, "PENDING">;
+}
+
 export interface AdministrationRepository {
   getDashboard(query: AdminDashboardQuery): Promise<AdminDashboardResponse>;
   listAppointments(query: ListAdminAppointmentsQuery): Promise<AdminAppointmentListResponse>;
   listAuditEvents(query: ListAdminAuditEventsQuery): Promise<AdminAuditEventListResponse>;
   listComplaints(query: ListAdminComplaintsQuery): Promise<AdminComplaintListResponse>;
   listDeliveries(query: ListAdminDeliveriesQuery): Promise<AdminDeliveryListResponse>;
+  listPractitioners(query: ListAdminPractitionersQuery): Promise<AdminPractitionerListResponse>;
+  getPractitioner(practitionerId: string): Promise<AdminPractitionerDetail | null>;
+  transitionPractitioner(
+    input: TransitionAdminPractitionerInput,
+  ): Promise<AdminPractitionerDetail | null>;
   transitionComplaint(
     input: TransitionAdminComplaintInput,
   ): Promise<AdminComplaintTransitionResponse | null>;

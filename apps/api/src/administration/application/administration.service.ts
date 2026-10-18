@@ -5,8 +5,10 @@ import type {
   AdminComplaintScope,
   AdminComplaintStatus,
   AdminDeliveryScope,
+  AdminPractitionerScope,
   CurrentSession,
   PlatformRole,
+  PractitionerVerificationStatus,
 } from "@royal-palace/contracts";
 
 import { AuthorizationService } from "../../authorization/application/authorization.service.js";
@@ -27,6 +29,15 @@ const COMPLAINT_TRANSITIONS: Readonly<
   INVESTIGATING: ["OPEN", "RESOLVED", "CLOSED"],
   RESOLVED: ["INVESTIGATING", "CLOSED"],
   CLOSED: ["INVESTIGATING"],
+};
+
+const PRACTITIONER_TRANSITIONS: Readonly<
+  Record<PractitionerVerificationStatus, readonly PractitionerVerificationStatus[]>
+> = {
+  PENDING: ["VERIFIED", "REVOKED"],
+  VERIFIED: ["SUSPENDED", "REVOKED"],
+  SUSPENDED: ["VERIFIED", "REVOKED"],
+  REVOKED: ["VERIFIED"],
 };
 
 export class AdministrationFlowError extends Error {
@@ -208,6 +219,84 @@ export class AdministrationService {
     });
   }
 
+  async listPractitioners(
+    context: AdministrationRequestContext,
+    input: { cursor?: string; limit?: number; query?: string; scope: AdminPractitionerScope },
+  ) {
+    await this.authorize(
+      context,
+      AUTHORIZATION_POLICY.ADMINISTER_PRACTITIONER_VERIFICATION,
+      "practitioner_list",
+    );
+    const filters = { query: input.query, scope: input.scope };
+    return this.repository.listPractitioners({
+      cursor: decodeAdministrationCursor(input.cursor, administrationFilterHash(filters)),
+      limit: input.limit ?? 25,
+      query: input.query,
+      scope: input.scope,
+    });
+  }
+
+  async getPractitioner(context: AdministrationRequestContext, practitionerId: string) {
+    await this.authorize(
+      context,
+      AUTHORIZATION_POLICY.ADMINISTER_PRACTITIONER_VERIFICATION,
+      "practitioner",
+      practitionerId,
+    );
+    const result = await this.repository.getPractitioner(practitionerId);
+    if (result === null) {
+      throw new AdministrationFlowError(
+        "practitioner_not_found",
+        404,
+        "Practitioner was not found",
+      );
+    }
+    return result;
+  }
+
+  async transitionPractitioner(
+    context: AdministrationRequestContext,
+    practitionerId: string,
+    input: {
+      expectedVersion: number;
+      note?: string;
+      status: Exclude<PractitionerVerificationStatus, "PENDING">;
+    },
+  ) {
+    await this.authorize(
+      context,
+      AUTHORIZATION_POLICY.ADMINISTER_PRACTITIONER_VERIFICATION,
+      "practitioner",
+      practitionerId,
+    );
+    if (["SUSPENDED", "REVOKED"].includes(input.status) && input.note === undefined) {
+      throw new AdministrationFlowError(
+        "practitioner_reason_required",
+        400,
+        "A note is required when access is suspended or revoked",
+      );
+    }
+    const result = await this.repository.transitionPractitioner({
+      actorPrincipalId: context.actor.principalId,
+      allowedFromStatuses: practitionerSourcesFor(input.status),
+      expectedVersion: input.expectedVersion,
+      note: input.note,
+      occurredAt: new Date(),
+      practitionerId,
+      requestId: context.requestId,
+      status: input.status,
+    });
+    if (result === null) {
+      throw new AdministrationFlowError(
+        "practitioner_conflict",
+        409,
+        "Practitioner changed, was not found, or cannot move to the requested status",
+      );
+    }
+    return result;
+  }
+
   private authorize(
     context: AdministrationRequestContext,
     policy:
@@ -216,6 +305,7 @@ export class AdministrationService {
       | typeof AUTHORIZATION_POLICY.VIEW_PLATFORM_DASHBOARD
       | typeof AUTHORIZATION_POLICY.VIEW_PLATFORM_COMPLAINTS
       | typeof AUTHORIZATION_POLICY.MANAGE_PLATFORM_COMPLAINTS
+      | typeof AUTHORIZATION_POLICY.ADMINISTER_PRACTITIONER_VERIFICATION
       | typeof AUTHORIZATION_POLICY.ADMINISTER_LOGISTICS_ASSIGNMENT,
     resourceType: string,
     resourceId = context.actor.principalId,
@@ -227,6 +317,14 @@ export class AdministrationService {
       requestId: context.requestId,
     });
   }
+}
+
+function practitionerSourcesFor(
+  target: PractitionerVerificationStatus,
+): PractitionerVerificationStatus[] {
+  return (Object.keys(PRACTITIONER_TRANSITIONS) as PractitionerVerificationStatus[]).filter(
+    (source) => PRACTITIONER_TRANSITIONS[source].includes(target),
+  );
 }
 
 function complaintSourcesFor(target: AdminComplaintStatus): AdminComplaintStatus[] {

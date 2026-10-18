@@ -95,6 +95,19 @@ const auditQuerySchema = z
       new Date(value.to) > new Date(value.from),
     { message: "Invalid audit range" },
   );
+const practitionerQuerySchema = z
+  .object({
+    ...commonListFields,
+    scope: z.enum(["ALL", "PENDING", "VERIFIED", "SUSPENDED", "REVOKED"]).default("ALL"),
+  })
+  .strict();
+const practitionerTransitionSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    note: z.string().trim().min(1).max(2000).optional(),
+    status: z.enum(["VERIFIED", "SUSPENDED", "REVOKED"]),
+  })
+  .strict();
 
 @Controller("v1/admin")
 @UseGuards(AuthenticatedInternalRequestGuard)
@@ -179,6 +192,47 @@ export class AdministrationController {
         query: query.q,
         to: query.to,
       }),
+    );
+  }
+
+  @Get("practitioners")
+  listPractitioners(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(practitionerQuerySchema, rawQuery);
+    return execute(() =>
+      this.administration.listPractitioners(requestContext(request), {
+        cursor: query.cursor,
+        limit: query.limit,
+        query: query.q,
+        scope: query.scope,
+      }),
+    );
+  }
+
+  @Get("practitioners/:practitionerId")
+  getPractitioner(
+    @Param("practitionerId") rawPractitionerId: string,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.administration.getPractitioner(
+        requestContext(request),
+        parse(idSchema, rawPractitionerId),
+      ),
+    );
+  }
+
+  @Patch("practitioners/:practitionerId/verification")
+  transitionPractitioner(
+    @Param("practitionerId") rawPractitionerId: string,
+    @Body() rawBody: unknown,
+    @Req() request: AuthenticatedInternalRequest,
+  ) {
+    return execute(() =>
+      this.administration.transitionPractitioner(
+        requestContext(request),
+        parse(idSchema, rawPractitionerId),
+        parse(practitionerTransitionSchema, rawBody),
+      ),
     );
   }
 }

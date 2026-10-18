@@ -768,6 +768,7 @@ model IdentityPrincipal {
   linkedClinicalAttachments        ClinicalAttachmentReference[]      @relation("ClinicalAttachmentLinker")
   submittedPlatformComplaints      PlatformComplaint[]                 @relation("PlatformComplaintSubmitter")
   platformComplaintStatusChanges   PlatformComplaintStatusHistory[]    @relation("PlatformComplaintStatusActor")
+  practitionerVerificationChanges  PractitionerVerificationHistory[]   @relation("PractitionerVerificationActor")
 
   @@index([status, createdAt, id], map: "identity_principals_status_created_id_idx")
   @@map("identity_principals")
@@ -1194,10 +1195,30 @@ model Practitioner {
   clinicalReferrals   ClinicalReferral[]
   clinicalCarePlans   ClinicalCarePlan[]
   clinicalAllergies   ClinicalAllergy[]
+  verificationHistory PractitionerVerificationHistory[]
 
   @@index([verificationStatus, displayName, id], map: "practitioners_public_discovery_idx")
+  @@index([verificationStatus, updatedAt(sort: Desc), id(sort: Desc)], map: "practitioners_verification_updated_id_idx")
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "practitioners_display_name_trgm_idx")
   @@map("practitioners")
+}
+
+model PractitionerVerificationHistory {
+  id               String             @id @db.Uuid
+  practitionerId   String             @map("practitioner_id") @db.Uuid
+  actorPrincipalId String             @map("actor_principal_id") @db.Uuid
+  fromStatus       VerificationStatus @map("from_status")
+  toStatus         VerificationStatus @map("to_status")
+  reasonCode       String             @map("reason_code") @db.VarChar(100)
+  note             String?            @db.VarChar(2000)
+  requestId        String             @map("request_id") @db.VarChar(128)
+  occurredAt       DateTime           @map("occurred_at") @db.Timestamptz(6)
+  practitioner     Practitioner       @relation(fields: [practitionerId], references: [id], onDelete: Restrict)
+  actor            IdentityPrincipal  @relation("PractitionerVerificationActor", fields: [actorPrincipalId], references: [id], onDelete: Restrict)
+
+  @@index([practitionerId, occurredAt, id], map: "practitioner_verification_history_practitioner_time_idx")
+  @@index([actorPrincipalId, occurredAt(sort: Desc), id(sort: Desc)], map: "practitioner_verification_history_actor_time_idx")
+  @@map("practitioner_verification_history")
 }
 
 model PractitionerPublicProfile {

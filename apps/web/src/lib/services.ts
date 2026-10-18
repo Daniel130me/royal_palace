@@ -52,6 +52,9 @@ import type {
   AdminComplaintScope,
   AdminComplaintStatus,
   AdminDeliveryScope,
+  AdminPractitionerDetail,
+  AdminPractitionerScope,
+  PractitionerVerificationStatus,
   PlatformRole,
 } from "@royal-palace/contracts";
 import {
@@ -1414,7 +1417,10 @@ export const onboardingService = {
       `/api/support/applications/${applicationId}/start-review`,
       { expectedVersion },
     ),
-  listForAdmin: (cursor?: string) => listApplicationReviewQueue("admin", cursor),
+  listForAdmin: (
+    cursor?: string,
+    filters?: { kind?: "PATIENT" | "ORGANIZATION" | "PRACTITIONER"; status?: string },
+  ) => listApplicationReviewQueue("admin", cursor, filters),
   getForAdmin: (applicationId: string) =>
     sessionApi.get<OnboardingApplicationDetail>(`/api/admin/applications/${applicationId}`),
   decide: (
@@ -1428,9 +1434,15 @@ export const onboardingService = {
     ),
 };
 
-function listApplicationReviewQueue(authority: "admin" | "support", cursor?: string) {
+function listApplicationReviewQueue(
+  authority: "admin" | "support",
+  cursor?: string,
+  filters?: { kind?: "PATIENT" | "ORGANIZATION" | "PRACTITIONER"; status?: string },
+) {
   const query = new URLSearchParams({ limit: "50" });
   if (cursor !== undefined) query.set("cursor", cursor);
+  if (filters?.kind !== undefined) query.set("kind", filters.kind);
+  if (filters?.status !== undefined) query.set("status", filters.status);
   return sessionApi.get<OnboardingApplicationListResponse>(
     `/api/${authority}/applications?${query.toString()}`,
   );
@@ -1769,6 +1781,44 @@ export const administrationService = {
   }) =>
     generatedAdministrationClient
       .GET("/api/admin/audit-events", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  practitioners: (input: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    scope: AdminPractitionerScope;
+  }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/practitioners", {
+        params: {
+          query: {
+            cursor: input.cursor,
+            limit: input.limit,
+            q: input.query,
+            scope: input.scope,
+          },
+        },
+      })
+      .then(unwrapGeneratedResponse),
+  practitioner: (practitionerId: string): Promise<AdminPractitionerDetail> =>
+    generatedAdministrationClient
+      .GET("/api/admin/practitioners/{practitionerId}", {
+        params: { path: { practitionerId } },
+      })
+      .then(unwrapGeneratedResponse),
+  transitionPractitioner: (
+    practitionerId: string,
+    input: {
+      expectedVersion: number;
+      note?: string;
+      status: Exclude<PractitionerVerificationStatus, "PENDING">;
+    },
+  ): Promise<AdminPractitionerDetail> =>
+    generatedAdministrationClient
+      .PATCH("/api/admin/practitioners/{practitionerId}/verification", {
+        body: input,
+        params: { header: csrfHeader(), path: { practitionerId } },
+      })
       .then(unwrapGeneratedResponse),
 };
 

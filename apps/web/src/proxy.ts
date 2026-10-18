@@ -57,6 +57,8 @@ const ACTIVE_DYNAMIC_BFF_ROUTES = [
   /^\/api\/payments\/checkout-sessions$/i,
   new RegExp(`^/api/payments/${UUID_PATH_SEGMENT}/status$`, "i"),
   /^\/api\/provider\/availability$/i,
+  /^\/api\/admin\/practitioners$/i,
+  new RegExp(`^/api/admin/practitioners/${UUID_PATH_SEGMENT}(?:/verification)?$`, "i"),
   new RegExp(`^/api/admin/practitioners/${UUID_PATH_SEGMENT}/consultation-fees$`, "i"),
   new RegExp(`^/api/admin/consultation-fees/${UUID_PATH_SEGMENT}/activate$`, "i"),
   new RegExp(`^/api/admin/payments/${UUID_PATH_SEGMENT}/reconcile$`, "i"),

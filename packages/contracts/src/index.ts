@@ -308,6 +308,85 @@ export interface AdminDashboardResponse {
   recentComplaints: readonly AdminComplaintListItem[];
 }
 
+export type AdminPractitionerScope = "ALL" | "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+export type PractitionerVerificationStatus = "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+
+export interface AdminPractitionerListItem {
+  createdAt: string;
+  displayName: string;
+  id: string;
+  primaryProfession: string | null;
+  primarySpecialty: string | null;
+  updatedAt: string;
+  verificationStatus: PractitionerVerificationStatus;
+  version: number;
+}
+
+export interface AdminPractitionerSummary {
+  all: number;
+  pending: number;
+  revoked: number;
+  suspended: number;
+  verified: number;
+}
+
+export interface AdminPractitionerListResponse {
+  data: readonly AdminPractitionerListItem[];
+  pageInfo: CursorPageInfo;
+  summary: AdminPractitionerSummary;
+}
+
+export interface AdminPractitionerVerificationHistoryItem {
+  actorPrincipalId: string;
+  fromStatus: PractitionerVerificationStatus;
+  id: string;
+  note: string | null;
+  occurredAt: string;
+  reasonCode: string;
+  toStatus: PractitionerVerificationStatus;
+}
+
+export interface AdminPractitionerDetail extends AdminPractitionerListItem {
+  approvedApplicationId: string | null;
+  affiliations: readonly {
+    facilityName: string;
+    id: string;
+    organizationId: string | null;
+    roleTitle: string | null;
+  }[];
+  biography: string | null;
+  credentials: readonly {
+    credentialType: string;
+    expiresAt: string | null;
+    id: string;
+    issuerName: string;
+    jurisdictionCode: string;
+    registrationNumber: string;
+    verifiedAt: string | null;
+  }[];
+  documents: readonly {
+    declaredContentType: string;
+    declaredSizeBytes: number;
+    id: string;
+    originalFilename: string;
+    purpose: string;
+    status: string;
+  }[];
+  headline: string | null;
+  languages: readonly string[];
+  professions: readonly { id: string; isPrimary: boolean; name: string }[];
+  serviceModes: readonly PublicConsultationMode[];
+  specialties: readonly { id: string; isPrimary: boolean; name: string }[];
+  verificationHistory: readonly AdminPractitionerVerificationHistoryItem[];
+  yearsExperience: number | null;
+}
+
+export interface AdminPractitionerTransitionInput {
+  expectedVersion: number;
+  note?: string;
+  status: "VERIFIED" | "SUSPENDED" | "REVOKED";
+}
+
 export interface PublicService {
   category: string;
   code: string;

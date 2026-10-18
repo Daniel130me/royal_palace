@@ -100,6 +100,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/practitioners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAdminPractitioners"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/practitioners/{practitionerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminPractitioner"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/practitioners/{practitionerId}/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["transitionAdminPractitionerVerification"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -266,6 +314,113 @@ export interface components {
             recentAuditEvents: components["schemas"]["AuditEvent"][];
             recentComplaints: components["schemas"]["Complaint"][];
         };
+        /** @enum {string} */
+        PractitionerVerificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+        /** @enum {string} */
+        PractitionerScope: "ALL" | "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+        PractitionerListItem: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            /** Format: uuid */
+            id: string;
+            primaryProfession: string | null;
+            primarySpecialty: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            verificationStatus: components["schemas"]["PractitionerVerificationStatus"];
+            version: number;
+        };
+        PractitionerSummary: {
+            all: number;
+            pending: number;
+            revoked: number;
+            suspended: number;
+            verified: number;
+        };
+        PractitionerList: {
+            data: components["schemas"]["PractitionerListItem"][];
+            pageInfo: components["schemas"]["PageInfo"];
+            summary: components["schemas"]["PractitionerSummary"];
+        };
+        PractitionerTaxonomy: {
+            /** Format: uuid */
+            id: string;
+            isPrimary: boolean;
+            name: string;
+        };
+        PractitionerAffiliation: {
+            facilityName: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string | null;
+            roleTitle: string | null;
+        };
+        PractitionerCredential: {
+            credentialType: string;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: uuid */
+            id: string;
+            issuerName: string;
+            jurisdictionCode: string;
+            registrationNumber: string;
+            /** Format: date-time */
+            verifiedAt: string | null;
+        };
+        PractitionerVerificationHistory: {
+            /** Format: uuid */
+            actorPrincipalId: string;
+            fromStatus: components["schemas"]["PractitionerVerificationStatus"];
+            /** Format: uuid */
+            id: string;
+            note: string | null;
+            /** Format: date-time */
+            occurredAt: string;
+            reasonCode: string;
+            toStatus: components["schemas"]["PractitionerVerificationStatus"];
+        };
+        PractitionerDetail: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            /** Format: uuid */
+            id: string;
+            primaryProfession: string | null;
+            primarySpecialty: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            verificationStatus: components["schemas"]["PractitionerVerificationStatus"];
+            version: number;
+            affiliations: components["schemas"]["PractitionerAffiliation"][];
+            /** Format: uuid */
+            approvedApplicationId: string | null;
+            biography: string | null;
+            credentials: components["schemas"]["PractitionerCredential"][];
+            documents: {
+                declaredContentType: string;
+                declaredSizeBytes: number;
+                /** Format: uuid */
+                id: string;
+                originalFilename: string;
+                purpose: string;
+                status: string;
+            }[];
+            headline: string | null;
+            languages: string[];
+            professions: components["schemas"]["PractitionerTaxonomy"][];
+            serviceModes: ("VIDEO" | "AUDIO" | "CHAT" | "IN_PERSON" | "HOME_VISIT")[];
+            specialties: components["schemas"]["PractitionerTaxonomy"][];
+            verificationHistory: components["schemas"]["PractitionerVerificationHistory"][];
+            yearsExperience: number | null;
+        };
+        PractitionerTransitionInput: {
+            expectedVersion: number;
+            note?: string;
+            /** @enum {string} */
+            status: "VERIFIED" | "SUSPENDED" | "REVOKED";
+        };
     };
     responses: never;
     parameters: never;
@@ -428,6 +583,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventList"];
+                };
+            };
+        };
+    };
+    listAdminPractitioners: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                q?: string;
+                scope: components["schemas"]["PractitionerScope"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded administrator practitioner-verification queue */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PractitionerList"];
+                };
+            };
+        };
+    };
+    getAdminPractitioner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practitionerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Administrator practitioner-verification detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PractitionerDetail"];
+                };
+            };
+        };
+    };
+    transitionAdminPractitionerVerification: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-rp-csrf-token": string;
+            };
+            path: {
+                practitionerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PractitionerTransitionInput"];
+            };
+        };
+        responses: {
+            /** @description Updated practitioner-verification detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PractitionerDetail"];
                 };
             };
         };

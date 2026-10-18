@@ -9,6 +9,9 @@ import type {
   AdminDashboardResponse,
   AdminDeliveryListItem,
   AdminDeliveryListResponse,
+  AdminPractitionerDetail,
+  AdminPractitionerListItem,
+  AdminPractitionerListResponse,
 } from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
@@ -25,8 +28,111 @@ import type {
   ListAdminAuditEventsQuery,
   ListAdminComplaintsQuery,
   ListAdminDeliveriesQuery,
+  ListAdminPractitionersQuery,
   TransitionAdminComplaintInput,
+  TransitionAdminPractitionerInput,
 } from "../domain/administration.types.js";
+
+const practitionerListSelect = {
+  createdAt: true,
+  displayName: true,
+  id: true,
+  professions: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { profession: { select: { name: true } } },
+    take: 1,
+  },
+  specialties: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { specialty: { select: { name: true } } },
+    take: 1,
+  },
+  updatedAt: true,
+  verificationStatus: true,
+  version: true,
+} satisfies Prisma.PractitionerSelect;
+
+const practitionerDetailSelect = {
+  ...practitionerListSelect,
+  approvedApplication: {
+    select: {
+      documents: {
+        orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+        select: {
+          declaredContentType: true,
+          declaredSizeBytes: true,
+          id: true,
+          originalFilename: true,
+          purpose: true,
+          status: true,
+        },
+      },
+      id: true,
+    },
+  },
+  affiliations: {
+    orderBy: [{ startsAt: "desc" as const }, { id: "asc" as const }],
+    select: {
+      facilityName: true,
+      id: true,
+      organizationId: true,
+      roleTitle: true,
+    },
+  },
+  credentials: {
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    select: {
+      credentialType: true,
+      expiresAt: true,
+      id: true,
+      issuerName: true,
+      jurisdictionCode: true,
+      registrationNumber: true,
+      verifiedAt: true,
+    },
+  },
+  languages: { orderBy: { languageTag: "asc" as const }, select: { languageTag: true } },
+  professions: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { id: true, isPrimary: true, profession: { select: { name: true } } },
+  },
+  publicProfile: {
+    select: { biography: true, headline: true, yearsExperience: true },
+  },
+  serviceModes: { orderBy: { mode: "asc" as const }, select: { mode: true } },
+  specialties: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { id: true, isPrimary: true, specialty: { select: { name: true } } },
+  },
+  verificationHistory: {
+    orderBy: [{ occurredAt: "desc" as const }, { id: "desc" as const }],
+    select: {
+      actorPrincipalId: true,
+      fromStatus: true,
+      id: true,
+      note: true,
+      occurredAt: true,
+      reasonCode: true,
+      toStatus: true,
+    },
+    take: 100,
+  },
+} satisfies Prisma.PractitionerSelect;
+
+type PractitionerListRecord = Prisma.PractitionerGetPayload<{
+  select: typeof practitionerListSelect;
+}>;
+type PractitionerDetailRecord = Prisma.PractitionerGetPayload<{
+  select: typeof practitionerDetailSelect;
+}>;
+
+interface PractitionerSummaryRow {
+  all_count: bigint;
+  pending_count: bigint;
+  revoked_count: bigint;
+  suspended_count: bigint;
+  verified_count: bigint;
+}
 
 const appointmentSelect = {
   amountMinor: true,
@@ -260,6 +366,104 @@ export class PrismaAdministrationRepository implements AdministrationRepository 
     return deliveryPage(records, query, summary);
   }
 
+  async listPractitioners(
+    query: ListAdminPractitionersQuery,
+  ): Promise<AdminPractitionerListResponse> {
+    const [records, summaries] = await this.database.$transaction([
+      this.database.practitioner.findMany({
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        select: practitionerListSelect,
+        take: query.limit + 1,
+        where: practitionerWhere(query),
+      }),
+      this.database.$queryRaw<PractitionerSummaryRow[]>(Prisma.sql`
+        SELECT
+          COUNT(*) AS all_count,
+          COUNT(*) FILTER (WHERE "verification_status" = 'PENDING') AS pending_count,
+          COUNT(*) FILTER (WHERE "verification_status" = 'VERIFIED') AS verified_count,
+          COUNT(*) FILTER (WHERE "verification_status" = 'SUSPENDED') AS suspended_count,
+          COUNT(*) FILTER (WHERE "verification_status" = 'REVOKED') AS revoked_count
+        FROM "practitioners"
+      `),
+    ]);
+    const summary = summaries[0];
+    if (summary === undefined) throw new Error("Practitioner summary query returned no row");
+    const hasNextPage = records.length > query.limit;
+    const page = hasNextPage ? records.slice(0, query.limit) : records;
+    const filterHash = administrationFilterHash({ query: query.query, scope: query.scope });
+    const last = page.at(-1);
+    return {
+      data: page.map(mapPractitionerListItem),
+      pageInfo: {
+        endCursor:
+          hasNextPage && last !== undefined
+            ? encodeAdministrationCursor({ id: last.id, timestamp: last.updatedAt }, filterHash)
+            : null,
+        hasNextPage,
+      },
+      summary: {
+        all: Number(summary.all_count),
+        pending: Number(summary.pending_count),
+        revoked: Number(summary.revoked_count),
+        suspended: Number(summary.suspended_count),
+        verified: Number(summary.verified_count),
+      },
+    };
+  }
+
+  async getPractitioner(practitionerId: string): Promise<AdminPractitionerDetail | null> {
+    const record = await this.database.practitioner.findUnique({
+      select: practitionerDetailSelect,
+      where: { id: practitionerId },
+    });
+    return record === null ? null : mapPractitionerDetail(record);
+  }
+
+  async transitionPractitioner(
+    input: TransitionAdminPractitionerInput,
+  ): Promise<AdminPractitionerDetail | null> {
+    return this.database.$transaction(async (transaction) => {
+      const current = await transaction.practitioner.findUnique({
+        select: { verificationStatus: true },
+        where: { id: input.practitionerId },
+      });
+      if (current === null || !input.allowedFromStatuses.includes(current.verificationStatus)) {
+        return null;
+      }
+      const updated = await transaction.practitioner.updateMany({
+        data: {
+          verificationStatus: input.status,
+          verifiedAt: input.status === "VERIFIED" ? input.occurredAt : null,
+          version: { increment: 1 },
+        },
+        where: {
+          id: input.practitionerId,
+          verificationStatus: { in: [...input.allowedFromStatuses] },
+          version: input.expectedVersion,
+        },
+      });
+      if (updated.count !== 1) return null;
+      await transaction.practitionerVerificationHistory.create({
+        data: {
+          actorPrincipalId: input.actorPrincipalId,
+          fromStatus: current.verificationStatus,
+          id: createOpaqueId(),
+          note: input.note,
+          occurredAt: input.occurredAt,
+          practitionerId: input.practitionerId,
+          reasonCode: `ADMIN_${input.status}`,
+          requestId: input.requestId,
+          toStatus: input.status,
+        },
+      });
+      const record = await transaction.practitioner.findUniqueOrThrow({
+        select: practitionerDetailSelect,
+        where: { id: input.practitionerId },
+      });
+      return mapPractitionerDetail(record);
+    });
+  }
+
   async transitionComplaint(
     input: TransitionAdminComplaintInput,
   ): Promise<AdminComplaintTransitionResponse | null> {
@@ -469,6 +673,85 @@ function auditWhere(query: ListAdminAuditEventsQuery): Prisma.AuditEventWhereInp
             },
           ],
         }),
+  };
+}
+
+function practitionerWhere(query: ListAdminPractitionersQuery): Prisma.PractitionerWhereInput {
+  const search = query.query?.trim();
+  return {
+    ...(query.scope === "ALL" ? {} : { verificationStatus: query.scope }),
+    ...(query.cursor === undefined
+      ? {}
+      : {
+          OR: [
+            { updatedAt: { lt: query.cursor.timestamp } },
+            { id: { lt: query.cursor.id }, updatedAt: query.cursor.timestamp },
+          ],
+        }),
+    ...(search === undefined
+      ? {}
+      : {
+          OR: [
+            { displayName: { contains: search, mode: "insensitive" as const } },
+            {
+              professions: {
+                some: { profession: { name: { contains: search, mode: "insensitive" as const } } },
+              },
+            },
+            {
+              specialties: {
+                some: { specialty: { name: { contains: search, mode: "insensitive" as const } } },
+              },
+            },
+            ...(isUuid(search) ? [{ id: search }] : []),
+          ],
+        }),
+  };
+}
+
+function mapPractitionerListItem(record: PractitionerListRecord): AdminPractitionerListItem {
+  return {
+    createdAt: record.createdAt.toISOString(),
+    displayName: record.displayName,
+    id: record.id,
+    primaryProfession: record.professions[0]?.profession.name ?? null,
+    primarySpecialty: record.specialties[0]?.specialty.name ?? null,
+    updatedAt: record.updatedAt.toISOString(),
+    verificationStatus: record.verificationStatus,
+    version: record.version,
+  };
+}
+
+function mapPractitionerDetail(record: PractitionerDetailRecord): AdminPractitionerDetail {
+  return {
+    ...mapPractitionerListItem(record),
+    approvedApplicationId: record.approvedApplication?.id ?? null,
+    affiliations: record.affiliations,
+    biography: record.publicProfile?.biography ?? null,
+    credentials: record.credentials.map((credential) => ({
+      ...credential,
+      expiresAt: credential.expiresAt?.toISOString() ?? null,
+      verifiedAt: credential.verifiedAt?.toISOString() ?? null,
+    })),
+    documents: record.approvedApplication?.documents ?? [],
+    headline: record.publicProfile?.headline ?? null,
+    languages: record.languages.map((language) => language.languageTag),
+    professions: record.professions.map((profession) => ({
+      id: profession.id,
+      isPrimary: profession.isPrimary,
+      name: profession.profession.name,
+    })),
+    serviceModes: record.serviceModes.map((serviceMode) => serviceMode.mode),
+    specialties: record.specialties.map((specialty) => ({
+      id: specialty.id,
+      isPrimary: specialty.isPrimary,
+      name: specialty.specialty.name,
+    })),
+    verificationHistory: record.verificationHistory.map((entry) => ({
+      ...entry,
+      occurredAt: entry.occurredAt.toISOString(),
+    })),
+    yearsExperience: record.publicProfile?.yearsExperience ?? null,
   };
 }
 

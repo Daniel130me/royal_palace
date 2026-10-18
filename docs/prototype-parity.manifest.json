@@ -180,13 +180,21 @@
           "id": "provider-detail",
           "file": "pages/provider.tsx",
           "status": "IN_PROGRESS",
-          "checkpoint": "07"
+          "checkpoint": "11L",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/provider.tsx",
+            "apps/api/src/administration/infrastructure/prisma-administration.repository.ts"
+          ]
         },
         {
           "id": "providers",
           "file": "pages/providers.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "07"
+          "status": "CONNECTED",
+          "checkpoint": "11L",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/providers.tsx",
+            "apps/api/src/administration/application/administration.service.ts"
+          ]
         },
         {
           "id": "reports",
@@ -219,8 +227,12 @@
         {
           "id": "provider-verification",
           "file": "pages/providers.tsx",
-          "status": "IN_PROGRESS",
-          "checkpoint": "07"
+          "status": "CONNECTED",
+          "checkpoint": "11L",
+          "productionFiles": [
+            "apps/web/src/features/admin/pages/provider.tsx",
+            "apps/api/prisma/migrations/20261018000000_practitioner_verification_governance/migration.sql"
+          ]
         }
       ]
     },
