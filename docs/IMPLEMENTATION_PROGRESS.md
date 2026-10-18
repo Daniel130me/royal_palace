@@ -392,6 +392,10 @@ that completes an increment.
     formulas remain deliberately uncreated until their commercial rules are approved; corresponding
     signed-prototype report sections remain tracked rather than removed. See
     [`increments/11g-settlements-payouts-and-reporting.md`](./increments/11g-settlements-payouts-and-reporting.md).
+    The complete 59-migration clean/upgrade rehearsal, including settlement, appointment-intake,
+    and patient-emergency-contact migrations, passed on disposable native PostgreSQL 18 on
+    2026-10-18. Protected migration/restore rehearsal and commercial/provider qualification remain
+    launch gates.
   - `[x]` 11H public care discovery parity replaces the public home, practitioner directory,
     and practitioner-profile prototype data paths with the bounded generated discovery and
     scheduling contracts. Public pages now show only independently verified projections and

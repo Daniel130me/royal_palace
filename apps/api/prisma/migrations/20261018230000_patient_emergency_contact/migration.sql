@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE "patient_emergency_contacts" (
     "id" UUID NOT NULL,
     "patient_id" UUID NOT NULL,
@@ -25,3 +27,5 @@ ALTER TABLE "patient_emergency_contacts"
     ADD CONSTRAINT "patient_emergency_contacts_patient_id_fkey"
     FOREIGN KEY ("patient_id") REFERENCES "patients"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE;
+
+COMMIT;

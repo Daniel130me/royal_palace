@@ -1,6 +1,6 @@
 # Increment 11G — Settlements, payout execution, and finance reporting
 
-Status: implemented; disposable migration rehearsal pending local PostgreSQL availability
+Status: implemented; disposable PostgreSQL migration rehearsal passed
 
 This increment is the authoritative checklist for the three implementation slices delivered
 as one reviewed batch. It preserves the signed prototype while replacing synthetic finance
@@ -40,9 +40,8 @@ assumptions with auditable production boundaries.
       the remaining signed-prototype report sections for their later domain migrations.
 - [x] Validate contracts, policy coverage, schemas, unit/integration tests, lint, typecheck, and
       production builds.
-- [ ] Rehearse the new migration against disposable PostgreSQL. Docker Desktop/PostgreSQL was not
-      available on 2026-10-17; this gate must be run before the migration is applied outside a disposable
-      environment.
+- [x] Rehearse the complete migration chain, including the settlement migration, against disposable
+      PostgreSQL on clean-install and prior-schema upgrade paths.
 
 ## Browser review
 
@@ -59,6 +58,10 @@ assumptions with auditable production boundaries.
   config 23 passed; security 10 passed; API client 1 passed; prototype-manifest tests 4 passed.
 - The live prototype-parity verifier confirms all 139 approved capabilities across 11 portals,
   all 16 visual references, and all 138 historical prototype artifacts.
+- On 2026-10-18, native PostgreSQL 18 passed the 59-migration clean-install and prior-schema upgrade
+  rehearsal, payment-subject backfill, transactional-repair probe, database constraints, and the
+  existing booking/team concurrency and commercial/clinical/logistics invariants. All disposable
+  databases were dropped by the verifier.
 - Report reads are bounded to 366 days and aggregate in PostgreSQL by period and currency. Statement
   and payout lists are capped at 100 records. No unbounded earning/transaction collection is loaded
   into the reporting UI.
@@ -66,9 +69,8 @@ assumptions with auditable production boundaries.
   idempotent settlement finalization, optimistic payout transitions, requester/reviewer/executor
   separation in policy, application, and database constraints, and fail-closed protected runtime
   configuration.
-- Non-standard/open item: disposable migration replay is not claimed as passed while local
-  PostgreSQL test credentials or Docker PostgreSQL are unavailable. The migration is not to be
-  applied to shared or production data until that rehearsal passes.
+- Protected-environment migration, restore, rollback, monitoring, and provider qualification remain
+  launch gates; disposable local evidence is not a substitute for those operational approvals.
 
 ## Deliberate boundaries
 

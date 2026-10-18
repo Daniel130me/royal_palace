@@ -66,8 +66,9 @@ model.
       owning patient, and exact laboratory membership; deny managers and support.
 - [x] Add repository/application services, booking idempotency, business and
       authorization audit events, generated OpenAPI contracts, and exact BFF routes.
-- [ ] Add representative laboratory query-plan/load evidence and protected-environment
-      telemetry validation before 11D qualification.
+- [x] Add representative laboratory query-plan/load evidence using 5,000 workflows and 500 critical
+      results, with exact index assertions repeated on native PostgreSQL 18 and CI PostgreSQL 17.6.
+- [ ] Validate protected-environment telemetry before 11D qualification.
 
 ### 11D2 — request routing and laboratory operations
 
@@ -149,8 +150,11 @@ model.
       deactivate ordinary staff. Raw invitation secrets are returned once and never stored.
 - [x] Verify the machine-readable prototype scope lock against full Git history without removing or
       narrowing an approved capability. Stakeholder visual/flow acceptance remains part of UAT.
-- [ ] Complete protected clean/upgrade migration execution, remaining failure/concurrency tests,
-      load/query-plan evidence, telemetry validation, and Nigerian qualification/UAT.
+- [x] Complete disposable clean/upgrade migration execution, failure/concurrency tests, and
+      representative load/query-plan evidence. The complete 59-migration chain was rehearsed again
+      on native PostgreSQL 18 on 2026-10-18 after the latest schema additions.
+- [ ] Complete protected-environment migration/rollback/restore and telemetry validation, plus
+      Nigerian qualification and stakeholder UAT.
 - [ ] Keep all real laboratory processing disabled until the approval evidence is
       complete.
 
