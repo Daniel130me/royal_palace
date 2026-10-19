@@ -15,6 +15,16 @@ describe("scheduling BFF validation", () => {
     expect(path).toContain("q=Ada");
   });
 
+  it("allows an exact patient filter only for the practitioner appointment list", () => {
+    const patientId = "0199a18e-a400-7000-8000-000000000203";
+    expect(
+      appointmentListPath(new URL(`http://local/?scope=ALL&patientId=${patientId}`), "provider"),
+    ).toContain(`patientId=${patientId}`);
+    expect(() =>
+      appointmentListPath(new URL(`http://local/?scope=ALL&patientId=${patientId}`), "patient"),
+    ).toThrow();
+  });
+
   it("rejects unknown parameters and patient-side search", () => {
     expect(() =>
       appointmentListPath(new URL("http://local/?scope=ALL&ownerId=other"), "patient"),

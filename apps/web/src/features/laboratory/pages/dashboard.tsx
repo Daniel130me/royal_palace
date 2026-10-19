@@ -5,10 +5,10 @@ import type {
   LaboratoryQueueRequestResponse,
   LaboratoryResultResponse,
 } from "@royal-palace/contracts";
+import type { OrganizationFinanceComponents } from "@royal-palace/api-client";
 import { navigate } from "@/lib/nav";
 import { useLabContext } from "../use-lab-context";
-import { productionLaboratoryService, settlementService } from "@/lib/services";
-import type { Settlement } from "@/types";
+import { productionLaboratoryService, productionOrganizationFinanceService } from "@/lib/services";
 import {
   PageHeader,
   EmptyState,
@@ -18,7 +18,7 @@ import {
 import { StatusBadge } from "@/components/healthcare/status-badge";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/format";
+import { formatMinorCurrency } from "@/lib/format";
 import {
   FlaskConical,
   CalendarClock,
@@ -36,24 +36,30 @@ export function LabDashboard() {
   const { lab, labId, loading, error, reload } = useLabContext();
   const [requests, setRequests] = useState<readonly LaboratoryQueueRequestResponse[]>([]);
   const [results, setResults] = useState<readonly LaboratoryResultResponse[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [financePeriods, setFinancePeriods] = useState<
+    OrganizationFinanceComponents["schemas"]["SettlementPeriod"][]
+  >([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!labId) return;
     setDataLoading(true);
+    const financeRange = dashboardFinanceRange();
     Promise.all([
       productionLaboratoryService.laboratory.list(labId, undefined, undefined, 50),
       productionLaboratoryService.laboratory.results(labId, undefined, undefined, 50),
-      settlementService
-        .list({ entityType: "laboratory", entityId: labId })
-        .catch(() => [] as Settlement[]),
+      productionOrganizationFinanceService.organization.report(
+        labId,
+        financeRange.from,
+        financeRange.to,
+        "TOTAL",
+      ),
     ])
-      .then(([queue, res, stl]) => {
+      .then(([queue, res, finance]) => {
         setRequests(queue.data);
         setResults(res.data);
-        setSettlements(stl);
+        setFinancePeriods([...finance.data]);
         setDataError(null);
       })
       .catch((e: unknown) =>
@@ -108,10 +114,7 @@ export function LabDashboard() {
     () => results.filter((result) => result.summaryFlag === "CRITICAL"),
     [results],
   );
-  const pendingSettlements = useMemo(
-    () => settlements.filter((s) => s.status === "pending"),
-    [settlements],
-  );
+  const financeTotals = useMemo(() => summarizeFinance(financePeriods), [financePeriods]);
 
   if (loading || dataLoading) {
     return (
@@ -342,17 +345,15 @@ export function LabDashboard() {
       {/* Finance quick row */}
       <div className="grid grid-cols-2 gap-2.5">
         <StatTile
-          label="Settled total"
-          value={formatCurrency(
-            settlements.filter((s) => s.status === "paid").reduce((sum, s) => sum + s.netAmount, 0),
-          )}
+          label="Paid total"
+          value={formatFinanceTotals(financeTotals, "paid")}
           icon={CheckCircle2}
           tone="success"
           onClick={() => navigate("laboratory", "settlements")}
         />
         <StatTile
-          label="Pending payout"
-          value={formatCurrency(pendingSettlements.reduce((s, x) => s + x.netAmount, 0))}
+          label="Payable total"
+          value={formatFinanceTotals(financeTotals, "payable")}
           icon={CalendarClock}
           tone="warning"
           onClick={() => navigate("laboratory", "settlements")}
@@ -419,4 +420,33 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       {children}
     </p>
   );
+}
+
+function dashboardFinanceRange() {
+  const to = new Date();
+  to.setUTCDate(to.getUTCDate() + 1);
+  const from = new Date(to);
+  from.setUTCFullYear(from.getUTCFullYear() - 1);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function summarizeFinance(periods: OrganizationFinanceComponents["schemas"]["SettlementPeriod"][]) {
+  const totals = new Map<string, { paid: bigint; payable: bigint }>();
+  for (const period of periods) {
+    const total = totals.get(period.currency) ?? { paid: BigInt(0), payable: BigInt(0) };
+    total.paid += BigInt(period.paidAmountMinor);
+    total.payable += BigInt(period.payableAmountMinor);
+    totals.set(period.currency, total);
+  }
+  return totals;
+}
+
+function formatFinanceTotals(
+  totals: Map<string, { paid: bigint; payable: bigint }>,
+  field: "paid" | "payable",
+): string {
+  if (totals.size === 0) return "No earnings";
+  if (totals.size > 1) return `${totals.size} currencies`;
+  const [currency, amount] = [...totals.entries()][0]!;
+  return formatMinorCurrency(amount[field].toString(), currency);
 }

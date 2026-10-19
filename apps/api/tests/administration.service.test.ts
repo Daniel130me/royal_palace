@@ -169,6 +169,14 @@ describe("AdministrationService", () => {
 function createService(overrides: Partial<AdministrationRepository>): AdministrationService {
   const repository: AdministrationRepository = {
     getDashboard: vi.fn(async () => emptyDashboard),
+    getOperationalReport: vi.fn(async () => ({
+      appointments: [],
+      from: dayFrom,
+      organizationFinance: [],
+      payments: [],
+      to: dayTo,
+      topPractitioners: [],
+    })),
     listAppointments: vi.fn(async () => ({
       data: [],
       pageInfo: { endCursor: null, hasNextPage: false },

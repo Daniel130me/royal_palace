@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, BffAuthError, proxyAuthenticatedApi } from "./bff";
 
 const APPOINTMENT_SCOPES = new Set(["ALL", "TODAY", "UPCOMING", "COMPLETED", "UNSUCCESSFUL"]);
-const LIST_PARAMETERS = new Set(["cursor", "dayFrom", "dayTo", "limit", "q", "scope"]);
+const LIST_PARAMETERS = new Set(["cursor", "dayFrom", "dayTo", "limit", "patientId", "q", "scope"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function proxyAppointmentList(
@@ -18,10 +18,36 @@ export function proxyAppointmentList(
   }
 }
 
+export function proxyPatientPaymentList(
+  request: NextRequest,
+): Promise<NextResponse> | NextResponse {
+  try {
+    const output = new URLSearchParams();
+    for (const key of request.nextUrl.searchParams.keys()) {
+      if (key !== "cursor" && key !== "limit") {
+        throw new BffAuthError("Payment query is invalid", 400, "invalid_request");
+      }
+    }
+    copyOptionalCursor(request.nextUrl.searchParams, output);
+    copyOptionalLimit(request.nextUrl.searchParams, output);
+    const query = output.toString();
+    return proxyAuthenticatedApi(
+      request,
+      `/v1/patient/payments${query.length === 0 ? "" : `?${query}`}`,
+      "GET",
+    );
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
 export function appointmentListPath(url: URL, owner: "patient" | "provider"): string {
   const output = new URLSearchParams();
   for (const key of url.searchParams.keys()) {
-    if (!LIST_PARAMETERS.has(key) || (owner === "patient" && key === "q")) {
+    if (
+      !LIST_PARAMETERS.has(key) ||
+      (owner === "patient" && (key === "q" || key === "patientId"))
+    ) {
       throw new BffAuthError("Appointment query is invalid", 400, "invalid_request");
     }
   }
@@ -30,8 +56,20 @@ export function appointmentListPath(url: URL, owner: "patient" | "provider"): st
   copyOptionalLimit(url.searchParams, output);
   copyOptionalInstant(url.searchParams, output, "dayFrom");
   copyOptionalInstant(url.searchParams, output, "dayTo");
-  if (owner === "provider") copyOptionalQuery(url.searchParams, output);
+  if (owner === "provider") {
+    copyOptionalQuery(url.searchParams, output);
+    copyOptionalPatientId(url.searchParams, output);
+  }
   return `/v1/${owner}/appointments?${output.toString()}`;
+}
+
+function copyOptionalPatientId(input: URLSearchParams, output: URLSearchParams) {
+  const patientId = input.get("patientId");
+  if (patientId === null) return;
+  if (exactAppointmentUuid(patientId) === null) {
+    throw new BffAuthError("Patient ID is invalid", 400, "invalid_request");
+  }
+  output.set("patientId", patientId);
 }
 
 export function exactAppointmentUuid(value: string): string | null {

@@ -160,6 +160,10 @@ export interface ClinicalEncounterRepository {
     practitionerPrincipalId: string;
     query?: string;
   }): Promise<ProviderPatientRosterList>;
+  findPatientByPractitioner(input: {
+    patientId: string;
+    practitionerPrincipalId: string;
+  }): Promise<ProviderPatientRosterItem | null>;
   listReferralsByPractitioner(input: {
     cursor?: { createdAt: Date; id: string };
     direction: "RECEIVED" | "SENT";

@@ -26,6 +26,11 @@ import {
   encodeAppointmentListCursor,
   InvalidAppointmentListCursorError,
 } from "./appointment-list-cursor.js";
+import {
+  decodePaymentListCursor,
+  encodePaymentListCursor,
+  paymentListFilterHash,
+} from "./payment-list-cursor.js";
 
 const MAX_AVAILABILITY_WINDOW_MS = 31 * 24 * 60 * 60 * 1000;
 const MAX_LOCAL_DAY_WINDOW_MS = 26 * 60 * 60 * 1000;
@@ -40,6 +45,7 @@ export interface AppointmentListInput {
   dayFrom?: string;
   dayTo?: string;
   limit: number;
+  patientId?: string;
   query?: string;
   scope: AppointmentListScope;
 }
@@ -345,6 +351,36 @@ export class SchedulingPaymentService {
     };
   }
 
+  async listPatientPayments(
+    context: SchedulingRequestContext,
+    input: { cursor?: string; limit: number },
+  ) {
+    await this.authorization.authorize({
+      actor: context.actor,
+      context: {
+        patientPrincipalId: context.actor.principalId,
+        resourceId: context.actor.principalId,
+        resourceType: "patient_payments",
+      },
+      policy: AUTHORIZATION_POLICY.VIEW_PATIENT_PAYMENT_AMOUNT,
+      requestId: context.requestId,
+    });
+    const filterHash = paymentListFilterHash({ owner: context.actor.principalId });
+    const result = await this.repository.listPatientPayments({
+      cursor: decodePaymentListCursor(input.cursor, filterHash),
+      limit: input.limit,
+      principalId: context.actor.principalId,
+    });
+    const cursor = result.cursor;
+    return {
+      data: result.data,
+      pageInfo: {
+        endCursor: cursor === null ? null : encodePaymentListCursor(cursor, filterHash),
+        hasNextPage: cursor !== null,
+      },
+    };
+  }
+
   async getProviderAppointment(context: SchedulingRequestContext, appointmentId: string) {
     await this.authorizeAppointmentList(context, "PROVIDER");
     const appointment = await this.repository.findProviderAppointment({
@@ -412,6 +448,7 @@ export class SchedulingPaymentService {
       dayFrom: dayFrom?.toISOString(),
       dayTo: dayTo?.toISOString(),
       principalId: context.actor.principalId,
+      patientId: allowQuery ? input.patientId : undefined,
       query,
       scope: input.scope,
     };
@@ -427,6 +464,7 @@ export class SchedulingPaymentService {
           ...(dayTo === undefined ? {} : { dayTo }),
           limit: input.limit,
           principalId: context.actor.principalId,
+          ...(allowQuery && input.patientId !== undefined ? { patientId: input.patientId } : {}),
           ...(query === undefined ? {} : { query }),
           scope: input.scope,
         },

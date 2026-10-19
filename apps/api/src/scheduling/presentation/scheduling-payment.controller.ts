@@ -75,8 +75,15 @@ const appointmentListQuerySchema = z
     dayFrom: instantSchema.optional(),
     dayTo: instantSchema.optional(),
     limit: z.coerce.number().int().min(1).max(50).default(25),
+    patientId: idSchema.optional(),
     q: z.string().trim().min(2).max(100).optional(),
     scope: z.enum(["ALL", "TODAY", "UPCOMING", "COMPLETED", "UNSUCCESSFUL"]),
+  })
+  .strict();
+const paymentListQuerySchema = z
+  .object({
+    cursor: z.string().min(1).max(1024).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
   })
   .strict();
 
@@ -207,6 +214,16 @@ export class PatientSchedulingPaymentController {
   patientAppointments(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
     const input = parse(appointmentListQuerySchema.omit({ q: true }), query);
     return execute(() => this.scheduling.listPatientAppointments(requestContext(request), input));
+  }
+
+  @Get("patient/payments")
+  patientPayments(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.scheduling.listPatientPayments(
+        requestContext(request),
+        parse(paymentListQuerySchema, query),
+      ),
+    );
   }
 
   @Get("appointments/:appointmentId")

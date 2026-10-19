@@ -4,22 +4,14 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import {
   encounterService,
-  patientService,
-  appointmentService,
   productionPrescriptionService,
   productionLaboratoryService,
   productionClinicalService,
 } from "@/lib/services";
 import type { PrescriptionComponents } from "@royal-palace/api-client";
 import type { LaboratoryResultResponse } from "@royal-palace/contracts";
-import { normalizeEncounter, normalizePatient } from "../normalize";
-import type {
-  ClinicalEncounter,
-  Patient,
-  Appointment,
-  EncounterDocumentation,
-  FileMeta,
-} from "@/types";
+import { normalizeEncounter } from "../normalize";
+import type { ClinicalEncounter, Patient, EncounterDocumentation, FileMeta } from "@/types";
 type Prescription = PrescriptionComponents["schemas"]["Prescription"];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,7 +154,7 @@ export function ProviderEncounter() {
   const id = view.params.id;
   const [encounter, setEncounter] = useState<ClinicalEncounter | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
-  const [history, setHistory] = useState<Appointment[]>([]);
+  const [history, setHistory] = useState<ClinicalEncounter[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +180,10 @@ export function ProviderEncounter() {
     setLoading(true);
     setError(null);
     try {
-      const enc = await encounterService.get(id);
+      const [enc, rawEncounter] = await Promise.all([
+        encounterService.get(id),
+        productionClinicalService.provider.get(id),
+      ]);
       const norm = normalizeEncounter(enc);
       setEncounter(norm);
       const initialDoc = norm.documentation;
@@ -203,16 +198,37 @@ export function ProviderEncounter() {
       lastSavedRef.current = JSON.stringify(initialDoc);
 
       if (norm.patientId) {
-        const [p, appts, rxs, resultPage] = await Promise.all([
-          patientService.get(norm.patientId),
-          appointmentService.list({ patientId: norm.patientId }),
+        const [p, priorEncounters, rxs, resultPage] = await Promise.all([
+          productionClinicalService.provider.getPatient(norm.patientId),
+          encounterService.listProvider(norm.patientId),
           productionPrescriptionService.provider
             .list(norm.patientId, undefined, 50)
             .then((page) => [...page.data]),
           productionLaboratoryService.provider.results(undefined, 5, norm.patientId),
         ]);
-        setPatient(normalizePatient(p));
-        setHistory(appts);
+        setPatient({
+          id: p.id,
+          userId: "",
+          patientNumber: p.id,
+          firstName: p.name,
+          lastName: "",
+          dateOfBirth: "",
+          gender: "Not available",
+          phone: "",
+          email: "",
+          city: "",
+          state: "",
+          country: "",
+          allergies: rawEncounter.relatedActions.allergies.map((allergy) => ({
+            name: allergy.substanceDisplay,
+            recordedAt: allergy.recordedAt,
+            source: "provider-confirmed",
+            status: "active",
+          })),
+          conditions: [],
+          medications: [],
+        });
+        setHistory(priorEncounters);
         setPrescriptions(rxs);
         setLabResults(resultPage.data);
       }
@@ -314,7 +330,7 @@ export function ProviderEncounter() {
 
   const locked = !!encounter?.locked;
   const recentEncounters = useMemo(
-    () => history.filter((a) => a.encounter && a.encounter.id !== id).slice(0, 5),
+    () => history.filter((item) => item.id !== id).slice(0, 5),
     [history, id],
   );
   const recentLabs = useMemo(() => labResults.slice(0, 5), [labResults]);
@@ -557,7 +573,7 @@ export function ProviderEncounter() {
 
 interface NotesPanelProps {
   patient: Patient;
-  recentEncounters: Appointment[];
+  recentEncounters: ClinicalEncounter[];
   recentLabs: readonly LaboratoryResultResponse[];
   activeRx: Prescription[];
   doc: EncounterDocumentation;
@@ -1320,7 +1336,7 @@ function PatientSummaryBody({
   activeRx,
 }: {
   patient: Patient;
-  recentEncounters: Appointment[];
+  recentEncounters: ClinicalEncounter[];
   recentLabs: readonly LaboratoryResultResponse[];
   activeRx: Prescription[];
 }) {
@@ -1439,22 +1455,16 @@ function PatientSummaryBody({
             <p className="text-xs text-muted-foreground">No prior encounters.</p>
           ) : (
             <ul className="space-y-1.5">
-              {recentEncounters.map((a) => (
-                <li key={a.id} className="text-xs">
+              {recentEncounters.map((item) => (
+                <li key={item.id} className="text-xs">
                   <button
                     className="text-left w-full hover:underline tap-highlight-none"
-                    onClick={() =>
-                      a.encounter && navigate("provider", "encounter", { id: a.encounter!.id })
-                    }
+                    onClick={() => navigate("provider", "encounter", { id: item.id })}
                   >
-                    <span className="font-medium">{formatDate(a.date)}</span> ·{" "}
-                    {a.provider ? `${a.provider.lastName}` : ""}
-                    {a.encounter?.documentation &&
-                      typeof a.encounter.documentation === "object" && (
-                        <span className="block text-muted-foreground truncate">
-                          {(a.encounter.documentation as EncounterDocumentation).diagnosis ?? "—"}
-                        </span>
-                      )}
+                    <span className="font-medium">{formatDate(item.createdAt)}</span>
+                    <span className="block text-muted-foreground truncate">
+                      {item.documentation.diagnosis ?? item.encounterNumber}
+                    </span>
                   </button>
                 </li>
               ))}

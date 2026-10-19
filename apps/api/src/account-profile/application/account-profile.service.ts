@@ -53,6 +53,15 @@ export class AccountProfileService {
     return profile;
   }
 
+  async getPractitionerVerification(context: RequestContext) {
+    await this.authorize(context, "PRACTITIONER");
+    const verification = await this.repository.findPractitionerVerification(
+      context.actor.principalId,
+    );
+    if (verification === null) throw new AccountProfileNotFoundError();
+    return verification;
+  }
+
   async updatePractitioner(context: RequestContext, input: UpdatePractitionerSettingsInput) {
     await this.authorize(context, "PRACTITIONER");
     return this.resolve(

@@ -83,6 +83,21 @@ export class AdministrationService {
     });
   }
 
+  async getOperationalReport(
+    context: AdministrationRequestContext,
+    input: { from: string; to: string },
+  ) {
+    await this.authorize(
+      context,
+      AUTHORIZATION_POLICY.VIEW_PLATFORM_DASHBOARD,
+      "platform_operational_report",
+    );
+    return this.repository.getOperationalReport({
+      from: new Date(input.from),
+      to: new Date(input.to),
+    });
+  }
+
   async listComplaints(
     context: AdministrationRequestContext,
     input: {

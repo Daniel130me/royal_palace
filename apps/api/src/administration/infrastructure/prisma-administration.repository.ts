@@ -7,6 +7,7 @@ import type {
   AdminComplaintListResponse,
   AdminComplaintTransitionResponse,
   AdminDashboardResponse,
+  AdminOperationalReportResponse,
   AdminDeliveryListItem,
   AdminDeliveryListResponse,
   AdminPractitionerDetail,
@@ -246,6 +247,13 @@ interface DashboardRow {
   verified_practitioners: bigint;
 }
 
+interface OperationalReportRow {
+  appointments: AdminOperationalReportResponse["appointments"];
+  organization_finance: AdminOperationalReportResponse["organizationFinance"];
+  payments: AdminOperationalReportResponse["payments"];
+  top_practitioners: AdminOperationalReportResponse["topPractitioners"];
+}
+
 @Injectable()
 export class PrismaAdministrationRepository implements AdministrationRepository {
   constructor(@Inject(PrismaService) private readonly database: PrismaService) {}
@@ -332,6 +340,129 @@ export class PrismaAdministrationRepository implements AdministrationRepository 
         occurredAt: new Date(event.occurredAt).toISOString(),
       })),
       recentComplaints: row.recent_complaints.map(mapDashboardComplaint),
+    };
+  }
+
+  async getOperationalReport(query: {
+    from: Date;
+    to: Date;
+  }): Promise<AdminOperationalReportResponse> {
+    const rows = await this.database.$queryRaw<OperationalReportRow[]>(Prisma.sql`
+      SELECT
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'count', bucket.count,
+            'periodStart', bucket.period_start,
+            'status', bucket.status
+          ) ORDER BY bucket.period_start, bucket.status)
+          FROM (
+            SELECT
+              COUNT(*)::integer AS count,
+              date_trunc('day', "starts_at") AS period_start,
+              "status"::text AS status
+            FROM "appointments"
+            WHERE "starts_at" >= ${query.from} AND "starts_at" < ${query.to}
+            GROUP BY date_trunc('day', "starts_at"), "status"
+          ) bucket
+        ), '[]'::jsonb) AS appointments,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'currency', bucket.currency,
+            'grossAmountMinor', bucket.gross_amount_minor::text,
+            'netAmountMinor', bucket.net_amount_minor::text,
+            'paymentCount', bucket.payment_count,
+            'periodStart', bucket.period_start,
+            'refundedAmountMinor', bucket.refunded_amount_minor::text
+          ) ORDER BY bucket.period_start, bucket.currency)
+          FROM (
+            SELECT
+              "currency",
+              SUM("amount_minor") AS gross_amount_minor,
+              SUM("amount_minor" - "refunded_amount_minor") AS net_amount_minor,
+              COUNT(*)::integer AS payment_count,
+              date_trunc('day', "created_at") AS period_start,
+              SUM("refunded_amount_minor") AS refunded_amount_minor
+            FROM "payments"
+            WHERE
+              "created_at" >= ${query.from}
+              AND "created_at" < ${query.to}
+              AND "status" IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+            GROUP BY date_trunc('day', "created_at"), "currency"
+          ) bucket
+        ), '[]'::jsonb) AS payments,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'currency', totals.currency,
+            'grossAmountMinor', totals.gross_amount_minor::text,
+            'organizationType', totals.organization_type,
+            'payableAmountMinor', totals.payable_amount_minor::text
+          ) ORDER BY totals.organization_type, totals.currency)
+          FROM (
+            SELECT
+              earning."currency",
+              SUM(earning."gross_amount_minor") AS gross_amount_minor,
+              organization."type"::text AS organization_type,
+              SUM(earning."payable_amount_minor") AS payable_amount_minor
+            FROM "organization_earnings" earning
+            INNER JOIN "organizations" organization ON organization."id" = earning."organization_id"
+            WHERE earning."earned_at" >= ${query.from} AND earning."earned_at" < ${query.to}
+            GROUP BY organization."type", earning."currency"
+          ) totals
+        ), '[]'::jsonb) AS organization_finance,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'appointmentCount', top.appointment_count,
+            'displayName', top.display_name,
+            'id', top.practitioner_id,
+            'paymentTotals', COALESCE((
+              SELECT jsonb_agg(jsonb_build_object(
+                'amountMinor', totals.amount_minor::text,
+                'currency', totals.currency
+              ) ORDER BY totals.currency)
+              FROM (
+                SELECT pay."currency", SUM(pay."amount_minor" - pay."refunded_amount_minor") AS amount_minor
+                FROM "payments" pay
+                INNER JOIN "appointments" paid_appointment ON paid_appointment."id" = pay."appointment_id"
+                WHERE
+                  paid_appointment."practitioner_id" = top.practitioner_id
+                  AND paid_appointment."starts_at" >= ${query.from}
+                  AND paid_appointment."starts_at" < ${query.to}
+                  AND pay."status" IN ('SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+                GROUP BY pay."currency"
+              ) totals
+            ), '[]'::jsonb),
+            'primarySpecialty', (
+              SELECT specialty."name"
+              FROM "practitioner_specialties" link
+              INNER JOIN "specialty_taxonomies" specialty ON specialty."id" = link."specialty_id"
+              WHERE link."practitioner_id" = top.practitioner_id
+              ORDER BY link."is_primary" DESC, link."id"
+              LIMIT 1
+            )
+          ) ORDER BY top.appointment_count DESC, top.practitioner_id)
+          FROM (
+            SELECT
+              appointment."practitioner_id",
+              practitioner."display_name",
+              COUNT(*)::integer AS appointment_count
+            FROM "appointments" appointment
+            INNER JOIN "practitioners" practitioner ON practitioner."id" = appointment."practitioner_id"
+            WHERE appointment."starts_at" >= ${query.from} AND appointment."starts_at" < ${query.to}
+            GROUP BY appointment."practitioner_id", practitioner."display_name"
+            ORDER BY COUNT(*) DESC, appointment."practitioner_id"
+            LIMIT 5
+          ) top
+        ), '[]'::jsonb) AS top_practitioners
+    `);
+    const row = rows[0];
+    if (row === undefined) throw new Error("Operational report query returned no row");
+    return {
+      appointments: row.appointments,
+      from: query.from.toISOString(),
+      organizationFinance: row.organization_finance,
+      payments: row.payments,
+      to: query.to.toISOString(),
+      topPractitioners: row.top_practitioners,
     };
   }
 

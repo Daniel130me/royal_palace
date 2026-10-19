@@ -94,6 +94,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PatientAppointmentList" }
+  /api/patient/payments:
+    get:
+      operationId: listPatientPayments
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Authenticated patient's bounded payment history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PatientPaymentList" }
   /api/provider/appointments:
     get:
       operationId: listProviderAppointments
@@ -103,6 +115,7 @@ paths:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/DayFrom"
         - $ref: "#/components/parameters/DayTo"
+        - { in: query, name: patientId, schema: { type: string, format: uuid } }
         - { in: query, name: q, schema: { type: string, minLength: 2, maxLength: 100 } }
       responses:
         "200":
@@ -470,6 +483,23 @@ components:
         purpose: { type: string, enum: [CONSULTATION, PHARMACY_ORDER, LABORATORY_BOOKING] }
         status: { $ref: "#/components/schemas/PaymentStatus" }
         updatedAt: { type: string, format: date-time }
+    PatientPayment:
+      allOf:
+        - $ref: "#/components/schemas/Payment"
+        - type: object
+          additionalProperties: false
+          required: [createdAt, reference, refundedAmountMinor]
+          properties:
+            createdAt: { type: string, format: date-time }
+            reference: { type: string, minLength: 1, maxLength: 64 }
+            refundedAmountMinor: { type: string, pattern: "^[0-9]+$" }
+    PatientPaymentList:
+      type: object
+      additionalProperties: false
+      required: [data, pageInfo]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/PatientPayment" } }
+        pageInfo: { $ref: "#/components/schemas/PageInfo" }
     ConsultationFeeInput:
       type: object
       additionalProperties: false

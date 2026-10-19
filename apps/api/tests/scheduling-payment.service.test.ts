@@ -80,6 +80,21 @@ describe("SchedulingPaymentService", () => {
     expect(listProviderAppointments).not.toHaveBeenCalled();
   });
 
+  it("binds a practitioner patient filter to the owner-derived appointment query", async () => {
+    const principalId = createOpaqueId();
+    const patientId = createOpaqueId();
+    const listProviderAppointments = vi.fn(async () => ({ cursor: null, data: [] }));
+
+    await createService({ listProviderAppointments }).listProviderAppointments(
+      { actor: session("PROVIDER", principalId), requestId: "request-provider-patient-list" },
+      { limit: 25, patientId, scope: "ALL" },
+    );
+
+    expect(listProviderAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 25, patientId, principalId, scope: "ALL" }),
+    );
+  });
+
   it("returns a controlled conflict for a reused idempotency key", async () => {
     const repository = {
       bookAppointment: vi.fn<SchedulingPaymentRepository["bookAppointment"]>(async () => {

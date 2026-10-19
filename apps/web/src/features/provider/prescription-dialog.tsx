@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { productionPrescriptionService, providerService } from "@/lib/services";
-import { normalizeProvider } from "./normalize";
-import type { Provider, Patient } from "@/types";
+import { productionPrescriptionService } from "@/lib/services";
+import type { Patient } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -464,15 +463,4 @@ export function PrescriptionDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-// Helper hook for other dialogs that need the provider list
-export function useProviders(excludeId?: string) {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  useEffect(() => {
-    providerService.list().then((ps) => {
-      setProviders(ps.map(normalizeProvider).filter((p) => p.id !== excludeId));
-    });
-  }, [excludeId]);
-  return providers;
 }

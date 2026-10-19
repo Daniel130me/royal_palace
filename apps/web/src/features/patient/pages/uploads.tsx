@@ -37,9 +37,7 @@ export function PatientUploads() {
         ? productionPrescriptionService.patient
             .scannedPrescriptions()
             .then((page) => setRows([...page.data]))
-        : productionPrescriptionService.patient
-            .scannedPrescription(selectedId)
-            .then(setDetail);
+        : productionPrescriptionService.patient.scannedPrescription(selectedId).then(setDetail);
     request
       .catch(
         (reason: unknown) =>
@@ -69,7 +67,10 @@ export function PatientUploads() {
   if (error) return <EmptyState title="Could not load uploads" description={error} />;
   if (selectedId !== undefined) {
     return detail === null ? (
-      <EmptyState title="Upload unavailable" description="The uploaded prescription was not found." />
+      <EmptyState
+        title="Upload unavailable"
+        description="The uploaded prescription was not found."
+      />
     ) : (
       <PatientUploadDetail detail={detail} onDownload={() => download(detail)} />
     );
@@ -158,10 +159,22 @@ function PatientUploadDetail({
       ) : null}
       <SectionCard title="Prescription details" icon={FileText}>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="text-muted-foreground">File</dt><dd>{detail.originalFilename}</dd></div>
-          <div><dt className="text-muted-foreground">Prescriber</dt><dd>{detail.prescriberName ?? "Not provided"}</dd></div>
-          <div><dt className="text-muted-foreground">Facility</dt><dd>{detail.prescriberFacility ?? "Not provided"}</dd></div>
-          <div><dt className="text-muted-foreground">Your note</dt><dd>{detail.patientNote ?? "None"}</dd></div>
+          <div>
+            <dt className="text-muted-foreground">File</dt>
+            <dd>{detail.originalFilename}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Prescriber</dt>
+            <dd>{detail.prescriberName ?? "Not provided"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Facility</dt>
+            <dd>{detail.prescriberFacility ?? "Not provided"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Your note</dt>
+            <dd>{detail.patientNote ?? "None"}</dd>
+          </div>
         </dl>
         {canDownload(detail.status) ? (
           <Button className="mt-4" variant="outline" onClick={() => void onDownload()}>

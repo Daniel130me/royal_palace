@@ -328,6 +328,45 @@ export interface AdminDashboardResponse {
   recentComplaints: readonly AdminComplaintListItem[];
 }
 
+export interface AdminReportAppointmentBucket {
+  count: number;
+  periodStart: string;
+  status: AppointmentStatus;
+}
+
+export interface AdminReportPaymentBucket {
+  currency: string;
+  grossAmountMinor: string;
+  netAmountMinor: string;
+  paymentCount: number;
+  periodStart: string;
+  refundedAmountMinor: string;
+}
+
+export interface AdminReportTopPractitioner {
+  appointmentCount: number;
+  displayName: string;
+  id: string;
+  paymentTotals: readonly AdminDashboardMoneyTotal[];
+  primarySpecialty: string | null;
+}
+
+export interface AdminReportOrganizationFinanceTotal {
+  currency: string;
+  grossAmountMinor: string;
+  organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
+  payableAmountMinor: string;
+}
+
+export interface AdminOperationalReportResponse {
+  appointments: readonly AdminReportAppointmentBucket[];
+  from: string;
+  organizationFinance: readonly AdminReportOrganizationFinanceTotal[];
+  payments: readonly AdminReportPaymentBucket[];
+  to: string;
+  topPractitioners: readonly AdminReportTopPractitioner[];
+}
+
 export type AdminPractitionerScope = "ALL" | "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
 export type PractitionerVerificationStatus = "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
 
@@ -1051,6 +1090,17 @@ export interface PaymentStatusResponse {
   purpose: PaymentPurpose;
   status: PaymentStatus;
   updatedAt: string;
+}
+
+export interface PatientPaymentResponse extends PaymentStatusResponse {
+  createdAt: string;
+  reference: string;
+  refundedAmountMinor: string;
+}
+
+export interface PatientPaymentListResponse {
+  data: readonly PatientPaymentResponse[];
+  pageInfo: AppointmentListPageInfo;
 }
 
 export interface ConsultationFeeResponse {
@@ -1885,6 +1935,46 @@ export interface PractitionerSettingsResponse {
   primarySpecialty: string | null;
   verificationStatus: PractitionerVerificationStatus;
   version: number;
+}
+
+export interface PractitionerVerificationResponse {
+  affiliations: readonly {
+    facilityName: string;
+    id: string;
+    roleTitle: string | null;
+  }[];
+  credentials: readonly {
+    credentialType: string;
+    expiresAt: string | null;
+    id: string;
+    issuerName: string;
+    jurisdictionCode: string;
+    registrationNumber: string;
+    verifiedAt: string | null;
+  }[];
+  displayName: string;
+  documents: readonly {
+    declaredContentType: string;
+    declaredSizeBytes: number;
+    id: string;
+    originalFilename: string;
+    purpose: string;
+    status: string;
+  }[];
+  id: string;
+  languages: readonly string[];
+  primaryProfession: string | null;
+  primarySpecialty: string | null;
+  verificationHistory: readonly {
+    fromStatus: PractitionerVerificationStatus;
+    id: string;
+    note: string | null;
+    occurredAt: string;
+    reasonCode: string;
+    toStatus: PractitionerVerificationStatus;
+  }[];
+  verificationStatus: PractitionerVerificationStatus;
+  yearsExperience: number | null;
 }
 
 export interface UpdatePractitionerSettingsInput {

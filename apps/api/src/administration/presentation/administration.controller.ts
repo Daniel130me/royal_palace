@@ -48,6 +48,16 @@ const dashboardQuerySchema = z
   .refine((value) => new Date(value.dayTo) > new Date(value.dayFrom), {
     message: "Invalid day range",
   });
+const reportQuerySchema = z
+  .object({ from: instantSchema, to: instantSchema })
+  .strict()
+  .refine((value) => new Date(value.to) > new Date(value.from), {
+    message: "Invalid report range",
+  })
+  .refine(
+    (value) => new Date(value.to).getTime() - new Date(value.from).getTime() <= 31 * 86_400_000,
+    { message: "Report range exceeds 31 days" },
+  );
 const complaintQuerySchema = z
   .object({
     ...commonListFields,
@@ -120,6 +130,12 @@ export class AdministrationController {
   getDashboard(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
     const query = parse(dashboardQuerySchema, rawQuery);
     return execute(() => this.administration.getDashboard(requestContext(request), query));
+  }
+
+  @Get("reports/operations")
+  getOperationalReport(@Query() rawQuery: unknown, @Req() request: AuthenticatedInternalRequest) {
+    const query = parse(reportQuerySchema, rawQuery);
+    return execute(() => this.administration.getOperationalReport(requestContext(request), query));
   }
 
   @Get("complaints")

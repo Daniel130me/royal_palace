@@ -323,6 +323,37 @@ describe("ClinicalEncounterService", () => {
     });
   });
 
+  it("returns an exact patient only when the authenticated practitioner has a clinical relationship", async () => {
+    const principalId = createOpaqueId();
+    const patientId = createOpaqueId();
+    const patient = {
+      encounterCount: 2,
+      id: patientId,
+      lastEncounterAt: "2026-10-18T12:00:00.000Z",
+      name: "Synthetic Patient",
+    };
+    const findPatientByPractitioner = vi.fn(async () => patient);
+    const service = createService({
+      findPatientByPractitioner,
+      findPractitionerByPrincipal: vi.fn(async () => ({
+        id: createOpaqueId(),
+        principalId,
+        verificationStatus: "VERIFIED" as const,
+      })),
+    });
+
+    await expect(
+      service.getPatientForPractitioner(
+        { actor: session("PROVIDER", principalId), requestId: "request-exact-patient" },
+        patientId,
+      ),
+    ).resolves.toEqual(patient);
+    expect(findPatientByPractitioner).toHaveBeenCalledWith({
+      patientId,
+      practitionerPrincipalId: principalId,
+    });
+  });
+
   it("lists referrals only in the requested authenticated-practitioner direction", async () => {
     const principalId = createOpaqueId();
     const listReferralsByPractitioner = vi.fn<

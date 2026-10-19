@@ -8,6 +8,7 @@ import type {
   ConsultationFeeResponse,
   HostedCheckoutResponse,
   PaymentReconciliationResponse,
+  PatientPaymentResponse,
   PaymentStatus,
   PractitionerAvailabilityResponse,
   PublicConsultationMode,
@@ -384,6 +385,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
     dayTo?: Date;
     limit: number;
     principalId: string;
+    patientId?: string;
     query?: string;
     scope: AppointmentListScope;
   }) {
@@ -394,6 +396,7 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       take: input.limit + 1,
       where: {
         practitioner: { principalId: input.principalId },
+        ...(input.patientId === undefined ? {} : { patientId: input.patientId }),
         AND: [
           appointmentScopeWhere(input),
           appointmentCursorWhere(input.cursor, ascending),
@@ -402,6 +405,50 @@ export class PrismaSchedulingPaymentRepository implements SchedulingPaymentRepos
       },
     });
     return appointmentPage(rows, input.limit, mapProviderAppointment);
+  }
+
+  async listPatientPayments(input: {
+    cursor?: { createdAt: Date; id: string };
+    limit: number;
+    principalId: string;
+  }) {
+    const rows = await this.database.payment.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: {
+        amountMinor: true,
+        appointmentId: true,
+        createdAt: true,
+        currency: true,
+        id: true,
+        laboratoryBookingId: true,
+        payableUntil: true,
+        pharmacyOrderId: true,
+        purpose: true,
+        reference: true,
+        refundedAmountMinor: true,
+        status: true,
+        updatedAt: true,
+      },
+      take: input.limit + 1,
+      where: {
+        patient: { principalId: input.principalId },
+        ...(input.cursor === undefined
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: input.cursor.createdAt } },
+                { createdAt: input.cursor.createdAt, id: { lt: input.cursor.id } },
+              ],
+            }),
+      },
+    });
+    const hasNextPage = rows.length > input.limit;
+    const page = hasNextPage ? rows.slice(0, input.limit) : rows;
+    const last = hasNextPage ? page.at(-1) : undefined;
+    return {
+      cursor: last === undefined ? null : { createdAt: last.createdAt, id: last.id },
+      data: page.map(mapPatientPayment),
+    };
   }
 
   async findProviderAppointment(input: {
@@ -1281,6 +1328,38 @@ function mapPayment(row: {
     providerPaymentReference: row.providerPaymentReference,
     purpose: row.purpose,
     reference: row.reference,
+    status: row.status,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function mapPatientPayment(row: {
+  amountMinor: bigint;
+  appointmentId: string | null;
+  createdAt: Date;
+  currency: string;
+  id: string;
+  laboratoryBookingId: string | null;
+  payableUntil: Date;
+  pharmacyOrderId: string | null;
+  purpose: "CONSULTATION" | "PHARMACY_ORDER" | "LABORATORY_BOOKING";
+  reference: string;
+  refundedAmountMinor: bigint;
+  status: PaymentStatus;
+  updatedAt: Date;
+}): PatientPaymentResponse {
+  return {
+    amountMinor: row.amountMinor.toString(),
+    appointmentId: row.appointmentId,
+    createdAt: row.createdAt.toISOString(),
+    currency: row.currency,
+    id: row.id,
+    laboratoryBookingId: row.laboratoryBookingId,
+    payableUntil: row.payableUntil.toISOString(),
+    pharmacyOrderId: row.pharmacyOrderId,
+    purpose: row.purpose,
+    reference: row.reference,
+    refundedAmountMinor: row.refundedAmountMinor.toString(),
     status: row.status,
     updatedAt: row.updatedAt.toISOString(),
   };

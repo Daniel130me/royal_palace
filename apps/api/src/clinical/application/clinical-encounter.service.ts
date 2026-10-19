@@ -227,6 +227,19 @@ export class ClinicalEncounterService {
     });
   }
 
+  async getPatientForPractitioner(context: ClinicalEncounterContext, patientId: string) {
+    this.assertSyntheticClinicalWorkflow();
+    await this.authorizePractitionerCollection(context, "clinical_patient_record");
+    const patient = await this.repository.findPatientByPractitioner({
+      patientId,
+      practitionerPrincipalId: context.actor.principalId,
+    });
+    if (patient === null) {
+      throw new ClinicalEncounterFlowError("patient_not_found", 404, "Patient record not found");
+    }
+    return patient;
+  }
+
   async listReferralsForPractitioner(
     context: ClinicalEncounterContext,
     input: { cursor?: string; direction: "RECEIVED" | "SENT"; limit: number },

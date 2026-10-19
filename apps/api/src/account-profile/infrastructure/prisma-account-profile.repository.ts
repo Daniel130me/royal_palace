@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { PatientProfileResponse, PractitionerSettingsResponse } from "@royal-palace/contracts";
+import type {
+  PatientProfileResponse,
+  PractitionerSettingsResponse,
+  PractitionerVerificationResponse,
+} from "@royal-palace/contracts";
 
 import type { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
@@ -24,6 +28,70 @@ const practitionerSelect = {
     orderBy: [{ isPrimary: "desc" as const }, { specialty: { name: "asc" as const } }],
     select: { specialty: { select: { name: true } } },
     take: 1,
+  },
+  verificationStatus: true,
+} satisfies Prisma.PractitionerSelect;
+
+const practitionerVerificationSelect = {
+  affiliations: {
+    orderBy: [{ startsAt: "desc" as const }, { id: "asc" as const }],
+    select: { facilityName: true, id: true, roleTitle: true },
+    take: 100,
+  },
+  approvedApplication: {
+    select: {
+      documents: {
+        orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+        select: {
+          declaredContentType: true,
+          declaredSizeBytes: true,
+          id: true,
+          originalFilename: true,
+          purpose: true,
+          status: true,
+        },
+        take: 100,
+      },
+    },
+  },
+  credentials: {
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    select: {
+      credentialType: true,
+      expiresAt: true,
+      id: true,
+      issuerName: true,
+      jurisdictionCode: true,
+      registrationNumber: true,
+      verifiedAt: true,
+    },
+    take: 100,
+  },
+  displayName: true,
+  id: true,
+  languages: { orderBy: { languageTag: "asc" as const }, select: { languageTag: true }, take: 20 },
+  professions: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { profession: { select: { name: true } } },
+    take: 1,
+  },
+  publicProfile: { select: { yearsExperience: true } },
+  specialties: {
+    orderBy: [{ isPrimary: "desc" as const }, { id: "asc" as const }],
+    select: { specialty: { select: { name: true } } },
+    take: 1,
+  },
+  verificationHistory: {
+    orderBy: [{ occurredAt: "desc" as const }, { id: "desc" as const }],
+    select: {
+      fromStatus: true,
+      id: true,
+      note: true,
+      occurredAt: true,
+      reasonCode: true,
+      toStatus: true,
+    },
+    take: 100,
   },
   verificationStatus: true,
 } satisfies Prisma.PractitionerSelect;
@@ -68,6 +136,16 @@ export class PrismaAccountProfileRepository implements AccountProfileRepository 
     return practitioner?.publicProfile === null || practitioner === null
       ? null
       : mapPractitioner(practitioner);
+  }
+
+  async findPractitionerVerification(
+    principalId: string,
+  ): Promise<PractitionerVerificationResponse | null> {
+    const practitioner = await this.database.practitioner.findUnique({
+      select: practitionerVerificationSelect,
+      where: { principalId },
+    });
+    return practitioner === null ? null : mapPractitionerVerification(practitioner);
   }
 
   async updatePatient(input: {
@@ -232,5 +310,34 @@ function mapPractitioner(practitioner: {
     primarySpecialty: practitioner.specialties[0]?.specialty.name ?? null,
     verificationStatus: practitioner.verificationStatus,
     version: practitioner.publicProfile.version,
+  };
+}
+
+type PractitionerVerificationRecord = Prisma.PractitionerGetPayload<{
+  select: typeof practitionerVerificationSelect;
+}>;
+
+function mapPractitionerVerification(
+  practitioner: PractitionerVerificationRecord,
+): PractitionerVerificationResponse {
+  return {
+    affiliations: practitioner.affiliations,
+    credentials: practitioner.credentials.map((credential) => ({
+      ...credential,
+      expiresAt: credential.expiresAt?.toISOString() ?? null,
+      verifiedAt: credential.verifiedAt?.toISOString() ?? null,
+    })),
+    displayName: practitioner.displayName,
+    documents: practitioner.approvedApplication?.documents ?? [],
+    id: practitioner.id,
+    languages: practitioner.languages.map(({ languageTag }) => languageTag),
+    primaryProfession: practitioner.professions[0]?.profession.name ?? null,
+    primarySpecialty: practitioner.specialties[0]?.specialty.name ?? null,
+    verificationHistory: practitioner.verificationHistory.map((event) => ({
+      ...event,
+      occurredAt: event.occurredAt.toISOString(),
+    })),
+    verificationStatus: practitioner.verificationStatus,
+    yearsExperience: practitioner.publicProfile?.yearsExperience ?? null,
   };
 }

@@ -60,6 +60,18 @@ paths:
               schema: { $ref: "#/components/schemas/PractitionerProfile" }
         "400": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /api/account/practitioner-verification:
+    get:
+      operationId: getPractitionerVerification
+      responses:
+        "200":
+          description: Authenticated practitioner's verification record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PractitionerVerification" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 components:
   parameters:
     CsrfToken:
@@ -166,6 +178,91 @@ components:
         primarySpecialty: { type: [string, "null"] }
         verificationStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
         version: { type: integer, minimum: 1 }
+    PractitionerVerification:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          affiliations,
+          credentials,
+          displayName,
+          documents,
+          id,
+          languages,
+          primaryProfession,
+          primarySpecialty,
+          verificationHistory,
+          verificationStatus,
+          yearsExperience,
+        ]
+      properties:
+        affiliations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [facilityName, id, roleTitle]
+            properties:
+              facilityName: { type: string }
+              id: { type: string, format: uuid }
+              roleTitle: { type: [string, "null"] }
+        credentials:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              [
+                credentialType,
+                expiresAt,
+                id,
+                issuerName,
+                jurisdictionCode,
+                registrationNumber,
+                verifiedAt,
+              ]
+            properties:
+              credentialType: { type: string }
+              expiresAt: { type: [string, "null"], format: date-time }
+              id: { type: string, format: uuid }
+              issuerName: { type: string }
+              jurisdictionCode: { type: string }
+              registrationNumber: { type: string }
+              verifiedAt: { type: [string, "null"], format: date-time }
+        displayName: { type: string }
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              [declaredContentType, declaredSizeBytes, id, originalFilename, purpose, status]
+            properties:
+              declaredContentType: { type: string }
+              declaredSizeBytes: { type: integer, minimum: 1 }
+              id: { type: string, format: uuid }
+              originalFilename: { type: string }
+              purpose: { type: string }
+              status: { type: string }
+        id: { type: string, format: uuid }
+        languages: { type: array, items: { type: string } }
+        primaryProfession: { type: [string, "null"] }
+        primarySpecialty: { type: [string, "null"] }
+        verificationHistory:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [fromStatus, id, note, occurredAt, reasonCode, toStatus]
+            properties:
+              fromStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
+              id: { type: string, format: uuid }
+              note: { type: [string, "null"] }
+              occurredAt: { type: string, format: date-time }
+              reasonCode: { type: string }
+              toStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
+        verificationStatus: { type: string, enum: [PENDING, VERIFIED, SUSPENDED, REVOKED] }
+        yearsExperience: { type: [integer, "null"], minimum: 0 }
     UpdatePractitionerProfile:
       type: object
       additionalProperties: false

@@ -36,6 +36,22 @@ export interface paths {
         patch: operations["updatePractitionerProfile"];
         trace?: never;
     };
+    "/api/account/practitioner-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPractitionerVerification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -83,6 +99,56 @@ export interface components {
             /** @enum {string} */
             verificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
             version: number;
+        };
+        PractitionerVerification: {
+            affiliations: {
+                facilityName: string;
+                /** Format: uuid */
+                id: string;
+                roleTitle: string | null;
+            }[];
+            credentials: {
+                credentialType: string;
+                /** Format: date-time */
+                expiresAt: string | null;
+                /** Format: uuid */
+                id: string;
+                issuerName: string;
+                jurisdictionCode: string;
+                registrationNumber: string;
+                /** Format: date-time */
+                verifiedAt: string | null;
+            }[];
+            displayName: string;
+            documents: {
+                declaredContentType: string;
+                declaredSizeBytes: number;
+                /** Format: uuid */
+                id: string;
+                originalFilename: string;
+                purpose: string;
+                status: string;
+            }[];
+            /** Format: uuid */
+            id: string;
+            languages: string[];
+            primaryProfession: string | null;
+            primarySpecialty: string | null;
+            verificationHistory: {
+                /** @enum {string} */
+                fromStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+                /** Format: uuid */
+                id: string;
+                note: string | null;
+                /** Format: date-time */
+                occurredAt: string;
+                reasonCode: string;
+                /** @enum {string} */
+                toStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+            }[];
+            /** @enum {string} */
+            verificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
+            yearsExperience: number | null;
         };
         UpdatePractitionerProfile: {
             acceptingPatients: boolean;
@@ -215,6 +281,29 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             409: components["responses"]["Error"];
+        };
+    };
+    getPractitionerVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated practitioner's verification record */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PractitionerVerification"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
         };
     };
 }

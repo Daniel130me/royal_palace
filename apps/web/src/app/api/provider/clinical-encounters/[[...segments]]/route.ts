@@ -17,6 +17,17 @@ export async function GET(request: NextRequest, context: Context) {
       allowQuery: true,
     });
   }
+  if (
+    segments.length === 2 &&
+    segments[0] === "patients" &&
+    exactClinicalUuid(segments[1]) !== null
+  ) {
+    return proxyAuthenticatedApi(
+      request,
+      `/v1/provider/clinical-encounters/patients/${segments[1]}`,
+      "GET",
+    );
+  }
   if (segments.length === 1 && segments[0] === "referrals") {
     return proxyAuthenticatedList(request, "/v1/provider/clinical-encounters/referrals", {
       allowDirection: true,

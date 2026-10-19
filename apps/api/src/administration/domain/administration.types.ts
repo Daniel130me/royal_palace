@@ -13,6 +13,7 @@ import type {
   AdminPractitionerDetail,
   AdminPractitionerListResponse,
   AdminPractitionerScope,
+  AdminOperationalReportResponse,
   AdminPrincipalListResponse,
   AdminPrincipalScope,
   PractitionerVerificationStatus,
@@ -121,6 +122,7 @@ export interface TransitionAdminPractitionerInput {
 
 export interface AdministrationRepository {
   getDashboard(query: AdminDashboardQuery): Promise<AdminDashboardResponse>;
+  getOperationalReport(query: { from: Date; to: Date }): Promise<AdminOperationalReportResponse>;
   listAppointments(query: ListAdminAppointmentsQuery): Promise<AdminAppointmentListResponse>;
   listAuditEvents(query: ListAdminAuditEventsQuery): Promise<AdminAuditEventListResponse>;
   listComplaints(query: ListAdminComplaintsQuery): Promise<AdminComplaintListResponse>;

@@ -59,6 +59,23 @@ paths:
         "200": { $ref: "#/components/responses/ProviderPatientRosterList" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
+  /v1/provider/clinical-encounters/patients/{patientId}:
+    get:
+      operationId: getProviderClinicalPatient
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Relationship-scoped patient roster summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderPatientRosterItem" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /v1/provider/clinical-encounters/referrals:
     get:
       operationId: listProviderClinicalReferrals

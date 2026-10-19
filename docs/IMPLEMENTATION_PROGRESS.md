@@ -513,6 +513,13 @@ that completes an increment.
     clear stale state, and external summaries remain clinical-detail-free. Family/dependant and
     practitioner profile aggregates remain explicit migration boundaries. See
     [`increments/11y-portal-notification-context.md`](./increments/11y-portal-notification-context.md).
+  - `[~]` 11Z reconciles remaining production read boundaries for public organization
+    discovery, patient payments, administrator operational reporting, practitioner verification,
+    and relationship-scoped practitioner patient records. Unsafe demo mutations for unapproved
+    commercial, consent, and dependant governance remain visible but fail closed. The weekly
+    practitioner availability screen is explicitly flagged for a durable recurrence/exception
+    replacement. See
+    [`increments/11z-production-read-boundary-reconciliation.md`](./increments/11z-production-read-boundary-reconciliation.md).
   - `[~]` 11F clinical encounters and patient records has completed its production encounter
     foundation, related clinical actions, and signed-prototype screen connection. Controlled
     visual comparison and stakeholder UAT remain open and are tracked in

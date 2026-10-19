@@ -1688,12 +1688,17 @@ export const schedulingPaymentService = {
     generatedSchedulingPaymentClient
       .GET("/api/patient/appointments", { params: { query: input }, signal })
       .then(unwrapGeneratedResponse),
+  patientPayments: (input: { cursor?: string; limit?: number }, signal?: AbortSignal) =>
+    generatedSchedulingPaymentClient
+      .GET("/api/patient/payments", { params: { query: input }, signal })
+      .then(unwrapGeneratedResponse),
   providerAppointments: (
     input: {
       cursor?: string;
       dayFrom?: string;
       dayTo?: string;
       limit?: number;
+      patientId?: string;
       q?: string;
       scope: "ALL" | "TODAY" | "UPCOMING" | "COMPLETED" | "UNSUCCESSFUL";
     },
@@ -1794,6 +1799,10 @@ export const administrationService = {
   dashboard: (input: { dayFrom: string; dayTo: string }) =>
     generatedAdministrationClient
       .GET("/api/admin/dashboard", { params: { query: input } })
+      .then(unwrapGeneratedResponse),
+  operationalReport: (input: { from: string; to: string }) =>
+    generatedAdministrationClient
+      .GET("/api/admin/reports/operations", { params: { query: input } })
       .then(unwrapGeneratedResponse),
   complaints: (input: {
     cursor?: string;
@@ -2068,6 +2077,12 @@ export const productionClinicalService = {
           },
         })
         .then(unwrapGeneratedResponse),
+    getPatient: (patientId: string) =>
+      generatedClinicalEncounterClient
+        .GET("/v1/provider/clinical-encounters/patients/{patientId}", {
+          params: { path: { patientId } },
+        })
+        .then(unwrapGeneratedResponse),
     listReferrals: (direction: "RECEIVED" | "SENT", cursor?: string, limit = 20) =>
       generatedClinicalEncounterClient
         .GET("/v1/provider/clinical-encounters/referrals", {
@@ -2141,6 +2156,10 @@ export const productionAccountProfileService = {
       generatedAccountProfileClient
         .GET("/api/account/practitioner-profile")
         .then(unwrapGeneratedResponse) as Promise<PractitionerSettingsResponse>,
+    verification: () =>
+      generatedAccountProfileClient
+        .GET("/api/account/practitioner-verification")
+        .then(unwrapGeneratedResponse),
     update: (body: UpdatePractitionerSettingsInput) =>
       generatedAccountProfileClient
         .PATCH("/api/account/practitioner-profile", {
@@ -2338,6 +2357,7 @@ export const managerPortalService = {
     input: {
       cursor?: string;
       limit?: number;
+      patientId?: string;
       organizationType?: "HOSPITAL" | "PHARMACY" | "LABORATORY";
     } = {},
   ) =>

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
-import type { ClinicalDocumentation } from "@royal-palace/contracts";
+import type { ClinicalDocumentation, ProviderPatientRosterItem } from "@royal-palace/contracts";
 
 import { Prisma } from "../../generated/prisma/client.js";
 import { PrismaService } from "../../platform/database/prisma.service.js";
@@ -288,6 +288,40 @@ export class PrismaClinicalEncounterRepository implements ClinicalEncounterRepos
         hasNextPage,
       },
     };
+  }
+
+  async findPatientByPractitioner(input: {
+    patientId: string;
+    practitionerPrincipalId: string;
+  }): Promise<ProviderPatientRosterItem | null> {
+    const rows = await this.database.$queryRaw<
+      Array<{
+        encounter_count: bigint;
+        family_name: string;
+        given_name: string;
+        last_encounter_at: Date;
+        patient_id: string;
+      }>
+    >(Prisma.sql`
+      SELECT encounter."patient_id", MAX(encounter."opened_at") AS "last_encounter_at",
+             COUNT(*)::bigint AS "encounter_count", patient."given_name", patient."family_name"
+      FROM "clinical_encounters" encounter
+      JOIN "practitioners" practitioner ON practitioner."id" = encounter."practitioner_id"
+      JOIN "patients" patient ON patient."id" = encounter."patient_id"
+      WHERE practitioner."principal_id" = ${input.practitionerPrincipalId}::uuid
+        AND encounter."patient_id" = ${input.patientId}::uuid
+      GROUP BY encounter."patient_id", patient."given_name", patient."family_name"
+      LIMIT 1
+    `);
+    const row = rows[0];
+    return row === undefined
+      ? null
+      : {
+          encounterCount: Number(row.encounter_count),
+          id: row.patient_id,
+          lastEncounterAt: row.last_encounter_at.toISOString(),
+          name: `${row.given_name} ${row.family_name}`.trim(),
+        };
   }
 
   async listReferralsByPractitioner(input: {

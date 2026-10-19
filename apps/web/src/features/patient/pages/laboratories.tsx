@@ -2,7 +2,7 @@
 
 import { FlaskConical } from "lucide-react";
 
-import { OrganizationDiscoveryList } from "../components/organization-discovery-list";
+import { OrganizationDiscoveryList } from "@/features/shared/organization-discovery-list";
 
 export function PatientLaboratories() {
   return (

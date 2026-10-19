@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { productionClinicalService, providerService } from "@/lib/services";
-import { normalizeProvider } from "./normalize";
-import type { Provider, Patient } from "@/types";
+import { productionClinicalService, publicDiscoveryService } from "@/lib/services";
+import type { Patient } from "@/types";
+import type { PublicPractitionerSummary, PublicSpecialty } from "@royal-palace/contracts";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +45,8 @@ export function ReferralDialog({
   prefillDiagnosis,
   onCreated,
 }: ReferralDialogProps) {
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providers, setProviders] = useState<readonly PublicPractitionerSummary[]>([]);
+  const [specialties, setSpecialties] = useState<readonly PublicSpecialty[]>([]);
   const [recipientId, setRecipientId] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [reason, setReason] = useState("");
@@ -60,13 +61,22 @@ export function ReferralDialog({
 
   useEffect(() => {
     if (open) {
-      providerService.list().then((ps) => {
-        setProviders(
-          ps
-            .map(normalizeProvider)
-            .filter((p) => p.id !== providerId && p.verificationStatus === "approved"),
-        );
-      });
+      const controller = new AbortController();
+      Promise.all([
+        publicDiscoveryService.practitioners({ limit: 50 }, controller.signal),
+        publicDiscoveryService.specialties(controller.signal),
+      ])
+        .then(([practitionerPage, specialtyPage]) => {
+          setProviders(practitionerPage.data.filter((provider) => provider.id !== providerId));
+          setSpecialties(specialtyPage.data);
+        })
+        .catch((reason: unknown) => {
+          if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+            setError(
+              "Verified practitioners could not be loaded. You can still refer by specialty.",
+            );
+          }
+        });
       setReason("");
       setSymptoms("");
       setRelevantHistory("");
@@ -83,7 +93,8 @@ export function ReferralDialog({
   function selectRecipient(id: string) {
     setRecipientId(id);
     const p = providers.find((x) => x.id === id);
-    if (p) setSpecialty(p.specialty);
+    const primarySpecialty = p?.specialties[0];
+    if (primarySpecialty) setSpecialty(primarySpecialty.code);
   }
 
   async function submit() {
@@ -110,7 +121,7 @@ export function ReferralDialog({
         kind: "REFERRAL",
         priority: urgency.toUpperCase() as "ROUTINE" | "URGENT" | "EMERGENCY",
         reason: clinicalContext,
-        ...(recipient ? { recipientName: `${recipient.firstName} ${recipient.lastName}` } : {}),
+        ...(recipient ? { recipientName: recipient.displayName } : {}),
         ...(recipient ? { recipientPractitionerId: recipient.id } : {}),
         specialtyCode: specialty.trim(),
       });
@@ -155,7 +166,8 @@ export function ReferralDialog({
                 <SelectContent>
                   {providers.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.title} {p.firstName} {p.lastName} · {p.specialty}
+                      {p.displayName}
+                      {p.specialties[0] ? ` · ${p.specialties[0].name}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -166,11 +178,18 @@ export function ReferralDialog({
             </div>
             <div>
               <Label className="text-xs font-medium">Recipient specialty</Label>
-              <Input
-                value={specialty}
-                onChange={(e) => setSpecialty(e.target.value)}
-                placeholder="e.g. Cardiologist"
-              />
+              <Select value={specialty} onValueChange={setSpecialty}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a specialty" />
+                </SelectTrigger>
+                <SelectContent>
+                  {specialties.map((item) => (
+                    <SelectItem key={item.id} value={item.code}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

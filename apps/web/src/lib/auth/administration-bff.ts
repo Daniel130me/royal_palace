@@ -45,6 +45,17 @@ export function proxyAdminDashboard(request: NextRequest) {
   return proxyValidated(request, adminDashboardPath);
 }
 
+export function proxyAdminOperationalReport(request: NextRequest) {
+  return proxyValidated(request, adminOperationalReportPath);
+}
+
+export function adminOperationalReportPath(url: URL): string {
+  return validatedPath(url, "/v1/admin/reports/operations", ["from", "to"], (source, output) => {
+    copyInstant(source, output, "from", true);
+    copyInstant(source, output, "to", true);
+  });
+}
+
 export function adminDashboardPath(url: URL): string {
   return validatedPath(url, "/v1/admin/dashboard", ["dayFrom", "dayTo"], (source, output) => {
     copyInstant(source, output, "dayFrom", true);

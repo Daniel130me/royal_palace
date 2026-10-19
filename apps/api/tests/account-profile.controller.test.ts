@@ -32,7 +32,7 @@ describe("AccountProfileController", () => {
 
     await expect(
       controller.updatePatient(
-        { expectedVersion: 1, preferredLanguage: "not_a_language" },
+        { emergencyContact: null, expectedVersion: 1, preferredLanguage: "not_a_language" },
         request(),
       ),
     ).rejects.toBeInstanceOf(HttpException);

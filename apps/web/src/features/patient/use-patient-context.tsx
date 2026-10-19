@@ -8,7 +8,7 @@ import {
   notificationSummary,
 } from "@/features/shared/notification-summary";
 import { useNav } from "@/lib/nav";
-import { patientService, productionNotificationService } from "@/lib/services";
+import { productionAccountProfileService, productionNotificationService } from "@/lib/services";
 import type { Patient } from "@/types";
 
 interface PatientContextValue {
@@ -61,13 +61,35 @@ export function PatientContextProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
     setLoading(true);
     try {
-      const [all] = await Promise.all([patientService.byUser(session.userId), loadNotifications()]);
-      const primaryProfile = all.find((candidate) => !candidate.parentPatientId) ?? all[0] ?? null;
-      const dependentProfiles = all.filter((candidate) => candidate.parentPatientId);
-      const activeId = activePatientId ?? primaryProfile?.id;
+      const [owner] = await Promise.all([
+        productionAccountProfileService.patient.get(),
+        loadNotifications(),
+      ]);
+      const primaryProfile: Patient = {
+        id: owner.id,
+        userId: session.userId,
+        patientNumber: owner.id,
+        firstName: owner.givenName,
+        lastName: owner.familyName,
+        dateOfBirth: owner.dateOfBirth ?? "",
+        gender: "Not provided",
+        phone: owner.phoneE164 ?? "",
+        email: "",
+        city: "",
+        state: "",
+        country: owner.countryCode ?? "",
+        allergies: [],
+        conditions: [],
+        medications: [],
+        emergencyName: owner.emergencyContact?.displayName ?? null,
+        emergencyPhone: owner.emergencyContact?.phoneE164 ?? null,
+        emergencyRel: owner.emergencyContact?.relationship ?? null,
+      };
+      const dependentProfiles: Patient[] = [];
+      const activeId = activePatientId ?? primaryProfile.id;
       setPrimary(primaryProfile);
       setDependants(dependentProfiles);
-      setProfile(all.find((candidate) => candidate.id === activeId) ?? primaryProfile);
+      setProfile(activeId === primaryProfile.id ? primaryProfile : primaryProfile);
     } catch {
       setProfile(null);
       setPrimary(null);

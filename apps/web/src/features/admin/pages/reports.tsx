@@ -1,259 +1,164 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { navigate } from "@/lib/nav";
 import {
-  appointmentService,
-  productionOrganizationFinanceService,
-  providerService,
-  settlementService,
-} from "@/lib/services";
-import { resource } from "@/lib/api-client";
-import type { Appointment, Provider, Settlement, Payment } from "@/types";
-import {
-  PageHeader,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-  SkeletonGrid,
-  SectionCard,
-} from "@/components/healthcare/page-header";
-import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
-import { formatCurrency, formatMinorCurrency } from "@/lib/format";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line,
-} from "recharts";
-import {
+  Activity,
   AlertTriangle,
   BarChart3,
-  TrendingUp,
-  Users,
   Stethoscope,
-  Activity,
+  TrendingUp,
   WalletCards,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
+import { CompactListItem, StatTile } from "@/components/healthcare/compact-list";
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SectionCard,
+  SkeletonGrid,
+} from "@/components/healthcare/page-header";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatMinorCurrency } from "@/lib/format";
+import { navigate } from "@/lib/nav";
+import { administrationService, productionOrganizationFinanceService } from "@/lib/services";
+
+type OperationalReport = Awaited<ReturnType<typeof administrationService.operationalReport>>;
 type FinancePeriod = Awaited<
   ReturnType<typeof productionOrganizationFinanceService.admin.advancedReport>
 >["data"][number];
 
-const CATEGORY_COLORS = [
-  "#10b981",
-  "#f59e0b",
-  "#0ea5e9",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f43f5e",
-];
+const REPORT_DAYS = 14;
+const CATEGORY_COLORS = ["#10b981", "#f59e0b", "#0ea5e9", "#8b5cf6"];
 
 export function AdminReports() {
-  const [appts, setAppts] = useState<Appointment[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [report, setReport] = useState<OperationalReport | null>(null);
   const [financePeriods, setFinancePeriods] = useState<FinancePeriod[]>([]);
+  const [currency, setCurrency] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const to = new Date();
-    const from = new Date(to.getTime() - 14 * 86_400_000);
-    Promise.all([
-      productionOrganizationFinanceService.admin.advancedReport(
-        from.toISOString(),
-        to.toISOString(),
-        "DAY",
-      ),
-      Promise.allSettled([
-        appointmentService.list(),
-        providerService.list(),
-        settlementService.list(),
-        resource.list<Payment>("payment"),
-      ]),
-    ])
-      .then(([finance, legacy]) => {
-        setFinancePeriods(finance.data);
-        if (legacy[0]?.status === "fulfilled") setAppts(legacy[0].value as Appointment[]);
-        if (legacy[1]?.status === "fulfilled") setProviders(legacy[1].value as Provider[]);
-        if (legacy[2]?.status === "fulfilled") setSettlements(legacy[2].value as Settlement[]);
-        if (legacy[3]?.status === "fulfilled") setPayments(legacy[3].value as Payment[]);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load reports"))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
+    const { from, to } = reportRange();
+    try {
+      const [operations, finance] = await Promise.all([
+        administrationService.operationalReport({ from, to }),
+        productionOrganizationFinanceService.admin.advancedReport(from, to, "DAY"),
+      ]);
+      setReport(operations);
+      setFinancePeriods([...finance.data]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Reports could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Consultations over time (last 14 days)
-  const consultsOverTime = useMemo(() => {
-    const days: { date: string; label: string; count: number }[] = [];
-    const today = new Date();
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const ds = d.toISOString().slice(0, 10);
-      days.push({
-        date: ds,
-        label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
-        count: 0,
-      });
-    }
-    for (const a of appts) {
-      const found = days.find((d) => d.date === a.date);
-      if (found) found.count += 1;
-    }
-    return days;
-  }, [appts]);
+  useEffect(() => void load(), [load]);
 
-  // Revenue by entity type (from settlements)
-  const revenueByType = useMemo(() => {
-    const map = new Map<string, { name: string; value: number }>();
-    for (const s of settlements) {
-      const entry = map.get(s.entityType) ?? {
-        name: s.entityType.charAt(0).toUpperCase() + s.entityType.slice(1),
-        value: 0,
-      };
-      entry.value += s.commissionAmount;
-      map.set(s.entityType, entry);
-    }
-    return Array.from(map.values());
-  }, [settlements]);
+  const currencies = useMemo(
+    () => reportCurrencies(report, financePeriods),
+    [financePeriods, report],
+  );
+  useEffect(() => {
+    if (currencies.length > 0 && !currencies.includes(currency)) setCurrency(currencies[0]!);
+  }, [currencies, currency]);
 
-  // Top providers by appointments
-  const topProviders = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string; specialty: string; appointments: number; revenue: number }
-    >();
-    for (const a of appts) {
-      const p = providers.find((x) => x.id === a.providerId);
-      if (!p) continue;
-      const entry = map.get(p.id) ?? {
-        id: p.id,
-        name: `${p.title} ${p.firstName} ${p.lastName}`,
-        specialty: p.specialty,
-        appointments: 0,
-        revenue: 0,
-      };
-      entry.appointments += 1;
-      if (a.paymentStatus === "paid") entry.revenue += a.price;
-      map.set(p.id, entry);
-    }
-    return Array.from(map.values())
-      .sort((a, b) => b.appointments - a.appointments)
-      .slice(0, 5);
-  }, [appts, providers]);
-
-  // Payments trend (cumulative)
-  const paymentsTrend = useMemo(() => {
-    const days: { date: string; label: string; total: number }[] = [];
-    const today = new Date();
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const ds = d.toISOString().slice(0, 10);
-      days.push({
-        date: ds,
-        label: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
-        total: 0,
-      });
-    }
-    for (const p of payments) {
-      const ds = new Date(p.createdAt).toISOString().slice(0, 10);
-      const found = days.find((d) => d.date === ds);
-      if (found && p.status === "successful") found.total += p.amount;
-    }
-    let cum = 0;
-    return days.map((d) => {
-      cum += d.total;
-      return { ...d, cumulative: cum };
-    });
-  }, [payments]);
-
-  // Status distribution
-  const statusDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const a of appts) {
-      map.set(a.status, (map.get(a.status) ?? 0) + 1);
-    }
-    return Array.from(map.entries()).map(([name, value]) => ({
-      name: name.replace(/_/g, " "),
-      value,
-    }));
-  }, [appts]);
-
-  const totalRevenue = settlements.reduce((s, x) => s + x.commissionAmount, 0);
-  const totalGMV = payments
-    .filter((p) => p.status === "successful")
-    .reduce((s, p) => s + p.amount, 0);
-  const avgTicket = payments.length ? totalGMV / payments.length : 0;
+  const view = useMemo(() => buildReportView(report, currency), [currency, report]);
 
   if (loading) {
     return (
       <div className="space-y-5">
-        <div className="h-9 w-48 bg-muted animate-pulse rounded-lg" />
+        <div className="h-9 w-48 animate-pulse rounded-lg bg-muted" />
         <SkeletonGrid count={4} />
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
-          <div className="h-64 bg-muted/40 animate-pulse rounded-2xl" />
+          <div className="h-64 animate-pulse rounded-2xl bg-muted/40" />
+          <div className="h-64 animate-pulse rounded-2xl bg-muted/40" />
         </div>
       </div>
     );
   }
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (error !== null) return <ErrorState message={error} onRetry={() => void load()} />;
+  if (report === null) return <ErrorState message="The operational report is unavailable." />;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Reports & Insights"
-        description="High-level platform trends derived from live data."
+        description="Bounded operational and financial trends from production records."
         breadcrumbs={[
           { label: "Admin", onClick: () => navigate("admin", "dashboard") },
           { label: "Reports" },
         ]}
+        actions={
+          currencies.length > 0 ? (
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger className="w-36" aria-label="Report currency">
+                <SelectValue placeholder="Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : undefined
+        }
       />
 
-      {/* Top stats — StatTiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <StatTile
-          label="Gross Txn Value"
-          value={formatCurrency(totalGMV)}
+          label="Net payment volume"
+          value={formatAmount(view.netPayments, currency)}
           icon={TrendingUp}
           tone="success"
         />
         <StatTile
-          label="Platform Revenue"
-          value={formatCurrency(totalRevenue)}
+          label="Refunded"
+          value={formatAmount(view.refunded, currency)}
           icon={Activity}
-          tone="success"
+          tone="warning"
         />
-        <StatTile label="Avg Ticket" value={formatCurrency(avgTicket)} icon={Users} tone="info" />
         <StatTile
-          label="Top Provider Apps"
-          value={topProviders[0]?.appointments ?? 0}
+          label="Avg transaction"
+          value={formatAmount(view.averagePayment, currency)}
+          icon={WalletCards}
+          tone="info"
+        />
+        <StatTile
+          label="Top provider appts"
+          value={report.topPractitioners[0]?.appointmentCount ?? 0}
           icon={Stethoscope}
           tone="violet"
         />
       </div>
 
-      <SectionCard title="Audited finance summary (last 14 days)" icon={WalletCards}>
+      <SectionCard title={`Audited finance summary · last ${REPORT_DAYS} days`} icon={WalletCards}>
         {financePeriods.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             No immutable organization earnings have been recorded in this period.
@@ -268,7 +173,7 @@ export function AdminReports() {
                 <div>
                   <p className="text-xs text-muted-foreground">Period / currency</p>
                   <p className="font-semibold">
-                    {new Date(period.periodStart).toLocaleDateString("en-GB")} · {period.currency}
+                    {new Date(period.periodStart).toLocaleDateString()} · {period.currency}
                   </p>
                 </div>
                 <ReportAmount
@@ -289,11 +194,10 @@ export function AdminReports() {
                 <div>
                   <p className="text-xs text-muted-foreground">Exceptions</p>
                   <p className="flex items-center gap-1 font-semibold">
-                    {(period.failedPayoutCount ?? 0) + (period.reconciliationCount ?? 0) > 0 && (
+                    {period.failedPayoutCount + period.reconciliationCount > 0 ? (
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                    )}
-                    {period.failedPayoutCount ?? 0} failed · {period.reconciliationCount ?? 0}{" "}
-                    reconcile
+                    ) : null}
+                    {period.failedPayoutCount} failed · {period.reconciliationCount} reconcile
                   </p>
                 </div>
               </div>
@@ -302,12 +206,10 @@ export function AdminReports() {
         )}
       </SectionCard>
 
-      {/* Charts grid — stacks on mobile */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Consultations over time */}
-        <SectionCard title="Consultations (last 14 days)" icon={BarChart3}>
+        <SectionCard title={`Consultations · last ${REPORT_DAYS} days`} icon={BarChart3}>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={consultsOverTime} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
+            <BarChart data={view.consultations} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -316,69 +218,74 @@ export function AdminReports() {
             </BarChart>
           </ResponsiveContainer>
         </SectionCard>
-
-        {/* Cumulative payments */}
-        <SectionCard title="Cumulative payments (14d)" icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={paymentsTrend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Line
-                type="monotone"
-                dataKey="cumulative"
-                stroke="#0ea5e9"
-                strokeWidth={2}
-                dot={{ r: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <SectionCard
+          title={`Cumulative net payments${currency ? ` · ${currency}` : ""}`}
+          icon={TrendingUp}
+        >
+          {view.paymentTrend.length === 0 ? (
+            <ChartEmpty />
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={view.paymentTrend} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={1} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value: number) => formatChartAmount(value, currency)} />
+                <Line
+                  type="monotone"
+                  dataKey="cumulative"
+                  stroke="#0ea5e9"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </SectionCard>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Revenue by entity type */}
-        <SectionCard title="Commission revenue by entity" icon={Activity}>
-          {revenueByType.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">No settlement data.</p>
+        <SectionCard
+          title={`Organization earnings by entity${currency ? ` · ${currency}` : ""}`}
+          icon={Activity}
+        >
+          {view.organizationFinance.length === 0 ? (
+            <ChartEmpty />
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
-                  data={revenueByType}
+                  data={view.organizationFinance}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
-                  label={(entry) => `${entry.name}`}
+                  label={(entry) => entry.name}
                 >
-                  {revenueByType.map((_, i) => (
-                    <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                  {view.organizationFinance.map((entry, index) => (
+                    <Cell key={entry.name} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Tooltip formatter={(value: number) => formatChartAmount(value, currency)} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
           )}
         </SectionCard>
-
-        {/* Appointment status distribution */}
         <SectionCard title="Appointment status mix" icon={BarChart3}>
-          {statusDistribution.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">No appointment data.</p>
+          {view.statuses.length === 0 ? (
+            <ChartEmpty />
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
-                data={statusDistribution}
+                data={view.statuses}
                 layout="vertical"
                 margin={{ top: 5, right: 16, left: 8, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
                 <Tooltip />
                 <Bar dataKey="value" fill="#8b5cf6" radius={[0, 3, 3, 0]} />
               </BarChart>
@@ -387,51 +294,178 @@ export function AdminReports() {
         </SectionCard>
       </div>
 
-      {/* Top providers as CompactListItem list */}
       <SectionCard title="Top providers" icon={Stethoscope} dense>
-        {topProviders.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No provider activity yet.
-          </p>
+        {report.topPractitioners.length === 0 ? (
+          <EmptyState icon={Stethoscope} title="No provider activity yet" compact />
         ) : (
           <div className="divide-y divide-border/40">
-            {topProviders.map((p, i) => (
-              <CompactListItem
-                key={p.id}
-                leading={
-                  <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold text-sm shrink-0 ${i === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
-                  >
-                    {i + 1}
-                  </div>
-                }
-                title={p.name}
-                subtitle={p.specialty}
-                trailing={
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-semibold">{p.appointments} appts</span>
-                    <span className="text-xs text-emerald-700">
-                      {formatCurrency(p.revenue)} paid
-                    </span>
-                  </div>
-                }
-                onClick={undefined}
-              />
-            ))}
+            {report.topPractitioners.map((provider, index) => {
+              const total = provider.paymentTotals.find((item) => item.currency === currency);
+              return (
+                <CompactListItem
+                  key={provider.id}
+                  leading={
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${index === 0 ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
+                    >
+                      {index + 1}
+                    </div>
+                  }
+                  title={provider.displayName}
+                  subtitle={provider.primarySpecialty ?? "Specialty not listed"}
+                  trailing={
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-semibold">
+                        {provider.appointmentCount} appts
+                      </span>
+                      <span className="text-xs text-emerald-700">
+                        {total === undefined
+                          ? "No selected-currency volume"
+                          : `${formatMinorCurrency(total.amountMinor, total.currency)} net`}
+                      </span>
+                    </div>
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </SectionCard>
-
-      {appts.length === 0 && payments.length === 0 && (
-        <div className="mt-6">
-          <EmptyState
-            icon={BarChart3}
-            title="No data available yet"
-            description="Reports will populate as the platform processes transactions."
-          />
-        </div>
-      )}
     </div>
+  );
+}
+
+function reportRange() {
+  const to = new Date();
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - REPORT_DAYS);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function reportCurrencies(report: OperationalReport | null, finance: readonly FinancePeriod[]) {
+  const values = new Set<string>();
+  report?.payments.forEach((item) => values.add(item.currency));
+  report?.organizationFinance.forEach((item) => values.add(item.currency));
+  report?.topPractitioners.forEach((item) =>
+    item.paymentTotals.forEach((total) => values.add(total.currency)),
+  );
+  finance.forEach((item) => values.add(item.currency));
+  return [...values].sort();
+}
+
+function buildReportView(report: OperationalReport | null, currency: string) {
+  if (report === null) return emptyReportView();
+  const consultations = dailyAppointmentTotals(report);
+  const payments = report.payments.filter((item) => item.currency === currency);
+  let cumulative = BigInt(0);
+  const paymentTrend = payments.flatMap((item) => {
+    cumulative += BigInt(item.netAmountMinor);
+    const value = minorToChartNumber(cumulative, currency);
+    return value === null
+      ? []
+      : [
+          {
+            cumulative: value,
+            label: new Date(item.periodStart).toLocaleDateString(undefined, {
+              day: "2-digit",
+              month: "short",
+            }),
+          },
+        ];
+  });
+  const netPayments = payments.reduce((sum, item) => sum + BigInt(item.netAmountMinor), BigInt(0));
+  const refunded = payments.reduce(
+    (sum, item) => sum + BigInt(item.refundedAmountMinor),
+    BigInt(0),
+  );
+  const paymentCount = payments.reduce((sum, item) => sum + item.paymentCount, 0);
+  const statuses = [
+    ...groupCounts(
+      report.appointments.map(
+        (item) => [item.status.replaceAll("_", " ").toLowerCase(), item.count] as const,
+      ),
+    ).entries(),
+  ].map(([name, value]) => ({ name, value }));
+  const organizationFinance = report.organizationFinance
+    .filter((item) => item.currency === currency)
+    .flatMap((item) => {
+      const value = minorToChartNumber(BigInt(item.grossAmountMinor), currency);
+      return value === null ? [] : [{ name: item.organizationType.toLowerCase(), value }];
+    });
+  return {
+    averagePayment: paymentCount === 0 ? null : netPayments / BigInt(paymentCount),
+    consultations,
+    netPayments,
+    organizationFinance,
+    paymentTrend,
+    refunded,
+    statuses,
+  };
+}
+
+function dailyAppointmentTotals(report: OperationalReport) {
+  const totals = new Map<string, number>();
+  for (const item of report.appointments)
+    totals.set(item.periodStart, (totals.get(item.periodStart) ?? 0) + item.count);
+  return [...totals.entries()].map(([periodStart, count]) => ({
+    count,
+    label: new Date(periodStart).toLocaleDateString(undefined, { day: "2-digit", month: "short" }),
+  }));
+}
+
+function groupCounts(values: readonly (readonly [string, number])[]) {
+  const totals = new Map<string, number>();
+  for (const [key, value] of values) totals.set(key, (totals.get(key) ?? 0) + value);
+  return totals;
+}
+
+function currencyDigits(currency: string): number {
+  if (!currency) return 0;
+  try {
+    return (
+      new Intl.NumberFormat(undefined, { currency, style: "currency" }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    );
+  } catch {
+    return 2;
+  }
+}
+
+function minorToChartNumber(amount: bigint, currency: string): number | null {
+  const divisor = BigInt(10) ** BigInt(currencyDigits(currency));
+  if (amount > BigInt(Number.MAX_SAFE_INTEGER) * divisor) return null;
+  return Number(amount) / Number(divisor);
+}
+
+function formatAmount(amount: bigint | null, currency: string) {
+  return amount === null || !currency ? "—" : formatMinorCurrency(amount.toString(), currency);
+}
+
+function formatChartAmount(value: number, currency: string) {
+  try {
+    return new Intl.NumberFormat(undefined, { currency, style: "currency" }).format(value);
+  } catch {
+    return `${value.toLocaleString()} ${currency}`.trim();
+  }
+}
+
+function emptyReportView() {
+  return {
+    averagePayment: null,
+    consultations: [],
+    netPayments: BigInt(0),
+    organizationFinance: [],
+    paymentTrend: [],
+    refunded: BigInt(0),
+    statuses: [],
+  };
+}
+
+function ChartEmpty() {
+  return (
+    <p className="py-12 text-center text-sm text-muted-foreground">
+      No report data for this period.
+    </p>
   );
 }
 

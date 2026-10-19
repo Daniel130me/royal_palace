@@ -1,4 +1,8 @@
-import type { PatientProfileResponse, PractitionerSettingsResponse } from "@royal-palace/contracts";
+import type {
+  PatientProfileResponse,
+  PractitionerSettingsResponse,
+  PractitionerVerificationResponse,
+} from "@royal-palace/contracts";
 
 export type ProfileUpdateResult<T> =
   { outcome: "UPDATED"; profile: T } | { outcome: "NOT_FOUND" } | { outcome: "VERSION_CONFLICT" };
@@ -6,6 +10,9 @@ export type ProfileUpdateResult<T> =
 export interface AccountProfileRepository {
   findPatient(principalId: string): Promise<PatientProfileResponse | null>;
   findPractitioner(principalId: string): Promise<PractitionerSettingsResponse | null>;
+  findPractitionerVerification(
+    principalId: string,
+  ): Promise<PractitionerVerificationResponse | null>;
   updatePatient(input: {
     emergencyContact: {
       displayName: string;

@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/reports/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAdminOperationalReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/complaints": {
         parameters: {
             query?: never;
@@ -378,6 +394,46 @@ export interface components {
             recentAuditEvents: components["schemas"]["AuditEvent"][];
             recentComplaints: components["schemas"]["Complaint"][];
         };
+        ReportAppointmentBucket: {
+            count: number;
+            /** Format: date-time */
+            periodStart: string;
+            status: components["schemas"]["AppointmentStatus"];
+        };
+        ReportPaymentBucket: {
+            currency: string;
+            grossAmountMinor: string;
+            netAmountMinor: string;
+            paymentCount: number;
+            /** Format: date-time */
+            periodStart: string;
+            refundedAmountMinor: string;
+        };
+        ReportTopPractitioner: {
+            appointmentCount: number;
+            displayName: string;
+            /** Format: uuid */
+            id: string;
+            paymentTotals: components["schemas"]["MoneyTotal"][];
+            primarySpecialty: string | null;
+        };
+        ReportOrganizationFinanceTotal: {
+            currency: string;
+            grossAmountMinor: string;
+            /** @enum {string} */
+            organizationType: "HOSPITAL" | "PHARMACY" | "LABORATORY" | "LOGISTICS";
+            payableAmountMinor: string;
+        };
+        OperationalReport: {
+            appointments: components["schemas"]["ReportAppointmentBucket"][];
+            /** Format: date-time */
+            from: string;
+            organizationFinance: components["schemas"]["ReportOrganizationFinanceTotal"][];
+            payments: components["schemas"]["ReportPaymentBucket"][];
+            /** Format: date-time */
+            to: string;
+            topPractitioners: components["schemas"]["ReportTopPractitioner"][];
+        };
         /** @enum {string} */
         PractitionerVerificationStatus: "PENDING" | "VERIFIED" | "SUSPENDED" | "REVOKED";
         /** @enum {string} */
@@ -527,6 +583,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+        };
+    };
+    getAdminOperationalReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Privacy-minimized bounded operational report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationalReport"];
                 };
             };
         };

@@ -78,6 +78,12 @@ export class AccountProfileController {
     return execute(() => this.profiles.getPractitioner(context(request)));
   }
 
+  @Get("practitioner-verification")
+  @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE)
+  getPractitionerVerification(@Req() request: AuthenticatedInternalRequest) {
+    return execute(() => this.profiles.getPractitionerVerification(context(request)));
+  }
+
   @Patch("practitioner-profile")
   @PolicyProtected(AUTHORIZATION_POLICY.MANAGE_OWN_PROFILE)
   updatePractitioner(@Body() body: unknown, @Req() request: AuthenticatedInternalRequest) {

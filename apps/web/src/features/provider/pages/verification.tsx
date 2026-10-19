@@ -1,246 +1,205 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useProviderContext } from "../use-provider-context";
-import { applicationService } from "@/lib/services";
-import { normalizeApplication } from "../normalize";
-import type { ProviderApplication } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { StatusBadge } from "@/components/healthcare/status-badge";
+import type { PractitionerVerificationResponse } from "@royal-palace/contracts";
 import {
+  AlertTriangle,
+  Award,
+  BadgeCheck,
+  Building,
+  Calendar,
+  Clock,
+  FileText,
+  GraduationCap,
+  Hash,
+  Languages,
+  ShieldCheck,
+  Stethoscope,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+import {
+  ErrorState,
+  LoadingState,
   PageHeader,
   SectionCard,
-  LoadingState,
-  ErrorState,
 } from "@/components/healthcare/page-header";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { StatusBadge } from "@/components/healthcare/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { formatDate, relativeDay } from "@/lib/format";
-import {
-  BadgeCheck,
-  GraduationCap,
-  Award,
-  FileText,
-  ShieldCheck,
-  AlertTriangle,
-  Clock,
-  Building,
-  Hash,
-  Calendar,
-  Languages,
-  Stethoscope,
-  Star,
-} from "lucide-react";
+import { productionAccountProfileService } from "@/lib/services";
 
 export function ProviderVerification() {
-  const { profile, providerId } = useProviderContext();
-  const [application, setApplication] = useState<ProviderApplication | null>(null);
+  const [record, setRecord] = useState<PractitionerVerificationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!providerId) return;
     setLoading(true);
     setError(null);
     try {
-      const apps = await applicationService.list();
-      const mine = apps.find((a) => a.providerId === providerId) ?? null;
-      setApplication(mine ? normalizeApplication(mine) : null);
-    } catch (e) {
-      setError((e as Error).message ?? "Failed to load verification.");
+      setRecord(await productionAccountProfileService.practitioner.verification());
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Verification record could not be loaded.",
+      );
     } finally {
       setLoading(false);
     }
-  }, [providerId]);
+  }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => void load(), [load]);
 
   if (loading) return <LoadingState label="Loading verification record…" />;
-  if (error) return <ErrorState message={error} onRetry={load} />;
-  if (!profile) return <ErrorState message="Provider profile not found." />;
+  if (error !== null) return <ErrorState message={error} onRetry={() => void load()} />;
+  if (record === null) return <ErrorState message="Verification record not found." />;
 
-  const approved = profile.verificationStatus === "approved";
-  const licenceDays = (() => {
-    const d = new Date(
-      profile.licenceExpiry.length === 10
-        ? profile.licenceExpiry + "T00:00:00"
-        : profile.licenceExpiry,
-    );
-    if (isNaN(d.getTime())) return null;
-    return Math.round((d.getTime() - Date.now()) / 86400000);
-  })();
+  const approved = record.verificationStatus === "VERIFIED";
+  const nextExpiry =
+    record.credentials
+      .filter((credential) => credential.expiresAt !== null)
+      .sort((left, right) => left.expiresAt!.localeCompare(right.expiresAt!))[0]?.expiresAt ?? null;
+  const expiryDays =
+    nextExpiry === null ? null : Math.ceil((Date.parse(nextExpiry) - Date.now()) / 86_400_000);
 
   return (
     <div>
       <PageHeader
         title="Verification & credentials"
-        description="Your professional registration, licence and platform verification status."
+        description="Your professional credentials and Royal Palace verification status."
       />
-
-      {/* Status banner */}
-      {approved ? (
-        <Alert className="mb-6 border-emerald-200 bg-emerald-50">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          <AlertTitle className="text-emerald-800">Verified provider</AlertTitle>
-          <AlertDescription className="text-emerald-700">
-            Your account is verified and active on the Royal Palace platform. Patients can book
-            appointments with you.
-          </AlertDescription>
-        </Alert>
-      ) : profile.verificationStatus === "under_review" ||
-        profile.verificationStatus === "submitted" ? (
-        <Alert className="mb-6 border-amber-200 bg-amber-50">
-          <Clock className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-800">Verification under review</AlertTitle>
-          <AlertDescription className="text-amber-700">
-            Your application is being reviewed by our admin team. You will be notified once
-            verification is complete.
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <Alert className="mb-6 border-rose-200 bg-rose-50">
-          <AlertTriangle className="h-4 w-4 text-rose-600" />
-          <AlertTitle className="text-rose-800 capitalize">
-            {profile.verificationStatus.replace(/_/g, " ")}
-          </AlertTitle>
-          <AlertDescription className="text-rose-700">
-            Please contact support to resolve your verification status.
-          </AlertDescription>
-        </Alert>
-      )}
+      <VerificationBanner status={record.verificationStatus} />
 
       <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Professional identity */}
+        <div className="space-y-5 lg:col-span-2">
           <SectionCard title="Professional identity" icon={Stethoscope}>
-            <div className="space-y-3">
-              <div className="grid gap-4 sm:grid-cols-2 text-sm">
-                <Field
-                  icon={Stethoscope}
-                  label="Name"
-                  value={`${profile.title} ${profile.firstName} ${profile.lastName}`}
-                />
-                <Field icon={Award} label="Professional title" value={profile.professionalTitle} />
-                <Field icon={Building} label="Specialty" value={profile.specialty} />
-                <Field icon={Hash} label="Provider No." value={profile.providerNumber} />
-                <Field
-                  icon={Hash}
-                  label="Regulatory registration"
-                  value={profile.registrationNumber}
-                />
-                <Field icon={Hash} label="Licence No." value={profile.licenceNumber} />
-                <Field
-                  icon={Calendar}
-                  label="Licence expiry"
-                  value={formatDate(profile.licenceExpiry)}
-                  hint={licenceDays !== null ? `${licenceDays} days remaining` : undefined}
-                  tone={licenceDays !== null && licenceDays < 90 ? "warn" : undefined}
-                />
-                <Field
-                  icon={Clock}
-                  label="Years of experience"
-                  value={`${profile.yearsExperience} years`}
-                />
-              </div>
-              {licenceDays !== null && licenceDays < 90 && (
-                <Alert className="border-amber-200 bg-amber-50 mt-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-700 text-xs leading-relaxed">
-                    Your professional licence expires in {licenceDays} days. Contact the relevant
-                    regulator to complete revalidation and avoid account suspension.
-                  </AlertDescription>
-                </Alert>
-              )}
+            <div className="grid gap-4 text-sm sm:grid-cols-2">
+              <Field icon={Stethoscope} label="Name" value={record.displayName} />
+              <Field
+                icon={Award}
+                label="Profession"
+                value={record.primaryProfession ?? "Not listed"}
+              />
+              <Field
+                icon={Building}
+                label="Specialty"
+                value={record.primarySpecialty ?? "Not listed"}
+              />
+              <Field
+                icon={Clock}
+                label="Years of experience"
+                value={
+                  record.yearsExperience === null ? "Not listed" : `${record.yearsExperience} years`
+                }
+              />
             </div>
+            {nextExpiry !== null && expiryDays !== null && expiryDays < 90 ? (
+              <Alert className="mt-4 border-amber-200 bg-amber-50">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs text-amber-700">
+                  A credential expires {relativeDay(nextExpiry)}. Complete renewal with the relevant
+                  regulator and submit updated evidence for review.
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </SectionCard>
 
-          {/* Qualifications */}
-          <SectionCard title="Qualifications" icon={GraduationCap}>
-            {profile.qualifications.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No qualifications on record.</p>
+          <SectionCard title="Credentials" icon={GraduationCap}>
+            {record.credentials.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No credentials are recorded.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {profile.qualifications.map((q, i) => (
-                  <Badge key={i} variant="secondary" className="h-6 text-xs">
-                    <GraduationCap className="h-3 w-3 mr-1" /> {q}
-                  </Badge>
+              <div className="space-y-2">
+                {record.credentials.map((credential) => (
+                  <div
+                    key={credential.id}
+                    className="rounded-xl border border-border/70 p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold">
+                        {credential.credentialType.replaceAll("_", " ")}
+                      </p>
+                      <Badge variant="outline">
+                        {credential.verifiedAt === null ? "Awaiting verification" : "Verified"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {credential.issuerName} · {credential.jurisdictionCode}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1 text-xs">
+                      <Hash className="h-3 w-3" />
+                      {credential.registrationNumber}
+                    </p>
+                    {credential.expiresAt === null ? null : (
+                      <p className="mt-1 flex items-center gap-1 text-xs">
+                        <Calendar className="h-3 w-3" />
+                        Expires {formatDate(credential.expiresAt)}
+                      </p>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
           </SectionCard>
 
-          {/* Documents (from application if exists) */}
-          {application && (
-            <SectionCard
-              title="Submitted documents"
-              icon={FileText}
-              description={`${application.documents.length} document(s) on file`}
-            >
-              {application.documents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No documents on file.</p>
-              ) : (
-                <div className="space-y-2">
-                  {application.documents.map((f, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between rounded-xl border border-border/80 bg-muted/20 p-2.5 text-sm"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="rounded-lg bg-primary/10 p-1.5 shrink-0">
-                          <FileText className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{f.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {Math.round(f.size / 1024)} KB
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] h-5 shrink-0">
-                        uploaded {relativeDay(f.uploadedAt)}
-                      </Badge>
+          <SectionCard
+            title="Submitted documents"
+            icon={FileText}
+            description={`${record.documents.length} document(s) on file`}
+          >
+            {record.documents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No supporting documents are recorded.</p>
+            ) : (
+              <div className="space-y-2">
+                {record.documents.map((document) => (
+                  <div
+                    key={document.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/70 p-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{document.originalFilename}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {document.purpose.replaceAll("_", " ")} ·{" "}
+                        {Math.ceil(document.declaredSizeBytes / 1024)} KB
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </SectionCard>
-          )}
+                    <StatusBadge status={document.status.toLowerCase()} size="sm" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
 
-          {/* Verification history */}
-          {application && application.history.length > 0 && (
-            <SectionCard title="Verification history" icon={Clock}>
-              <ol className="relative border-l border-border ml-2 space-y-4 pl-5">
-                {application.history.map((h, i) => (
-                  <li key={i} className="text-sm">
-                    <span className="absolute -left-[7px] mt-1 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <StatusBadge status={h.status} size="sm" />
+          <SectionCard title="Verification history" icon={Clock}>
+            {record.verificationHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No verification changes are recorded.</p>
+            ) : (
+              <ol className="space-y-4 border-l border-border pl-5">
+                {record.verificationHistory.map((event) => (
+                  <li key={event.id} className="text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={event.toStatus.toLowerCase()} size="sm" />
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(h.at)} · {relativeDay(h.at)}
+                        {formatDate(event.occurredAt)} · {relativeDay(event.occurredAt)}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      By {h.by}
-                      {h.note ? ` · ${h.note}` : ""}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {event.reasonCode.replaceAll("_", " ")}
+                      {event.note ? ` · ${event.note}` : ""}
                     </p>
                   </li>
                 ))}
               </ol>
-            </SectionCard>
-          )}
+            )}
+          </SectionCard>
         </div>
 
-        {/* Right column */}
         <div className="space-y-5">
-          {/* Status hero card */}
           <div
-            className={`rounded-2xl border p-5 shadow-soft text-center ${approved ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}
+            className={`rounded-2xl border p-5 text-center shadow-soft ${approved ? "border-emerald-200 bg-emerald-50/40" : "border-amber-200 bg-amber-50/40"}`}
           >
             <div
-              className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${approved ? "bg-emerald-100" : "bg-amber-100"}`}
+              className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${approved ? "bg-emerald-100" : "bg-amber-100"}`}
             >
               {approved ? (
                 <BadgeCheck className="h-8 w-8 text-emerald-600" />
@@ -249,49 +208,47 @@ export function ProviderVerification() {
               )}
             </div>
             <p className="mt-3 text-base font-bold capitalize">
-              {profile.verificationStatus.replace(/_/g, " ")}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Provider No. {profile.providerNumber}
+              {record.verificationStatus.toLowerCase()}
             </p>
             <Separator className="my-3" />
-            <div className="flex items-center justify-center gap-1.5">
-              <Star className="h-4 w-4 text-amber-500 fill-amber-400" />
-              <p className="text-lg font-bold text-amber-600">{profile.rating.toFixed(1)}</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {profile.reviewCount} review(s)
+            <p className="text-xs text-muted-foreground">
+              Verification decisions are made only by authorized Royal Palace administrators.
             </p>
           </div>
-
           <SectionCard title="Languages" icon={Languages}>
-            {profile.languages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No languages on record.</p>
+            {record.languages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No languages are recorded.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
-                {profile.languages.map((l) => (
-                  <Badge key={l} variant="secondary" className="h-6">
-                    {l}
+                {record.languages.map((language) => (
+                  <Badge key={language} variant="secondary">
+                    {language}
                   </Badge>
                 ))}
               </div>
             )}
           </SectionCard>
-
-          <SectionCard title="Location" icon={Building}>
-            <div className="text-sm space-y-1">
-              <p className="font-semibold">
-                {profile.city}, {profile.state}
+          <SectionCard title="Affiliations" icon={Building}>
+            {record.affiliations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Independent practitioner; no facility affiliation is recorded.
               </p>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                {record.affiliations.map((affiliation) => (
+                  <div key={affiliation.id}>
+                    <p className="text-sm font-semibold">{affiliation.facilityName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {affiliation.roleTitle ?? "Affiliated practitioner"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
-
-          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground leading-relaxed">
-            <p className="font-medium text-foreground mb-1.5">Need to update your details?</p>
-            Verification changes (licence number, qualifications, identity) require re-submission
-            and admin review. Contact{" "}
-            <span className="font-medium text-foreground">verification@royalpalace.health</span> to
-            start the process.
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4 text-xs leading-relaxed text-muted-foreground">
+            Credential changes require new evidence and administrator review. Use the platform
+            support flow to request an update.
           </div>
         </div>
       </div>
@@ -299,34 +256,58 @@ export function ProviderVerification() {
   );
 }
 
+function VerificationBanner({
+  status,
+}: {
+  status: PractitionerVerificationResponse["verificationStatus"];
+}) {
+  if (status === "VERIFIED")
+    return (
+      <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+        <ShieldCheck className="h-4 w-4 text-emerald-600" />
+        <AlertTitle className="text-emerald-800">Verified practitioner</AlertTitle>
+        <AlertDescription className="text-emerald-700">
+          Your professional record is verified and active.
+        </AlertDescription>
+      </Alert>
+    );
+  if (status === "PENDING")
+    return (
+      <Alert className="mb-6 border-amber-200 bg-amber-50">
+        <Clock className="h-4 w-4 text-amber-600" />
+        <AlertTitle className="text-amber-800">Verification under review</AlertTitle>
+        <AlertDescription className="text-amber-700">
+          Royal Palace administrators are reviewing your submitted evidence.
+        </AlertDescription>
+      </Alert>
+    );
+  return (
+    <Alert className="mb-6 border-rose-200 bg-rose-50">
+      <AlertTriangle className="h-4 w-4 text-rose-600" />
+      <AlertTitle className="capitalize text-rose-800">{status.toLowerCase()}</AlertTitle>
+      <AlertDescription className="text-rose-700">
+        Use platform support to follow up on this verification status.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function Field({
   icon: Icon,
   label,
   value,
-  hint,
-  tone,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  hint?: string;
-  tone?: "warn";
 }) {
   return (
     <div>
-      <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase tracking-wider font-medium">
-        <Icon className="h-3 w-3" /> {label}
+      <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3 w-3" />
+        {label}
       </p>
-      <p className={`text-sm font-semibold mt-1 ${tone === "warn" ? "text-amber-700" : ""}`}>
-        {value}
-      </p>
-      {hint && (
-        <p
-          className={`text-[10px] mt-0.5 ${tone === "warn" ? "text-amber-600" : "text-muted-foreground"}`}
-        >
-          {hint}
-        </p>
-      )}
+      <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
   );
 }

@@ -3468,6 +3468,7 @@ model Payment {
   organizationEarning      OrganizationEarning?
 
   @@index([patientId, createdAt(sort: Desc), id(sort: Desc)], map: "payments_patient_created_idx")
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "payments_created_id_idx")
   @@index([purpose, status, payableUntil, id], map: "payments_purpose_payable_idx")
   @@index([providerCode, providerPaymentReference], map: "payments_provider_reference_idx")
   @@index([status, updatedAt, id], map: "payments_reconciliation_idx")

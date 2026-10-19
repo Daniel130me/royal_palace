@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/patient/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPatientPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/provider/appointments": {
         parameters: {
             query?: never;
@@ -345,6 +361,16 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        PatientPayment: components["schemas"]["Payment"] & {
+            /** Format: date-time */
+            createdAt: string;
+            reference: string;
+            refundedAmountMinor: string;
+        };
+        PatientPaymentList: {
+            data: components["schemas"]["PatientPayment"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
         ConsultationFeeInput: {
             amountMinor: string;
             currency: string;
@@ -568,6 +594,29 @@ export interface operations {
             };
         };
     };
+    listPatientPayments: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated patient's bounded payment history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientPaymentList"];
+                };
+            };
+        };
+    };
     listProviderAppointments: {
         parameters: {
             query: {
@@ -576,6 +625,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 dayFrom?: components["parameters"]["DayFrom"];
                 dayTo?: components["parameters"]["DayTo"];
+                patientId?: string;
                 q?: string;
             };
             header?: never;

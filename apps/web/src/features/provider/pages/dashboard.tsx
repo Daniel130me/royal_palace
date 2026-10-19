@@ -4,15 +4,18 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNav, navigate } from "@/lib/nav";
 import { useProviderContext } from "../use-provider-context";
 import {
-  appointmentService,
   encounterService,
-  referralService,
-  settlementService,
+  productionClinicalService,
   productionLaboratoryService,
+  schedulingPaymentService,
+  type ProviderClinicalReferral,
 } from "@/lib/services";
-import { normalizeEncounter, normalizeReferral } from "../normalize";
-import type { Appointment, ClinicalEncounter, Referral, Settlement } from "@/types";
-import type { LaboratoryResultResponse } from "@royal-palace/contracts";
+import { normalizeEncounter } from "../normalize";
+import type { ClinicalEncounter } from "@/types";
+import type {
+  LaboratoryResultResponse,
+  ProviderAppointmentResponse,
+} from "@royal-palace/contracts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,14 +29,7 @@ import {
   ErrorState,
 } from "@/components/healthcare/page-header";
 import { StatTile, CompactListItem } from "@/components/healthcare/compact-list";
-import {
-  formatCurrency,
-  formatDate,
-  relativeDay,
-  formatTime,
-  fullName,
-  initials,
-} from "@/lib/format";
+import { formatDate, relativeDay, formatTime, fullName, initials } from "@/lib/format";
 import { toast } from "sonner";
 import {
   CalendarDays,
@@ -41,7 +37,6 @@ import {
   FileText,
   FlaskConical,
   Share2,
-  Wallet,
   Stethoscope,
   AlertTriangle,
   ArrowRight,
@@ -65,27 +60,31 @@ function daysUntil(dateStr: string): number {
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 }
 
-export function intakeReason(a: Appointment): string {
-  const intake = a.intakeForm as unknown;
-  if (intake && typeof intake === "object") {
-    const r = (intake as Record<string, unknown>).reason;
-    if (typeof r === "string" && r) return r;
-  }
-  if (typeof intake === "string") {
-    try {
-      const parsed = JSON.parse(intake) as Record<string, unknown>;
-      if (typeof parsed.reason === "string") return parsed.reason;
-    } catch {
-      /* ignore */
-    }
-  }
-  return "—";
+function dashboardAppointmentRange() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 31);
+  return { dayFrom: start.toISOString(), dayTo: end.toISOString() };
+}
+
+function isSameLocalDay(value: string, reference: Date): boolean {
+  const date = new Date(value);
+  return (
+    date.getFullYear() === reference.getFullYear() &&
+    date.getMonth() === reference.getMonth() &&
+    date.getDate() === reference.getDate()
+  );
+}
+
+export function intakeReason(appointment: ProviderAppointmentResponse): string {
+  return appointment.intake?.reason ?? appointment.intake?.symptoms ?? "Reason not provided";
 }
 
 export function channelIcon(channel: string) {
-  if (channel === "video") return Video;
-  if (channel === "audio") return Phone;
-  if (channel === "chat") return MessageSquare;
+  if (channel === "VIDEO") return Video;
+  if (channel === "AUDIO") return Phone;
+  if (channel === "CHAT") return MessageSquare;
   return User;
 }
 
@@ -119,11 +118,10 @@ const QUICK_ACTIONS = [
 export function ProviderDashboard() {
   const { sessionName } = useNav();
   const { profile, providerId, loading: profileLoading } = useProviderContext();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<ProviderAppointmentResponse[]>([]);
   const [encounters, setEncounters] = useState<ClinicalEncounter[]>([]);
   const [labResults, setLabResults] = useState<readonly LaboratoryResultResponse[]>([]);
-  const [referrals, setReferrals] = useState<Referral[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [referrals, setReferrals] = useState<ProviderClinicalReferral[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
@@ -133,18 +131,22 @@ export function ProviderDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [appts, encs, resultPage, refs, stls] = await Promise.all([
-        appointmentService.list({ providerId }),
+      const range = dashboardAppointmentRange();
+      const [appointmentPage, encs, resultPage, referralPage] = await Promise.all([
+        schedulingPaymentService.providerAppointments({
+          dayFrom: range.dayFrom,
+          dayTo: range.dayTo,
+          limit: 50,
+          scope: "ALL",
+        }),
         encounterService.listProvider(),
         productionLaboratoryService.provider.results(undefined, 50),
-        referralService.list({ recipientProviderId: providerId }),
-        settlementService.list({ entityType: "provider", entityId: providerId }),
+        productionClinicalService.provider.listReferrals("RECEIVED", undefined, 50),
       ]);
-      setAppointments(appts);
+      setAppointments([...appointmentPage.data]);
       setEncounters(encs.map(normalizeEncounter));
       setLabResults(resultPage.data);
-      setReferrals(refs.map(normalizeReferral));
-      setSettlements(stls);
+      setReferrals([...referralPage.data]);
     } catch (e) {
       setError((e as Error).message ?? "Failed to load dashboard.");
     } finally {
@@ -156,18 +158,25 @@ export function ProviderDashboard() {
     load();
   }, [load]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
 
   const todaysAppointments = useMemo(
-    () => appointments.filter((a) => a.date === today).sort((a, b) => a.time.localeCompare(b.time)),
-    [appointments, today],
+    () =>
+      appointments
+        .filter((appointment) => isSameLocalDay(appointment.startsAt, now))
+        .sort((left, right) => left.startsAt.localeCompare(right.startsAt)),
+    [appointments, now],
   );
 
-  const waitingPatients = useMemo(
-    () =>
-      appointments.filter((a) => a.status === "waiting_for_provider" || a.status === "checked_in"),
-    [appointments],
-  );
+  const readyAppointments = useMemo(() => {
+    const currentTime = now.getTime();
+    return appointments.filter(
+      (appointment) =>
+        appointment.status === "CONFIRMED" &&
+        Date.parse(appointment.startsAt) <= currentTime &&
+        Date.parse(appointment.endsAt) >= currentTime,
+    );
+  }, [appointments, now]);
 
   const pendingDocumentation = useMemo(
     () => encounters.filter((e) => e.status === "open"),
@@ -185,39 +194,29 @@ export function ProviderDashboard() {
   );
 
   const openReferrals = useMemo(
-    () =>
-      referrals.filter((r) => ["sent", "received", "requires_clarification"].includes(r.status)),
+    () => referrals.filter((referral) => referral.status === "ACTIVE"),
     [referrals],
   );
 
   const followUps = useMemo(
     () =>
       appointments
-        .filter((a) => a.status === "scheduled" && a.date > today)
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .filter(
+          (appointment) =>
+            appointment.status === "CONFIRMED" && Date.parse(appointment.startsAt) > now.getTime(),
+        )
+        .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
         .slice(0, 3),
-    [appointments, today],
-  );
-
-  const todayEarnings = useMemo(() => {
-    const todaysCompleted = appointments.filter(
-      (a) => a.date === today && a.status === "completed" && a.paymentStatus === "paid",
-    );
-    return todaysCompleted.reduce((sum, a) => sum + Math.round(a.price * 0.73), 0);
-  }, [appointments, today]);
-
-  const settlementTotal = useMemo(
-    () => settlements.reduce((s, x) => s + (x.status === "paid" ? x.netAmount : 0), 0),
-    [settlements],
+    [appointments, now],
   );
 
   const licenceDays = profile ? daysUntil(profile.licenceExpiry) : null;
 
-  async function startConsultation(appt: Appointment) {
+  async function startConsultation(appointmentId: string) {
     if (!providerId) return;
-    setStartingId(appt.id);
+    setStartingId(appointmentId);
     try {
-      const enc = await encounterService.start(appt.id, providerId);
+      const enc = await encounterService.start(appointmentId, providerId);
       toast.success("Clinical encounter started.");
       navigate("provider", "encounter", { id: enc.id });
     } catch (e) {
@@ -244,17 +243,17 @@ export function ProviderDashboard() {
   // Hero: first appointment today with a "Start" path, OR fallback CTA
   const heroAppt = todaysAppointments[0];
   const actionNeeded = [
-    ...waitingPatients.slice(0, 2).map((a) => ({
-      id: a.id,
+    ...readyAppointments.slice(0, 2).map((appointment) => ({
+      id: appointment.id,
       icon: (
         <div className="rounded-lg bg-amber-50 p-2 ring-1 ring-amber-100">
           <Users className="h-4 w-4 text-amber-600" />
         </div>
       ),
-      title: `${a.patient ? fullName(a.patient) : "Patient"} is waiting`,
-      subtitle: `${formatTime(a.time)} · ${intakeReason(a)}`,
-      badge: <StatusBadge status={a.status} size="sm" />,
-      onClick: () => startConsultation(a),
+      title: `${appointment.patient.displayName} is ready`,
+      subtitle: `${formatTime(appointment.startsAt)} · ${intakeReason(appointment)}`,
+      badge: <StatusBadge status={appointment.status.toLowerCase()} size="sm" />,
+      onClick: () => startConsultation(appointment.id),
     })),
     ...pendingDocumentation.slice(0, 2).map((e) => ({
       id: e.id,
@@ -303,11 +302,10 @@ export function ProviderDashboard() {
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground leading-tight">Welcome back,</p>
           <h1 className="text-2xl font-bold tracking-tight leading-tight truncate">
-            {profile.title} {firstName} 👋
+            {profile.title ? `${profile.title} ` : ""}
+            {firstName} 👋
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            {profile.specialty} · {profile.city}, {profile.state}
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{profile.specialty}</p>
         </div>
         {profile.verificationStatus === "approved" ? (
           <button
@@ -344,7 +342,7 @@ export function ProviderDashboard() {
               Licence expires {relativeDay(profile.licenceExpiry)}
             </p>
             <p className="text-xs text-amber-700 truncate">
-              MDCN {profile.licenceNumber} · initiate revalidation to avoid suspension.
+              Credential {profile.licenceNumber} · initiate revalidation to avoid suspension.
             </p>
           </div>
           <ChevronRight className="h-4 w-4 text-amber-600 shrink-0" />
@@ -354,53 +352,53 @@ export function ProviderDashboard() {
       {/* Hero: next appointment today with Start CTA (or empty CTA) */}
       {heroAppt ? (
         (() => {
-          const ChannelIcon = channelIcon(heroAppt.consultationChannel);
+          const ChannelIcon = channelIcon(heroAppt.mode);
+          const activeEncounter = encounters.find(
+            (encounter) => encounter.appointmentId === heroAppt.id && encounter.status === "open",
+          );
           return (
             <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-soft">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-                  Next consultation · {relativeDay(heroAppt.date)}
+                  Next consultation · {relativeDay(heroAppt.startsAt)}
                 </span>
-                <StatusBadge status={heroAppt.status} size="sm" />
+                <StatusBadge status={heroAppt.status.toLowerCase()} size="sm" />
               </div>
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                    {heroAppt.patient ? initials(fullName(heroAppt.patient)) : "?"}
+                    {initials(heroAppt.patient.displayName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-sm truncate">
-                    {formatTime(heroAppt.time)} ·{" "}
-                    {heroAppt.patient ? fullName(heroAppt.patient) : "Patient"}
+                    {formatTime(heroAppt.startsAt)} · {heroAppt.patient.displayName}
                   </p>
                   <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                     <ChannelIcon className="h-3 w-3 shrink-0" />
                     <span className="truncate">
-                      {intakeReason(heroAppt)} · {heroAppt.consultationChannel.replace(/_/g, " ")}
+                      {intakeReason(heroAppt)} · {heroAppt.mode.replace(/_/g, " ").toLowerCase()}
                     </span>
                   </p>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
-                {["scheduled", "checked_in", "waiting_for_provider"].includes(heroAppt.status) && (
+                {heroAppt.status === "CONFIRMED" && activeEncounter === undefined && (
                   <Button
                     size="sm"
                     className="flex-1"
                     disabled={startingId === heroAppt.id}
-                    onClick={() => startConsultation(heroAppt)}
+                    onClick={() => startConsultation(heroAppt.id)}
                   >
                     <PlayCircle className="h-4 w-4 mr-1" />{" "}
                     {startingId === heroAppt.id ? "Starting…" : "Start consultation"}
                   </Button>
                 )}
-                {heroAppt.status === "in_progress" && heroAppt.encounter && (
+                {activeEncounter !== undefined && (
                   <Button
                     size="sm"
                     className="flex-1"
-                    onClick={() =>
-                      navigate("provider", "encounter", { id: heroAppt.encounter!.id })
-                    }
+                    onClick={() => navigate("provider", "encounter", { id: activeEncounter.id })}
                   >
                     <Stethoscope className="h-4 w-4 mr-1" /> Continue documentation
                   </Button>
@@ -487,10 +485,10 @@ export function ProviderDashboard() {
         />
       </div>
 
-      {/* MiniMetrics — earnings summary */}
+      {/* Commercial amounts remain hidden until the provider policy is approved and configured. */}
       <div className="grid grid-cols-3 gap-2.5">
-        <MiniMetric label="Today's earnings" value={formatCurrency(todayEarnings)} tone="success" />
-        <MiniMetric label="Settled total" value={formatCurrency(settlementTotal)} tone="info" />
+        <MiniMetric label="Today's earnings" value="Not configured" tone="default" />
+        <MiniMetric label="Settlements" value="Not configured" tone="default" />
         <MiniMetric label="Follow-ups" value={followUps.length} tone="default" />
       </div>
 
@@ -540,9 +538,9 @@ export function ProviderDashboard() {
                       <Clock className="h-4 w-4 text-primary" />
                     </div>
                   }
-                  title={a.patient ? fullName(a.patient) : "Patient"}
-                  subtitle={`${relativeDay(a.date)} · ${formatTime(a.time)}`}
-                  trailing={<StatusBadge status={a.status} size="sm" />}
+                  title={a.patient.displayName}
+                  subtitle={`${relativeDay(a.startsAt)} · ${formatTime(a.startsAt)}`}
+                  trailing={<StatusBadge status={a.status.toLowerCase()} size="sm" />}
                   onClick={() => navigate("provider", "appointment", { id: a.id })}
                   chevron
                 />
@@ -579,8 +577,8 @@ export function ProviderDashboard() {
                     </div>
                   }
                   title={r.reason}
-                  subtitle={`From ${r.sender ? `${r.sender.title} ${r.sender.lastName}` : "Provider"} · ${r.patient ? fullName(r.patient) : ""}`}
-                  trailing={<StatusBadge status={r.status} size="sm" />}
+                  subtitle={`From ${r.sender.displayName} · ${r.patient.displayName}`}
+                  trailing={<StatusBadge status={r.status.toLowerCase()} size="sm" />}
                   onClick={() => navigate("provider", "referrals")}
                   chevron
                 />

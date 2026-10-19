@@ -5,8 +5,18 @@ import { PageHeader } from "@/components/healthcare/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Stethoscope, Smile, FlaskConical, Pill, HeartPulse, ShieldPlus,
-  Home, ArrowRight, Phone, Video, FileText, Sparkles,
+  Stethoscope,
+  Smile,
+  FlaskConical,
+  Pill,
+  HeartPulse,
+  ShieldPlus,
+  Home,
+  ArrowRight,
+  Phone,
+  Video,
+  FileText,
+  Sparkles,
   Building2,
 } from "lucide-react";
 
@@ -42,7 +52,8 @@ const CATEGORIES: Category[] = [
   {
     id: "dental-care",
     title: "Dental Care",
-    description: "Dental consultations, scaling, fillings and oral health check-ups from trusted dentists.",
+    description:
+      "Dental consultations, scaling, fillings and oral health check-ups from trusted dentists.",
     icon: Smile,
     tone: "bg-sky-50 text-sky-700 ring-sky-100",
     bullets: ["Dental consultations", "Scaling & polishing", "From ₦20,000"],
@@ -95,7 +106,12 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-const QUICK_LINKS: { icon: React.ComponentType<{ className?: string }>; label: string; sub: string; page: string }[] = [
+const QUICK_LINKS: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  sub: string;
+  page: string;
+}[] = [
   { icon: Video, label: "Video consult", sub: "See a doctor now", page: "doctors" },
   { icon: Phone, label: "Audio call", sub: "Talk on the phone", page: "doctors" },
   { icon: Pill, label: "Refill medicine", sub: "From your prescription", page: "prescriptions" },
@@ -132,7 +148,9 @@ export function PatientServices() {
 
       {/* Service categories */}
       <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">All services</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          All services
+        </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
@@ -143,7 +161,9 @@ export function PatientServices() {
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="mt-3 font-semibold tracking-tight">{cat.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{cat.description}</p>
+                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                    {cat.description}
+                  </p>
                   <ul className="mt-3 space-y-1.5">
                     {cat.bullets.map((b) => (
                       <li key={b} className="flex items-center gap-2 text-xs text-muted-foreground">

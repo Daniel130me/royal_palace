@@ -247,6 +247,17 @@ export class ProviderClinicalEncounterController {
     );
   }
 
+  @Get("patients/:patientId")
+  @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
+  getPatient(@Param("patientId") patientId: string, @Req() request: AuthenticatedInternalRequest) {
+    return execute(() =>
+      this.encounters.getPatientForPractitioner(
+        requestContext(request),
+        parse(idSchema, patientId),
+      ),
+    );
+  }
+
   @Get("referrals")
   @PolicyProtected(AUTHORIZATION_POLICY.ACCESS_CLINICAL_RECORD)
   listReferrals(@Query() query: unknown, @Req() request: AuthenticatedInternalRequest) {

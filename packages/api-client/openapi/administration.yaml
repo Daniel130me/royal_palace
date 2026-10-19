@@ -15,6 +15,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Dashboard" }
+  /api/admin/reports/operations:
+    get:
+      operationId: getAdminOperationalReport
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Privacy-minimized bounded operational report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationalReport" }
   /api/admin/complaints:
     get:
       operationId: listAdminComplaints
@@ -525,6 +537,59 @@ components:
         paymentVolume: { type: array, items: { $ref: "#/components/schemas/MoneyTotal" } }
         recentAuditEvents: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
         recentComplaints: { type: array, items: { $ref: "#/components/schemas/Complaint" } }
+    ReportAppointmentBucket:
+      type: object
+      additionalProperties: false
+      required: [count, periodStart, status]
+      properties:
+        count: { type: integer, minimum: 0 }
+        periodStart: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/AppointmentStatus" }
+    ReportPaymentBucket:
+      type: object
+      additionalProperties: false
+      required:
+        [currency, grossAmountMinor, netAmountMinor, paymentCount, periodStart, refundedAmountMinor]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        grossAmountMinor: { type: string, pattern: "^[0-9]+$" }
+        netAmountMinor: { type: string, pattern: "^[0-9]+$" }
+        paymentCount: { type: integer, minimum: 0 }
+        periodStart: { type: string, format: date-time }
+        refundedAmountMinor: { type: string, pattern: "^[0-9]+$" }
+    ReportTopPractitioner:
+      type: object
+      additionalProperties: false
+      required: [appointmentCount, displayName, id, paymentTotals, primarySpecialty]
+      properties:
+        appointmentCount: { type: integer, minimum: 0 }
+        displayName: { type: string }
+        id: { type: string, format: uuid }
+        paymentTotals: { type: array, items: { $ref: "#/components/schemas/MoneyTotal" } }
+        primarySpecialty: { type: [string, "null"] }
+    ReportOrganizationFinanceTotal:
+      type: object
+      additionalProperties: false
+      required: [currency, grossAmountMinor, organizationType, payableAmountMinor]
+      properties:
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        grossAmountMinor: { type: string, pattern: "^[0-9]+$" }
+        organizationType: { type: string, enum: [HOSPITAL, PHARMACY, LABORATORY, LOGISTICS] }
+        payableAmountMinor: { type: string, pattern: "^[0-9]+$" }
+    OperationalReport:
+      type: object
+      additionalProperties: false
+      required: [appointments, from, organizationFinance, payments, to, topPractitioners]
+      properties:
+        appointments:
+          { type: array, items: { $ref: "#/components/schemas/ReportAppointmentBucket" } }
+        from: { type: string, format: date-time }
+        organizationFinance:
+          { type: array, items: { $ref: "#/components/schemas/ReportOrganizationFinanceTotal" } }
+        payments: { type: array, items: { $ref: "#/components/schemas/ReportPaymentBucket" } }
+        to: { type: string, format: date-time }
+        topPractitioners:
+          { type: array, items: { $ref: "#/components/schemas/ReportTopPractitioner" } }
     PractitionerVerificationStatus:
       type: string
       enum: [PENDING, VERIFIED, SUSPENDED, REVOKED]

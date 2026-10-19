@@ -6,6 +6,7 @@ import type {
   PaymentReconciliationResponse,
   PaymentStatus,
   PaymentStatusResponse,
+  PatientPaymentResponse,
   PractitionerAvailabilityResponse,
   ProviderAppointmentResponse,
   PublicConsultationMode,
@@ -21,18 +22,24 @@ export interface AppointmentListCursor {
   startsAt: Date;
 }
 
+export interface PaymentListCursor {
+  createdAt: Date;
+  id: string;
+}
+
 export interface AppointmentListQuery {
   cursor?: AppointmentListCursor;
   dayFrom?: Date;
   dayTo?: Date;
   limit: number;
   principalId: string;
+  patientId?: string;
   query?: string;
   scope: AppointmentListScope;
 }
 
-export interface AppointmentListResult<T> {
-  cursor: AppointmentListCursor | null;
+export interface AppointmentListResult<T, TCursor = AppointmentListCursor> {
+  cursor: TCursor | null;
   data: readonly T[];
 }
 
@@ -154,6 +161,11 @@ export interface SchedulingPaymentRepository {
   listProviderAppointments(
     input: AppointmentListQuery,
   ): Promise<AppointmentListResult<ProviderAppointmentResponse>>;
+  listPatientPayments(input: {
+    cursor?: PaymentListCursor;
+    limit: number;
+    principalId: string;
+  }): Promise<AppointmentListResult<PatientPaymentResponse, PaymentListCursor>>;
   findProviderAppointment(input: {
     appointmentId: string;
     principalId: string;

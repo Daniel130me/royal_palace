@@ -8,10 +8,8 @@ import {
   notificationSummary,
 } from "@/features/shared/notification-summary";
 import { useNav } from "@/lib/nav";
-import { productionNotificationService, providerService } from "@/lib/services";
+import { productionAccountProfileService, productionNotificationService } from "@/lib/services";
 import type { Provider } from "@/types";
-
-import { normalizeProvider } from "./normalize";
 
 interface ProviderContextValue {
   loading: boolean;
@@ -57,14 +55,50 @@ export function ProviderContextProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
     setLoading(true);
     try {
-      const [provider] = await Promise.all([providerService.get(profileId), loadNotifications()]);
-      setProfile(normalizeProvider(provider));
+      const [settings, verification] = await Promise.all([
+        productionAccountProfileService.practitioner.get(),
+        productionAccountProfileService.practitioner.verification(),
+        loadNotifications(),
+      ]);
+      const primaryCredential = verification.credentials[0];
+      setProfile({
+        id: settings.id,
+        userId: session?.userId ?? "",
+        providerNumber: settings.id,
+        firstName: settings.displayName,
+        lastName: "",
+        title: "",
+        specialty:
+          settings.primarySpecialty ?? verification.primarySpecialty ?? "Specialty not listed",
+        professionalTitle: verification.primaryProfession ?? "Healthcare practitioner",
+        qualifications: verification.credentials.map((credential) => credential.credentialType),
+        yearsExperience: verification.yearsExperience ?? 0,
+        biography: settings.biography ?? "",
+        languages: [...settings.languageTags],
+        registrationNumber: primaryCredential?.registrationNumber ?? "",
+        licenceNumber: primaryCredential?.registrationNumber ?? "",
+        licenceExpiry: primaryCredential?.expiresAt ?? "",
+        verificationStatus:
+          verification.verificationStatus === "VERIFIED"
+            ? "approved"
+            : verification.verificationStatus === "PENDING"
+              ? "under_review"
+              : verification.verificationStatus === "SUSPENDED"
+                ? "suspended"
+                : "rejected",
+        consultationModes: [],
+        city: "",
+        state: "",
+        rating: 0,
+        reviewCount: 0,
+        consultationFee: 0,
+      });
     } catch {
       setProfile(null);
     } finally {
       setLoading(false);
     }
-  }, [loadNotifications, profileId]);
+  }, [loadNotifications, profileId, session?.userId]);
 
   useEffect(() => void refresh(), [refresh]);
   useEffect(() => {
