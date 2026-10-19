@@ -91,7 +91,27 @@ Approve:
 
 These settings must be versioned and audited. They cannot be treated as browser-local preferences.
 
-## 7. Production qualification and stakeholder acceptance
+## 7. Practitioner availability and booking-mode policy
+
+Unblocks: production persistence for the signed weekly practitioner availability screen.
+
+Approve:
+
+- whether one available time may offer multiple consultation modes, with the patient selecting the
+  mode and its active fee during booking (recommended), or whether each time belongs to one mode;
+- the supported slot durations, minimum booking notice, publication horizon, cancellation cutoff,
+  buffer time, and maximum appointments per day;
+- whether recurring hours follow the practitioner's IANA time zone when daylight-saving rules
+  change, and how ambiguous or skipped local times are handled;
+- who may create exceptions, block time, or override a schedule after an appointment is booked.
+
+The current browser-only weekly matrix is retained for prototype review but is not production
+authority. The existing one-off slot API remains secure; a versioned recurrence/exception aggregate
+will replace the matrix after these booking semantics are approved. The recommended model is one
+time slot with multiple allowed modes, followed by an atomic fee snapshot for the patient's chosen
+mode at booking.
+
+## 8. Production qualification and stakeholder acceptance
 
 Unblocks: persona-switcher acceptance, protected staging with real users, and Increment 12 launch.
 

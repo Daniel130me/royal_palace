@@ -76,7 +76,8 @@ owner-derived, role-authorized, bounded projections.
   are data-driven. No country or currency default was added.
 - Flagged non-standard implementation: the signed weekly practitioner availability screen still
   stores a browser-only matrix even though its route is marked connected. It must be replaced by
-  a versioned recurrence/exception aggregate; this is tracked as remaining work and is not treated
+  a versioned recurrence/exception aggregate after the booking-mode policy in
+  `MATERIAL_DECISIONS_HANDOFF.md` is approved; this is tracked as remaining work and is not treated
   as production-ready evidence.
 
 ## Remaining gates
