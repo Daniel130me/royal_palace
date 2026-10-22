@@ -8,10 +8,13 @@ import {
   requestId,
   setLoginTransactionCookie,
 } from "@/lib/auth/bff";
+import { resolveLoginReturnPath } from "@/lib/auth/return-path";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const returnTo = request.nextUrl.searchParams.get("returnTo") ?? "/";
+    const returnTo = resolveLoginReturnPath(
+      request.nextUrl.searchParams.get("returnTo") ?? "/",
+    );
     const requestedAssurance = request.nextUrl.searchParams.get("assurance") ?? undefined;
     const reauthenticate = requestedAssurance !== undefined;
     const reauthenticateSessionId = reauthenticate ? readSessionId(request) : undefined;

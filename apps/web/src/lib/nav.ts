@@ -11,6 +11,7 @@ import type { Session, UserRole } from "@/types";
 
 export interface ViewState {
   portal:
+    | "account"
     | "public"
     | "patient"
     | "provider"
@@ -64,7 +65,11 @@ function hashFromView(view: ViewState): string {
   return `#/${view.portal}/${view.page}${query.length > 0 ? `?${query}` : ""}`;
 }
 
-function authorizedView(session: Session | null, requested: ViewState): ViewState {
+export function authorizedView(session: Session | null, requested: ViewState): ViewState {
+  if (requested.portal === "account") {
+    if (session === null) return { page: "login", params: {}, portal: "login" };
+    return { page: "dashboard", params: {}, portal: rolePortal(session.role) };
+  }
   if (requested.portal === "public" || requested.portal === "login") return requested;
   if (session === null) return { page: "login", params: {}, portal: "login" };
   const portal = rolePortal(session.role);

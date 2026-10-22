@@ -12,8 +12,19 @@ import {
   setAuthenticatedCookies,
   trustedCallbackUrl,
 } from "../../src/lib/auth/bff.js";
+import {
+  AUTHENTICATED_LANDING_PATH,
+  resolveLoginReturnPath,
+} from "../../src/lib/auth/return-path.js";
 
 describe("BFF authentication boundary", () => {
+  it("uses a role-neutral authenticated landing path for ordinary sign-in", () => {
+    expect(resolveLoginReturnPath("/")).toBe(AUTHENTICATED_LANDING_PATH);
+    expect(resolveLoginReturnPath("/#/login/organization-signup?referral=opaque")).toBe(
+      "/#/login/organization-signup?referral=opaque",
+    );
+  });
+
   it("reconstructs OIDC callbacks from the configured origin instead of the request host", () => {
     const request = new NextRequest(
       "http://untrusted-proxy.invalid/api/bff/auth/callback?code=opaque&state=state",

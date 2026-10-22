@@ -28,10 +28,13 @@ export class OpenIdClientAdapter implements OidcProvider {
       response_type: "code",
       scope: this.config.identity.scopes.join(" "),
       state: request.state,
+      // A user-initiated sign-in must not silently reuse an old provider
+      // session. Reauthentication gives privileged roles a fresh auth_time and
+      // lets local reviewers deliberately choose the account they are testing.
+      prompt: "login",
     };
     if (request.requestedAssurance !== undefined) {
       parameters.acr_values = this.providerAssuranceContext(request.requestedAssurance);
-      parameters.prompt = "login";
     }
     return client.buildAuthorizationUrl(configuration, parameters);
   }

@@ -34,6 +34,8 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
       state,
     });
 
+    expect(authorizationUrl.searchParams.get("prompt")).toBe("login");
+
     const authentication = await adapter.completeAuthorization({
       currentUrl: await completeSyntheticInteraction(authorizationUrl, UNVERIFIED_SUBJECT),
       expectedNonce: nonce,
