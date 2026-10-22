@@ -111,7 +111,20 @@ export class OpenIdClientAdapter implements OidcProvider {
   }
 
   private configuration(): Promise<client.Configuration> {
-    this.configurationPromise ??= this.discover();
+    if (this.configurationPromise === undefined) {
+      const discovery = this.discover();
+      this.configurationPromise = discovery;
+
+      // Cache a successful discovery, but never make a transient provider outage
+      // permanent for the lifetime of this API process. The identity provider is
+      // still contacted only once during healthy operation; a failed attempt is
+      // retried by the next authentication request.
+      void discovery.catch(() => {
+        if (this.configurationPromise === discovery) {
+          this.configurationPromise = undefined;
+        }
+      });
+    }
     return this.configurationPromise;
   }
 

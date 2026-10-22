@@ -20,35 +20,7 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
   beforeAll(async () => {
     const port = await reserveLoopbackPort();
     issuer = `http://127.0.0.1:${port}`;
-    const configuration: Configuration = {
-      claims: { email: ["email", "email_verified"] },
-      clients: [
-        {
-          client_id: testConfig.identity.clientId,
-          grant_types: ["authorization_code"],
-          redirect_uris: [REDIRECT_URI],
-          response_types: ["code"],
-          token_endpoint_auth_method: "none",
-        },
-      ],
-      findAccount: (_context, subject) =>
-        Promise.resolve({
-          accountId: subject,
-          claims: () =>
-            Promise.resolve({
-              email: "verified-user@example.test",
-              email_verified: subject !== UNVERIFIED_SUBJECT,
-              sub: subject,
-            }),
-        }),
-      pkce: { required: () => true },
-    };
-    const provider = new Provider(issuer, configuration);
-    providerServer = createServer(provider.callback());
-    await new Promise<void>((resolve, reject) => {
-      providerServer.once("error", reject);
-      providerServer.listen(port, "127.0.0.1", resolve);
-    });
+    providerServer = await startTestProvider(port, issuer);
   });
 
   it("does not trust an email without an affirmative verification claim", async () => {
@@ -76,9 +48,7 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve, reject) => {
-      providerServer.close((error) => (error === undefined ? resolve() : reject(error)));
-    });
+    await closeServer(providerServer);
   });
 
   it("completes Authorization Code with PKCE, state, nonce, and signed claim validation", async () => {
@@ -107,7 +77,78 @@ describe("OpenIdClientAdapter OIDC conformance boundary", () => {
     });
     expect(authentication.idToken).toEqual(expect.any(String));
   });
+
+  it("retries discovery after a transient identity-provider outage", async () => {
+    const port = await reserveLoopbackPort();
+    const retryIssuer = `http://127.0.0.1:${port}`;
+    const adapter = new OpenIdClientAdapter(identityConfig(retryIssuer));
+
+    await expect(adapter.buildAuthorizationUrl(await authorizationRequest())).rejects.toThrow();
+
+    const retryServer = await startTestProvider(port, retryIssuer);
+    try {
+      const authorizationUrl = await adapter.buildAuthorizationUrl(await authorizationRequest());
+      expect(authorizationUrl.origin).toBe(retryIssuer);
+      expect(authorizationUrl.pathname).toBe("/auth");
+    } finally {
+      await closeServer(retryServer);
+    }
+  });
 });
+
+function testProviderConfiguration(): Configuration {
+  return {
+    claims: { email: ["email", "email_verified"] },
+    clients: [
+      {
+        client_id: testConfig.identity.clientId,
+        grant_types: ["authorization_code"],
+        redirect_uris: [REDIRECT_URI],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      },
+    ],
+    findAccount: (_context, subject) =>
+      Promise.resolve({
+        accountId: subject,
+        claims: () =>
+          Promise.resolve({
+            email: "verified-user@example.test",
+            email_verified: subject !== UNVERIFIED_SUBJECT,
+            sub: subject,
+          }),
+      }),
+    pkce: { required: () => true },
+  };
+}
+
+async function startTestProvider(port: number, providerIssuer: string): Promise<Server> {
+  const provider = new Provider(providerIssuer, testProviderConfiguration());
+  const server = createServer(provider.callback());
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+  return server;
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    server.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
+}
+
+async function authorizationRequest(): Promise<{
+  codeChallenge: string;
+  nonce: string;
+  state: string;
+}> {
+  return {
+    codeChallenge: await client.calculatePKCECodeChallenge(client.randomPKCECodeVerifier()),
+    nonce: client.randomNonce(),
+    state: client.randomState(),
+  };
+}
 
 function identityConfig(providerIssuer: string): ApiServiceConfig {
   return {
