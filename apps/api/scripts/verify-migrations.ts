@@ -471,6 +471,24 @@ async function verifyDatabaseInvariants(databaseUrl: string): Promise<void> {
         v7(),
       ],
     );
+    await client.query(
+      'INSERT INTO "audit_events" ("id", "actor_principal_id", "action", "resource_type", "resource_id", "result", "request_id") VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [
+        v7(),
+        principalId,
+        "authorization.decide_application",
+        "onboarding_application_queue",
+        "application-review-queue",
+        "SUCCEEDED",
+        v7(),
+      ],
+    );
+    await expectSqlState(
+      client,
+      'INSERT INTO "audit_events" ("id", "actor_principal_id", "action", "resource_type", "resource_id", "result", "request_id") VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [v7(), principalId, "verification.read", "organization", " ", "SUCCEEDED", v7()],
+      "23514",
+    );
     await expectSqlState(
       client,
       'UPDATE "audit_events" SET "action" = $1 WHERE "id" = $2',

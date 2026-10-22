@@ -1710,7 +1710,7 @@ model AuditEvent {
   effectiveRole    PlatformRole?      @map("effective_role")
   action           String             @db.VarChar(160)
   resourceType     String             @map("resource_type") @db.VarChar(100)
-  resourceId       String             @map("resource_id") @db.Uuid
+  resourceId       String             @map("resource_id") @db.VarChar(200)
   organizationId   String?            @map("organization_id") @db.Uuid
   patientScopeId   String?            @map("patient_scope_id") @db.Uuid
   result           AuditResult
